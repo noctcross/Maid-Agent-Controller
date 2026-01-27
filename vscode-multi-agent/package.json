@@ -1,0 +1,40 @@
+{
+  "name": "multi-agent-controller",
+  "displayName": "Multi Agent Controller",
+  "description": "VSCode extension for multi-agent Claude Code orchestration",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "multiAgent.startAgents",
+        "title": "Multi Agent: Start Agents (Shogun + Karo)"
+      },
+      {
+        "command": "multiAgent.sendToKaro",
+        "title": "Multi Agent: Send Command to Karo"
+      },
+      {
+        "command": "multiAgent.showDashboard",
+        "title": "Multi Agent: Show Dashboard"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}

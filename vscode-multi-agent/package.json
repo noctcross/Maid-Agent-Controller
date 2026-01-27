@@ -69,7 +69,25 @@
         "command": "multiAgent.stopWatchFiles",
         "title": "Maid Agent: Stop Watching Files"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "maidAgentContainer",
+          "title": "Maid Agent",
+          "icon": "$(heart)"
+        }
+      ]
+    },
+    "views": {
+      "maidAgentContainer": [
+        {
+          "type": "webview",
+          "id": "maidAgent.agentPanel",
+          "name": "Current Agent"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

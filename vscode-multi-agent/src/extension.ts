@@ -37,6 +37,175 @@ const MAIDS: MaidConfig[] = [
     { name: 'ルナ', id: 'luna', emoji: '🎀' },
 ];
 
+// エージェントごとの色設定（画像の代わりにカラーで識別）
+const AGENT_COLORS: { [key: string]: { bg: string; accent: string } } = {
+    butler: { bg: '#1a1a2e', accent: '#ffd700' },      // 金（執事）
+    chief: { bg: '#1a1a2e', accent: '#e94560' },       // ピンク（メイド長）
+    emma: { bg: '#1a1a2e', accent: '#ff6b6b' },        // 赤
+    sophia: { bg: '#1a1a2e', accent: '#4ecdc4' },      // ティール
+    lily: { bg: '#1a1a2e', accent: '#95e1d3' },        // ミント
+    rose: { bg: '#1a1a2e', accent: '#f38181' },        // ローズ
+    alice: { bg: '#1a1a2e', accent: '#aa96da' },       // ラベンダー
+    may: { bg: '#1a1a2e', accent: '#fcbad3' },         // ベビーピンク
+    flora: { bg: '#1a1a2e', accent: '#a8d8ea' },       // スカイブルー
+    luna: { bg: '#1a1a2e', accent: '#c3aed6' },        // パープル
+};
+
+// =============================================================================
+// エージェントパネル（サイドバー用 WebviewView）
+// =============================================================================
+
+class AgentPanelProvider implements vscode.WebviewViewProvider {
+    public static readonly viewType = 'maidAgent.agentPanel';
+    private _view?: vscode.WebviewView;
+    private _currentAgentId: string | null = null;
+    private _agents: Map<string, Agent> = new Map();
+    private _extensionUri: vscode.Uri;
+
+    constructor(extensionUri: vscode.Uri) {
+        this._extensionUri = extensionUri;
+    }
+
+    public resolveWebviewView(
+        webviewView: vscode.WebviewView,
+        _context: vscode.WebviewViewResolveContext,
+        _token: vscode.CancellationToken
+    ): void {
+        this._view = webviewView;
+
+        webviewView.webview.options = {
+            enableScripts: true,
+            localResourceRoots: [this._extensionUri]
+        };
+
+        this._updateWebview();
+    }
+
+    public setAgents(agents: Map<string, Agent>): void {
+        this._agents = agents;
+        this._updateWebview();
+    }
+
+    public setCurrentAgent(agentId: string | null): void {
+        this._currentAgentId = agentId;
+        this._updateWebview();
+    }
+
+    private _updateWebview(): void {
+        if (!this._view) return;
+
+        const agent = this._currentAgentId ? this._agents.get(this._currentAgentId) : null;
+        const colors = this._currentAgentId ? AGENT_COLORS[this._currentAgentId] : null;
+
+        let content: string;
+        if (agent && colors) {
+            const roleLabel = agent.role === 'butler' ? '執事' :
+                             agent.role === 'chiefMaid' ? 'メイド長' : 'メイド';
+            const emoji = agent.role === 'butler' ? '🎩' :
+                         agent.role === 'chiefMaid' ? '👑' : '🎀';
+            const statusEmoji = agent.status === 'working' ? '⚡' :
+                               agent.status === 'done' ? '✅' : '💤';
+
+            content = `
+                <div class="agent-display" style="background: ${colors.bg}; border-color: ${colors.accent};">
+                    <div class="avatar" style="background: ${colors.accent};">
+                        <span class="emoji">${emoji}</span>
+                    </div>
+                    <div class="name" style="color: ${colors.accent};">${agent.name}</div>
+                    <div class="role">${roleLabel}</div>
+                    <div class="status">${statusEmoji} ${agent.status}</div>
+                    <div class="color-bar" style="background: ${colors.accent};"></div>
+                </div>
+            `;
+        } else {
+            content = `
+                <div class="no-agent">
+                    <div class="emoji">👤</div>
+                    <div class="message">エージェントのターミナルを<br>選択してください</div>
+                </div>
+            `;
+        }
+
+        this._view.webview.html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+        .agent-display {
+            text-align: center;
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid;
+            width: 100%;
+            max-width: 200px;
+        }
+        .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .emoji {
+            font-size: 40px;
+        }
+        .name {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .role {
+            font-size: 0.85em;
+            color: #888;
+            margin-bottom: 10px;
+        }
+        .status {
+            font-size: 0.9em;
+            padding: 5px 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            display: inline-block;
+        }
+        .color-bar {
+            height: 4px;
+            border-radius: 2px;
+            margin-top: 15px;
+        }
+        .no-agent {
+            text-align: center;
+            color: #666;
+        }
+        .no-agent .emoji {
+            font-size: 50px;
+            margin-bottom: 10px;
+            opacity: 0.5;
+        }
+        .no-agent .message {
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    ${content}
+</body>
+</html>`;
+    }
+}
+
 // =============================================================================
 // メインコントローラー
 // =============================================================================
@@ -50,6 +219,7 @@ class MultiAgentController {
     private workspaceRoot: string | undefined;
     private maidAgentPath: string | undefined;
     private fileWatcher: vscode.FileSystemWatcher | undefined;
+    private agentPanelProvider: AgentPanelProvider | undefined;
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Maid Agent');
@@ -61,6 +231,40 @@ class MultiAgentController {
         if (this.workspaceRoot) {
             this.maidAgentPath = path.join(this.workspaceRoot, MAID_AGENT_DIR);
         }
+    }
+
+    setAgentPanelProvider(provider: AgentPanelProvider): void {
+        this.agentPanelProvider = provider;
+    }
+
+    // エージェントパネルを更新
+    private updateAgentPanel(): void {
+        if (this.agentPanelProvider) {
+            this.agentPanelProvider.setAgents(this.agents);
+        }
+    }
+
+    // ターミナル名からエージェントIDを取得
+    getAgentIdFromTerminal(terminal: vscode.Terminal): string | null {
+        for (const [id, agent] of this.agents) {
+            if (agent.terminal === terminal) {
+                return id;
+            }
+        }
+        return null;
+    }
+
+    // 現在のエージェントを設定（パネル更新用）
+    setCurrentAgentFromTerminal(terminal: vscode.Terminal | undefined): void {
+        if (!this.agentPanelProvider) return;
+
+        if (!terminal) {
+            this.agentPanelProvider.setCurrentAgent(null);
+            return;
+        }
+
+        const agentId = this.getAgentIdFromTerminal(terminal);
+        this.agentPanelProvider.setCurrentAgent(agentId);
     }
 
     // =========================================================================
@@ -249,6 +453,7 @@ class MultiAgentController {
 
         this.log(`[${name}] 準備完了 (cwd: ${this.workspaceRoot})`);
         this.updateMasterStatus(id, 'idle');
+        this.updateAgentPanel();
         return agent;
     }
 
@@ -861,6 +1066,24 @@ let controller: MultiAgentController;
 export function activate(context: vscode.ExtensionContext) {
     controller = new MultiAgentController();
     controller.setContext(context);
+
+    // エージェントパネル（サイドバー）を登録
+    const agentPanelProvider = new AgentPanelProvider(context.extensionUri);
+    controller.setAgentPanelProvider(agentPanelProvider);
+
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            AgentPanelProvider.viewType,
+            agentPanelProvider
+        )
+    );
+
+    // ターミナル切り替え時にパネルを更新
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTerminal((terminal) => {
+            controller.setCurrentAgentFromTerminal(terminal);
+        })
+    );
 
     const commands = [
         vscode.commands.registerCommand('multiAgent.initialize', () => {

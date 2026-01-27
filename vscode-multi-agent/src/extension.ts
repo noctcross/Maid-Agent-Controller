@@ -374,7 +374,7 @@ class MultiAgentController {
         }
 
         const countStr = await vscode.window.showInputBox({
-            prompt: `何人のメイドを起動しますか？（最大${availableMaids.length}人）`,
+            prompt: `何人のメイドを起動しますか？（最大${availableMaids.length}人）執事・メイド長も自動起動します`,
             placeHolder: '例: 3',
             validateInput: (value) => {
                 const num = parseInt(value);
@@ -391,14 +391,30 @@ class MultiAgentController {
         if (!countStr) return;
 
         const count = parseInt(countStr);
-        const maidsToStart = availableMaids.slice(0, count);
+
+        // 執事・メイド長を先に起動
+        if (!this.agents.has('butler')) {
+            const butler = this.createAgent('執事', 'butler', 'butler', '🎩');
+            butler.terminal.show();
+            this.sendToAgent('butler', 'echo "🎩 執事、準備完了でございます。" && cat .maid-agent/instructions/butler.md');
+        }
+
+        if (!this.agents.has('chief')) {
+            this.createAgent('メイド長', 'chief', 'chiefMaid', '👑');
+            this.sendToAgent('chief', 'echo "👑 メイド長、参上いたしました。" && cat .maid-agent/instructions/chief.md');
+        }
+
+        // ランダムにメイドを選択
+        const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
+        const maidsToStart = shuffled.slice(0, count);
 
         for (const maid of maidsToStart) {
             this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
             this.sendToAgent(maid.id, `echo "🎀 ${maid.name}、お仕えいたします♪"`);
         }
 
-        vscode.window.showInformationMessage(`🎀 メイド${count}人がお仕えする準備ができました！`);
+        const maidNames = maidsToStart.map(m => m.name).join('、');
+        vscode.window.showInformationMessage(`🎩 執事 + 👑 メイド長 + 🎀 ${maidNames} を起動しました！`);
         this.updateDashboard();
     }
 

@@ -9,7 +9,7 @@ import * as path from 'path';
 interface Agent {
     name: string;
     terminal: vscode.Terminal;
-    role: 'headMaid' | 'chiefMaid' | 'maid';
+    role: 'butler' | 'chiefMaid' | 'maid';
     status: 'idle' | 'working' | 'done';
     currentTask?: Task;
     completedTasks: number;
@@ -18,22 +18,21 @@ interface Agent {
 interface Task {
     id: string;
     description: string;
+    prompt: string;
     assignedTo?: string;
     status: 'pending' | 'assigned' | 'working' | 'completed';
     createdAt: Date;
     startedAt?: Date;
     completedAt?: Date;
-}
-
-interface TaskFile {
-    tasks: TaskDefinition[];
+    parentTaskId?: string;  // 親タスク（執事から来たタスク）
+    subtasks?: Task[];      // サブタスク
 }
 
 interface TaskDefinition {
     id: string;
     description: string;
     prompt: string;
-    assignTo?: string; // 特定のメイドに割り当て（省略時は自動割り当て）
+    assignTo?: string;
 }
 
 // =============================================================================
@@ -45,22 +44,55 @@ const MAID_NAMES = [
     'アリス', 'メイ', 'フローラ', 'ルナ'
 ];
 
-// メイド口調のシステムプロンプト
-const MAID_SYSTEM_PROMPT = `あなたは優秀なメイドです。ご主人様のコーディング作業をお手伝いします。
-以下のルールに従ってください：
-- 丁寧な言葉遣いで応答してください（〜でございます、〜いたします）
-- 作業の開始時は「かしこまりました、ご主人様♪」と応答
-- 作業の完了時は「お仕事完了でございます♪」と報告
-- エラーがあった場合は「申し訳ございません、問題が発生いたしました」と報告
-- 常にご主人様のお役に立てるよう最善を尽くしてください`;
+// 執事のシステムプロンプト（タスク分解用）
+const BUTLER_SYSTEM_PROMPT = `あなたは優秀な執事です。ご主人様から受けた指示を分析し、メイドたちが実行できるサブタスクに分解してください。
+
+【重要なルール】
+1. 「かしこまりました、ご主人様」から始めてください
+2. タスクを分析し、並列実行可能なサブタスクに分解してください
+3. 各サブタスクは具体的で、1人のメイドが独立して実行できる粒度にしてください
+4. サブタスクは以下の形式で出力してください：
+
+【サブタスク一覧】
+1. [タスク名]: [具体的な指示内容]
+2. [タスク名]: [具体的な指示内容]
+...
+
+5. 最後に「メイド長、これらのタスクをメイドたちに配分してください」と締めくくってください`;
+
+// メイド長のシステムプロンプト（タスク配分用）
+const CHIEF_MAID_SYSTEM_PROMPT = `あなたはメイド長です。執事から受けたサブタスクを各メイドに適切に配分し、進捗を管理してください。
+
+【重要なルール】
+1. 「承知いたしました」から始めてください
+2. 利用可能なメイド: エマ、ソフィア、リリー、ローズ、アリス、メイ、フローラ、ルナ
+3. 各メイドの得意分野を考慮して配分してください
+4. 配分結果は以下の形式で報告してください：
+
+【タスク配分】
+- エマ: [タスク内容]
+- ソフィア: [タスク内容]
+...
+
+5. 全タスク完了後は「執事様、全タスクが完了いたしました」と報告してください`;
+
+// メイドのシステムプロンプト
+const MAID_SYSTEM_PROMPT = `あなたは優秀なメイドです。メイド長から指示されたタスクを丁寧に実行してください。
+
+【重要なルール】
+1. 「かしこまりました♪」から始めてください
+2. 指示されたタスクを正確に実行してください
+3. 作業の進捗を報告しながら進めてください
+4. 完了時は「お仕事完了でございます♪」と報告してください
+5. 問題が発生した場合は「申し訳ございません、問題が発生いたしました」と報告してください`;
 
 const TASK_FILE_NAME = 'maid-tasks.yaml';
 
 // =============================================================================
-// シンプルなYAMLパーサー（タスク用）
+// シンプルなYAMLパーサー
 // =============================================================================
 
-function parseSimpleYaml(content: string): TaskFile {
+function parseSimpleYaml(content: string): { tasks: TaskDefinition[] } {
     const tasks: TaskDefinition[] = [];
     const lines = content.split('\n');
     let currentTask: Partial<TaskDefinition> | null = null;
@@ -100,7 +132,6 @@ function parseSimpleYaml(content: string): TaskFile {
         }
     }
 
-    // 最後のタスクを追加
     if (currentTask && currentTask.id) {
         if (promptLines.length > 0) {
             currentTask.prompt = promptLines.join('\n').trim();
@@ -151,7 +182,7 @@ class MultiAgentController {
         };
         this.agents.set(name, agent);
 
-        this.log(`[${name}] お仕えする準備ができました、ご主人様♪`);
+        this.log(`[${name}] 準備完了`);
         return agent;
     }
 
@@ -164,166 +195,180 @@ class MultiAgentController {
 
         agent.terminal.sendText(command);
         agent.status = 'working';
-        this.log(`[${agentName}] 承りました: ${command.substring(0, 50)}...`);
+        this.log(`[${agentName}] → ${command.substring(0, 60)}...`);
 
         this.updateDashboard();
         return true;
     }
 
-    // メイド口調プロンプト付きでClaudeを起動
-    startClaudeWithMaidPrompt(agentName: string, task?: string): void {
-        const prompt = task
-            ? `claude --system-prompt "${MAID_SYSTEM_PROMPT}" "${task}"`
-            : `claude --system-prompt "${MAID_SYSTEM_PROMPT}"`;
-        this.sendToAgent(agentName, prompt);
-    }
+    // =========================================================================
+    // 階層構造の起動
+    // =========================================================================
 
-    broadcastToMaids(command: string): void {
-        this.agents.forEach((agent, name) => {
-            if (agent.role === 'maid') {
-                this.sendToAgent(name, command);
-            }
-        });
-    }
-
-    startHeadAndChief(): void {
-        if (this.agents.has('ヘッドメイド')) {
-            vscode.window.showWarningMessage('ヘッドメイドは既にお仕えしております');
+    // 執事を起動
+    startButler(): void {
+        if (this.agents.has('執事')) {
+            vscode.window.showWarningMessage('執事は既にお仕えしております');
             return;
         }
 
-        const head = this.createAgent('ヘッドメイド', 'headMaid', '🎀');
-        head.terminal.show();
+        const butler = this.createAgent('執事', 'butler', '🎩');
+        butler.terminal.show();
 
-        const chief = this.createAgent('チーフメイド', 'chiefMaid', '💼');
-
-        this.sendToAgent('ヘッドメイド', 'echo "🎀 ヘッドメイド、準備完了でございます♪"');
-        this.sendToAgent('チーフメイド', 'echo "💼 チーフメイド、参上いたしました♪"');
-
-        vscode.window.showInformationMessage('🎀 ヘッドメイドとチーフメイドがお仕えする準備ができました！');
+        this.sendToAgent('執事', 'echo "🎩 執事、準備完了でございます。ご主人様のご命令をお待ちしております。"');
+        vscode.window.showInformationMessage('🎩 執事がお仕えする準備ができました！');
         this.updateDashboard();
     }
 
+    // メイド長を起動
+    startChiefMaid(): void {
+        if (this.agents.has('メイド長')) {
+            vscode.window.showWarningMessage('メイド長は既にお仕えしております');
+            return;
+        }
+
+        const chief = this.createAgent('メイド長', 'chiefMaid', '👑');
+        this.sendToAgent('メイド長', 'echo "👑 メイド長、参上いたしました。メイドたちの指揮を執ります。"');
+        vscode.window.showInformationMessage('👑 メイド長がお仕えする準備ができました！');
+        this.updateDashboard();
+    }
+
+    // メイド8人を起動
     startMaids(): void {
         let startedCount = 0;
         for (let i = 0; i < 8; i++) {
-            const name = `メイド${i + 1}(${MAID_NAMES[i]})`;
+            const name = MAID_NAMES[i];
             if (!this.agents.has(name)) {
-                this.createAgent(name, 'maid', '👒');
-                this.sendToAgent(name, `echo "👒 メイド${i + 1}の${MAID_NAMES[i]}、お仕えいたします♪"`);
+                this.createAgent(name, 'maid', '🎀');
+                this.sendToAgent(name, `echo "🎀 ${name}、お仕えいたします♪"`);
                 startedCount++;
             }
         }
 
         if (startedCount > 0) {
-            vscode.window.showInformationMessage(`👒 メイド${startedCount}人がお仕えする準備ができました！`);
+            vscode.window.showInformationMessage(`🎀 メイド${startedCount}人がお仕えする準備ができました！`);
         } else {
             vscode.window.showWarningMessage('メイドは既に全員お仕えしております');
         }
         this.updateDashboard();
     }
 
+    // 全員起動（執事 + メイド長 + メイド8人）
     startAllAgents(): void {
-        this.startHeadAndChief();
+        this.startButler();
+        this.startChiefMaid();
         this.startMaids();
     }
 
-    startClaudeOnAgent(agentName: string): void {
-        this.sendToAgent(agentName, 'claude');
-    }
+    // =========================================================================
+    // 階層的タスクフロー
+    // =========================================================================
 
-    startClaudeOnAllMaids(): void {
-        let count = 0;
-        this.agents.forEach((agent, name) => {
-            if (agent.role === 'maid') {
-                this.startClaudeOnAgent(name);
-                count++;
-            }
-        });
-        if (count > 0) {
-            vscode.window.showInformationMessage(`🤖 ${count}人のメイドがClaude Codeを起動しました！`);
+    // 執事にタスクを送信（階層の起点）
+    async sendTaskToButler(taskDescription: string): Promise<void> {
+        const butler = this.agents.get('執事');
+        if (!butler) {
+            vscode.window.showWarningMessage('執事がおりません。先に起動してください。');
+            return;
         }
-    }
 
-    // =========================================================================
-    // タスク管理
-    // =========================================================================
-
-    addTask(task: TaskDefinition): Task {
-        const newTask: Task = {
-            id: task.id,
-            description: task.description,
-            status: 'pending',
-            createdAt: new Date()
+        // タスクを作成
+        const task: Task = {
+            id: `task-${Date.now()}`,
+            description: taskDescription,
+            prompt: taskDescription,
+            status: 'working',
+            createdAt: new Date(),
+            startedAt: new Date()
         };
-        this.taskQueue.push(newTask);
-        this.log(`[タスク追加] ${task.id}: ${task.description}`);
+        this.taskQueue.push(task);
+
+        this.log(`[執事への指令] ${taskDescription}`);
+
+        // 執事のClaudeにタスクを送信（システムプロンプト付き）
+        const claudeCommand = `claude --system-prompt "${BUTLER_SYSTEM_PROMPT.replace(/"/g, '\\"').replace(/\n/g, '\\n')}" "${taskDescription}"`;
+        this.sendToAgent('執事', claudeCommand);
+
+        butler.currentTask = task;
         this.updateDashboard();
-        return newTask;
+
+        vscode.window.showInformationMessage('🎩 執事にタスクを送信しました。タスク分解中...');
     }
 
-    assignTaskToMaid(taskId: string, maidName?: string): boolean {
-        const task = this.taskQueue.find(t => t.id === taskId && t.status === 'pending');
-        if (!task) {
-            this.log(`[ERROR] タスク ${taskId} が見つからないか、既に割り当て済みです`);
-            return false;
+    // メイド長にサブタスクを送信
+    async sendSubtasksToChief(subtasks: string[]): Promise<void> {
+        const chief = this.agents.get('メイド長');
+        if (!chief) {
+            this.log('[ERROR] メイド長がおりません');
+            return;
         }
 
-        // メイドを選択（指定がなければアイドル状態のメイドを探す）
-        let targetMaid: Agent | undefined;
-        if (maidName) {
-            targetMaid = this.agents.get(maidName);
-        } else {
-            // アイドル状態のメイドを探す
-            for (const [name, agent] of this.agents) {
-                if (agent.role === 'maid' && agent.status === 'idle') {
-                    targetMaid = agent;
-                    break;
-                }
+        const subtaskList = subtasks.map((s, i) => `${i + 1}. ${s}`).join('\n');
+        const prompt = `以下のサブタスクをメイドたちに配分してください：\n\n${subtaskList}`;
+
+        const claudeCommand = `claude --system-prompt "${CHIEF_MAID_SYSTEM_PROMPT.replace(/"/g, '\\"').replace(/\n/g, '\\n')}" "${prompt.replace(/"/g, '\\"')}"`;
+        this.sendToAgent('メイド長', claudeCommand);
+
+        this.log(`[メイド長への指令] ${subtasks.length}件のサブタスクを配分依頼`);
+    }
+
+    // 特定のメイドにタスクを送信
+    sendTaskToMaid(maidName: string, taskDescription: string): void {
+        const maid = this.agents.get(maidName);
+        if (!maid) {
+            this.log(`[ERROR] ${maidName}が見つかりません`);
+            return;
+        }
+
+        const task: Task = {
+            id: `subtask-${Date.now()}-${maidName}`,
+            description: taskDescription,
+            prompt: taskDescription,
+            assignedTo: maidName,
+            status: 'working',
+            createdAt: new Date(),
+            startedAt: new Date()
+        };
+        this.taskQueue.push(task);
+        maid.currentTask = task;
+
+        const claudeCommand = `claude --system-prompt "${MAID_SYSTEM_PROMPT.replace(/"/g, '\\"').replace(/\n/g, '\\n')}" "${taskDescription.replace(/"/g, '\\"')}"`;
+        this.sendToAgent(maidName, claudeCommand);
+
+        this.log(`[${maidName}への指令] ${taskDescription}`);
+        this.updateDashboard();
+    }
+
+    // 全メイドにClaude Codeを起動（システムプロンプト付き）
+    startClaudeOnAllAgents(): void {
+        // 執事
+        const butler = this.agents.get('執事');
+        if (butler) {
+            this.sendToAgent('執事', `claude --system-prompt "${BUTLER_SYSTEM_PROMPT.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`);
+        }
+
+        // メイド長
+        const chief = this.agents.get('メイド長');
+        if (chief) {
+            this.sendToAgent('メイド長', `claude --system-prompt "${CHIEF_MAID_SYSTEM_PROMPT.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`);
+        }
+
+        // メイド
+        let maidCount = 0;
+        for (const name of MAID_NAMES) {
+            const maid = this.agents.get(name);
+            if (maid) {
+                this.sendToAgent(name, `claude --system-prompt "${MAID_SYSTEM_PROMPT.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`);
+                maidCount++;
             }
         }
 
-        if (!targetMaid) {
-            this.log(`[WARN] 利用可能なメイドがおりません`);
-            return false;
-        }
-
-        task.assignedTo = targetMaid.name;
-        task.status = 'assigned';
-        targetMaid.currentTask = task;
-
-        this.log(`[タスク割り当て] ${task.id} → ${targetMaid.name}`);
-        this.updateDashboard();
-        return true;
+        vscode.window.showInformationMessage(`🤖 全エージェント（執事、メイド長、メイド${maidCount}人）がClaude Codeを起動しました！`);
     }
 
-    // 自動タスク配信
-    async distributeTasksAutomatically(taskDefs: TaskDefinition[]): Promise<void> {
-        for (const taskDef of taskDefs) {
-            const task = this.addTask(taskDef);
-
-            // メイドに割り当て
-            const assigned = this.assignTaskToMaid(task.id, taskDef.assignTo);
-
-            if (assigned) {
-                const agent = this.agents.get(task.assignedTo!);
-                if (agent) {
-                    // Claudeにタスクを送信
-                    const claudeCommand = `claude "${taskDef.prompt}"`;
-                    this.sendToAgent(agent.name, claudeCommand);
-                    task.status = 'working';
-                    task.startedAt = new Date();
-                    agent.status = 'working';
-                }
-            }
-
-            // 少し間隔を空ける
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        this.updateDashboard();
-        vscode.window.showInformationMessage(`📋 ${taskDefs.length}件のタスクを配信しました！`);
-    }
+    // =========================================================================
+    // タスク完了処理
+    // =========================================================================
 
     markTaskComplete(agentName: string): void {
         const agent = this.agents.get(agentName);
@@ -333,7 +378,6 @@ class MultiAgentController {
         task.status = 'completed';
         task.completedAt = new Date();
 
-        // タスクキューから完了リストへ移動
         const idx = this.taskQueue.findIndex(t => t.id === task.id);
         if (idx !== -1) {
             this.taskQueue.splice(idx, 1);
@@ -344,11 +388,10 @@ class MultiAgentController {
         agent.currentTask = undefined;
         agent.completedTasks++;
 
-        this.log(`[タスク完了] ${task.id} by ${agentName}`);
+        this.log(`[タスク完了] ${task.description} by ${agentName}`);
 
-        // 完了通知
         vscode.window.showInformationMessage(
-            `✅ ${agentName}がタスク「${task.description}」を完了しました！`,
+            `✅ ${agentName}がタスクを完了しました！`,
             '詳細を見る'
         ).then(selection => {
             if (selection === '詳細を見る') {
@@ -380,23 +423,22 @@ class MultiAgentController {
         this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 
         this.fileWatcher.onDidCreate((uri) => {
-            this.log(`[ファイル監視] タスクファイルが作成されました: ${uri.fsPath}`);
+            this.log(`[ファイル監視] タスクファイルが作成されました`);
             this.loadAndDistributeTasks(uri.fsPath);
         });
 
         this.fileWatcher.onDidChange((uri) => {
-            this.log(`[ファイル監視] タスクファイルが更新されました: ${uri.fsPath}`);
+            this.log(`[ファイル監視] タスクファイルが更新されました`);
             this.loadAndDistributeTasks(uri.fsPath);
         });
 
         this.context?.subscriptions.push(this.fileWatcher);
 
-        // 既存のファイルがあれば読み込む
         if (fs.existsSync(taskFilePath)) {
             this.loadAndDistributeTasks(taskFilePath);
         }
 
-        this.log(`[ファイル監視] ${TASK_FILE_NAME} の監視を開始しました`);
+        this.log(`[ファイル監視] ${TASK_FILE_NAME} の監視を開始`);
         vscode.window.showInformationMessage(`📁 ${TASK_FILE_NAME} の監視を開始しました`);
     }
 
@@ -404,7 +446,7 @@ class MultiAgentController {
         if (this.fileWatcher) {
             this.fileWatcher.dispose();
             this.fileWatcher = undefined;
-            this.log(`[ファイル監視] 監視を停止しました`);
+            this.log(`[ファイル監視] 監視を停止`);
             vscode.window.showInformationMessage('📁 タスクファイルの監視を停止しました');
         }
     }
@@ -419,14 +461,17 @@ class MultiAgentController {
                 return;
             }
 
-            // メイドが起動していなければ起動
-            const maidCount = Array.from(this.agents.values()).filter(a => a.role === 'maid').length;
-            if (maidCount === 0) {
-                this.startMaids();
+            // 執事が起動していなければ起動
+            if (!this.agents.has('執事')) {
+                this.startButler();
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
 
-            await this.distributeTasksAutomatically(taskFile.tasks);
+            // 最初のタスクを執事に送信（階層的に処理）
+            for (const taskDef of taskFile.tasks) {
+                await this.sendTaskToButler(taskDef.prompt);
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
         } catch (error) {
             this.log(`[ERROR] タスクファイルの読み込みに失敗: ${error}`);
             vscode.window.showErrorMessage(`タスクファイルの読み込みに失敗しました: ${error}`);
@@ -445,24 +490,24 @@ class MultiAgentController {
         }
 
         const sampleContent = `# Maid Agent タスクファイル
-# このファイルを保存すると、自動的にメイドにタスクが配信されます
+# 執事がタスクを受け取り、分解してメイド長に指示します
+# メイド長が各メイドにタスクを配分します
 
 tasks:
   - id: task-001
-    description: "READMEの確認"
+    description: "プロジェクト分析"
     prompt: |
-      README.mdファイルを確認して、内容を要約してください。
+      このプロジェクトを分析してください。
+      以下の観点で調査し、報告してください：
+      - プロジェクトの構造
+      - 主要なファイルと役割
+      - 改善点や問題点
 
   - id: task-002
-    description: "コードレビュー"
+    description: "ドキュメント整備"
     prompt: |
-      src/フォルダ内のコードをレビューして、改善点があれば教えてください。
-
-  - id: task-003
-    description: "テスト確認"
-    assignTo: "メイド1(エマ)"
-    prompt: |
-      テストコードがあれば実行して、結果を報告してください。
+      プロジェクトのドキュメントを確認し、
+      不足している部分を洗い出してください。
 `;
 
         const filePath = path.join(workspaceFolder.uri.fsPath, TASK_FILE_NAME);
@@ -487,7 +532,7 @@ tasks:
 
         this.dashboardPanel = vscode.window.createWebviewPanel(
             'multiAgentDashboard',
-            '🎀 Maid Agent Dashboard',
+            '🎩 Maid Agent Dashboard',
             vscode.ViewColumn.Beside,
             { enableScripts: true }
         );
@@ -496,7 +541,6 @@ tasks:
             this.dashboardPanel = undefined;
         });
 
-        // Webviewからのメッセージを受信
         this.dashboardPanel.webview.onDidReceiveMessage(
             message => {
                 switch (message.command) {
@@ -505,6 +549,9 @@ tasks:
                         break;
                     case 'refresh':
                         this.updateDashboard();
+                        break;
+                    case 'sendTask':
+                        this.promptAndSendToButler();
                         break;
                 }
             },
@@ -518,34 +565,39 @@ tasks:
     private updateDashboard(): void {
         if (!this.dashboardPanel) return;
 
-        const headMaids = Array.from(this.agents.values()).filter(a => a.role === 'headMaid');
-        const chiefMaids = Array.from(this.agents.values()).filter(a => a.role === 'chiefMaid');
-        const maids = Array.from(this.agents.values()).filter(a => a.role === 'maid');
+        const butler = this.agents.get('執事');
+        const chief = this.agents.get('メイド長');
+        const maids = MAID_NAMES.map(name => this.agents.get(name)).filter(Boolean) as Agent[];
 
-        const renderAgent = (a: Agent, emoji: string) => {
+        const renderAgent = (a: Agent, emoji: string, role: string) => {
             const statusEmoji = a.status === 'working' ? '⚡' : a.status === 'done' ? '✅' : '💤';
             const statusClass = a.status === 'working' ? 'working' : a.status === 'done' ? 'done' : 'idle';
             const taskInfo = a.currentTask
-                ? `<div class="task-info">📋 ${a.currentTask.description}</div>`
+                ? `<div class="task-info">📋 ${a.currentTask.description.substring(0, 40)}...</div>`
                 : '';
             const completeBtn = a.status === 'working'
                 ? `<button class="complete-btn" onclick="markComplete('${a.name}')">完了</button>`
                 : '';
             return `
-                <li class="${statusClass}">
-                    <div class="agent-info">
+                <div class="agent-card ${statusClass}">
+                    <div class="agent-header">
                         <span class="agent-name">${emoji} ${a.name}</span>
+                        <span class="agent-role">${role}</span>
+                    </div>
+                    <div class="agent-status">
                         <span class="status-badge">${statusEmoji} ${a.status}</span>
                         ${completeBtn}
                     </div>
                     ${taskInfo}
-                    <div class="completed-count">完了タスク: ${a.completedTasks}件</div>
-                </li>`;
+                    <div class="completed-count">完了: ${a.completedTasks}件</div>
+                </div>`;
         };
 
-        const headList = headMaids.map(a => renderAgent(a, '🎀')).join('');
-        const chiefList = chiefMaids.map(a => renderAgent(a, '💼')).join('');
-        const maidList = maids.map(a => renderAgent(a, '👒')).join('');
+        const butlerHtml = butler ? renderAgent(butler, '🎩', '統括') : '<div class="empty-agent">執事がおりません</div>';
+        const chiefHtml = chief ? renderAgent(chief, '👑', '配分担当') : '<div class="empty-agent">メイド長がおりません</div>';
+        const maidsHtml = maids.length > 0
+            ? maids.map(m => renderAgent(m, '🎀', '実行担当')).join('')
+            : '<div class="empty-agent">メイドがおりません</div>';
 
         const pendingTasks = this.taskQueue.filter(t => t.status === 'pending').length;
         const workingTasks = this.taskQueue.filter(t => t.status === 'working').length;
@@ -558,8 +610,8 @@ tasks:
         const taskQueueHtml = this.taskQueue.map(t => {
             const statusEmoji = t.status === 'pending' ? '⏳' : t.status === 'working' ? '⚡' : '✅';
             return `<li class="task-item ${t.status}">
-                <span>${statusEmoji} ${t.id}</span>
-                <span class="task-desc">${t.description}</span>
+                <span>${statusEmoji}</span>
+                <span class="task-desc">${t.description.substring(0, 30)}...</span>
                 ${t.assignedTo ? `<span class="assigned">→ ${t.assignedTo}</span>` : ''}
             </li>`;
         }).join('') || '<li class="empty">タスクはございません</li>';
@@ -573,124 +625,143 @@ tasks:
         body {
             font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
             padding: 20px;
-            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-            color: #4a4a4a;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
             min-height: 100vh;
             margin: 0;
         }
         h1 {
-            color: #d63384;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            color: #e94560;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
             margin-bottom: 5px;
         }
         .subtitle {
-            color: #6f42c1;
+            color: #888;
             margin-bottom: 20px;
         }
         h2 {
-            color: #6f42c1;
-            border-bottom: 2px dashed #d63384;
+            color: #e94560;
+            border-bottom: 2px solid #e94560;
             padding-bottom: 5px;
             margin-top: 0;
+            font-size: 1.1em;
         }
-        .agent-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .agent-list li {
-            padding: 12px 15px;
-            margin: 8px 0;
-            background: rgba(255,255,255,0.95);
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .agent-list li.working {
-            border-left: 4px solid #ffc107;
-            background: rgba(255,243,205,0.95);
-        }
-        .agent-list li.done {
-            border-left: 4px solid #28a745;
-        }
-        .agent-info {
+
+        /* 階層構造の表示 */
+        .hierarchy {
             display: flex;
+            flex-direction: column;
             align-items: center;
             gap: 10px;
+            margin: 20px 0;
+        }
+        .hierarchy-row {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .hierarchy-arrow {
+            color: #e94560;
+            font-size: 1.5em;
+        }
+
+        .agent-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 12px;
+            min-width: 150px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .agent-card.working {
+            border-color: #ffc107;
+            background: rgba(255,193,7,0.1);
+        }
+        .agent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
         }
         .agent-name {
             font-weight: bold;
-            flex: 1;
+            font-size: 0.95em;
+        }
+        .agent-role {
+            font-size: 0.75em;
+            color: #888;
+            background: rgba(255,255,255,0.1);
+            padding: 2px 6px;
+            border-radius: 8px;
+        }
+        .agent-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         .status-badge {
-            font-size: 0.85em;
-            padding: 3px 8px;
-            border-radius: 12px;
-            background: #e9ecef;
+            font-size: 0.8em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.15);
         }
         .task-info {
-            font-size: 0.9em;
-            color: #666;
-            margin-top: 5px;
-            padding-left: 25px;
+            font-size: 0.8em;
+            color: #aaa;
+            margin-top: 8px;
+            padding: 5px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 5px;
         }
         .completed-count {
-            font-size: 0.8em;
-            color: #888;
-            margin-top: 3px;
-            padding-left: 25px;
+            font-size: 0.75em;
+            color: #666;
+            margin-top: 5px;
         }
         .complete-btn {
             background: #28a745;
             color: white;
             border: none;
-            padding: 4px 10px;
+            padding: 3px 8px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 0.8em;
+            font-size: 0.75em;
         }
-        .complete-btn:hover {
-            background: #218838;
+        .complete-btn:hover { background: #218838; }
+        .empty-agent {
+            color: #666;
+            font-style: italic;
+            padding: 20px;
         }
+
         .section {
-            background: rgba(255,255,255,0.7);
-            border-radius: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
             padding: 15px;
             margin: 15px 0;
-        }
-        .maid-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-        .maid-grid li {
-            margin: 0;
-        }
-        .empty {
-            color: #888;
-            font-style: italic;
         }
         .stats {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin: 20px 0;
+            gap: 10px;
+            margin: 15px 0;
         }
         .stat-card {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
+            background: rgba(255,255,255,0.1);
+            padding: 12px;
+            border-radius: 8px;
             text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         .stat-number {
-            font-size: 2em;
+            font-size: 1.8em;
             font-weight: bold;
-            color: #d63384;
+            color: #e94560;
         }
         .stat-label {
-            font-size: 0.85em;
-            color: #666;
+            font-size: 0.8em;
+            color: #888;
         }
+
         .two-column {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -700,74 +771,75 @@ tasks:
             list-style: none;
             padding: 0;
             margin: 0;
-            max-height: 200px;
+            max-height: 150px;
             overflow-y: auto;
         }
         .task-item {
-            padding: 8px 12px;
-            margin: 5px 0;
-            background: rgba(255,255,255,0.9);
-            border-radius: 8px;
-            font-size: 0.9em;
+            padding: 6px 10px;
+            margin: 4px 0;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            font-size: 0.85em;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
         }
-        .task-item.working {
-            background: rgba(255,243,205,0.95);
-        }
-        .task-desc {
-            flex: 1;
-            color: #666;
-        }
-        .assigned {
-            font-size: 0.85em;
-            color: #6f42c1;
-        }
+        .task-desc { flex: 1; color: #aaa; }
+        .assigned { font-size: 0.8em; color: #e94560; }
+
         .log-container {
-            background: #1e1e1e;
-            border-radius: 10px;
+            background: #0a0a0a;
+            border-radius: 8px;
             padding: 10px;
             max-height: 150px;
             overflow-y: auto;
         }
         .log-entry {
             font-family: 'Consolas', monospace;
-            font-size: 0.8em;
+            font-size: 0.75em;
             color: #0f0;
             padding: 2px 5px;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid #222;
         }
-        .refresh-btn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #d63384;
+
+        .action-bar {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .action-btn {
+            background: #e94560;
             color: white;
             border: none;
             padding: 10px 20px;
-            border-radius: 25px;
+            border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+            font-size: 0.9em;
         }
-        .refresh-btn:hover {
-            background: #c21e6c;
+        .action-btn:hover { background: #d63050; }
+        .action-btn.secondary {
+            background: rgba(255,255,255,0.2);
         }
+
         @media (max-width: 600px) {
             .stats { grid-template-columns: repeat(2, 1fr); }
             .two-column { grid-template-columns: 1fr; }
-            .maid-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <h1>🎀 Maid Agent Controller</h1>
-    <p class="subtitle">メイドさんチームがご主人様のお仕事をお手伝いいたします♪</p>
+    <h1>🎩 Maid Agent Controller</h1>
+    <p class="subtitle">執事 → メイド長 → メイド の階層構造でタスクを実行</p>
+
+    <div class="action-bar">
+        <button class="action-btn" onclick="sendTask()">📝 執事に指令を送る</button>
+        <button class="action-btn secondary" onclick="refresh()">🔄 更新</button>
+    </div>
 
     <div class="stats">
         <div class="stat-card">
             <div class="stat-number">${this.agents.size}</div>
-            <div class="stat-label">👒 総メイド数</div>
+            <div class="stat-label">総エージェント</div>
         </div>
         <div class="stat-card">
             <div class="stat-number">${Array.from(this.agents.values()).filter(a => a.status === 'working').length}</div>
@@ -784,18 +856,20 @@ tasks:
     </div>
 
     <div class="section">
-        <h2>👑 管理メイド</h2>
-        <ul class="agent-list">
-            ${headList || '<li class="empty">ヘッドメイドがおりません</li>'}
-            ${chiefList || ''}
-        </ul>
-    </div>
-
-    <div class="section">
-        <h2>👒 メイド隊</h2>
-        <ul class="agent-list maid-grid">
-            ${maidList || '<li class="empty">メイドがおりません</li>'}
-        </ul>
+        <h2>📊 階層構造</h2>
+        <div class="hierarchy">
+            <div class="hierarchy-row">
+                ${butlerHtml}
+            </div>
+            <div class="hierarchy-arrow">↓</div>
+            <div class="hierarchy-row">
+                ${chiefHtml}
+            </div>
+            <div class="hierarchy-arrow">↓</div>
+            <div class="hierarchy-row">
+                ${maidsHtml}
+            </div>
+        </div>
     </div>
 
     <div class="two-column">
@@ -813,17 +887,16 @@ tasks:
         </div>
     </div>
 
-    <button class="refresh-btn" onclick="refresh()">🔄 更新</button>
-
     <script>
         const vscode = acquireVsCodeApi();
-
         function markComplete(agentName) {
             vscode.postMessage({ command: 'markComplete', agentName: agentName });
         }
-
         function refresh() {
             vscode.postMessage({ command: 'refresh' });
+        }
+        function sendTask() {
+            vscode.postMessage({ command: 'sendTask' });
         }
     </script>
 </body>
@@ -839,8 +912,6 @@ tasks:
         const logMessage = `[${timestamp}] ${message}`;
         this.outputChannel.appendLine(logMessage);
         this.logs.push(logMessage);
-
-        // ログは最新100件まで保持
         if (this.logs.length > 100) {
             this.logs.shift();
         }
@@ -850,21 +921,19 @@ tasks:
     // ユーザー入力
     // =========================================================================
 
-    async promptAndSendToChief(): Promise<void> {
+    async promptAndSendToButler(): Promise<void> {
         const command = await vscode.window.showInputBox({
-            prompt: 'チーフメイドへの指示を入力してください、ご主人様',
-            placeHolder: '例: claude "このプロジェクトを分析してください"'
+            prompt: '執事への指令を入力してください、ご主人様',
+            placeHolder: '例: このプロジェクトを分析して改善点を洗い出してください'
         });
 
         if (command) {
-            this.sendToAgent('チーフメイド', command);
+            await this.sendTaskToButler(command);
         }
     }
 
     async promptAndSendToMaid(): Promise<void> {
-        const maidNames = Array.from(this.agents.entries())
-            .filter(([_, a]) => a.role === 'maid')
-            .map(([name, _]) => name);
+        const maidNames = MAID_NAMES.filter(name => this.agents.has(name));
 
         if (maidNames.length === 0) {
             vscode.window.showWarningMessage('メイドがまだおりません。先に起動してください。');
@@ -879,11 +948,11 @@ tasks:
 
         const command = await vscode.window.showInputBox({
             prompt: `${selectedMaid}への指示を入力してください`,
-            placeHolder: '例: claude "このファイルをレビューしてください"'
+            placeHolder: '例: このファイルをレビューしてください'
         });
 
         if (command) {
-            this.sendToAgent(selectedMaid, command);
+            this.sendTaskToMaid(selectedMaid, command);
         }
     }
 
@@ -909,10 +978,16 @@ export function activate(context: vscode.ExtensionContext) {
     controller = new MultiAgentController();
     controller.setContext(context);
 
-    // コマンド登録
     const commands = [
+        vscode.commands.registerCommand('multiAgent.startButler', () => {
+            controller.startButler();
+        }),
+        vscode.commands.registerCommand('multiAgent.startChiefMaid', () => {
+            controller.startChiefMaid();
+        }),
         vscode.commands.registerCommand('multiAgent.startAgents', () => {
-            controller.startHeadAndChief();
+            controller.startButler();
+            controller.startChiefMaid();
         }),
         vscode.commands.registerCommand('multiAgent.startMaids', () => {
             controller.startMaids();
@@ -920,14 +995,14 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('multiAgent.startAll', () => {
             controller.startAllAgents();
         }),
-        vscode.commands.registerCommand('multiAgent.sendToChief', () => {
-            controller.promptAndSendToChief();
+        vscode.commands.registerCommand('multiAgent.sendToButler', () => {
+            controller.promptAndSendToButler();
         }),
         vscode.commands.registerCommand('multiAgent.sendToMaid', () => {
             controller.promptAndSendToMaid();
         }),
         vscode.commands.registerCommand('multiAgent.startClaude', () => {
-            controller.startClaudeOnAllMaids();
+            controller.startClaudeOnAllAgents();
         }),
         vscode.commands.registerCommand('multiAgent.showDashboard', () => {
             controller.showDashboard();
@@ -945,9 +1020,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(...commands);
 
-    // ステータスバーアイテム
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.text = '🎀 Maid Agent';
+    statusBarItem.text = '🎩 Maid Agent';
     statusBarItem.command = 'multiAgent.showDashboard';
     statusBarItem.tooltip = 'クリックでダッシュボードを表示';
     statusBarItem.show();

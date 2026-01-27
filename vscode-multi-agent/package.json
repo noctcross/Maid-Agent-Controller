@@ -1,8 +1,8 @@
 {
   "name": "multi-agent-controller",
   "displayName": "Maid Agent Controller",
-  "description": "VSCode extension for multi-agent Claude Code orchestration with Maid team",
-  "version": "0.1.0",
+  "description": "VSCode extension for multi-agent Claude Code orchestration (Butler → Chief Maid → Maids)",
+  "version": "0.2.0",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -14,8 +14,16 @@
   "contributes": {
     "commands": [
       {
+        "command": "multiAgent.startButler",
+        "title": "Maid Agent: Start Butler (執事)"
+      },
+      {
+        "command": "multiAgent.startChiefMaid",
+        "title": "Maid Agent: Start Chief Maid (メイド長)"
+      },
+      {
         "command": "multiAgent.startAgents",
-        "title": "Maid Agent: Start Head & Chief Maid"
+        "title": "Maid Agent: Start Butler & Chief Maid"
       },
       {
         "command": "multiAgent.startMaids",
@@ -23,19 +31,19 @@
       },
       {
         "command": "multiAgent.startAll",
-        "title": "Maid Agent: Start All (10 Maids)"
+        "title": "Maid Agent: Start All (10 Agents)"
       },
       {
-        "command": "multiAgent.sendToChief",
-        "title": "Maid Agent: Send Command to Chief Maid"
+        "command": "multiAgent.sendToButler",
+        "title": "Maid Agent: Send Task to Butler"
       },
       {
         "command": "multiAgent.sendToMaid",
-        "title": "Maid Agent: Send Command to Maid"
+        "title": "Maid Agent: Send Task to Maid"
       },
       {
         "command": "multiAgent.startClaude",
-        "title": "Maid Agent: Start Claude on All Maids"
+        "title": "Maid Agent: Start Claude on All Agents"
       },
       {
         "command": "multiAgent.showDashboard",

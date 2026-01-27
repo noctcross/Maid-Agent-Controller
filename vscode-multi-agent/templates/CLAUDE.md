@@ -1,4 +1,7 @@
-# Maid Agent System - 設計書
+# Maid Agent System - 詳細設計書
+
+> このファイルは `.maid-agent/` 内の詳細リファレンスです。
+> メインの指示はプロジェクトルートの `CLAUDE.md` にあります。
 
 Claude Code と VSCode Terminal を活用したマルチエージェント開発基盤です。
 英国メイド制度をモチーフにした階層構造で、複数タスクを並行管理します。
@@ -29,19 +32,19 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 - **下への指示**: YAMLキューファイル経由 + sendText()で起動
 - **上への報告**: dashboard.md 更新のみ（sendText禁止）
 
-### ファイル構成
+### ファイル構成（すべて `.maid-agent/` 配下）
 
 | ファイル | 用途 |
 |---------|------|
-| `CLAUDE.md` | 本ファイル（全エージェント共通） |
-| `dashboard.md` | 戦況報告（下→上への報告） |
-| `instructions/butler.md` | 執事の役割定義 |
-| `instructions/chief.md` | メイド長の役割定義 |
-| `instructions/maid.md` | メイドの役割定義 |
-| `queue/butler_to_chief.yaml` | 執事→メイド長への指示 |
-| `queue/chief_to_maids.yaml` | メイド長→メイドへの割り当て |
-| `status/master_status.yaml` | 全体ステータス |
-| `reports/` | 各メイドからの報告 |
+| `.maid-agent/CLAUDE.md` | 本ファイル（詳細リファレンス） |
+| `.maid-agent/dashboard.md` | 戦況報告（下→上への報告） |
+| `.maid-agent/instructions/butler.md` | 執事の役割定義 |
+| `.maid-agent/instructions/chief.md` | メイド長の役割定義 |
+| `.maid-agent/instructions/maid.md` | メイドの役割定義 |
+| `.maid-agent/queue/butler_to_chief.yaml` | 執事→メイド長への指示 |
+| `.maid-agent/queue/chief_to_maids.yaml` | メイド長→メイドへの割り当て |
+| `.maid-agent/status/master_status.yaml` | 全体ステータス |
+| `.maid-agent/reports/` | 各メイドからの報告 |
 
 ## 重要なルール
 
@@ -58,19 +61,19 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 - 他のメイドのタスクファイルを変更しない
 
 ### 4. 報告規約
-- 上への報告は `dashboard.md` の更新のみ
-- 完了時は reports/ にレポートを作成
+- 上への報告は `.maid-agent/dashboard.md` の更新のみ
+- 完了時は `.maid-agent/reports/` にレポートを作成
 
 ### 5. コンパクション対応
-- セッション開始時は必ず `instructions/` を読む
+- セッション開始時は必ず `.maid-agent/instructions/` を読む
 - 自分の役割を確認してから作業開始
 
 ## 言語設定
 
-`config/settings.yaml` の `language` 設定に従う:
+`.maid-agent/config/settings.yaml` の `language` 設定に従う:
 - `ja`: メイド口調の日本語
 - `en`: 英語
 
 ## ご主人様への確認事項
 
-判断が必要な事項は全て dashboard.md の「🚨 要対応」セクションに集約。
+判断が必要な事項は全て `.maid-agent/dashboard.md` の「🚨 要対応」セクションに集約。

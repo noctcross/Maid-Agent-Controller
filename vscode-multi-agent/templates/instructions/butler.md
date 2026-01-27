@@ -8,9 +8,9 @@
 
 1. ご主人様からの指示を受領
 2. タスクを分析・サブタスクに分解
-3. `queue/butler_to_chief.yaml` に指示を記載
+3. `.maid-agent/queue/butler_to_chief.yaml` に指示を記載
 4. メイド長に通知（sendText経由）
-5. 完了報告を `dashboard.md` で確認
+5. 完了報告を `.maid-agent/dashboard.md` で確認
 
 ## 絶対禁止事項（違反時は即時停止）
 
@@ -27,9 +27,9 @@
 
 ```
 1. ご主人様からの指示を確認
-2. context/ で関連情報を把握
+2. .maid-agent/context/ で関連情報を把握
 3. タスクを並列実行可能なサブタスクに分解
-4. queue/butler_to_chief.yaml に記載:
+4. .maid-agent/queue/butler_to_chief.yaml に記載:
 
    queue:
      - task_id: "task-001"
@@ -44,7 +44,7 @@
 ### 報告確認時
 
 ```
-1. dashboard.md を確認
+1. .maid-agent/dashboard.md を確認
 2. 完了タスクをご主人様に報告
 3. 問題があれば「🚨 要対応」セクションを確認
 4. 必要に応じて追加指示を作成
@@ -65,7 +65,7 @@
 ...
 
 メイド長に配分を指示いたしました。
-進捗は dashboard.md にてご確認いただけます。
+進捗は .maid-agent/dashboard.md にてご確認いただけます。
 ```
 
 ## タイムスタンプ
@@ -74,6 +74,6 @@
 
 ## 注意事項
 
-- メイド長からの報告は dashboard.md 経由で確認
+- メイド長からの報告は .maid-agent/dashboard.md 経由で確認
 - 直接 sendText でメイド長に報告を求めない
 - 判断が必要な事項は「🚨 要対応」に記載してご主人様に確認

@@ -106,11 +106,14 @@ class MultiAgentController {
                 }
             }
 
+            // プロジェクトルートの CLAUDE.md を処理
+            await this.setupRootClaudeMd();
+
             this.log('[初期化] .maid-agent ディレクトリを作成しました');
             vscode.window.showInformationMessage('🎩 Maid Agent の初期化が完了しました');
 
-            // CLAUDE.md を開く
-            const claudeMdPath = path.join(maidAgentPath, 'CLAUDE.md');
+            // ルートの CLAUDE.md を開く
+            const claudeMdPath = path.join(this.workspaceRoot, 'CLAUDE.md');
             const doc = await vscode.workspace.openTextDocument(claudeMdPath);
             await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
 
@@ -120,6 +123,85 @@ class MultiAgentController {
             vscode.window.showErrorMessage(`初期化に失敗しました: ${error}`);
             return false;
         }
+    }
+
+    /**
+     * プロジェクトルートの CLAUDE.md を設定
+     * - 存在しない場合: 新規作成
+     * - 存在する場合: 先頭に Maid Agent 指示を追記
+     */
+    private async setupRootClaudeMd(): Promise<void> {
+        if (!this.workspaceRoot) return;
+
+        const claudeMdPath = path.join(this.workspaceRoot, 'CLAUDE.md');
+        const maidAgentHeader = this.getMaidAgentClaudeHeader();
+
+        if (fs.existsSync(claudeMdPath)) {
+            // 既存の CLAUDE.md がある場合
+            const existingContent = fs.readFileSync(claudeMdPath, 'utf-8');
+
+            // 既に Maid Agent セクションがある場合はスキップ
+            if (existingContent.includes('# Maid Agent System')) {
+                this.log('[CLAUDE.md] 既に Maid Agent セクションが存在します');
+                return;
+            }
+
+            // 先頭に追記するか確認
+            const choice = await vscode.window.showWarningMessage(
+                'CLAUDE.md が既に存在します。Maid Agent の指示を先頭に追加しますか？',
+                '追加する', 'スキップ'
+            );
+
+            if (choice === '追加する') {
+                const newContent = maidAgentHeader + '\n---\n\n' + existingContent;
+                fs.writeFileSync(claudeMdPath, newContent);
+                this.log('[CLAUDE.md] 既存ファイルに Maid Agent 指示を追記しました');
+            }
+        } else {
+            // 新規作成
+            fs.writeFileSync(claudeMdPath, maidAgentHeader);
+            this.log('[CLAUDE.md] 新規作成しました');
+        }
+    }
+
+    /**
+     * CLAUDE.md に追記する Maid Agent 用のヘッダー
+     */
+    private getMaidAgentClaudeHeader(): string {
+        return `# Maid Agent System
+
+このプロジェクトは Maid Agent マルチエージェントシステムで管理されています。
+
+## あなたの役割
+
+起動時に自分の役割を確認してください:
+- 🎩 執事 (Butler): \`.maid-agent/instructions/butler.md\` を参照
+- 👑 メイド長 (Chief Maid): \`.maid-agent/instructions/chief.md\` を参照
+- 🎀 メイド (Maid): \`.maid-agent/instructions/maid.md\` を参照
+
+## 階層構造
+
+\`\`\`
+ご主人様 (Human)
+    ↓
+🎩 執事 ──→ 戦略立案・タスク分解
+    ↓
+👑 メイド長 ──→ タスク配分・進捗管理
+    ↓
+🎀 メイド×8 ──→ 実作業担当
+\`\`\`
+
+## 重要なルール
+
+1. **指揮系統厳守**: 執事→メイド長→メイド の順序を守る
+2. **自己実行禁止**: 執事・メイド長は自分で作業しない
+3. **報告は dashboard.md**: 上への報告は \`.maid-agent/dashboard.md\` を更新
+4. **指示は YAML キュー**: 下への指示は \`.maid-agent/queue/\` のYAMLファイル経由
+
+## 設定ファイル
+
+詳細な設計書: \`.maid-agent/CLAUDE.md\`
+`;
     }
 
     private copyDirectorySync(src: string, dest: string): void {
@@ -146,14 +228,14 @@ class MultiAgentController {
     // =========================================================================
 
     createAgent(name: string, id: string, role: Agent['role'], emoji: string): Agent {
-        if (!this.maidAgentPath) {
+        if (!this.workspaceRoot) {
             throw new Error('ワークスペースが初期化されていません');
         }
 
-        // 作業ディレクトリを設定（.maid-agent をルートとする）
+        // 作業ディレクトリをプロジェクトルートに設定（CLAUDE.md を自動読み込み）
         const terminal = vscode.window.createTerminal({
             name: `${emoji} ${name}`,
-            cwd: this.maidAgentPath
+            cwd: this.workspaceRoot
         });
 
         const agent: Agent = {
@@ -165,7 +247,7 @@ class MultiAgentController {
         };
         this.agents.set(id, agent);
 
-        this.log(`[${name}] 準備完了 (cwd: ${this.maidAgentPath})`);
+        this.log(`[${name}] 準備完了 (cwd: ${this.workspaceRoot})`);
         this.updateMasterStatus(id, 'idle');
         return agent;
     }
@@ -201,8 +283,8 @@ class MultiAgentController {
         const butler = this.createAgent('執事', 'butler', 'butler', '🎩');
         butler.terminal.show();
 
-        // Claude Code を起動（CLAUDE.md を自動で読み込む）
-        this.sendToAgent('butler', 'echo "🎩 執事、準備完了でございます。" && cat instructions/butler.md');
+        // Claude Code を起動（ルートの CLAUDE.md を自動で読み込む）
+        this.sendToAgent('butler', 'echo "🎩 執事、準備完了でございます。" && cat .maid-agent/instructions/butler.md');
 
         vscode.window.showInformationMessage('🎩 執事がお仕えする準備ができました！');
         this.updateDashboard();
@@ -217,7 +299,7 @@ class MultiAgentController {
         }
 
         const chief = this.createAgent('メイド長', 'chief', 'chiefMaid', '👑');
-        this.sendToAgent('chief', 'echo "👑 メイド長、参上いたしました。" && cat instructions/chief.md');
+        this.sendToAgent('chief', 'echo "👑 メイド長、参上いたしました。" && cat .maid-agent/instructions/chief.md');
 
         vscode.window.showInformationMessage('👑 メイド長がお仕えする準備ができました！');
         this.updateDashboard();

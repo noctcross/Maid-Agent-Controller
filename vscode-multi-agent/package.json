@@ -31,7 +31,15 @@
       },
       {
         "command": "multiAgent.startMaids",
-        "title": "Maid Agent: Start 8 Maids"
+        "title": "Maid Agent: Start All Maids (8人)"
+      },
+      {
+        "command": "multiAgent.startSelectedMaids",
+        "title": "Maid Agent: Start Selected Maids (選択起動)"
+      },
+      {
+        "command": "multiAgent.startMaidsByCount",
+        "title": "Maid Agent: Start Maids by Count (人数指定)"
       },
       {
         "command": "multiAgent.startAll",

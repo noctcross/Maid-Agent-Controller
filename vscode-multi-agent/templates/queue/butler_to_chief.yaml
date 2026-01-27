@@ -1,0 +1,13 @@
+# 執事 → メイド長 への指示キュー
+# 執事がタスクを追加し、メイド長が処理する
+
+queue: []
+
+# 形式:
+# queue:
+#   - task_id: "task-001"
+#     description: "タスクの説明"
+#     priority: high | medium | low
+#     created_at: "ISO8601形式"
+#     details: |
+#       詳細な指示内容

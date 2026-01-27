@@ -1,0 +1,49 @@
+# Maid Agent Controller 設定ファイル
+
+# 言語設定
+# ja: メイド口調の日本語
+# en: 英語
+language: ja
+
+# エージェント設定
+agents:
+  butler:
+    name: "執事"
+    emoji: "🎩"
+  chief:
+    name: "メイド長"
+    emoji: "👑"
+  maids:
+    - name: "エマ"
+      id: "emma"
+      emoji: "🎀"
+    - name: "ソフィア"
+      id: "sophia"
+      emoji: "🎀"
+    - name: "リリー"
+      id: "lily"
+      emoji: "🎀"
+    - name: "ローズ"
+      id: "rose"
+      emoji: "🎀"
+    - name: "アリス"
+      id: "alice"
+      emoji: "🎀"
+    - name: "メイ"
+      id: "may"
+      emoji: "🎀"
+    - name: "フローラ"
+      id: "flora"
+      emoji: "🎀"
+    - name: "ルナ"
+      id: "luna"
+      emoji: "🎀"
+
+# ログ設定
+log:
+  level: info
+  path: ".maid-agent/logs/"
+
+# スキル設定
+skills:
+  local_path: ".maid-agent/skills/"

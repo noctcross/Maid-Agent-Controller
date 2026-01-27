@@ -1,0 +1,46 @@
+# メイド長 → メイド への割り当て
+# メイド長がタスクを配分し、各メイドが処理する
+
+assignments:
+  emma:
+    task_id: null
+    description: null
+    target_path: null
+    status: idle
+  sophia:
+    task_id: null
+    description: null
+    target_path: null
+    status: idle
+  lily:
+    task_id: null
+    description: null
+    target_path: null
+    status: idle
+  rose:
+    task_id: null
+    description: null
+    target_path: null
+    status: idle
+  alice:
+    task_id: null
+    description: null
+    target_path: null
+    status: idle
+  may:
+    task_id: null
+    description: null
+    target_path: null
+    status: idle
+  flora:
+    task_id: null
+    description: null
+    target_path: null
+    status: idle
+  luna:
+    task_id: null
+    description: null
+    target_path: null
+    status: idle
+
+# status: idle | assigned | working | completed | failed

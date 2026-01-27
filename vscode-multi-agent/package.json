@@ -1,8 +1,8 @@
 {
   "name": "multi-agent-controller",
   "displayName": "Maid Agent Controller",
-  "description": "VSCode extension for multi-agent Claude Code orchestration (Butler → Chief Maid → Maids)",
-  "version": "0.2.0",
+  "description": "VSCode extension for multi-agent Claude Code orchestration (multi-agent-shogun style)",
+  "version": "0.3.0",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -13,6 +13,10 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "multiAgent.initialize",
+        "title": "Maid Agent: Initialize Workspace"
+      },
       {
         "command": "multiAgent.startButler",
         "title": "Maid Agent: Start Butler (執事)"
@@ -50,16 +54,12 @@
         "title": "Maid Agent: Show Dashboard"
       },
       {
-        "command": "multiAgent.watchTaskFile",
-        "title": "Maid Agent: Start Watching Task File"
+        "command": "multiAgent.watchFiles",
+        "title": "Maid Agent: Start Watching Files"
       },
       {
-        "command": "multiAgent.stopWatchTaskFile",
-        "title": "Maid Agent: Stop Watching Task File"
-      },
-      {
-        "command": "multiAgent.createSampleTask",
-        "title": "Maid Agent: Create Sample Task File"
+        "command": "multiAgent.stopWatchFiles",
+        "title": "Maid Agent: Stop Watching Files"
       }
     ]
   },

@@ -61,9 +61,15 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
     private _currentAgentId: string | null = null;
     private _agents: Map<string, Agent> = new Map();
     private _extensionUri: vscode.Uri;
+    private _workspaceRoot: string | undefined;
 
     constructor(extensionUri: vscode.Uri) {
         this._extensionUri = extensionUri;
+    }
+
+    public setWorkspaceRoot(workspaceRoot: string | undefined): void {
+        this._workspaceRoot = workspaceRoot;
+        this._updateWebview();
     }
 
     public resolveWebviewView(
@@ -73,9 +79,15 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
     ): void {
         this._view = webviewView;
 
+        // localResourceRoots にワークスペースも追加
+        const resourceRoots = [this._extensionUri];
+        if (this._workspaceRoot) {
+            resourceRoots.push(vscode.Uri.file(this._workspaceRoot));
+        }
+
         webviewView.webview.options = {
             enableScripts: true,
-            localResourceRoots: [this._extensionUri]
+            localResourceRoots: resourceRoots
         };
 
         this._updateWebview();
@@ -89,6 +101,23 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
     public setCurrentAgent(agentId: string | null): void {
         this._currentAgentId = agentId;
         this._updateWebview();
+    }
+
+    /**
+     * エージェントの画像パスを取得（存在チェック付き）
+     */
+    private _getAgentImageUri(agentId: string): string | null {
+        if (!this._workspaceRoot || !this._view) return null;
+
+        const extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+        for (const ext of extensions) {
+            const imagePath = path.join(this._workspaceRoot, MAID_AGENT_DIR, 'images', `${agentId}.${ext}`);
+            if (fs.existsSync(imagePath)) {
+                const imageUri = vscode.Uri.file(imagePath);
+                return this._view.webview.asWebviewUri(imageUri).toString();
+            }
+        }
+        return null;
     }
 
     private _updateWebview(): void {
@@ -106,10 +135,16 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
             const statusEmoji = agent.status === 'working' ? '⚡' :
                                agent.status === 'done' ? '✅' : '💤';
 
+            // 画像があれば使用、なければ絵文字
+            const imageUri = this._getAgentImageUri(this._currentAgentId!);
+            const avatarContent = imageUri
+                ? `<img src="${imageUri}" class="avatar-img" alt="${agent.name}" />`
+                : `<span class="emoji">${emoji}</span>`;
+
             content = `
                 <div class="agent-display" style="background: ${colors.bg}; border-color: ${colors.accent};">
-                    <div class="avatar" style="background: ${colors.accent};">
-                        <span class="emoji">${emoji}</span>
+                    <div class="avatar" style="background: ${imageUri ? 'transparent' : colors.accent};">
+                        ${avatarContent}
                     </div>
                     <div class="name" style="color: ${colors.accent};">${agent.name}</div>
                     <div class="role">${roleLabel}</div>
@@ -158,6 +193,13 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
+        }
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
         }
         .emoji {
             font-size: 40px;
@@ -1069,6 +1111,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     // エージェントパネル（サイドバー）を登録
     const agentPanelProvider = new AgentPanelProvider(context.extensionUri);
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    agentPanelProvider.setWorkspaceRoot(workspaceRoot);
     controller.setAgentPanelProvider(agentPanelProvider);
 
     context.subscriptions.push(

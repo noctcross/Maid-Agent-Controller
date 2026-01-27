@@ -1,8 +1,8 @@
 {
   "name": "multi-agent-controller",
-  "displayName": "Multi Agent Controller",
-  "description": "VSCode extension for multi-agent Claude Code orchestration",
-  "version": "0.0.1",
+  "displayName": "Maid Agent Controller",
+  "description": "VSCode extension for multi-agent Claude Code orchestration with Maid team",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -15,15 +15,31 @@
     "commands": [
       {
         "command": "multiAgent.startAgents",
-        "title": "Multi Agent: Start Agents (Shogun + Karo)"
+        "title": "Maid Agent: Start Head & Chief Maid"
       },
       {
-        "command": "multiAgent.sendToKaro",
-        "title": "Multi Agent: Send Command to Karo"
+        "command": "multiAgent.startMaids",
+        "title": "Maid Agent: Start 8 Maids"
+      },
+      {
+        "command": "multiAgent.startAll",
+        "title": "Maid Agent: Start All (10 Maids)"
+      },
+      {
+        "command": "multiAgent.sendToChief",
+        "title": "Maid Agent: Send Command to Chief Maid"
+      },
+      {
+        "command": "multiAgent.sendToMaid",
+        "title": "Maid Agent: Send Command to Maid"
+      },
+      {
+        "command": "multiAgent.startClaude",
+        "title": "Maid Agent: Start Claude on All Maids"
       },
       {
         "command": "multiAgent.showDashboard",
-        "title": "Multi Agent: Show Dashboard"
+        "title": "Maid Agent: Show Dashboard"
       }
     ]
   },

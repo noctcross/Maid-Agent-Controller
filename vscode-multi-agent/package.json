@@ -2,7 +2,7 @@
   "name": "multi-agent-controller",
   "displayName": "Maid Agent Controller",
   "description": "VSCode extension for multi-agent Claude Code orchestration with Maid team",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -40,6 +40,18 @@
       {
         "command": "multiAgent.showDashboard",
         "title": "Maid Agent: Show Dashboard"
+      },
+      {
+        "command": "multiAgent.watchTaskFile",
+        "title": "Maid Agent: Start Watching Task File"
+      },
+      {
+        "command": "multiAgent.stopWatchTaskFile",
+        "title": "Maid Agent: Stop Watching Task File"
+      },
+      {
+        "command": "multiAgent.createSampleTask",
+        "title": "Maid Agent: Create Sample Task File"
       }
     ]
   },

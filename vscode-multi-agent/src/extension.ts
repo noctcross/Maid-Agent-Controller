@@ -26,16 +26,46 @@ interface MaidConfig {
 
 const MAID_AGENT_DIR = '.maid-agent';
 
-const MAIDS: MaidConfig[] = [
-    { name: 'エマ', id: 'emma', emoji: '🎀' },
-    { name: 'ソフィア', id: 'sophia', emoji: '🎀' },
-    { name: 'リリー', id: 'lily', emoji: '🎀' },
-    { name: 'ローズ', id: 'rose', emoji: '🎀' },
-    { name: 'アリス', id: 'alice', emoji: '🎀' },
-    { name: 'メイ', id: 'may', emoji: '🎀' },
-    { name: 'フローラ', id: 'flora', emoji: '🎀' },
-    { name: 'ルナ', id: 'luna', emoji: '🎀' },
-];
+const MAIDS_MAP: { [key: string]: MaidConfig } = {
+    emma: { name: 'エマ', id: 'emma', emoji: '🎀' },
+    sophia: { name: 'ソフィア', id: 'sophia', emoji: '🎀' },
+    lily: { name: 'リリー', id: 'lily', emoji: '🎀' },
+    rose: { name: 'ローズ', id: 'rose', emoji: '🎀' },
+    alice: { name: 'アリス', id: 'alice', emoji: '🎀' },
+    may: { name: 'メイ', id: 'may', emoji: '🎀' },
+    flora: { name: 'フローラ', id: 'flora', emoji: '🎀' },
+    luna: { name: 'ルナ', id: 'luna', emoji: '🎀' },
+};
+
+const DEFAULT_MAID_ORDER = ['emma', 'sophia', 'lily', 'rose', 'alice', 'may', 'flora', 'luna'];
+
+/**
+ * 設定からメイドの順序を取得
+ */
+function getOrderedMaids(): MaidConfig[] {
+    const config = vscode.workspace.getConfiguration('maidAgent');
+    const maidOrder = config.get<string[]>('maidOrder', DEFAULT_MAID_ORDER);
+
+    // 設定に基づいて順序付けされたメイドリストを作成
+    const orderedMaids: MaidConfig[] = [];
+    for (const id of maidOrder) {
+        if (MAIDS_MAP[id]) {
+            orderedMaids.push(MAIDS_MAP[id]);
+        }
+    }
+
+    // 設定に含まれていないメイドを追加（安全のため）
+    for (const id of DEFAULT_MAID_ORDER) {
+        if (!maidOrder.includes(id) && MAIDS_MAP[id]) {
+            orderedMaids.push(MAIDS_MAP[id]);
+        }
+    }
+
+    return orderedMaids;
+}
+
+// 後方互換性のためのエイリアス（内部で getOrderedMaids() を使用）
+const MAIDS = DEFAULT_MAID_ORDER.map(id => MAIDS_MAP[id]);
 
 // エージェントごとの色設定（画像の代わりにカラーで識別）
 const AGENT_COLORS: { [key: string]: { bg: string; accent: string } } = {
@@ -651,8 +681,9 @@ class MultiAgentController {
     async startSelectedMaids(): Promise<void> {
         if (!await this.ensureInitialized()) return;
 
-        // 未起動のメイドのみ選択肢に
-        const availableMaids = MAIDS.filter(m => !this.agents.has(m.id));
+        // 未起動のメイドのみ選択肢に（設定順）
+        const orderedMaids = getOrderedMaids();
+        const availableMaids = orderedMaids.filter(m => !this.agents.has(m.id));
 
         if (availableMaids.length === 0) {
             vscode.window.showWarningMessage('メイドは既に全員お仕えしております');
@@ -703,7 +734,8 @@ class MultiAgentController {
     private async _startMaidsByCountInternal(random: boolean): Promise<void> {
         if (!await this.ensureInitialized()) return;
 
-        const availableMaids = MAIDS.filter(m => !this.agents.has(m.id));
+        const orderedMaids = getOrderedMaids();
+        const availableMaids = orderedMaids.filter(m => !this.agents.has(m.id));
 
         if (availableMaids.length === 0) {
             vscode.window.showWarningMessage('メイドは既に全員お仕えしております');
@@ -764,7 +796,8 @@ class MultiAgentController {
     private async _startAllByCountInternal(random: boolean): Promise<void> {
         if (!await this.ensureInitialized()) return;
 
-        const availableMaids = MAIDS.filter(m => !this.agents.has(m.id));
+        const orderedMaids = getOrderedMaids();
+        const availableMaids = orderedMaids.filter(m => !this.agents.has(m.id));
 
         if (availableMaids.length === 0) {
             vscode.window.showWarningMessage('メイドは既に全員お仕えしております。Call All をお使いください。');
@@ -823,8 +856,9 @@ class MultiAgentController {
     async startAllAgents(): Promise<void> {
         await this.startButler();
         await this.startChiefMaid();
-        // 全メイドを順番に起動
-        for (const maid of MAIDS) {
+        // 全メイドを設定順に起動
+        const orderedMaids = getOrderedMaids();
+        for (const maid of orderedMaids) {
             if (!this.agents.has(maid.id)) {
                 this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
                 this.sendToAgent(maid.id, `echo "🎀 ${maid.name}、お仕えいたします♪"`);
@@ -1224,7 +1258,8 @@ class MultiAgentController {
     }
 
     async promptAndSendToMaid(): Promise<void> {
-        const maidOptions = MAIDS
+        const orderedMaids = getOrderedMaids();
+        const maidOptions = orderedMaids
             .filter(m => this.agents.has(m.id))
             .map(m => ({ label: `${m.emoji} ${m.name}`, id: m.id }));
 

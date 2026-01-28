@@ -92,9 +92,29 @@
         {
           "type": "webview",
           "id": "maidAgent.agentPanel",
-          "name": "Current Agent"
+          "name": "Current Agent",
+          "when": "config.maidAgent.showAgentPanel"
         }
       ]
+    },
+    "configuration": {
+      "title": "Maid Agent",
+      "properties": {
+        "maidAgent.maidOrder": {
+          "type": "array",
+          "default": ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"],
+          "items": {
+            "type": "string",
+            "enum": ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"]
+          },
+          "description": "メイドの起動順序（順番起動時に使用）"
+        },
+        "maidAgent.showAgentPanel": {
+          "type": "boolean",
+          "default": true,
+          "description": "サイドバーにエージェントパネルを表示"
+        }
+      }
     }
   },
   "scripts": {

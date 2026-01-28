@@ -67,7 +67,7 @@ F5でデバッグ起動 → Extension Development Host が開く
 | `Call Maids xN -r` | maids xn -r | メイドN人のみ（ランダム） |
 | `Call Maids Pick` | pick | チェックボックスでメイドを選択 |
 
-> **-r オプション**: ランダム選択。なしの場合はエマ、ソフィア、リリー...の順
+> **-r オプション**: ランダム選択。なしの場合は設定の `maidAgent.maidOrder` 順
 
 ### 4. タスクを実行
 
@@ -136,6 +136,33 @@ Activity Bar に「Maid Agent」アイコンが表示されます。
 ```
 
 詳細は `.maid-agent/images/README.md` を参照。
+
+## 拡張機能設定
+
+VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
+
+| 設定 | 説明 | デフォルト |
+|-----|------|-----------|
+| `maidAgent.maidOrder` | メイドの起動順序（順番起動時に使用） | `["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"]` |
+| `maidAgent.showAgentPanel` | サイドバーにエージェントパネルを表示 | `true` |
+
+### メイドの順番をカスタマイズ
+
+`settings.json` で直接編集：
+
+```json
+{
+  "maidAgent.maidOrder": ["luna", "flora", "may", "alice", "rose", "lily", "sophia", "emma"]
+}
+```
+
+### エージェントパネルを非表示
+
+```json
+{
+  "maidAgent.showAgentPanel": false
+}
+```
 
 ## 全コマンド一覧
 

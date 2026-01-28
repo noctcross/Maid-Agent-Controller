@@ -61,9 +61,9 @@ F5でデバッグ起動 → Extension Development Host が開く
 | `Call All` | all | 全員起動（執事+メイド長+メイド8人） |
 | `Call Butler` | butler | 執事のみ起動 |
 | `Call Chief` | chief | メイド長のみ起動 |
-| `Call Maids x8` | x8 | メイド8人を起動 |
+| `Call Maids x8` | x8 | メイド8人のみ起動 |
 | `Call Maids Pick` | pick | チェックボックスでメイドを選択 |
-| `Call Maids xN` | xn | 人数を指定して起動（ランダム/順番選択可） |
+| `Call Maids xN` | xn | 執事+メイド長+メイドN人を起動（ランダム/順番選択可） |
 
 ### 4. タスクを実行
 
@@ -141,9 +141,9 @@ Activity Bar に「Maid Agent」アイコンが表示されます。
 | `Call All` | all | 全員起動 |
 | `Call Butler` | butler | 執事起動 |
 | `Call Chief` | chief | メイド長起動 |
-| `Call Maids x8` | x8 | メイド8人起動 |
+| `Call Maids x8` | x8 | メイド8人のみ起動 |
 | `Call Maids Pick` | pick | 選択して起動 |
-| `Call Maids xN` | xn | 人数指定で起動 |
+| `Call Maids xN` | xn | 執事+メイド長+メイドN人起動 |
 | `Claude Start` | claude | 全ターミナルでClaude起動 |
 | `Task to Butler` | task butler | 執事にタスク送信 |
 | `Task to Maid` | task maid | 特定メイドに送信 |

@@ -45,6 +45,7 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 | `.maid-agent/queue/chief_to_maids.yaml` | メイド長→メイドへの割り当て |
 | `.maid-agent/status/master_status.yaml` | 全体ステータス |
 | `.maid-agent/reports/` | 各メイドからの報告 |
+| `.maid-agent/skills/` | 承認済みスキル（再利用パターン） |
 
 ## 重要なルール
 
@@ -73,6 +74,32 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 `.maid-agent/config/settings.yaml` の `language` 設定に従う:
 - `ja`: メイド口調の日本語
 - `en`: 英語
+
+## スキルシステム
+
+### スキルとは
+繰り返し使える作業パターンを文書化したもの。メイドが発見し、承認後に `.maid-agent/skills/` に保存。
+
+### スキル化基準
+- **再利用性**: 他プロジェクトでも使える
+- **反復性**: 同パターンを2回以上実行
+- **チーム価値**: 他メイドにも有用
+- **複雑性**: 手順や知識が必要
+
+### スキル化フロー
+```
+メイド: 候補発見 → reports/ に記載
+    ↓
+メイド長: 集約 → dashboard.md に記載
+    ↓
+執事: 確認 → ご主人様に報告
+    ↓
+ご主人様: 承認 → skills/ に作成
+```
+
+### 重要ルール
+- メイドは候補を**報告のみ**（自分で作成禁止）
+- スキル作成はご主人様の承認後のみ
 
 ## ご主人様への確認事項
 

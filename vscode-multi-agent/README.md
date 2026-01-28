@@ -27,15 +27,6 @@ VSCode拡張として動作するマルチエージェントClaude Code管理シ
 └──┴──┴──┴──┴──┴──┴──┴──┘
 ```
 
-## 動作フロー
-
-1. **ユーザー** → 執事にタスクを送信
-2. **執事** → タスクを分析・サブタスクに分解 → メイド長に指示
-3. **メイド長** → サブタスクを各メイドに配分
-4. **メイド** → 個別タスクを実行 → 完了報告
-5. **メイド長** → 結果を集約 → 執事に報告
-6. **執事** → 全体の完了をユーザーに報告
-
 ## インストール
 
 ```bash
@@ -52,77 +43,120 @@ npm run compile
 F5でデバッグ起動 → Extension Development Host が開く
 ```
 
-### 2. エージェントを起動
+### 2. 初期化
 
-コマンドパレット（`Ctrl+Shift+P`）から：
-
-| コマンド | 説明 |
-|---------|------|
-| `Maid Agent: Start All (10 Agents)` | 全員起動（執事+メイド長+メイド8人） |
-| `Maid Agent: Start Butler (執事)` | 執事のみ起動 |
-| `Maid Agent: Start Chief Maid (メイド長)` | メイド長のみ起動 |
-| `Maid Agent: Start 8 Maids` | メイド8人を起動 |
-
-### 3. タスクを送信
+コマンドパレット（`Ctrl+Shift+P`）から `initialize` と入力:
 
 | コマンド | 説明 |
 |---------|------|
-| `Maid Agent: Send Task to Butler` | 執事にタスクを送信（階層的に処理） |
-| `Maid Agent: Send Task to Maid` | 特定のメイドに直接タスクを送信 |
+| `Maid Agent: Initialize Workspace` | `.maid-agent/` ディレクトリを作成 |
 
-### 4. ダッシュボード
+> **Note**: コマンドパレットでは部分一致検索ができます。
+> 例: `initialize` や `start all` と入力するだけでコマンドが見つかります。
+
+### 3. エージェントを起動
+
+| コマンド | 説明 |
+|---------|------|
+| `Start All (10 Agents)` | 全員起動（執事+メイド長+メイド8人） |
+| `Start Butler` | 執事のみ起動 |
+| `Start Chief Maid` | メイド長のみ起動 |
+| `Start 8 Maids` | メイド8人を起動 |
+| `Start Selected Maids` | チェックボックスでメイドを選択して起動 |
+| `Start Maids By Count` | 人数を指定して起動（ランダム/順番選択可） |
+
+### 4. タスクを実行
+
+**執事のターミナルに直接入力してください。**
+
+執事のターミナル（🎩 執事）を選択し、Claude Code に直接タスクを入力します。
+執事がタスクを分析し、メイド長→メイドへと階層的に処理されます。
+
+> 補助コマンドとして `Send Task to Butler` もありますが、
+> 通常は直接ターミナルに入力する方がシンプルです。
+
+### 5. 進捗確認
+
+#### サイドバー（エージェントパネル）
+
+Activity Bar に「Maid Agent」アイコンが表示されます。
+現在アクティブなターミナルのエージェント情報が表示されます。
+
+#### ダッシュボード
 
 - ステータスバーの「🎩 Maid Agent」をクリック
-- または `Maid Agent: Show Dashboard`
+- または `Show Dashboard` コマンド
 
-## システムプロンプト
+## ファイル構成
 
-各エージェントには役割に応じたプロンプトが設定されます：
+初期化後、`.maid-agent/` ディレクトリが作成されます：
 
-### 執事（タスク分解）
 ```
-あなたは優秀な執事です。ご主人様から受けた指示を分析し、
-メイドたちが実行できるサブタスクに分解してください。
-...
-最後に「メイド長、これらのタスクをメイドたちに配分してください」
-```
-
-### メイド長（タスク配分）
-```
-あなたはメイド長です。執事から受けたサブタスクを
-各メイドに適切に配分し、進捗を管理してください。
-...
-全タスク完了後は「執事様、全タスクが完了いたしました」と報告
-```
-
-### メイド（タスク実行）
-```
-あなたは優秀なメイドです。メイド長から指示されたタスクを
-丁寧に実行してください。
-...
-完了時は「お仕事完了でございます♪」と報告
+.maid-agent/
+├── CLAUDE.md              # 詳細設計書
+├── dashboard.md           # 進捗ダッシュボード
+├── config/
+│   └── settings.yaml      # 設定ファイル
+├── context/               # プロジェクト固有コンテキスト
+├── instructions/          # 各役割の指示書
+│   ├── butler.md
+│   ├── chief.md
+│   └── maid.md
+├── queue/                 # タスクキュー
+│   ├── butler_to_chief.yaml
+│   └── chief_to_maids.yaml
+├── reports/               # メイドからの報告
+├── skills/                # 承認済みスキル
+│   └── skill-creator/     # スキル作成ガイド
+├── status/
+│   └── master_status.yaml
+└── images/                # カスタム画像（オプション）
 ```
 
-## YAMLタスクファイル
+## カスタム画像
 
-`maid-tasks.yaml` を作成すると、自動的に執事に送信されます：
+`.maid-agent/images/` にエージェント画像を配置すると、
+サイドバーのエージェントパネルに表示されます。
 
-```yaml
-tasks:
-  - id: task-001
-    description: "プロジェクト分析"
-    prompt: |
-      このプロジェクトを分析してください。
-      - プロジェクトの構造
-      - 主要なファイルと役割
-      - 改善点や問題点
-```
+対応ファイル名:
+- `butler.png` / `butler.jpg` など
+- `chief.png`
+- `emma.png`, `sophia.png`, `lily.png`, `rose.png`
+- `alice.png`, `may.png`, `flora.png`, `luna.png`
+
+## スキルシステム
+
+繰り返し使える作業パターンを「スキル」として保存できます。
+
+1. メイドがスキル化候補を発見 → reports/ に記載
+2. メイド長が集約 → dashboard.md に記載
+3. 執事が確認 → ユーザーに報告
+4. ユーザーが承認 → skills/ に作成
+
+詳細は `.maid-agent/skills/skill-creator/SKILL.md` を参照。
+
+## Memory MCP
+
+Memory MCP が利用可能な場合、セッション間で知識を共有できます。
+各エージェントはセッション開始時に過去の知識グラフを読み込みます。
+
+## 全コマンド一覧
 
 | コマンド | 説明 |
 |---------|------|
-| `Maid Agent: Create Sample Task File` | サンプルYAMLを生成 |
-| `Maid Agent: Start Watching Task File` | YAML監視開始 |
-| `Maid Agent: Stop Watching Task File` | YAML監視停止 |
+| `Initialize Workspace` | ワークスペース初期化 |
+| `Start All (10 Agents)` | 全員起動 |
+| `Start Butler` | 執事起動 |
+| `Start Chief Maid` | メイド長起動 |
+| `Start 8 Maids` | メイド8人起動 |
+| `Start Selected Maids` | 選択したメイドを起動 |
+| `Start Maids By Count` | 人数指定で起動 |
+| `Start Claude in Current Terminal` | 現在のターミナルでClaude起動 |
+| `Send Task to Butler` | 執事にタスク送信（補助） |
+| `Send Task to Maid` | 特定メイドに送信（補助） |
+| `Show Dashboard` | ダッシュボード表示 |
+| `Watch Task File` | YAMLファイル監視開始 |
+| `Stop Watch Task File` | YAMLファイル監視停止 |
 
 ## multi-agent-shogun との違い
 
@@ -131,8 +165,9 @@ tasks:
 | 環境 | tmux (Linux/macOS) | VSCode (クロスプラットフォーム) |
 | ターミナル管理 | tmux send-keys | terminal.sendText() |
 | 階層構造 | 将軍→家老→足軽 | 執事→メイド長→メイド |
-| GUI | なし | Webviewダッシュボード |
-| タスク管理 | YAML | YAML + ダッシュボード |
+| GUI | なし | サイドバー + ダッシュボード |
+| 起動方法 | シェルスクリプト | VSCodeコマンド |
+| 画像表示 | なし | サイドバーパネル |
 
 ## 参考
 

@@ -648,6 +648,17 @@ class MultiAgentController {
 
         const count = parseInt(countStr);
 
+        // ランダム or 順番を選択
+        const selectionMode = await vscode.window.showQuickPick(
+            [
+                { label: '$(list-ordered) 順番に起動', description: 'エマ、ソフィア、リリー... の順', value: 'sequential' },
+                { label: '$(symbol-misc) ランダムに起動', description: 'ランダムに選択', value: 'random' }
+            ],
+            { placeHolder: '起動順を選択してください' }
+        );
+
+        if (!selectionMode) return;
+
         // 執事・メイド長を先に起動
         if (!this.agents.has('butler')) {
             const butler = this.createAgent('執事', 'butler', 'butler', '🎩');
@@ -660,9 +671,14 @@ class MultiAgentController {
             this.sendToAgent('chief', 'echo "👑 メイド長、参上いたしました。" && cat .maid-agent/instructions/chief.md');
         }
 
-        // ランダムにメイドを選択
-        const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
-        const maidsToStart = shuffled.slice(0, count);
+        // 選択モードに応じてメイドを選択
+        let maidsToStart: typeof availableMaids;
+        if (selectionMode.value === 'random') {
+            const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
+            maidsToStart = shuffled.slice(0, count);
+        } else {
+            maidsToStart = availableMaids.slice(0, count);
+        }
 
         for (const maid of maidsToStart) {
             this.createAgent(maid.name, maid.id, 'maid', maid.emoji);

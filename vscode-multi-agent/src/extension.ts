@@ -648,26 +648,6 @@ class MultiAgentController {
         this.updateDashboard();
     }
 
-    async startMaids(): Promise<void> {
-        if (!await this.ensureInitialized()) return;
-
-        let startedCount = 0;
-        for (const maid of MAIDS) {
-            if (!this.agents.has(maid.id)) {
-                this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-                this.sendToAgent(maid.id, `echo "🎀 ${maid.name}、お仕えいたします♪"`);
-                startedCount++;
-            }
-        }
-
-        if (startedCount > 0) {
-            vscode.window.showInformationMessage(`🎀 メイド${startedCount}人がお仕えする準備ができました！`);
-        } else {
-            vscode.window.showWarningMessage('メイドは既に全員お仕えしております');
-        }
-        this.updateDashboard();
-    }
-
     async startSelectedMaids(): Promise<void> {
         if (!await this.ensureInitialized()) return;
 
@@ -707,9 +687,20 @@ class MultiAgentController {
     }
 
     /**
-     * Call Maids xN - メイドのみN人起動（ランダム/順番選択可）
+     * Call Maids xN - メイドN人を順番に起動
      */
     async startMaidsByCount(): Promise<void> {
+        await this._startMaidsByCountInternal(false);
+    }
+
+    /**
+     * Call Maids xN -r - メイドN人をランダムに起動
+     */
+    async startMaidsByCountRandom(): Promise<void> {
+        await this._startMaidsByCountInternal(true);
+    }
+
+    private async _startMaidsByCountInternal(random: boolean): Promise<void> {
         if (!await this.ensureInitialized()) return;
 
         const availableMaids = MAIDS.filter(m => !this.agents.has(m.id));
@@ -720,7 +711,7 @@ class MultiAgentController {
         }
 
         const countStr = await vscode.window.showInputBox({
-            prompt: `何人のメイドを起動しますか？（1〜${availableMaids.length}人）`,
+            prompt: `何人のメイドを起動しますか？（1〜${availableMaids.length}人）${random ? '【ランダム】' : '【順番】'}`,
             placeHolder: '例: 3',
             validateInput: (value) => {
                 const num = parseInt(value);
@@ -738,20 +729,8 @@ class MultiAgentController {
 
         const count = parseInt(countStr);
 
-        // ランダム or 順番を選択
-        const selectionMode = await vscode.window.showQuickPick(
-            [
-                { label: '$(list-ordered) 順番に起動', description: 'エマ、ソフィア、リリー... の順', value: 'sequential' },
-                { label: '$(symbol-misc) ランダムに起動', description: 'ランダムに選択', value: 'random' }
-            ],
-            { placeHolder: '起動順を選択してください' }
-        );
-
-        if (!selectionMode) return;
-
-        // 選択モードに応じてメイドを選択
         let maidsToStart: typeof availableMaids;
-        if (selectionMode.value === 'random') {
+        if (random) {
             const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
             maidsToStart = shuffled.slice(0, count);
         } else {
@@ -769,9 +748,20 @@ class MultiAgentController {
     }
 
     /**
-     * Call All xN - 執事 + メイド長 + メイドN人起動（ランダム/順番選択可）
+     * Call All xN - 執事 + メイド長 + メイドN人を順番に起動
      */
     async startAllByCount(): Promise<void> {
+        await this._startAllByCountInternal(false);
+    }
+
+    /**
+     * Call All xN -r - 執事 + メイド長 + メイドN人をランダムに起動
+     */
+    async startAllByCountRandom(): Promise<void> {
+        await this._startAllByCountInternal(true);
+    }
+
+    private async _startAllByCountInternal(random: boolean): Promise<void> {
         if (!await this.ensureInitialized()) return;
 
         const availableMaids = MAIDS.filter(m => !this.agents.has(m.id));
@@ -782,7 +772,7 @@ class MultiAgentController {
         }
 
         const countStr = await vscode.window.showInputBox({
-            prompt: `メイドを何人起動しますか？（1〜${availableMaids.length}人）執事+メイド長も起動します`,
+            prompt: `メイドを何人起動しますか？（1〜${availableMaids.length}人）執事+メイド長も起動 ${random ? '【ランダム】' : '【順番】'}`,
             placeHolder: '例: 3',
             validateInput: (value) => {
                 const num = parseInt(value);
@@ -800,17 +790,6 @@ class MultiAgentController {
 
         const count = parseInt(countStr);
 
-        // ランダム or 順番を選択
-        const selectionMode = await vscode.window.showQuickPick(
-            [
-                { label: '$(list-ordered) 順番に起動', description: 'エマ、ソフィア、リリー... の順', value: 'sequential' },
-                { label: '$(symbol-misc) ランダムに起動', description: 'ランダムに選択', value: 'random' }
-            ],
-            { placeHolder: 'メイドの起動順を選択してください' }
-        );
-
-        if (!selectionMode) return;
-
         // 執事・メイド長を先に起動
         if (!this.agents.has('butler')) {
             const butler = this.createAgent('執事', 'butler', 'butler', '🎩');
@@ -823,9 +802,8 @@ class MultiAgentController {
             this.sendToAgent('chief', 'echo "👑 メイド長、参上いたしました。" && cat .maid-agent/instructions/chief.md');
         }
 
-        // 選択モードに応じてメイドを選択
         let maidsToStart: typeof availableMaids;
-        if (selectionMode.value === 'random') {
+        if (random) {
             const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
             maidsToStart = shuffled.slice(0, count);
         } else {
@@ -845,7 +823,14 @@ class MultiAgentController {
     async startAllAgents(): Promise<void> {
         await this.startButler();
         await this.startChiefMaid();
-        await this.startMaids();
+        // 全メイドを順番に起動
+        for (const maid of MAIDS) {
+            if (!this.agents.has(maid.id)) {
+                this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
+                this.sendToAgent(maid.id, `echo "🎀 ${maid.name}、お仕えいたします♪"`);
+            }
+        }
+        this.updateDashboard();
     }
 
     private async ensureInitialized(): Promise<boolean> {
@@ -1320,20 +1305,23 @@ export function activate(context: vscode.ExtensionContext) {
             controller.startButler();
             controller.startChiefMaid();
         }),
-        vscode.commands.registerCommand('multiAgent.startMaids', () => {
-            controller.startMaids();
-        }),
         vscode.commands.registerCommand('multiAgent.startSelectedMaids', () => {
             controller.startSelectedMaids();
         }),
         vscode.commands.registerCommand('multiAgent.startMaidsByCount', () => {
             controller.startMaidsByCount();
         }),
+        vscode.commands.registerCommand('multiAgent.startMaidsByCountRandom', () => {
+            controller.startMaidsByCountRandom();
+        }),
         vscode.commands.registerCommand('multiAgent.startAll', () => {
             controller.startAllAgents();
         }),
         vscode.commands.registerCommand('multiAgent.startAllByCount', () => {
             controller.startAllByCount();
+        }),
+        vscode.commands.registerCommand('multiAgent.startAllByCountRandom', () => {
+            controller.startAllByCountRandom();
         }),
         vscode.commands.registerCommand('multiAgent.sendToButler', () => {
             controller.promptAndSendToButler();

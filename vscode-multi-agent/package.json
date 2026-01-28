@@ -2,7 +2,7 @@
   "name": "multi-agent-controller",
   "displayName": "Maid Agent Controller",
   "description": "VSCode extension for multi-agent Claude Code orchestration (multi-agent-shogun style)",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -30,10 +30,6 @@
         "title": "Maid Agent: Call Butler & Chief"
       },
       {
-        "command": "multiAgent.startMaids",
-        "title": "Maid Agent: Call Maids x8"
-      },
-      {
         "command": "multiAgent.startSelectedMaids",
         "title": "Maid Agent: Call Maids Pick"
       },
@@ -42,12 +38,20 @@
         "title": "Maid Agent: Call Maids xN"
       },
       {
+        "command": "multiAgent.startMaidsByCountRandom",
+        "title": "Maid Agent: Call Maids xN -r"
+      },
+      {
         "command": "multiAgent.startAll",
         "title": "Maid Agent: Call All"
       },
       {
         "command": "multiAgent.startAllByCount",
         "title": "Maid Agent: Call All xN"
+      },
+      {
+        "command": "multiAgent.startAllByCountRandom",
+        "title": "Maid Agent: Call All xN -r"
       },
       {
         "command": "multiAgent.sendToButler",

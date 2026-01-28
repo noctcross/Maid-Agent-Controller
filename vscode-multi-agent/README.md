@@ -52,21 +52,22 @@ F5でデバッグ起動 → Extension Development Host が開く
 | `Maid Agent: Init` | `.maid-agent/` ディレクトリを作成 |
 
 > **Note**: コマンドパレットではファジー検索が使えます。
-> 例: `call all`, `call xn`, `butler` など部分入力でOK
+> 例: `call all`, `xn -r`, `butler` など部分入力でOK
 
 ### 3. エージェントを召喚
 
 | コマンド | 検索キーワード | 説明 |
 |---------|--------------|------|
 | `Call All` | all | 全員起動（執事+メイド長+メイド8人 = 10人） |
-| `Call All xN` | all xn | 執事+メイド長+メイドN人を起動 |
+| `Call All xN` | all xn | 執事+メイド長+メイドN人（順番） |
+| `Call All xN -r` | all xn -r | 執事+メイド長+メイドN人（ランダム） |
 | `Call Butler` | butler | 執事のみ起動 |
 | `Call Chief` | chief | メイド長のみ起動 |
-| `Call Maids x8` | x8 | メイド8人のみ起動 |
-| `Call Maids xN` | maids xn | メイドN人のみ起動 |
+| `Call Maids xN` | maids xn | メイドN人のみ（順番） |
+| `Call Maids xN -r` | maids xn -r | メイドN人のみ（ランダム） |
 | `Call Maids Pick` | pick | チェックボックスでメイドを選択 |
 
-> **xN コマンド**: 人数入力後、ランダム/順番を選択できます
+> **-r オプション**: ランダム選択。なしの場合はエマ、ソフィア、リリー...の順
 
 ### 4. タスクを実行
 
@@ -130,7 +131,7 @@ Activity Bar に「Maid Agent」アイコンが表示されます。
 
 ```
 基本:     emma.png
-バージョン違い: emma_1.png, emma_2.png  (ランダム選択)
+バージョン違い: emma_1.png, emma_2.png  (ランダム選択、最大10)
 ステータス別:  emma_wait.png, emma_work.png  (自動切替)
 ```
 
@@ -142,11 +143,12 @@ Activity Bar に「Maid Agent」アイコンが表示されます。
 |---------|--------------|------|
 | `Init` | init | ワークスペース初期化 |
 | `Call All` | all | 全員起動（10人） |
-| `Call All xN` | all xn | 執事+メイド長+メイドN人 |
+| `Call All xN` | all xn | 執事+メイド長+メイドN人（順番） |
+| `Call All xN -r` | all xn -r | 執事+メイド長+メイドN人（ランダム） |
 | `Call Butler` | butler | 執事起動 |
 | `Call Chief` | chief | メイド長起動 |
-| `Call Maids x8` | x8 | メイド8人のみ |
-| `Call Maids xN` | maids xn | メイドN人のみ |
+| `Call Maids xN` | maids xn | メイドN人のみ（順番） |
+| `Call Maids xN -r` | maids xn -r | メイドN人のみ（ランダム） |
 | `Call Maids Pick` | pick | 選択して起動 |
 | `Claude Start` | claude | 全ターミナルでClaude起動 |
 | `Task to Butler` | task butler | 執事にタスク送信 |

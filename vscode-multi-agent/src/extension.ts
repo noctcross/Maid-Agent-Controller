@@ -418,6 +418,12 @@ class MultiAgentController {
 
 このプロジェクトは Maid Agent マルチエージェントシステムで管理されています。
 
+## セッション開始時（必須）
+
+1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
+2. \`.maid-agent/context/\` でプロジェクト固有情報を確認
+3. 自分の役割を確認（下記参照）
+
 ## あなたの役割
 
 起動時に自分の役割を確認してください:
@@ -443,10 +449,13 @@ class MultiAgentController {
 2. **自己実行禁止**: 執事・メイド長は自分で作業しない
 3. **報告は dashboard.md**: 上への報告は \`.maid-agent/dashboard.md\` を更新
 4. **指示は YAML キュー**: 下への指示は \`.maid-agent/queue/\` のYAMLファイル経由
+5. **sendText 2段階**: 通知時はメッセージとEnterを別々に送信
 
-## 設定ファイル
+## ファイル構成
 
-詳細な設計書: \`.maid-agent/CLAUDE.md\`
+- 詳細設計書: \`.maid-agent/CLAUDE.md\`
+- プロジェクトコンテキスト: \`.maid-agent/context/\`
+- スキル: \`.maid-agent/skills/\`
 `;
     }
 

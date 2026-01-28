@@ -2,7 +2,8 @@
 
 # 言語設定
 # ja: メイド口調の日本語
-# en: 英語
+# en: 英語（メイド口調 + 英訳）
+# es, zh, ko, fr, de: その他の言語
 language: ja
 
 # エージェント設定
@@ -17,33 +18,59 @@ agents:
     - name: "エマ"
       id: "emma"
       emoji: "🎀"
+      specialty: "コードレビュー"
     - name: "ソフィア"
       id: "sophia"
       emoji: "🎀"
+      specialty: "ドキュメント作成"
     - name: "リリー"
       id: "lily"
       emoji: "🎀"
+      specialty: "テスト実行"
     - name: "ローズ"
       id: "rose"
       emoji: "🎀"
+      specialty: "リファクタリング"
     - name: "アリス"
       id: "alice"
       emoji: "🎀"
+      specialty: "調査・分析"
     - name: "メイ"
       id: "may"
       emoji: "🎀"
+      specialty: "バグ修正"
     - name: "フローラ"
       id: "flora"
       emoji: "🎀"
+      specialty: "新機能実装"
     - name: "ルナ"
       id: "luna"
       emoji: "🎀"
-
-# ログ設定
-log:
-  level: info
-  path: ".maid-agent/logs/"
+      specialty: "設定・環境構築"
 
 # スキル設定
 skills:
+  # グローバル保存先（ユーザーホーム配下、全プロジェクト共有）
+  global_path: "~/.claude/skills/maid-generated/"
+  # プロジェクト固有のスキル保存先
   local_path: ".maid-agent/skills/"
+
+# スクリーンショット設定（WSL環境用）
+screenshot:
+  # Windows側のパス（参考用）
+  windows_path: "C:\\Users\\{{USERNAME}}\\Pictures\\Screenshots"
+  # WSLからアクセスするパス
+  wsl_path: "/mnt/c/Users/{{USERNAME}}/Pictures/Screenshots"
+
+# ログ設定
+log:
+  # debug, info, warn, error
+  level: info
+  path: ".maid-agent/logs/"
+
+# Memory MCP設定（利用可能な場合）
+memory:
+  # Memory MCPを使用するか
+  enabled: true
+  # 知識グラフの保存先
+  graph_path: "~/.claude/memory/"

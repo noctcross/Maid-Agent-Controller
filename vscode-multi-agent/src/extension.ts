@@ -706,6 +706,9 @@ class MultiAgentController {
         this.updateDashboard();
     }
 
+    /**
+     * Call Maids xN - メイドのみN人起動（ランダム/順番選択可）
+     */
     async startMaidsByCount(): Promise<void> {
         if (!await this.ensureInitialized()) return;
 
@@ -717,7 +720,7 @@ class MultiAgentController {
         }
 
         const countStr = await vscode.window.showInputBox({
-            prompt: `何人のメイドを起動しますか？（最大${availableMaids.length}人）執事・メイド長も自動起動します`,
+            prompt: `何人のメイドを起動しますか？（1〜${availableMaids.length}人）`,
             placeHolder: '例: 3',
             validateInput: (value) => {
                 const num = parseInt(value);
@@ -742,6 +745,68 @@ class MultiAgentController {
                 { label: '$(symbol-misc) ランダムに起動', description: 'ランダムに選択', value: 'random' }
             ],
             { placeHolder: '起動順を選択してください' }
+        );
+
+        if (!selectionMode) return;
+
+        // 選択モードに応じてメイドを選択
+        let maidsToStart: typeof availableMaids;
+        if (selectionMode.value === 'random') {
+            const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
+            maidsToStart = shuffled.slice(0, count);
+        } else {
+            maidsToStart = availableMaids.slice(0, count);
+        }
+
+        for (const maid of maidsToStart) {
+            this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
+            this.sendToAgent(maid.id, `echo "🎀 ${maid.name}、お仕えいたします♪"`);
+        }
+
+        const maidNames = maidsToStart.map(m => m.name).join('、');
+        vscode.window.showInformationMessage(`🎀 ${maidNames} を起動しました！`);
+        this.updateDashboard();
+    }
+
+    /**
+     * Call All xN - 執事 + メイド長 + メイドN人起動（ランダム/順番選択可）
+     */
+    async startAllByCount(): Promise<void> {
+        if (!await this.ensureInitialized()) return;
+
+        const availableMaids = MAIDS.filter(m => !this.agents.has(m.id));
+
+        if (availableMaids.length === 0) {
+            vscode.window.showWarningMessage('メイドは既に全員お仕えしております。Call All をお使いください。');
+            return;
+        }
+
+        const countStr = await vscode.window.showInputBox({
+            prompt: `メイドを何人起動しますか？（1〜${availableMaids.length}人）執事+メイド長も起動します`,
+            placeHolder: '例: 3',
+            validateInput: (value) => {
+                const num = parseInt(value);
+                if (isNaN(num) || num < 1) {
+                    return '1以上の数値を入力してください';
+                }
+                if (num > availableMaids.length) {
+                    return `最大${availableMaids.length}人まで指定できます`;
+                }
+                return null;
+            }
+        });
+
+        if (!countStr) return;
+
+        const count = parseInt(countStr);
+
+        // ランダム or 順番を選択
+        const selectionMode = await vscode.window.showQuickPick(
+            [
+                { label: '$(list-ordered) 順番に起動', description: 'エマ、ソフィア、リリー... の順', value: 'sequential' },
+                { label: '$(symbol-misc) ランダムに起動', description: 'ランダムに選択', value: 'random' }
+            ],
+            { placeHolder: 'メイドの起動順を選択してください' }
         );
 
         if (!selectionMode) return;
@@ -1266,6 +1331,9 @@ export function activate(context: vscode.ExtensionContext) {
         }),
         vscode.commands.registerCommand('multiAgent.startAll', () => {
             controller.startAllAgents();
+        }),
+        vscode.commands.registerCommand('multiAgent.startAllByCount', () => {
+            controller.startAllByCount();
         }),
         vscode.commands.registerCommand('multiAgent.sendToButler', () => {
             controller.promptAndSendToButler();

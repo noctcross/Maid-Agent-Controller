@@ -46,6 +46,10 @@
         "title": "Maid Agent: Call All"
       },
       {
+        "command": "multiAgent.startAllByCount",
+        "title": "Maid Agent: Call All xN"
+      },
+      {
         "command": "multiAgent.sendToButler",
         "title": "Maid Agent: Task to Butler"
       },

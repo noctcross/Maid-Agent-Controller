@@ -45,25 +45,25 @@ F5でデバッグ起動 → Extension Development Host が開く
 
 ### 2. 初期化
 
-コマンドパレット（`Ctrl+Shift+P`）から `initialize` と入力:
+コマンドパレット（`Ctrl+Shift+P`）から `init` と入力:
 
 | コマンド | 説明 |
 |---------|------|
-| `Maid Agent: Initialize Workspace` | `.maid-agent/` ディレクトリを作成 |
+| `Maid Agent: Init` | `.maid-agent/` ディレクトリを作成 |
 
-> **Note**: コマンドパレットでは部分一致検索ができます。
-> 例: `initialize` や `start all` と入力するだけでコマンドが見つかります。
+> **Note**: コマンドパレットではファジー検索が使えます。
+> 例: `call all`, `call xn`, `butler` など部分入力でOK
 
-### 3. エージェントを起動
+### 3. エージェントを召喚
 
-| コマンド | 説明 |
-|---------|------|
-| `Start All (10 Agents)` | 全員起動（執事+メイド長+メイド8人） |
-| `Start Butler` | 執事のみ起動 |
-| `Start Chief Maid` | メイド長のみ起動 |
-| `Start 8 Maids` | メイド8人を起動 |
-| `Start Selected Maids` | チェックボックスでメイドを選択して起動 |
-| `Start Maids By Count` | 人数を指定して起動（ランダム/順番選択可） |
+| コマンド | 検索キーワード | 説明 |
+|---------|--------------|------|
+| `Call All` | all | 全員起動（執事+メイド長+メイド8人） |
+| `Call Butler` | butler | 執事のみ起動 |
+| `Call Chief` | chief | メイド長のみ起動 |
+| `Call Maids x8` | x8 | メイド8人を起動 |
+| `Call Maids Pick` | pick | チェックボックスでメイドを選択 |
+| `Call Maids xN` | xn | 人数を指定して起動（ランダム/順番選択可） |
 
 ### 4. タスクを実行
 
@@ -72,20 +72,17 @@ F5でデバッグ起動 → Extension Development Host が開く
 執事のターミナル（🎩 執事）を選択し、Claude Code に直接タスクを入力します。
 執事がタスクを分析し、メイド長→メイドへと階層的に処理されます。
 
-> 補助コマンドとして `Send Task to Butler` もありますが、
-> 通常は直接ターミナルに入力する方がシンプルです。
-
 ### 5. 進捗確認
 
 #### サイドバー（エージェントパネル）
 
 Activity Bar に「Maid Agent」アイコンが表示されます。
-現在アクティブなターミナルのエージェント情報が表示されます。
+ターミナルタブを切り替えると、該当エージェントの立ち絵が表示されます。
 
 #### ダッシュボード
 
 - ステータスバーの「🎩 Maid Agent」をクリック
-- または `Show Dashboard` コマンド
+- または `Dashboard` コマンド
 
 ## ファイル構成
 
@@ -110,19 +107,49 @@ Activity Bar に「Maid Agent」アイコンが表示されます。
 │   └── skill-creator/     # スキル作成ガイド
 ├── status/
 │   └── master_status.yaml
-└── images/                # カスタム画像（オプション）
+└── images/                # カスタム立ち絵（オプション）
 ```
 
-## カスタム画像
+## カスタム立ち絵
 
-`.maid-agent/images/` にエージェント画像を配置すると、
+`.maid-agent/images/` にキャラクター画像を配置すると、
 サイドバーのエージェントパネルに表示されます。
 
-対応ファイル名:
-- `butler.png` / `butler.jpg` など
-- `chief.png`
-- `emma.png`, `sophia.png`, `lily.png`, `rose.png`
-- `alice.png`, `may.png`, `flora.png`, `luna.png`
+### 推奨サイズ
+
+| 項目 | 推奨値 |
+|-----|-------|
+| サイズ | 幅200〜300px × 高さ300〜500px |
+| 縦横比 | 縦長（立ち絵スタイル） |
+| 形式 | PNG（透過推奨）/ JPG / WebP |
+
+### ファイル命名
+
+```
+基本:     emma.png
+バージョン違い: emma_1.png, emma_2.png  (ランダム選択)
+ステータス別:  emma_wait.png, emma_work.png  (自動切替)
+```
+
+詳細は `.maid-agent/images/README.md` を参照。
+
+## 全コマンド一覧
+
+| コマンド | 検索キーワード | 説明 |
+|---------|--------------|------|
+| `Init` | init | ワークスペース初期化 |
+| `Call All` | all | 全員起動 |
+| `Call Butler` | butler | 執事起動 |
+| `Call Chief` | chief | メイド長起動 |
+| `Call Maids x8` | x8 | メイド8人起動 |
+| `Call Maids Pick` | pick | 選択して起動 |
+| `Call Maids xN` | xn | 人数指定で起動 |
+| `Claude Start` | claude | 全ターミナルでClaude起動 |
+| `Task to Butler` | task butler | 執事にタスク送信 |
+| `Task to Maid` | task maid | 特定メイドに送信 |
+| `Dashboard` | dashboard | ダッシュボード表示 |
+| `Watch Start` | watch start | YAMLファイル監視開始 |
+| `Watch Stop` | watch stop | YAMLファイル監視停止 |
 
 ## スキルシステム
 
@@ -140,24 +167,6 @@ Activity Bar に「Maid Agent」アイコンが表示されます。
 Memory MCP が利用可能な場合、セッション間で知識を共有できます。
 各エージェントはセッション開始時に過去の知識グラフを読み込みます。
 
-## 全コマンド一覧
-
-| コマンド | 説明 |
-|---------|------|
-| `Initialize Workspace` | ワークスペース初期化 |
-| `Start All (10 Agents)` | 全員起動 |
-| `Start Butler` | 執事起動 |
-| `Start Chief Maid` | メイド長起動 |
-| `Start 8 Maids` | メイド8人起動 |
-| `Start Selected Maids` | 選択したメイドを起動 |
-| `Start Maids By Count` | 人数指定で起動 |
-| `Start Claude in Current Terminal` | 現在のターミナルでClaude起動 |
-| `Send Task to Butler` | 執事にタスク送信（補助） |
-| `Send Task to Maid` | 特定メイドに送信（補助） |
-| `Show Dashboard` | ダッシュボード表示 |
-| `Watch Task File` | YAMLファイル監視開始 |
-| `Stop Watch Task File` | YAMLファイル監視停止 |
-
 ## multi-agent-shogun との違い
 
 | 項目 | multi-agent-shogun | Maid Agent Controller |
@@ -167,7 +176,7 @@ Memory MCP が利用可能な場合、セッション間で知識を共有でき
 | 階層構造 | 将軍→家老→足軽 | 執事→メイド長→メイド |
 | GUI | なし | サイドバー + ダッシュボード |
 | 起動方法 | シェルスクリプト | VSCodeコマンド |
-| 画像表示 | なし | サイドバーパネル |
+| 立ち絵表示 | なし | サイドバーパネル（ステータス連動） |
 
 ## 参考
 

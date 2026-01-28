@@ -62,6 +62,8 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
     private _agents: Map<string, Agent> = new Map();
     private _extensionUri: vscode.Uri;
     private _workspaceRoot: string | undefined;
+    // 各エージェントの選択された画像バージョンをキャッシュ
+    private _selectedImageVersions: Map<string, string> = new Map();
 
     constructor(extensionUri: vscode.Uri) {
         this._extensionUri = extensionUri;
@@ -104,19 +106,65 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     /**
-     * エージェントの画像パスを取得（存在チェック付き）
+     * エージェントの画像パスを取得
+     * 優先順位:
+     * 1. ステータス画像 (emma_wait.png, emma_work.png, emma_question.png)
+     * 2. バージョン画像 (emma_1.png, emma_2.png) からランダム選択
+     * 3. 基本画像 (emma.png)
      */
-    private _getAgentImageUri(agentId: string): string | null {
+    private _getAgentImageUri(agentId: string, status: string): string | null {
         if (!this._workspaceRoot || !this._view) return null;
 
+        const imagesDir = path.join(this._workspaceRoot, MAID_AGENT_DIR, 'images');
         const extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+
+        // 1. ステータス画像を探す (emma_wait, emma_work, emma_question)
+        const statusSuffix = status === 'working' ? 'work' :
+                            status === 'done' ? 'done' : 'wait';
         for (const ext of extensions) {
-            const imagePath = path.join(this._workspaceRoot, MAID_AGENT_DIR, 'images', `${agentId}.${ext}`);
+            const statusImagePath = path.join(imagesDir, `${agentId}_${statusSuffix}.${ext}`);
+            if (fs.existsSync(statusImagePath)) {
+                const imageUri = vscode.Uri.file(statusImagePath);
+                return this._view.webview.asWebviewUri(imageUri).toString();
+            }
+        }
+
+        // 2. バージョン画像を探す (emma_1, emma_2, ...)
+        const versionImages: string[] = [];
+        for (const ext of extensions) {
+            let version = 1;
+            while (version <= 10) { // 最大10バージョンまで
+                const versionImagePath = path.join(imagesDir, `${agentId}_${version}.${ext}`);
+                if (fs.existsSync(versionImagePath)) {
+                    versionImages.push(versionImagePath);
+                    version++;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        if (versionImages.length > 0) {
+            // キャッシュされたバージョンを使用、なければランダム選択
+            let selectedPath = this._selectedImageVersions.get(agentId);
+            if (!selectedPath || !versionImages.includes(selectedPath)) {
+                const randomIndex = Math.floor(Math.random() * versionImages.length);
+                selectedPath = versionImages[randomIndex];
+                this._selectedImageVersions.set(agentId, selectedPath);
+            }
+            const imageUri = vscode.Uri.file(selectedPath);
+            return this._view.webview.asWebviewUri(imageUri).toString();
+        }
+
+        // 3. 基本画像を探す (emma.png)
+        for (const ext of extensions) {
+            const imagePath = path.join(imagesDir, `${agentId}.${ext}`);
             if (fs.existsSync(imagePath)) {
                 const imageUri = vscode.Uri.file(imagePath);
                 return this._view.webview.asWebviewUri(imageUri).toString();
             }
         }
+
         return null;
     }
 
@@ -134,24 +182,39 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
                          agent.role === 'chiefMaid' ? '👑' : '🎀';
             const statusEmoji = agent.status === 'working' ? '⚡' :
                                agent.status === 'done' ? '✅' : '💤';
+            const statusLabel = agent.status === 'working' ? 'working' :
+                               agent.status === 'done' ? 'done' : 'waiting';
 
             // 画像があれば使用、なければ絵文字
-            const imageUri = this._getAgentImageUri(this._currentAgentId!);
-            const avatarContent = imageUri
-                ? `<img src="${imageUri}" class="avatar-img" alt="${agent.name}" />`
-                : `<span class="emoji">${emoji}</span>`;
+            const imageUri = this._getAgentImageUri(this._currentAgentId!, agent.status);
 
-            content = `
-                <div class="agent-display" style="background: ${colors.bg}; border-color: ${colors.accent};">
-                    <div class="avatar" style="background: ${imageUri ? 'transparent' : colors.accent};">
-                        ${avatarContent}
+            if (imageUri) {
+                // 立ち絵スタイル（画像あり）
+                content = `
+                    <div class="agent-display standing" style="border-color: ${colors.accent};">
+                        <div class="standing-image">
+                            <img src="${imageUri}" class="character-img" alt="${agent.name}" />
+                        </div>
+                        <div class="info-bar" style="background: linear-gradient(to right, ${colors.accent}22, ${colors.accent}44);">
+                            <div class="name" style="color: ${colors.accent};">${emoji} ${agent.name}</div>
+                            <div class="role">${roleLabel}</div>
+                            <div class="status">${statusEmoji} ${statusLabel}</div>
+                        </div>
                     </div>
-                    <div class="name" style="color: ${colors.accent};">${agent.name}</div>
-                    <div class="role">${roleLabel}</div>
-                    <div class="status">${statusEmoji} ${agent.status}</div>
-                    <div class="color-bar" style="background: ${colors.accent};"></div>
-                </div>
-            `;
+                `;
+            } else {
+                // 絵文字フォールバック
+                content = `
+                    <div class="agent-display compact" style="border-color: ${colors.accent};">
+                        <div class="emoji-avatar" style="background: ${colors.accent}22;">
+                            <span class="emoji">${emoji}</span>
+                        </div>
+                        <div class="name" style="color: ${colors.accent};">${agent.name}</div>
+                        <div class="role">${roleLabel}</div>
+                        <div class="status">${statusEmoji} ${statusLabel}</div>
+                    </div>
+                `;
+            }
         } else {
             content = `
                 <div class="no-agent">
@@ -169,23 +232,54 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
-            background: #1a1a2e;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
             color: #fff;
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            padding: 10px;
+            padding: 8px;
         }
-        .agent-display {
+
+        /* 立ち絵スタイル（画像あり） */
+        .agent-display.standing {
+            width: 100%;
+            max-width: 280px;
+            border: 2px solid;
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(0,0,0,0.3);
+        }
+        .standing-image {
+            width: 100%;
+            max-height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            overflow: hidden;
+        }
+        .character-img {
+            max-width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            object-position: bottom center;
+        }
+        .info-bar {
+            padding: 12px;
+            text-align: center;
+        }
+
+        /* コンパクトスタイル（絵文字） */
+        .agent-display.compact {
             text-align: center;
             padding: 20px;
             border-radius: 12px;
             border: 2px solid;
             width: 100%;
             max-width: 200px;
+            background: rgba(0,0,0,0.3);
         }
-        .avatar {
+        .emoji-avatar {
             width: 80px;
             height: 80px;
             border-radius: 50%;
@@ -193,51 +287,44 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
         }
-        .avatar-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 50%;
-        }
+
+        /* 共通 */
         .emoji {
             font-size: 40px;
         }
         .name {
-            font-size: 1.4em;
+            font-size: 1.2em;
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
         .role {
-            font-size: 0.85em;
-            color: #888;
-            margin-bottom: 10px;
+            font-size: 0.8em;
+            color: #aaa;
+            margin-bottom: 6px;
         }
         .status {
-            font-size: 0.9em;
-            padding: 5px 10px;
+            font-size: 0.85em;
+            padding: 4px 12px;
             background: rgba(255,255,255,0.1);
-            border-radius: 15px;
+            border-radius: 12px;
             display: inline-block;
         }
-        .color-bar {
-            height: 4px;
-            border-radius: 2px;
-            margin-top: 15px;
-        }
+
+        /* エージェント未選択 */
         .no-agent {
             text-align: center;
             color: #666;
+            padding: 40px 20px;
         }
         .no-agent .emoji {
-            font-size: 50px;
-            margin-bottom: 10px;
-            opacity: 0.5;
+            font-size: 60px;
+            margin-bottom: 15px;
+            opacity: 0.4;
         }
         .no-agent .message {
             font-size: 0.9em;
-            line-height: 1.5;
+            line-height: 1.6;
         }
     </style>
 </head>

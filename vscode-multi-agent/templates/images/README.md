@@ -1,35 +1,96 @@
-# Agent Images
+# エージェント画像ガイド
 
-Place character images here to customize the agent panel display.
+このディレクトリにキャラクター画像を配置すると、サイドバーのエージェントパネルに表示されます。
 
-## File naming
+## 推奨サイズ
 
-| Agent | Filename |
-|-------|----------|
-| Butler | `butler.png` |
-| Chief Maid | `chief.png` |
-| Emma | `emma.png` |
-| Sophia | `sophia.png` |
-| Lily | `lily.png` |
-| Rose | `rose.png` |
-| Alice | `alice.png` |
-| May | `may.png` |
-| Flora | `flora.png` |
-| Luna | `luna.png` |
+| 項目 | 推奨値 |
+|-----|-------|
+| **サイズ** | 幅200〜300px × 高さ300〜500px |
+| **縦横比** | 縦長（立ち絵スタイル） |
+| **形式** | PNG（透過推奨）/ JPG / WebP / GIF |
 
-## Supported formats
+> 最大表示サイズ: 幅280px × 高さ400px
+> キャラクターが下寄せで表示されます
 
-- PNG (recommended)
-- JPG/JPEG
-- GIF
-- WebP
+## ファイル命名規則
 
-## Recommended size
+### 基本画像
+```
+{agent_id}.png
+```
 
-- 200x200 pixels (square)
-- Will be displayed in a circular frame
+例:
+- `butler.png` - 執事
+- `chief.png` - メイド長
+- `emma.png` - エマ
+- `sophia.png`, `lily.png`, `rose.png`
+- `alice.png`, `may.png`, `flora.png`, `luna.png`
 
-## Notes
+### バージョン違い画像（ランダム表示）
+```
+{agent_id}_{番号}.png
+```
 
-- If an image is not found, a color icon will be displayed instead
-- Images are loaded from this folder when switching terminal tabs
+例:
+- `emma_1.png` - エマ バージョン1
+- `emma_2.png` - エマ バージョン2
+- `emma_3.png` - エマ バージョン3
+
+→ 起動時にランダムで1つが選ばれ、セッション中は固定
+
+### ステータス別画像（自動切替）
+```
+{agent_id}_{status}.png
+```
+
+| ステータス | ファイル名 | 表示タイミング |
+|-----------|-----------|---------------|
+| wait | `emma_wait.png` | 待機中（デフォルト） |
+| work | `emma_work.png` | 作業中 |
+| done | `emma_done.png` | 完了時 |
+
+> ステータス画像が優先されます。
+> ステータス画像がない場合はバージョン画像→基本画像の順で使用
+
+## 優先順位
+
+```
+1. ステータス画像 (emma_work.png)
+   ↓ なければ
+2. バージョン画像 (emma_1.png, emma_2.png...) からランダム
+   ↓ なければ
+3. 基本画像 (emma.png)
+   ↓ なければ
+4. 絵文字フォールバック (🎀)
+```
+
+## エージェントID一覧
+
+| 役職 | ID | 絵文字 |
+|-----|-----|-------|
+| 執事 | `butler` | 🎩 |
+| メイド長 | `chief` | 👑 |
+| エマ | `emma` | 🎀 |
+| ソフィア | `sophia` | 🎀 |
+| リリー | `lily` | 🎀 |
+| ローズ | `rose` | 🎀 |
+| アリス | `alice` | 🎀 |
+| メイ | `may` | 🎀 |
+| フローラ | `flora` | 🎀 |
+| ルナ | `luna` | 🎀 |
+
+## 配置例
+
+```
+.maid-agent/images/
+├── butler.png           # 執事（基本）
+├── butler_work.png      # 執事（作業中）
+├── chief.png            # メイド長（基本）
+├── emma_1.png           # エマ（バージョン1）
+├── emma_2.png           # エマ（バージョン2）
+├── emma_wait.png        # エマ（待機中）
+├── emma_work.png        # エマ（作業中）
+├── sophia.png           # ソフィア（基本のみ）
+└── ...
+```

@@ -2,7 +2,7 @@
   "name": "multi-agent-controller",
   "displayName": "Maid Agent Controller",
   "description": "VSCode extension for multi-agent Claude Code orchestration (multi-agent-shogun style)",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -15,59 +15,59 @@
     "commands": [
       {
         "command": "multiAgent.initialize",
-        "title": "Maid Agent: Initialize Workspace"
+        "title": "Maid Agent: Init"
       },
       {
         "command": "multiAgent.startButler",
-        "title": "Maid Agent: Start Butler (執事)"
+        "title": "Maid Agent: Call Butler"
       },
       {
         "command": "multiAgent.startChiefMaid",
-        "title": "Maid Agent: Start Chief Maid (メイド長)"
+        "title": "Maid Agent: Call Chief"
       },
       {
         "command": "multiAgent.startAgents",
-        "title": "Maid Agent: Start Butler & Chief Maid"
+        "title": "Maid Agent: Call Butler & Chief"
       },
       {
         "command": "multiAgent.startMaids",
-        "title": "Maid Agent: Start All Maids (8人)"
+        "title": "Maid Agent: Call Maids x8"
       },
       {
         "command": "multiAgent.startSelectedMaids",
-        "title": "Maid Agent: Start Selected Maids (選択起動)"
+        "title": "Maid Agent: Call Maids Pick"
       },
       {
         "command": "multiAgent.startMaidsByCount",
-        "title": "Maid Agent: Start Maids by Count (人数指定)"
+        "title": "Maid Agent: Call Maids xN"
       },
       {
         "command": "multiAgent.startAll",
-        "title": "Maid Agent: Start All (10 Agents)"
+        "title": "Maid Agent: Call All"
       },
       {
         "command": "multiAgent.sendToButler",
-        "title": "Maid Agent: Send Task to Butler"
+        "title": "Maid Agent: Task to Butler"
       },
       {
         "command": "multiAgent.sendToMaid",
-        "title": "Maid Agent: Send Task to Maid"
+        "title": "Maid Agent: Task to Maid"
       },
       {
         "command": "multiAgent.startClaude",
-        "title": "Maid Agent: Start Claude on All Agents"
+        "title": "Maid Agent: Claude Start"
       },
       {
         "command": "multiAgent.showDashboard",
-        "title": "Maid Agent: Show Dashboard"
+        "title": "Maid Agent: Dashboard"
       },
       {
         "command": "multiAgent.watchFiles",
-        "title": "Maid Agent: Start Watching Files"
+        "title": "Maid Agent: Watch Start"
       },
       {
         "command": "multiAgent.stopWatchFiles",
-        "title": "Maid Agent: Stop Watching Files"
+        "title": "Maid Agent: Watch Stop"
       }
     ],
     "viewsContainers": {

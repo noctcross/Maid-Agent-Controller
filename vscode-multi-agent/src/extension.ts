@@ -1314,13 +1314,48 @@ class MultiAgentController {
             );
 
             if (choice === 'セッション一覧を表示') {
-                // 出力チャンネルにセッション一覧を表示
-                this.log('=== maid-agent セッション一覧 ===');
-                sessions.forEach((s, i) => this.log(`  ${i + 1}. ${s}`));
-                this.log(`合計: ${count} セッション`);
-                this.log('クリーンアップするには: tmux kill-session -t <セッション名>');
-                this.log('全て削除するには: Maid Agent: Kill Session を各ワークスペースで実行');
-                this.outputChannel.show();
+                // チェックボックス形式でセッション選択
+                const items = sessions.map(sessionName => {
+                    const isCurrent = sessionName === this.tmuxSessionName;
+                    return {
+                        label: isCurrent ? `$(star) ${sessionName}` : sessionName,
+                        description: isCurrent ? '(現在のセッション)' : '',
+                        sessionName: sessionName,
+                        picked: false
+                    };
+                });
+
+                const selected = await vscode.window.showQuickPick(items, {
+                    canPickMany: true,
+                    placeHolder: '終了するセッションを選択してください（複数選択可）',
+                    title: `maid-agent セッション一覧 (${count}個)`
+                });
+
+                if (selected && selected.length > 0) {
+                    const confirmMsg = selected.some(s => s.sessionName === this.tmuxSessionName)
+                        ? `${selected.length} 個のセッションを終了しますか？\n⚠️ 現在のセッションも含まれています！`
+                        : `${selected.length} 個のセッションを終了しますか？`;
+
+                    const confirm = await vscode.window.showWarningMessage(
+                        confirmMsg,
+                        '終了する',
+                        'キャンセル'
+                    );
+
+                    if (confirm === '終了する') {
+                        let killedCount = 0;
+                        for (const item of selected) {
+                            try {
+                                execSync(`tmux kill-session -t ${item.sessionName}`);
+                                killedCount++;
+                                this.log(`[クリーンアップ] セッション終了: ${item.sessionName}`);
+                            } catch {
+                                this.log(`[クリーンアップ] 終了失敗（既に終了済み?）: ${item.sessionName}`);
+                            }
+                        }
+                        vscode.window.showInformationMessage(`${killedCount} 個のセッションを終了しました`);
+                    }
+                }
             } else if (choice === '全てクリーンアップ') {
                 const confirm = await vscode.window.showWarningMessage(
                     `本当に ${count} 個の maid-agent セッションを全て終了しますか？\n` +

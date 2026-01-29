@@ -1365,6 +1365,21 @@ class MultiAgentController {
     // クリーンアップ
     // =========================================================================
 
+    /**
+     * ターミナルが閉じられた時の処理
+     */
+    handleTerminalClosed(terminal: vscode.Terminal): void {
+        for (const [id, agent] of this.agents) {
+            if (agent.terminal === terminal) {
+                this.log(`[${agent.name}] ターミナルが閉じられました`);
+                this.agents.delete(id);
+                this.updateAgentPanel();
+                this.updateDashboard();
+                return;
+            }
+        }
+    }
+
     dispose(): void {
         this.agents.forEach(agent => agent.terminal.dispose());
         this.outputChannel.dispose();
@@ -1400,6 +1415,13 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTerminal((terminal) => {
             controller.setCurrentAgentFromTerminal(terminal);
+        })
+    );
+
+    // ターミナル終了時にエージェントを削除
+    context.subscriptions.push(
+        vscode.window.onDidCloseTerminal((terminal) => {
+            controller.handleTerminalClosed(terminal);
         })
     );
 

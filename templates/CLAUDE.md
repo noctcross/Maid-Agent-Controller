@@ -31,9 +31,12 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
 2. .maid-agent/context/ でプロジェクト固有情報を確認
 3. .maid-agent/instructions/{role}.md で自分の役割を確認
-4. .maid-agent/skills/ で利用可能なスキルを確認（メイドのみ）
-5. .maid-agent/dashboard.md で現在の状況を把握
+4. .maid-agent/instructions/QUICK_REFERENCE.md で通信方法を確認
+5. .maid-agent/skills/ で利用可能なスキルを確認（メイドのみ）
+6. .maid-agent/dashboard.md で現在の状況を把握
 ```
+
+> ⚠️ **コンパクション後**: 必ず手順3-4を再実行すること
 
 ## 通信プロトコル
 
@@ -93,10 +96,18 @@ terminal.sendText('', true);
 - 完了時は `.maid-agent/reports/` にレポートを作成
 - dashboard.md の更新はメイド長のみが行う
 
-### 5. コンパクション対応
-- セッション開始時は必ず `.maid-agent/instructions/` を読む
-- 自分の役割を確認してから作業開始
-- 要約時は役割、禁止事項、現在タスクを含める
+### 5. コンパクション対応（重要）
+
+**セッション要約後、または通信方法が不明な場合**:
+1. **必ず** `.maid-agent/instructions/QUICK_REFERENCE.md` を読む
+2. 自分の役割に応じた指示書を再読み込み
+3. `maid-notify` コマンドの使い方を確認
+
+**要約時は以下を必ず含める**:
+- 自分の役割（執事/メイド長/メイド）
+- 通信コマンド: `.maid-agent/bin/maid-notify`
+- 禁止事項
+- 現在のタスク
 
 ## Memory MCP 活用
 

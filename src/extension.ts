@@ -1342,17 +1342,18 @@ class MultiAgentController {
         if (!agent || !this.tmuxManager) return;
 
         // 役割に応じた指示を作成
+        // 重要: コンパクション後も通信方法を忘れないよう、QUICK_REFERENCE.md への言及を含める
         let instruction: string;
         switch (role) {
             case 'butler':
-                instruction = 'あなたは執事のシルヴィアです。.maid-agent/instructions/butler.md を読んで役割を把握してください。また、.maid-agent/personas/butler.md を読んで口調・話し方を把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
+                instruction = 'あなたは執事のシルヴィアです。.maid-agent/instructions/butler.md を読んで役割を把握してください。通信方法は .maid-agent/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/personas/butler.md を読んで口調・話し方を把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
                 break;
             case 'chiefMaid':
-                instruction = 'あなたはメイド長のビオラです。.maid-agent/instructions/chief.md を読んで役割を把握してください。また、.maid-agent/personas/chief.md を読んで口調・話し方を把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
+                instruction = 'あなたはメイド長のビオラです。.maid-agent/instructions/chief.md を読んで役割を把握してください。通信方法は .maid-agent/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/personas/chief.md を読んで口調・話し方を把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
                 break;
             case 'maid':
                 const maidId = agentId;
-                instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/instructions/maid.md を読んで役割を把握してください。また、.maid-agent/personas/${maidId}.md を読んで口調・話し方を把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
+                instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/instructions/maid.md を読んで役割を把握してください。通信方法は .maid-agent/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/personas/${maidId}.md を読んで口調・話し方を把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
                 break;
         }
 

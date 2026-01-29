@@ -1944,8 +1944,14 @@ class MultiAgentController {
         this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 
         this.fileWatcher.onDidChange((uri) => {
-            this.log(`[ファイル変更] ${path.basename(uri.fsPath)}`);
+            const fileName = path.basename(uri.fsPath);
+            this.log(`[ファイル変更] ${fileName}`);
             this.updateDashboard();
+
+            // dashboard.md が更新されたらユーザーに通知
+            if (fileName === 'dashboard.md') {
+                this.notifyDashboardUpdate(uri.fsPath);
+            }
         });
 
         this.context?.subscriptions.push(this.fileWatcher);
@@ -1956,6 +1962,65 @@ class MultiAgentController {
 
         if (!silent) {
             vscode.window.showInformationMessage('📁 ファイル監視・通知システムを開始しました');
+        }
+    }
+
+    /**
+     * dashboard.md 更新時にユーザーに通知
+     */
+    private async notifyDashboardUpdate(dashboardPath: string): Promise<void> {
+        try {
+            const content = fs.readFileSync(dashboardPath, 'utf-8');
+
+            // 完了タスクがあるかチェック
+            const hasCompleted = content.includes('✅ 本日の成果') &&
+                                 content.match(/\| \d{2}:\d{2} \|/); // 時刻パターンがあれば完了あり
+
+            // 要対応事項があるかチェック
+            const hasIssues = content.includes('🚨 要対応') &&
+                              content.split('🚨 要対応')[1]?.trim().length > 50;
+
+            // 進行中タスクがあるかチェック
+            const hasInProgress = content.includes('⚡ 進行中') &&
+                                  content.includes('- [ ]');
+
+            let message: string;
+            let icon: string;
+
+            if (hasIssues) {
+                icon = '🚨';
+                message = '要対応事項があります';
+            } else if (hasCompleted) {
+                icon = '✅';
+                message = 'タスクが完了しました';
+            } else if (hasInProgress) {
+                icon = '⚡';
+                message = 'タスクが進行中です';
+            } else {
+                // 大きな変更がなければ通知しない
+                return;
+            }
+
+            const choice = await vscode.window.showInformationMessage(
+                `${icon} Dashboard更新: ${message}`,
+                'Dashboardを開く',
+                '執事に確認を依頼'
+            );
+
+            if (choice === 'Dashboardを開く') {
+                const doc = await vscode.workspace.openTextDocument(dashboardPath);
+                await vscode.window.showTextDocument(doc);
+            } else if (choice === '執事に確認を依頼') {
+                const butler = this.agents.get('butler');
+                if (butler) {
+                    await this.sendMessageToAgent('butler', 'dashboard.md を確認して、現在の状況を報告してください。');
+                    vscode.window.showInformationMessage('🎩 執事に確認を依頼しました');
+                } else {
+                    vscode.window.showWarningMessage('執事がまだ起動していません');
+                }
+            }
+        } catch (error) {
+            this.log(`[Dashboard通知] エラー: ${error}`);
         }
     }
 

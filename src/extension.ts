@@ -1997,9 +1997,13 @@ class MultiAgentController {
                 icon = '⚡';
                 message = 'タスクが進行中です';
             } else {
-                // 大きな変更がなければ通知しない
+                // 大きな変更がなければ通知しないが、プレビューはリフレッシュ
+                this.refreshDashboardPreview(dashboardPath);
                 return;
             }
+
+            // プレビューが開いていればリフレッシュ
+            this.refreshDashboardPreview(dashboardPath);
 
             const choice = await vscode.window.showInformationMessage(
                 `${icon} Dashboard更新: ${message}`,
@@ -2008,8 +2012,9 @@ class MultiAgentController {
             );
 
             if (choice === 'Dashboardを開く') {
-                const doc = await vscode.workspace.openTextDocument(dashboardPath);
-                await vscode.window.showTextDocument(doc);
+                // マークダウンプレビューで開く
+                const uri = vscode.Uri.file(dashboardPath);
+                await vscode.commands.executeCommand('markdown.showPreview', uri);
             } else if (choice === '執事に確認を依頼') {
                 const butler = this.agents.get('butler');
                 if (butler) {
@@ -2021,6 +2026,19 @@ class MultiAgentController {
             }
         } catch (error) {
             this.log(`[Dashboard通知] エラー: ${error}`);
+        }
+    }
+
+    /**
+     * dashboard.md のプレビューをリフレッシュ
+     */
+    private refreshDashboardPreview(dashboardPath: string): void {
+        try {
+            const uri = vscode.Uri.file(dashboardPath);
+            // プレビューが開いていれば再表示でリフレッシュ
+            vscode.commands.executeCommand('markdown.showPreview', uri);
+        } catch {
+            // プレビューが開いていない場合は何もしない
         }
     }
 

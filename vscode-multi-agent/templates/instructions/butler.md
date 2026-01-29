@@ -67,19 +67,25 @@ Memory MCP が利用可能な場合、セッション開始時に必ず読み込
 4. 必要に応じて追加指示を作成
 ```
 
-## sendText 通知プロトコル（重要）
+## メイド長への通知（maid-notify コマンド）
 
-メイド長への通知は **2段階** で行う:
+メイド長への通知は `maid-notify` コマンドを使用:
 
-```typescript
-// ステップ1: メッセージ送信
-terminal.sendText('新しいタスクがあります。queue/butler_to_chief.yaml を確認してください。', false);
-
-// ステップ2: Enter送信（別の呼び出しで）
-terminal.sendText('', true);
+```bash
+# メイド長に通知を送信
+.maid-agent/bin/maid-notify chief "新しいタスクがあります。queue/butler_to_chief.yaml を確認してください。"
 ```
 
-**禁止**: 1回の sendText でメッセージと Enter を同時に送信しない
+**重要**:
+- 必ず `.maid-agent/bin/maid-notify` のフルパスを使用
+- メッセージはダブルクォートで囲む
+- ターゲットは `chief` を指定
+
+**利用可能なターゲット**:
+- `chief`: メイド長（ビオラ）
+- `emma`, `sophia`, `lily`, `rose`, `alice`, `may`, `flora`, `luna`: 各メイド
+
+**注意**: 執事がメイドに直接通知することは指揮系統違反です（F002）。メイドへの通知はメイド長経由で行ってください。
 
 ## 報告形式
 

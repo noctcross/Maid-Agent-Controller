@@ -372,6 +372,7 @@ class MultiAgentController {
     private workspaceRoot: string | undefined;
     private maidAgentPath: string | undefined;
     private fileWatcher: vscode.FileSystemWatcher | undefined;
+    private notificationWatcher: vscode.FileSystemWatcher | undefined;
     private agentPanelProvider: AgentPanelProvider | undefined;
 
     constructor() {
@@ -1155,15 +1156,113 @@ class MultiAgentController {
 
         this.context?.subscriptions.push(this.fileWatcher);
         this.log('[ファイル監視] 開始');
-        vscode.window.showInformationMessage('📁 ファイル監視を開始しました');
+
+        // 通知システムも同時に開始
+        this.startNotificationWatcher();
+
+        vscode.window.showInformationMessage('📁 ファイル監視・通知システムを開始しました');
     }
 
     stopWatchingFiles(): void {
         if (this.fileWatcher) {
             this.fileWatcher.dispose();
             this.fileWatcher = undefined;
-            this.log('[ファイル監視] 停止');
-            vscode.window.showInformationMessage('📁 ファイル監視を停止しました');
+        }
+        this.stopNotificationWatcher();
+        this.log('[ファイル監視] 停止');
+        vscode.window.showInformationMessage('📁 ファイル監視・通知システムを停止しました');
+    }
+
+    // =========================================================================
+    // 通知システム（エージェント間通信）
+    // =========================================================================
+
+    /**
+     * 通知ファイルの監視を開始
+     * エージェントが maid-notify コマンドを実行すると、
+     * pending.json が更新され、それを検知して転送する
+     */
+    startNotificationWatcher(): void {
+        if (!this.maidAgentPath) return;
+
+        if (this.notificationWatcher) {
+            this.notificationWatcher.dispose();
+        }
+
+        const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
+
+        // notifications ディレクトリがなければ作成
+        const notifyDir = path.dirname(notifyPath);
+        if (!fs.existsSync(notifyDir)) {
+            fs.mkdirSync(notifyDir, { recursive: true });
+            fs.writeFileSync(notifyPath, '[]');
+        }
+
+        const pattern = new vscode.RelativePattern(notifyDir, 'pending.json');
+        this.notificationWatcher = vscode.workspace.createFileSystemWatcher(pattern);
+
+        this.notificationWatcher.onDidChange(() => {
+            this.processNotifications();
+        });
+
+        this.context?.subscriptions.push(this.notificationWatcher);
+        this.log('[通知システム] エージェント間通信を開始');
+    }
+
+    /**
+     * 保留中の通知を処理し、ターゲットエージェントに転送
+     */
+    private async processNotifications(): Promise<void> {
+        if (!this.maidAgentPath) return;
+
+        const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
+        if (!fs.existsSync(notifyPath)) return;
+
+        try {
+            const content = fs.readFileSync(notifyPath, 'utf-8');
+            const notifications = JSON.parse(content) as Array<{
+                id: string;
+                target: string;
+                message: string;
+                sender: string;
+                timestamp: string;
+                status: string;
+            }>;
+
+            // 未処理の通知を抽出
+            const pending = notifications.filter(n => n.status === 'pending');
+            if (pending.length === 0) return;
+
+            this.log(`[通知システム] ${pending.length}件の通知を処理中...`);
+
+            // 各通知を処理
+            for (const notification of pending) {
+                const agent = this.agents.get(notification.target);
+                if (agent) {
+                    // 2段階送信でメッセージを転送
+                    await this.sendMessageToAgent(notification.target, notification.message);
+                    notification.status = 'delivered';
+                    this.log(`[通知] ${notification.sender} → ${notification.target}: ${notification.message.substring(0, 40)}...`);
+                } else {
+                    // エージェントが見つからない場合はスキップ（後で再試行）
+                    this.log(`[通知] ターゲット ${notification.target} がオフライン - 保留`);
+                }
+            }
+
+            // 処理済みの通知を更新（delivered を除外、または保持）
+            const remaining = notifications.filter(n => n.status === 'pending');
+            fs.writeFileSync(notifyPath, JSON.stringify(remaining, null, 2));
+
+        } catch (error) {
+            this.log(`[通知システム] エラー: ${error}`);
+        }
+    }
+
+    stopNotificationWatcher(): void {
+        if (this.notificationWatcher) {
+            this.notificationWatcher.dispose();
+            this.notificationWatcher = undefined;
+            this.log('[通知システム] 停止');
         }
     }
 
@@ -1469,6 +1568,7 @@ class MultiAgentController {
         this.outputChannel.dispose();
         this.dashboardPanel?.dispose();
         this.fileWatcher?.dispose();
+        this.notificationWatcher?.dispose();
     }
 }
 

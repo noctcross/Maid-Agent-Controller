@@ -1,0 +1,82 @@
+#!/bin/bash
+# maid-notify - エージェント間通知CLIツール
+# 使用法: maid-notify <target> "<message>"
+# 例:     maid-notify chief "新しいタスクがあります"
+#         maid-notify emma "タスク task-001 を担当してください"
+
+set -e
+
+MAID_AGENT_DIR=".maid-agent"
+NOTIFY_FILE="${MAID_AGENT_DIR}/notifications/pending.json"
+
+# 引数チェック
+if [ $# -lt 2 ]; then
+    echo "使用法: maid-notify <target> \"<message>\""
+    echo "  target: butler, chief, emma, sophia, lily, rose, alice, may, flora, luna"
+    echo "  例: maid-notify chief \"新しいタスクがあります\""
+    exit 1
+fi
+
+TARGET="$1"
+MESSAGE="$2"
+
+# 有効なターゲットをチェック
+VALID_TARGETS="butler chief emma sophia lily rose alice may flora luna"
+if ! echo "$VALID_TARGETS" | grep -qw "$TARGET"; then
+    echo "エラー: 無効なターゲット '$TARGET'"
+    echo "有効なターゲット: $VALID_TARGETS"
+    exit 1
+fi
+
+# .maid-agent ディレクトリが存在するか確認
+if [ ! -d "$MAID_AGENT_DIR" ]; then
+    echo "エラー: .maid-agent ディレクトリが見つかりません"
+    echo "プロジェクトルートで実行してください"
+    exit 1
+fi
+
+# notifications ディレクトリを作成
+mkdir -p "${MAID_AGENT_DIR}/notifications"
+
+# タイムスタンプを取得
+TIMESTAMP=$(date -Iseconds)
+
+# 通知IDを生成（タイムスタンプベース）
+NOTIFY_ID="notify-$(date +%s%N | cut -c1-13)"
+
+# 送信者を特定（現在のターミナル名から推測、またはunknown）
+SENDER="${MAID_AGENT_SENDER:-unknown}"
+
+# JSON形式で通知を追加
+# 既存のファイルがあれば読み込み、なければ空配列から開始
+if [ -f "$NOTIFY_FILE" ]; then
+    # jqがあれば使用、なければ簡易的に追加
+    if command -v jq &> /dev/null; then
+        TMP_FILE=$(mktemp)
+        jq --arg id "$NOTIFY_ID" \
+           --arg target "$TARGET" \
+           --arg message "$MESSAGE" \
+           --arg sender "$SENDER" \
+           --arg timestamp "$TIMESTAMP" \
+           '. += [{"id": $id, "target": $target, "message": $message, "sender": $sender, "timestamp": $timestamp, "status": "pending"}]' \
+           "$NOTIFY_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$NOTIFY_FILE"
+    else
+        # jqがない場合の簡易実装（末尾に追加）
+        # 既存の ] を削除して新しいエントリを追加
+        sed -i '$ s/]$//' "$NOTIFY_FILE"
+        # ファイルが空でなければカンマを追加
+        if [ -s "$NOTIFY_FILE" ] && [ "$(tail -c 2 "$NOTIFY_FILE")" != "[" ]; then
+            echo "," >> "$NOTIFY_FILE"
+        fi
+        cat >> "$NOTIFY_FILE" << EOF
+{"id": "$NOTIFY_ID", "target": "$TARGET", "message": "$MESSAGE", "sender": "$SENDER", "timestamp": "$TIMESTAMP", "status": "pending"}]
+EOF
+    fi
+else
+    # 新規ファイル作成
+    cat > "$NOTIFY_FILE" << EOF
+[{"id": "$NOTIFY_ID", "target": "$TARGET", "message": "$MESSAGE", "sender": "$SENDER", "timestamp": "$TIMESTAMP", "status": "pending"}]
+EOF
+fi
+
+echo "通知を送信しました: $TARGET <- $MESSAGE"

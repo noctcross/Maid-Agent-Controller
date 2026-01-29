@@ -84,19 +84,24 @@
 5. 停止（次の指示を待つ）
 ```
 
-## sendText 通知プロトコル（重要）
+## メイドへの通知（maid-notify コマンド）
 
-メイドへの通知は **2段階** で行う:
+メイドへの通知は `maid-notify` コマンドを使用:
 
-```typescript
-// ステップ1: メッセージ送信
-terminal.sendText('新しいタスクがあります。queue/chief_to_maids.yaml を確認してください。', false);
+```bash
+# エマに通知を送信
+.maid-agent/bin/maid-notify emma "新しいタスクがあります。queue/chief_to_maids.yaml を確認してください。"
 
-// ステップ2: Enter送信（別の呼び出しで）
-terminal.sendText('', true);
+# 複数メイドに通知する場合は順番に実行
+.maid-agent/bin/maid-notify sophia "新しいタスクがあります。queue/chief_to_maids.yaml を確認してください。"
 ```
 
-**禁止**: 1回の sendText でメッセージと Enter を同時に送信しない
+**利用可能なターゲット**:
+- `emma`, `sophia`, `lily`, `rose`, `alice`, `may`, `flora`, `luna`
+
+**注意**:
+- 執事（butler）への通知は禁止（F002）。上方報告は dashboard.md 更新で行う
+- 各メイドには個別に通知を送信する（ブロードキャストではない）
 
 ## 並列化ルール
 

@@ -65,19 +65,22 @@
 7. 停止（次の指示を待つ）
 ```
 
-## sendText 通知プロトコル（重要）
+## メイド長への通知（maid-notify コマンド）
 
-メイド長への通知は **2段階** で行う:
+メイド長への通知は `maid-notify` コマンドを使用:
 
-```typescript
-// ステップ1: メッセージ送信
-terminal.sendText('タスク完了いたしました。reports/emma.md をご確認くださいませ。', false);
+```bash
+# メイド長に完了通知を送信
+.maid-agent/bin/maid-notify chief "タスク完了いたしました。reports/emma.md をご確認くださいませ。"
 
-// ステップ2: Enter送信（別の呼び出しで）
-terminal.sendText('', true);
+# エラー発生時の通知
+.maid-agent/bin/maid-notify chief "申し訳ございません、問題が発生いたしました。reports/emma.md をご確認くださいませ。"
 ```
 
-**禁止**: 1回の sendText でメッセージと Enter を同時に送信しない
+**注意**:
+- ターゲットは必ず `chief`（メイド長）を指定
+- 執事（butler）やご主人様への直接通知は禁止（F001, F002）
+- 他のメイドへの直接通知も禁止（指揮系統を守る）
 
 ## 報告形式
 

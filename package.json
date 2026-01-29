@@ -15,75 +15,98 @@
     "commands": [
       {
         "command": "multiAgent.initialize",
-        "title": "Maid Agent: Init"
+        "title": "Maid Agent: Init",
+        "category": "Maid Agent"
+      },
+      {
+        "command": "multiAgent.resumeSessions",
+        "title": "Maid Agent: Resume Sessions",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startButler",
-        "title": "Maid Agent: Call Butler"
+        "title": "Maid Agent: Call Butler",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startChiefMaid",
-        "title": "Maid Agent: Call Chief"
+        "title": "Maid Agent: Call Chief",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startAgents",
-        "title": "Maid Agent: Call Butler & Chief"
+        "title": "Maid Agent: Call Butler & Chief",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startSelectedMaids",
-        "title": "Maid Agent: Call Maids Pick"
+        "title": "Maid Agent: Call Maids Pick",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startMaidsByCount",
-        "title": "Maid Agent: Call Maids xN"
+        "title": "Maid Agent: Call Maids xN",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startMaidsByCountRandom",
-        "title": "Maid Agent: Call Maids xN -r"
+        "title": "Maid Agent: Call Maids xN -r",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startAll",
-        "title": "Maid Agent: Call All"
+        "title": "Maid Agent: Call All",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startAllByCount",
-        "title": "Maid Agent: Call All xN"
+        "title": "Maid Agent: Call All xN",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startAllByCountRandom",
-        "title": "Maid Agent: Call All xN -r"
+        "title": "Maid Agent: Call All xN -r",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.sendToButler",
-        "title": "Maid Agent: Task to Butler"
+        "title": "Maid Agent: Task to Butler",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.sendToMaid",
-        "title": "Maid Agent: Task to Maid"
+        "title": "Maid Agent: Task to Maid",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startClaude",
-        "title": "Maid Agent: Claude Start"
+        "title": "Maid Agent: Claude Start",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.showDashboard",
-        "title": "Maid Agent: Dashboard"
+        "title": "Maid Agent: Dashboard",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.watchFiles",
-        "title": "Maid Agent: Watch Start"
+        "title": "Maid Agent: Watch Start",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.stopWatchFiles",
-        "title": "Maid Agent: Watch Stop"
+        "title": "Maid Agent: Watch Stop",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.openTmuxViewer",
-        "title": "Maid Agent: Open Tmux Viewer"
+        "title": "Maid Agent: Open Tmux Viewer",
+        "category": "Maid Agent"
       },
       {
         "command": "multiAgent.killSession",
-        "title": "Maid Agent: Kill Session"
+        "title": "Maid Agent: Kill Session",
+        "category": "Maid Agent"
       }
     ],
     "views": {

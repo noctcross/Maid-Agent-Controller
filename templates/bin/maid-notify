@@ -20,6 +20,25 @@ fi
 TARGET="$1"
 MESSAGE="$2"
 
+# メッセージをJSON用にエスケープする関数
+escape_json() {
+    local str="$1"
+    # バックスラッシュを先にエスケープ
+    str="${str//\\/\\\\}"
+    # ダブルクォートをエスケープ
+    str="${str//\"/\\\"}"
+    # 改行をエスケープ
+    str="${str//$'\n'/\\n}"
+    # タブをエスケープ
+    str="${str//$'\t'/\\t}"
+    # キャリッジリターンをエスケープ
+    str="${str//$'\r'/\\r}"
+    echo "$str"
+}
+
+# メッセージをエスケープ
+MESSAGE=$(escape_json "$MESSAGE")
+
 # 有効なターゲットをチェック
 VALID_TARGETS="butler chief emma sophia lily rose alice may flora luna"
 if ! echo "$VALID_TARGETS" | grep -qw "$TARGET"; then

@@ -443,12 +443,12 @@ class TmuxManager {
     }
 
     /**
-     * 全ウィンドウのリストを取得
+     * セッション内の全ウィンドウ名を取得
      */
     listWindows(): string[] {
         try {
             const result = this.exec(`list-windows -t ${this.sessionName} -F "#{window_name}"`);
-            return result.split('\n').filter(w => w.length > 0);
+            return result.split('\n').filter(name => name.length > 0);
         } catch {
             return [];
         }
@@ -1187,6 +1187,128 @@ class MultiAgentController {
     // 階層構造の起動
     // =========================================================================
 
+    /**
+     * 既存のtmuxセッションからエージェントを復帰
+     */
+    async resumeSessions(): Promise<void> {
+        if (!await this.ensureTmuxAvailable()) {
+            return;
+        }
+
+        // tmuxManagerがない場合は初期化
+        if (!this.tmuxManager) {
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                vscode.window.showErrorMessage('ワークスペースが開かれていません');
+                return;
+            }
+
+            const workspacePath = workspaceFolder.uri.fsPath;
+            const sessionName = getSessionNameFromPath(workspacePath);
+            this.tmuxManager = new TmuxManager(sessionName, workspacePath);
+        }
+
+        // セッションが存在するかチェック
+        if (!this.tmuxManager.sessionExists()) {
+            vscode.window.showInformationMessage('復帰可能なセッションがありません。Call コマンドで新規に呼び出してください。');
+            return;
+        }
+
+        // 既存のウィンドウを取得
+        const windows = this.tmuxManager.listWindows();
+        if (windows.length === 0) {
+            vscode.window.showInformationMessage('復帰可能なエージェントがありません。');
+            return;
+        }
+
+        // エージェント名とウィンドウ名のマッピング
+        const agentMapping: { [key: string]: { name: string; role: 'butler' | 'chiefMaid' | 'maid'; emoji: string } } = {
+            'butler': { name: 'シルヴィア', role: 'butler', emoji: '🎩' },
+            'chief': { name: 'ビオラ', role: 'chiefMaid', emoji: '👑' },
+            'emma': { name: 'エマ', role: 'maid', emoji: '🌸' },
+            'sophia': { name: 'ソフィア', role: 'maid', emoji: '📚' },
+            'lily': { name: 'リリー', role: 'maid', emoji: '🎨' },
+            'rose': { name: 'ローズ', role: 'maid', emoji: '🌹' },
+            'alice': { name: 'アリス', role: 'maid', emoji: '🔧' },
+            'may': { name: 'メイ', role: 'maid', emoji: '🍰' },
+            'flora': { name: 'フローラ', role: 'maid', emoji: '🌷' },
+            'luna': { name: 'ルナ', role: 'maid', emoji: '🌙' }
+        };
+
+        let resumedCount = 0;
+        const resumedNames: string[] = [];
+
+        for (const windowName of windows) {
+            // 既に登録済みならスキップ
+            if (this.agents.has(windowName)) {
+                continue;
+            }
+
+            const mapping = agentMapping[windowName];
+            if (mapping) {
+                // エージェントを登録（Claudeコマンドは送信しない）
+                this.createAgent(mapping.name, windowName, mapping.role, mapping.emoji);
+                // statusをidleに設定（既に稼働中の想定）
+                const agent = this.agents.get(windowName);
+                if (agent) {
+                    agent.status = 'idle';
+                }
+                resumedCount++;
+                resumedNames.push(`${mapping.emoji} ${mapping.name}`);
+                this.log(`[復帰] ${mapping.name}（${windowName}）を復帰しました`);
+            }
+        }
+
+        if (resumedCount > 0) {
+            // maidAgentPathを設定
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (workspaceFolder) {
+                this.maidAgentPath = path.join(workspaceFolder.uri.fsPath, '.maid-agent');
+
+                // 監視システムを開始（サイレントモード）
+                this.startWatchingFiles(true);
+            }
+
+            // tmuxビューアを開く
+            this.openTmuxViewer();
+
+            vscode.window.showInformationMessage(`${resumedNames.join('、')} が復帰しました！`);
+            this.updateDashboard();
+            this.updateAgentPanel();
+        } else {
+            vscode.window.showInformationMessage('新たに復帰可能なエージェントはありませんでした。');
+        }
+    }
+
+    /**
+     * 既存セッションが存在するかチェックし、存在する場合は復帰を提案
+     * @returns true: 続行OK, false: キャンセル
+     */
+    private async checkExistingSessionAndPrompt(agentId: string, agentName: string): Promise<'new' | 'resume' | 'cancel'> {
+        if (!this.tmuxManager) return 'new';
+
+        // ウィンドウが既に存在するかチェック
+        if (this.tmuxManager.windowExists(agentId)) {
+            const choice = await vscode.window.showWarningMessage(
+                `${agentName}のセッションが既に存在します。`,
+                '復帰する', '新規起動（上書き）', 'キャンセル'
+            );
+
+            if (choice === '復帰する') {
+                return 'resume';
+            } else if (choice === '新規起動（上書き）') {
+                // 既存ウィンドウを終了
+                this.tmuxManager.killWindow(agentId);
+                await this.delay(100);
+                return 'new';
+            } else {
+                return 'cancel';
+            }
+        }
+
+        return 'new';
+    }
+
     async startButler(): Promise<void> {
         if (!await this.ensureInitialized()) return;
 
@@ -1195,15 +1317,26 @@ class MultiAgentController {
             return;
         }
 
+        // 既存セッションのチェック
+        const action = await this.checkExistingSessionAndPrompt('butler', 'シルヴィア（執事）');
+        if (action === 'cancel') return;
+
         this.createAgent('シルヴィア', 'butler', 'butler', '🎩');
 
         // tmuxビューアを開く
         this.openTmuxViewer();
 
-        // Claude Code を起動し、役割を認識させる
-        await this.launchClaudeWithRole('butler', 'butler');
+        if (action === 'new') {
+            // 新規起動: Claude Code を起動し、役割を認識させる
+            await this.launchClaudeWithRole('butler', 'butler');
+            vscode.window.showInformationMessage('🎩 シルヴィアがお仕えする準備ができました！');
+        } else {
+            // 復帰: Claudeコマンドは送信しない
+            const agent = this.agents.get('butler');
+            if (agent) agent.status = 'idle';
+            vscode.window.showInformationMessage('🎩 シルヴィアが復帰しました！');
+        }
 
-        vscode.window.showInformationMessage('🎩 シルヴィアがお仕えする準備ができました！');
         this.updateDashboard();
     }
 
@@ -1215,15 +1348,26 @@ class MultiAgentController {
             return;
         }
 
+        // 既存セッションのチェック
+        const action = await this.checkExistingSessionAndPrompt('chief', 'ビオラ（メイド長）');
+        if (action === 'cancel') return;
+
         this.createAgent('ビオラ', 'chief', 'chiefMaid', '👑');
 
         // tmuxビューアを開く（まだ開いていなければ）
         this.openTmuxViewer();
 
-        // Claude Code を起動し、役割を認識させる
-        await this.launchClaudeWithRole('chief', 'chiefMaid');
+        if (action === 'new') {
+            // 新規起動: Claude Code を起動し、役割を認識させる
+            await this.launchClaudeWithRole('chief', 'chiefMaid');
+            vscode.window.showInformationMessage('👑 ビオラがお仕えする準備ができました！');
+        } else {
+            // 復帰: Claudeコマンドは送信しない
+            const agent = this.agents.get('chief');
+            if (agent) agent.status = 'idle';
+            vscode.window.showInformationMessage('👑 ビオラが復帰しました！');
+        }
 
-        vscode.window.showInformationMessage('👑 ビオラがお仕えする準備ができました！');
         this.updateDashboard();
     }
 
@@ -2077,22 +2221,24 @@ class MultiAgentController {
             try {
                 if (fs.existsSync(notifyPath)) {
                     const content = fs.readFileSync(notifyPath, 'utf-8');
-                    const notifications = JSON.parse(content) as Array<{
+                    const notifications = this.safeParseJSON<Array<{
                         target: string;
                         sender: string;
                         timestamp: string;
-                    }>;
+                    }>>(content, notifyPath);
 
-                    // 直近30秒以内にこのメイドからchiefへの通知があるかチェック
-                    const now = Date.now();
-                    const thirtySecondsAgo = now - 30000;
+                    if (notifications) {
+                        // 直近30秒以内にこのメイドからchiefへの通知があるかチェック
+                        const now = Date.now();
+                        const thirtySecondsAgo = now - 30000;
 
-                    hasNotifiedChief = notifications.some(n => {
-                        const notifyTime = new Date(n.timestamp).getTime();
-                        return n.target === 'chief' &&
-                               n.sender === maidName &&
-                               notifyTime > thirtySecondsAgo;
-                    });
+                        hasNotifiedChief = notifications.some(n => {
+                            const notifyTime = new Date(n.timestamp).getTime();
+                            return n.target === 'chief' &&
+                                   n.sender === maidName &&
+                                   notifyTime > thirtySecondsAgo;
+                        });
+                    }
                 }
             } catch {
                 // JSONパースエラーなどは無視
@@ -2165,6 +2311,64 @@ class MultiAgentController {
     }
 
     /**
+     * JSONを安全に解析する（壊れたJSONの回復を試みる）
+     */
+    private safeParseJSON<T>(content: string, filePath: string): T | null {
+        // 空またはホワイトスペースのみの場合
+        const trimmed = content.trim();
+        if (!trimmed || trimmed === '[]') {
+            return [] as unknown as T;
+        }
+
+        try {
+            return JSON.parse(trimmed) as T;
+        } catch (e) {
+            // 壊れたJSONの回復を試みる
+            this.log(`[JSON解析] 解析エラー、回復を試みます: ${filePath}`);
+
+            try {
+                // 末尾の不完全なエントリを削除して回復を試みる
+                // 例: [{...}, {... (不完全) の場合、最後のカンマまでを有効とする
+                let fixed = trimmed;
+
+                // 末尾が ] で終わっていない場合は追加
+                if (!fixed.endsWith(']')) {
+                    // 最後の完全なオブジェクトを探す
+                    const lastCompleteIndex = fixed.lastIndexOf('},');
+                    if (lastCompleteIndex > 0) {
+                        fixed = fixed.substring(0, lastCompleteIndex + 1) + ']';
+                    } else if (fixed.startsWith('[{') && fixed.includes('}')) {
+                        const lastBrace = fixed.lastIndexOf('}');
+                        fixed = fixed.substring(0, lastBrace + 1) + ']';
+                    } else {
+                        // 回復不能
+                        return [] as unknown as T;
+                    }
+                }
+
+                const result = JSON.parse(fixed) as T;
+                this.log(`[JSON解析] 回復成功`);
+
+                // 回復したJSONを保存
+                fs.writeFileSync(filePath, JSON.stringify(result, null, 2));
+
+                return result;
+            } catch {
+                // 回復に失敗した場合、バックアップを作成して空配列で初期化
+                const backupPath = filePath + '.backup.' + Date.now();
+                try {
+                    fs.writeFileSync(backupPath, content);
+                    this.log(`[JSON解析] 回復失敗。バックアップを作成: ${backupPath}`);
+                } catch {
+                    // バックアップも失敗
+                }
+                fs.writeFileSync(filePath, '[]');
+                return [] as unknown as T;
+            }
+        }
+    }
+
+    /**
      * 保留中の通知を処理し、ターゲットエージェントに転送
      */
     private async processNotifications(): Promise<void> {
@@ -2175,14 +2379,16 @@ class MultiAgentController {
 
         try {
             const content = fs.readFileSync(notifyPath, 'utf-8');
-            const notifications = JSON.parse(content) as Array<{
+            const notifications = this.safeParseJSON<Array<{
                 id: string;
                 target: string;
                 message: string;
                 sender: string;
                 timestamp: string;
                 status: string;
-            }>;
+            }>>(content, notifyPath);
+
+            if (!notifications || notifications.length === 0) return;
 
             // 未処理の通知を抽出
             const pending = notifications.filter(n => n.status === 'pending');
@@ -2597,6 +2803,9 @@ export function activate(context: vscode.ExtensionContext) {
     const commands = [
         vscode.commands.registerCommand('multiAgent.initialize', () => {
             controller.initializeWorkspace();
+        }),
+        vscode.commands.registerCommand('multiAgent.resumeSessions', () => {
+            controller.resumeSessions();
         }),
         vscode.commands.registerCommand('multiAgent.startButler', () => {
             controller.startButler();

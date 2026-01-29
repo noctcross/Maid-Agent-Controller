@@ -69,8 +69,9 @@ F5でデバッグ起動 → Extension Development Host が開く
 
 > **-r オプション**: ランダム選択。なしの場合は設定の `maidAgent.maidOrder` 順
 
-> ⚠️ **初回起動時の注意**: `claude --dangerously-skip-permissions` を初めて実行する場合、
-> 確認プロンプトが表示されます。**Yes を選択**してください（デフォルトはNoです）。
+> ⚠️ **初回起動時の注意**: `claude --dangerously-skip-permissions` を初めて実行する環境では、
+> 確認プロンプトが表示されます（デフォルトNo）。
+> **事前に別のターミナルで一度実行し、Yes を選択してください。**
 > 2回目以降は確認なしで起動します。
 
 ### 4. タスクを実行
@@ -84,8 +85,11 @@ F5でデバッグ起動 → Extension Development Host が開く
 
 #### サイドバー（エージェントパネル）
 
-Activity Bar に「Maid Agent」アイコンが表示されます。
-ターミナルタブを切り替えると、該当エージェントの立ち絵が表示されます。
+1. **Activity Bar（左端のアイコン列）の ♥ アイコン**をクリック
+2. サイドバーに「Current Agent」パネルが表示される
+3. **ターミナルタブを切り替える**と、該当エージェントの立ち絵が表示される
+
+> パネルが表示されない場合は、設定で `maidAgent.showAgentPanel` が `true` になっているか確認してください。
 
 #### ダッシュボード
 

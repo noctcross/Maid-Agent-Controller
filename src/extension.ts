@@ -894,9 +894,28 @@ class MultiAgentController {
             }
 
             const templatesPath = path.join(extensionPath, 'templates');
+            this.log(`[初期化] extensionPath: ${extensionPath}`);
+            this.log(`[初期化] templatesPath: ${templatesPath}`);
+            this.log(`[初期化] templates存在: ${fs.existsSync(templatesPath)}`);
+
+            // templates/images の確認
+            const templatesImagesPath = path.join(templatesPath, 'images');
+            this.log(`[初期化] templates/images存在: ${fs.existsSync(templatesImagesPath)}`);
+            if (fs.existsSync(templatesImagesPath)) {
+                const imageFiles = fs.readdirSync(templatesImagesPath);
+                this.log(`[初期化] templates/images内容: ${imageFiles.join(', ')}`);
+            }
 
             // ディレクトリ構造を作成
             this.copyDirectorySync(templatesPath, maidAgentPath);
+
+            // コピー後の確認
+            const destImagesPath = path.join(maidAgentPath, 'images');
+            this.log(`[初期化] .maid-agent/images存在: ${fs.existsSync(destImagesPath)}`);
+            if (fs.existsSync(destImagesPath)) {
+                const copiedImages = fs.readdirSync(destImagesPath);
+                this.log(`[初期化] .maid-agent/images内容: ${copiedImages.join(', ')}`);
+            }
 
             // reports ディレクトリに各メイド用のファイルを作成
             const reportsPath = path.join(maidAgentPath, 'reports');

@@ -870,9 +870,10 @@ class MultiAgentController {
         if (!this.tmuxManager || !this.tmuxSessionName) return null;
 
         try {
-            // tmuxの現在のウィンドウ名を取得
+            // Windows環境では wsl tmux を使用
+            const tmuxCmd = CURRENT_ENV === 'windows-native' ? 'wsl tmux' : 'tmux';
             const result = require('child_process').execSync(
-                `tmux display-message -t "${this.tmuxSessionName}" -p "#{window_name}"`,
+                `${tmuxCmd} display-message -t "${this.tmuxSessionName}" -p "#{window_name}"`,
                 { encoding: 'utf-8', timeout: 1000 }
             ).trim();
 

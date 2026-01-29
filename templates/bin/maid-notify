@@ -57,6 +57,14 @@ mkdir -p "$(dirname "$LOG_FILE")"
 echo "[$TIMESTAMP] $SENDER → $TARGET: $MESSAGE" >> "$LOG_FILE"
 
 # 直接 tmux send-keys で送信
+# まず、copy mode（スクロールモード）を解除する
+# ユーザーがマウススクロールした場合、copy modeに入っている可能性がある
+tmux send-keys -t "${SESSION_NAME}:${TARGET}" -X cancel 2>/dev/null || true
+tmux send-keys -t "${SESSION_NAME}:${TARGET}" Escape 2>/dev/null || true
+
+# 少し待機（copy mode解除の反映を待つ）
+sleep 0.1
+
 # -l オプションでリテラル文字列として送信し、その後Enterを送信
 tmux send-keys -t "${SESSION_NAME}:${TARGET}" -l "$MESSAGE"
 tmux send-keys -t "${SESSION_NAME}:${TARGET}" Enter

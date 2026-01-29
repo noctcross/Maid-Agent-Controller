@@ -425,6 +425,25 @@ class TmuxManager {
     }
 
     /**
+     * copy mode（スクロールモード）を解除
+     * ユーザーがマウススクロールした場合、copy modeに入っている可能性がある
+     */
+    cancelCopyMode(windowName: string): void {
+        try {
+            // -X cancel でcopy modeをキャンセル
+            this.exec(`send-keys -t ${this.sessionName}:${windowName} -X cancel`);
+        } catch {
+            // copy modeでない場合はエラーになるが無視
+        }
+        try {
+            // 念のためEscapeも送信
+            this.exec(`send-keys -t ${this.sessionName}:${windowName} Escape`);
+        } catch {
+            // 無視
+        }
+    }
+
+    /**
      * 指定ウィンドウの出力をキャプチャ
      */
     capturePane(windowName: string, lines: number = 100): string {
@@ -1280,6 +1299,11 @@ class MultiAgentController {
         }
 
         try {
+            // ステップ0: copy mode（スクロールモード）を解除
+            // ユーザーがマウススクロールした場合、入力を受け付けない状態になっている可能性がある
+            this.tmuxManager.cancelCopyMode(agent.tmuxWindow);
+            await this.delay(50);
+
             // ステップ1: メッセージ送信（Enterなし）
             this.tmuxManager.sendKeys(agent.tmuxWindow, message, false);
 

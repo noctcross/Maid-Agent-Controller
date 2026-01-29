@@ -2585,6 +2585,11 @@ ${agentList || '  (なし)'}
         if (fs.existsSync(filePath)) {
             const doc = await vscode.workspace.openTextDocument(filePath);
             await vscode.window.showTextDocument(doc);
+
+            // Markdownファイルの場合はプレビューも表示
+            if (filename.endsWith('.md')) {
+                await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(filePath));
+            }
         }
     }
 
@@ -2710,17 +2715,6 @@ ${agentList || '  (なし)'}
         <button class="action-btn secondary" onclick="openFile('queue/butler_to_chief.yaml')">📋 Queue</button>
     </div>
 
-    <div class="section">
-        <h2>📊 階層構造</h2>
-        <div class="hierarchy">
-            <div class="hierarchy-row">${butlerHtml}</div>
-            <div class="hierarchy-arrow">↓</div>
-            <div class="hierarchy-row">${chiefHtml}</div>
-            <div class="hierarchy-arrow">↓</div>
-            <div class="hierarchy-row">${maidsHtml}</div>
-        </div>
-    </div>
-
     <div class="two-column">
         <div class="section">
             <h2>📊 Dashboard.md</h2>
@@ -2731,6 +2725,17 @@ ${agentList || '  (なし)'}
             <div class="log-container">
                 ${recentLogs || '<div class="log-entry">ログはございません</div>'}
             </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>📊 階層構造</h2>
+        <div class="hierarchy">
+            <div class="hierarchy-row">${butlerHtml}</div>
+            <div class="hierarchy-arrow">↓</div>
+            <div class="hierarchy-row">${chiefHtml}</div>
+            <div class="hierarchy-arrow">↓</div>
+            <div class="hierarchy-row">${maidsHtml}</div>
         </div>
     </div>
 

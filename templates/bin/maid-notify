@@ -57,9 +57,8 @@ mkdir -p "$(dirname "$LOG_FILE")"
 echo "[$TIMESTAMP] $SENDER → $TARGET: $MESSAGE" >> "$LOG_FILE"
 
 # 直接 tmux send-keys で送信
-# シングルクォートをエスケープ
-ESCAPED_MESSAGE="${MESSAGE//\'/\'\\\'\'}"
-
-tmux send-keys -t "${SESSION_NAME}:${TARGET}" "'${ESCAPED_MESSAGE}'" Enter
+# -l オプションでリテラル文字列として送信し、その後Enterを送信
+tmux send-keys -t "${SESSION_NAME}:${TARGET}" -l "$MESSAGE"
+tmux send-keys -t "${SESSION_NAME}:${TARGET}" Enter
 
 echo "通知を送信しました: $SENDER → $TARGET"

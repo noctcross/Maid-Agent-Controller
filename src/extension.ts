@@ -861,6 +861,32 @@ class MultiAgentController {
         return null;
     }
 
+    /**
+     * tmuxの現在のウィンドウ名からエージェントIDを取得
+     */
+    private getCurrentTmuxWindowAgent(): string | null {
+        if (!this.tmuxManager || !this.tmuxSessionName) return null;
+
+        try {
+            // tmuxの現在のウィンドウ名を取得
+            const result = require('child_process').execSync(
+                `tmux display-message -t "${this.tmuxSessionName}" -p "#{window_name}"`,
+                { encoding: 'utf-8', timeout: 1000 }
+            ).trim();
+
+            this.log(`[AgentPanel] 現在のtmuxウィンドウ: ${result}`);
+
+            // ウィンドウ名がエージェントIDと一致するか確認
+            if (this.agents.has(result)) {
+                return result;
+            }
+        } catch (error) {
+            // tmuxコマンドが失敗した場合は無視
+            this.log(`[AgentPanel] tmuxウィンドウ取得エラー: ${error}`);
+        }
+        return null;
+    }
+
     // 現在のエージェントを設定（パネル更新用）
     setCurrentAgentFromTerminal(terminal: vscode.Terminal | undefined): void {
         if (!this.agentPanelProvider) return;
@@ -870,7 +896,14 @@ class MultiAgentController {
             return;
         }
 
-        const agentId = this.getAgentIdFromTerminal(terminal);
+        // まず従来の方式を試す
+        let agentId = this.getAgentIdFromTerminal(terminal);
+
+        // tmuxビューアターミナルの場合、tmuxのウィンドウ名から特定
+        if (!agentId && terminal === this.tmuxViewerTerminal) {
+            agentId = this.getCurrentTmuxWindowAgent();
+        }
+
         this.agentPanelProvider.setCurrentAgent(agentId);
     }
 

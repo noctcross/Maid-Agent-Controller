@@ -473,9 +473,20 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
     private _agents: Map<string, Agent> = new Map();
     private _extensionUri: vscode.Uri;
     private _workspaceRoot: string | undefined;
+    private _outputChannel: vscode.OutputChannel | undefined;
 
     constructor(extensionUri: vscode.Uri) {
         this._extensionUri = extensionUri;
+    }
+
+    public setOutputChannel(channel: vscode.OutputChannel): void {
+        this._outputChannel = channel;
+    }
+
+    private _log(message: string): void {
+        if (this._outputChannel) {
+            this._outputChannel.appendLine(`[AgentPanel] ${message}`);
+        }
     }
 
     public setWorkspaceRoot(workspaceRoot: string | undefined): void {
@@ -522,10 +533,33 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
      * 3. 基本画像 (emma.png)
      */
     private _getAgentImageUri(agentId: string, status: string): string | null {
-        if (!this._workspaceRoot || !this._view) return null;
+        if (!this._workspaceRoot || !this._view) {
+            this._log(`画像取得スキップ: workspaceRoot=${!!this._workspaceRoot}, view=${!!this._view}`);
+            return null;
+        }
 
         const imagesDir = path.join(this._workspaceRoot, MAID_AGENT_DIR, 'images');
         const extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+
+        // imagesDir の存在確認
+        const imagesDirExists = fs.existsSync(imagesDir);
+        this._log(`画像検索: agentId=${agentId}, imagesDir=${imagesDir}, exists=${imagesDirExists}`);
+
+        if (!imagesDirExists) {
+            // ディレクトリ内容を確認
+            const maidAgentDir = path.join(this._workspaceRoot, MAID_AGENT_DIR);
+            if (fs.existsSync(maidAgentDir)) {
+                try {
+                    const contents = fs.readdirSync(maidAgentDir);
+                    this._log(`.maid-agent 内容: ${contents.join(', ')}`);
+                } catch (e) {
+                    this._log(`.maid-agent 読み取りエラー: ${e}`);
+                }
+            } else {
+                this._log(`.maid-agent ディレクトリが存在しません`);
+            }
+            return null;
+        }
 
         // 1. ステータス画像を探す (emma_wait, emma_work, emma_question)
         const statusSuffix = status === 'working' ? 'work' :
@@ -534,7 +568,9 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
             const statusImagePath = path.join(imagesDir, `${agentId}_${statusSuffix}.${ext}`);
             if (fs.existsSync(statusImagePath)) {
                 const imageUri = vscode.Uri.file(statusImagePath);
-                return this._view.webview.asWebviewUri(imageUri).toString();
+                const webviewUri = this._view.webview.asWebviewUri(imageUri).toString();
+                this._log(`ステータス画像発見: ${statusImagePath} -> ${webviewUri}`);
+                return webviewUri;
             }
         }
 
@@ -558,7 +594,9 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
             const randomIndex = Math.floor(Math.random() * versionImages.length);
             const selectedPath = versionImages[randomIndex];
             const imageUri = vscode.Uri.file(selectedPath);
-            return this._view.webview.asWebviewUri(imageUri).toString();
+            const webviewUri = this._view.webview.asWebviewUri(imageUri).toString();
+            this._log(`バージョン画像発見: ${selectedPath} -> ${webviewUri}`);
+            return webviewUri;
         }
 
         // 3. 基本画像を探す (emma.png)
@@ -566,8 +604,18 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
             const imagePath = path.join(imagesDir, `${agentId}.${ext}`);
             if (fs.existsSync(imagePath)) {
                 const imageUri = vscode.Uri.file(imagePath);
-                return this._view.webview.asWebviewUri(imageUri).toString();
+                const webviewUri = this._view.webview.asWebviewUri(imageUri).toString();
+                this._log(`基本画像発見: ${imagePath} -> ${webviewUri}`);
+                return webviewUri;
             }
+        }
+
+        // 見つからなかった場合、imagesDir の内容をログ
+        try {
+            const files = fs.readdirSync(imagesDir);
+            this._log(`画像未発見 (${agentId}), images内のファイル: ${files.join(', ')}`);
+        } catch (e) {
+            this._log(`images ディレクトリ読み取りエラー: ${e}`);
         }
 
         return null;
@@ -782,6 +830,8 @@ class MultiAgentController {
 
     setAgentPanelProvider(provider: AgentPanelProvider): void {
         this.agentPanelProvider = provider;
+        // ログ出力用に outputChannel を共有
+        provider.setOutputChannel(this.outputChannel);
     }
 
     // エージェントパネルを更新

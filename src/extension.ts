@@ -2419,15 +2419,28 @@ class MultiAgentController {
 
     /**
      * 保留中の通知を処理し、ターゲットエージェントに転送
+     * アトミックなリネーム処理で競合を防止
      */
     private async processNotifications(): Promise<void> {
         if (!this.maidAgentPath) return;
 
         const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
+        const processingPath = path.join(this.maidAgentPath, 'notifications', 'pending.processing.json');
+
         if (!fs.existsSync(notifyPath)) return;
 
         try {
-            const content = fs.readFileSync(notifyPath, 'utf-8');
+            // ステップ1: pending.json を processing にリネーム（アトミック操作）
+            // これにより、メイドは新しい pending.json に書き込める
+            try {
+                fs.renameSync(notifyPath, processingPath);
+            } catch (renameError) {
+                // リネーム失敗（別プロセスが処理中など）は無視
+                return;
+            }
+
+            // ステップ2: processing ファイルを読み込んで処理
+            const content = fs.readFileSync(processingPath, 'utf-8');
             const notifications = this.safeParseJSON<Array<{
                 id: string;
                 target: string;
@@ -2435,13 +2448,20 @@ class MultiAgentController {
                 sender: string;
                 timestamp: string;
                 status: string;
-            }>>(content, notifyPath);
+            }>>(content, processingPath);
 
-            if (!notifications || notifications.length === 0) return;
+            if (!notifications || notifications.length === 0) {
+                // 空なら processing ファイルを削除して終了
+                fs.unlinkSync(processingPath);
+                return;
+            }
 
             // 未処理の通知を抽出
             const pending = notifications.filter(n => n.status === 'pending');
-            if (pending.length === 0) return;
+            if (pending.length === 0) {
+                fs.unlinkSync(processingPath);
+                return;
+            }
 
             this.log(`[通知システム] ${pending.length}件の通知を処理中...`);
 
@@ -2459,12 +2479,33 @@ class MultiAgentController {
                 }
             }
 
-            // 処理済みの通知を更新（delivered を除外、または保持）
-            const remaining = notifications.filter(n => n.status === 'pending');
-            fs.writeFileSync(notifyPath, JSON.stringify(remaining, null, 2));
+            // ステップ3: 未処理の通知を pending.json にマージ
+            const stillPending = notifications.filter(n => n.status === 'pending');
+
+            if (stillPending.length > 0) {
+                // 新しい pending.json が作られていたらマージ
+                let newNotifications: typeof notifications = [];
+                if (fs.existsSync(notifyPath)) {
+                    const newContent = fs.readFileSync(notifyPath, 'utf-8');
+                    newNotifications = this.safeParseJSON<typeof notifications>(newContent, notifyPath) || [];
+                }
+                const merged = [...stillPending, ...newNotifications];
+                fs.writeFileSync(notifyPath, JSON.stringify(merged, null, 2));
+            }
+
+            // processing ファイルを削除
+            fs.unlinkSync(processingPath);
 
         } catch (error) {
             this.log(`[通知システム] エラー: ${error}`);
+            // エラー時は processing ファイルを pending に戻す
+            if (fs.existsSync(processingPath) && !fs.existsSync(notifyPath)) {
+                try {
+                    fs.renameSync(processingPath, notifyPath);
+                } catch {
+                    // 無視
+                }
+            }
         }
     }
 

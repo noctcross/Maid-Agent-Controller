@@ -666,6 +666,26 @@ class MultiAgentController {
     }
 
     /**
+     * Claude Code の起動完了を待つ
+     * 方式: 段階的ポーリング（初期は短い間隔、徐々に長く）
+     */
+    private async waitForClaudeReady(agentId: string, maxWaitMs: number = 10000): Promise<void> {
+        // 段階的待機: 最初は短い間隔で確認の機会を設け、徐々に長くする
+        // 1秒 → 1秒 → 1.5秒 → 2秒 → 2秒 → 2.5秒 (合計約10秒)
+        const intervals = [1000, 1000, 1500, 2000, 2000, 2500];
+        let totalWaited = 0;
+
+        for (const interval of intervals) {
+            if (totalWaited >= maxWaitMs) break;
+            await this.delay(interval);
+            totalWaited += interval;
+            this.log(`[${agentId}] Claude 起動待機中... (${totalWaited}ms)`);
+        }
+
+        this.log(`[${agentId}] Claude 起動待機完了 (${totalWaited}ms)`);
+    }
+
+    /**
      * エージェントでClaude Codeを起動し、役割を認識させる
      */
     async launchClaudeWithRole(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {
@@ -678,8 +698,11 @@ class MultiAgentController {
         // Claude Code を起動（権限スキップモード）
         agent.terminal.sendText('claude --dangerously-skip-permissions', true);
 
-        // Claude Code の起動を待つ（4秒 - 起動時間にばらつきがあるため長めに）
-        await this.delay(4000);
+        // Claude Code の起動完了を待つ（段階的待機、最大10秒）
+        await this.waitForClaudeReady(agentId, 10000);
+
+        // 少し待ってから指示を送信（バッファ安定化）
+        await this.delay(300);
 
         // 役割に応じた指示を送信
         let instruction: string;

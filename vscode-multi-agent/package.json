@@ -76,6 +76,14 @@
       {
         "command": "multiAgent.stopWatchFiles",
         "title": "Maid Agent: Watch Stop"
+      },
+      {
+        "command": "multiAgent.openTmuxViewer",
+        "title": "Maid Agent: Open Tmux Viewer"
+      },
+      {
+        "command": "multiAgent.killSession",
+        "title": "Maid Agent: Kill Session"
       }
     ],
     "views": {

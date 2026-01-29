@@ -92,8 +92,6 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
     private _agents: Map<string, Agent> = new Map();
     private _extensionUri: vscode.Uri;
     private _workspaceRoot: string | undefined;
-    // 各エージェントの選択された画像バージョンをキャッシュ
-    private _selectedImageVersions: Map<string, string> = new Map();
 
     constructor(extensionUri: vscode.Uri) {
         this._extensionUri = extensionUri;
@@ -175,13 +173,9 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
         }
 
         if (versionImages.length > 0) {
-            // キャッシュされたバージョンを使用、なければランダム選択
-            let selectedPath = this._selectedImageVersions.get(agentId);
-            if (!selectedPath || !versionImages.includes(selectedPath)) {
-                const randomIndex = Math.floor(Math.random() * versionImages.length);
-                selectedPath = versionImages[randomIndex];
-                this._selectedImageVersions.set(agentId, selectedPath);
-            }
+            // タブ切り替えごとにランダム選択
+            const randomIndex = Math.floor(Math.random() * versionImages.length);
+            const selectedPath = versionImages[randomIndex];
             const imageUri = vscode.Uri.file(selectedPath);
             return this._view.webview.asWebviewUri(imageUri).toString();
         }

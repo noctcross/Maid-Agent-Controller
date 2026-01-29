@@ -462,6 +462,9 @@ class MultiAgentController {
 
             // reports ディレクトリに各メイド用のファイルを作成
             const reportsPath = path.join(maidAgentPath, 'reports');
+            if (!fs.existsSync(reportsPath)) {
+                fs.mkdirSync(reportsPath, { recursive: true });
+            }
             for (const maid of MAIDS) {
                 const reportFile = path.join(reportsPath, `${maid.id}.md`);
                 if (!fs.existsSync(reportFile)) {

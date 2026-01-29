@@ -1952,6 +1952,12 @@ class MultiAgentController {
             if (fileName === 'dashboard.md') {
                 this.notifyDashboardUpdate(uri.fsPath);
             }
+
+            // reports/*.md が更新されたらメイド長への報告チェック
+            if (uri.fsPath.includes('/reports/') && fileName.endsWith('.md') && fileName !== '.gitkeep') {
+                const maidName = fileName.replace('.md', '');
+                this.checkMaidReportToChief(maidName);
+            }
         });
 
         this.context?.subscriptions.push(this.fileWatcher);
@@ -2040,6 +2046,76 @@ class MultiAgentController {
         } catch {
             // プレビューが開いていない場合は何もしない
         }
+    }
+
+    // 報告チェック用のタイマーを管理
+    private pendingReportChecks: Map<string, NodeJS.Timeout> = new Map();
+
+    /**
+     * メイドがメイド長に報告したかチェック
+     * reports/*.md 更新後、5秒以内にchief宛の通知がなければリマインド
+     */
+    private checkMaidReportToChief(maidName: string): void {
+        // 既存のタイマーがあればクリア（連続更新対応）
+        const existingTimer = this.pendingReportChecks.get(maidName);
+        if (existingTimer) {
+            clearTimeout(existingTimer);
+        }
+
+        this.log(`[報告チェック] ${maidName} のレポート更新を検知、5秒後にチェック`);
+
+        // 5秒後にチェック
+        const timer = setTimeout(async () => {
+            this.pendingReportChecks.delete(maidName);
+
+            // 通知ファイルを確認
+            if (!this.maidAgentPath) return;
+
+            const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
+            let hasNotifiedChief = false;
+
+            try {
+                if (fs.existsSync(notifyPath)) {
+                    const content = fs.readFileSync(notifyPath, 'utf-8');
+                    const notifications = JSON.parse(content) as Array<{
+                        target: string;
+                        sender: string;
+                        timestamp: string;
+                    }>;
+
+                    // 直近30秒以内にこのメイドからchiefへの通知があるかチェック
+                    const now = Date.now();
+                    const thirtySecondsAgo = now - 30000;
+
+                    hasNotifiedChief = notifications.some(n => {
+                        const notifyTime = new Date(n.timestamp).getTime();
+                        return n.target === 'chief' &&
+                               n.sender === maidName &&
+                               notifyTime > thirtySecondsAgo;
+                    });
+                }
+            } catch {
+                // JSONパースエラーなどは無視
+            }
+
+            if (!hasNotifiedChief) {
+                // メイドがアクティブかチェック
+                const maid = this.agents.get(maidName);
+                if (maid) {
+                    this.log(`[報告チェック] ${maidName} がメイド長への報告を忘れている可能性`);
+
+                    // リマインドを送信
+                    const reminder = `レポートを更新したようですが、メイド長への報告はお済みですか？\n完了した場合は .maid-agent/bin/maid-notify chief "タスク完了の報告" を実行してください。`;
+                    await this.sendMessageToAgent(maidName, reminder);
+
+                    this.log(`[報告チェック] ${maidName} にリマインドを送信しました`);
+                }
+            } else {
+                this.log(`[報告チェック] ${maidName} は正常にメイド長へ報告済み`);
+            }
+        }, 5000);
+
+        this.pendingReportChecks.set(maidName, timer);
     }
 
     stopWatchingFiles(): void {

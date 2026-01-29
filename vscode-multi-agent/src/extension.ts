@@ -67,18 +67,18 @@ function getOrderedMaids(): MaidConfig[] {
 // 後方互換性のためのエイリアス（内部で getOrderedMaids() を使用）
 const MAIDS = DEFAULT_MAID_ORDER.map(id => MAIDS_MAP[id]);
 
-// エージェントごとの色設定（画像の代わりにカラーで識別）
+// エージェントごとの色設定
 const AGENT_COLORS: { [key: string]: { bg: string; accent: string } } = {
-    butler: { bg: '#1a1a2e', accent: '#ffd700' },      // 金（執事）
-    chief: { bg: '#1a1a2e', accent: '#e94560' },       // ピンク（メイド長）
-    emma: { bg: '#1a1a2e', accent: '#ff6b6b' },        // 赤
-    sophia: { bg: '#1a1a2e', accent: '#4ecdc4' },      // ティール
-    lily: { bg: '#1a1a2e', accent: '#95e1d3' },        // ミント
-    rose: { bg: '#1a1a2e', accent: '#f38181' },        // ローズ
-    alice: { bg: '#1a1a2e', accent: '#aa96da' },       // ラベンダー
-    may: { bg: '#1a1a2e', accent: '#fcbad3' },         // ベビーピンク
-    flora: { bg: '#1a1a2e', accent: '#a8d8ea' },       // スカイブルー
-    luna: { bg: '#1a1a2e', accent: '#c3aed6' },        // パープル
+    butler: { bg: '#1a1a2e', accent: '#008080' },      // ティール
+    chief: { bg: '#1a1a2e', accent: '#008080' },       // ティール
+    emma: { bg: '#1a1a2e', accent: '#8B5A2B' },        // ブラウン
+    sophia: { bg: '#1a1a2e', accent: '#4169E1' },      // ブルー
+    lily: { bg: '#1a1a2e', accent: '#FFB6C1' },        // ピンク
+    rose: { bg: '#1a1a2e', accent: '#DC143C' },        // レッド
+    alice: { bg: '#1a1a2e', accent: '#DAA520' },       // ゴールド
+    may: { bg: '#1a1a2e', accent: '#808080' },         // グレー
+    flora: { bg: '#1a1a2e', accent: '#228B22' },       // グリーン
+    luna: { bg: '#1a1a2e', accent: '#800080' },        // パープル
 };
 
 // =============================================================================

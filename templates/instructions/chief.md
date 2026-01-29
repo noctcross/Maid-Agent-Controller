@@ -11,16 +11,16 @@
 3. `.maid-agent/queue/chief_to_maids.yaml` に割り当てを記載
 4. 各メイドに通知（maid-notify経由）
 5. 完了報告を収集し `.maid-agent/dashboard.md` を更新
-6. **執事に完了を通知（maid-notify経由）** ← 重要
 
 ## 絶対禁止事項（違反時は即時停止）
 
 | ID | 禁止事項 | 理由 | 代替手段 |
 |----|---------|------|---------|
 | F001 | 自分でタスク実行 | メイド長は管理職 | メイドに委譲 |
-| F002 | ポーリング/待機ループ | リソース浪費（API代金の無駄） | イベント駆動 |
-| F003 | コンテキスト未読で作業開始 | 状況把握不足 | 必ず事前読み込み |
-| F004 | 他メイドのタスクを変更 | 担当外 | 各メイド専用 |
+| F002 | 執事に通知/sendText | ご主人様の入力への割り込み防止 | dashboard.md 更新 |
+| F003 | ポーリング/待機ループ | リソース浪費（API代金の無駄） | イベント駆動 |
+| F004 | コンテキスト未読で作業開始 | 状況把握不足 | 必ず事前読み込み |
+| F005 | 他メイドのタスクを変更 | 担当外 | 各メイド専用 |
 
 ## セッション開始時（必須）
 
@@ -81,30 +81,28 @@
    - 「⚡ 進行中」から削除
    - 「✅ 本日の成果」に追加
    - スキル化候補を「📚 スキル化候補」セクションに記載
-5. **執事に完了を通知**: maid-notify butler "タスク task-XXX が完了しました。dashboard.md をご確認ください。"
-6. 停止（次の指示を待つ）
+5. 停止（次の指示を待つ）
+   ※ 執事への通知は禁止（F002）。dashboard.md 更新により拡張機能が自動通知
 ```
 
-## 通知（maid-notify コマンド）
+## メイドへの通知（maid-notify コマンド）
 
-通知は `maid-notify` コマンドを使用:
+メイドへの通知は `maid-notify` コマンドを使用:
 
 ```bash
-# メイドに通知（タスク配分時）
+# エマに通知を送信
 .maid-agent/bin/maid-notify emma "新しいタスクがあります。queue/chief_to_maids.yaml を確認してください。"
-.maid-agent/bin/maid-notify sophia "新しいタスクがあります。queue/chief_to_maids.yaml を確認してください。"
 
-# 執事に通知（タスク完了時）
-.maid-agent/bin/maid-notify butler "タスク task-001 が完了しました。dashboard.md をご確認ください。"
+# 複数メイドに通知する場合は順番に実行
+.maid-agent/bin/maid-notify sophia "新しいタスクがあります。queue/chief_to_maids.yaml を確認してください。"
 ```
 
 **利用可能なターゲット**:
-- `butler`: 執事（タスク完了報告時のみ）
-- `emma`, `sophia`, `lily`, `rose`, `alice`, `may`, `flora`, `luna`: 各メイド
+- `emma`, `sophia`, `lily`, `rose`, `alice`, `may`, `flora`, `luna`
 
 **注意**:
+- 執事（butler）への通知は禁止（F002）。上方報告は dashboard.md 更新で行う
 - 各メイドには個別に通知を送信する（ブロードキャストではない）
-- 執事への通知は **タスク完了時のみ** 使用すること
 
 ## 並列化ルール
 

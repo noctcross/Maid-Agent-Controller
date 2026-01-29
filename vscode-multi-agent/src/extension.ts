@@ -469,6 +469,9 @@ class MultiAgentController {
             // プロジェクトルートの CLAUDE.md を処理
             await this.setupRootClaudeMd();
 
+            // Claude Code の SessionStart フック設定
+            await this.setupClaudeHooks();
+
             this.log('[初期化] .maid-agent ディレクトリを作成しました');
             vscode.window.showInformationMessage('🎩 Maid Agent の初期化が完了しました');
 
@@ -573,6 +576,59 @@ class MultiAgentController {
 `;
     }
 
+    /**
+     * Claude Code の SessionStart フックを設定
+     * プロジェクトルートの .claude/settings.json に書き込む
+     */
+    private async setupClaudeHooks(): Promise<void> {
+        if (!this.workspaceRoot) return;
+
+        const claudeDir = path.join(this.workspaceRoot, '.claude');
+        const settingsPath = path.join(claudeDir, 'settings.json');
+
+        // フック設定（SessionStart でお仕えの準備完了を通知）
+        const hooksConfig = {
+            hooks: {
+                SessionStart: [
+                    {
+                        hooks: [
+                            {
+                                type: 'command',
+                                command: 'if [ -f "$CLAUDE_PROJECT_DIR/.maid-agent/.starting" ]; then AGENT_ID=$(cat "$CLAUDE_PROJECT_DIR/.maid-agent/.starting"); touch "$CLAUDE_PROJECT_DIR/.maid-agent/.ready-$AGENT_ID"; fi'
+                            }
+                        ]
+                    }
+                ]
+            }
+        };
+
+        // .claude ディレクトリを作成
+        if (!fs.existsSync(claudeDir)) {
+            fs.mkdirSync(claudeDir, { recursive: true });
+        }
+
+        // 既存の設定があれば読み込んでマージ
+        let existingConfig: any = {};
+        if (fs.existsSync(settingsPath)) {
+            try {
+                const content = fs.readFileSync(settingsPath, 'utf-8');
+                existingConfig = JSON.parse(content);
+            } catch (e) {
+                // パース失敗時は空の設定として扱う
+            }
+        }
+
+        // hooks をマージ（既存の hooks がある場合は SessionStart を追加/上書き）
+        if (!existingConfig.hooks) {
+            existingConfig.hooks = {};
+        }
+        existingConfig.hooks.SessionStart = hooksConfig.hooks.SessionStart;
+
+        // 書き込み
+        fs.writeFileSync(settingsPath, JSON.stringify(existingConfig, null, 2));
+        this.log('[Claude Hooks] .claude/settings.json にフックを設定しました');
+    }
+
     private copyDirectorySync(src: string, dest: string): void {
         if (!fs.existsSync(dest)) {
             fs.mkdirSync(dest, { recursive: true });
@@ -667,25 +723,66 @@ class MultiAgentController {
 
     /**
      * Claude Code の起動完了を待つ
-     * 方式: 段階的待機（検知手段がないため固定時間待機）
-     * ※ VSCode API の制限により、ターミナル出力を検知できないため
+     * 方式: SessionStart フックによるファイルベース検知
+     * フォールバック: 固定時間待機
      */
-    private async waitForClaudeReady(agent: Agent, maxWaitMs: number = 10000): Promise<void> {
-        // 段階的待機: 1秒 → 1秒 → 1.5秒 → 2秒 → 2秒 → 2.5秒 (合計約10秒)
-        const intervals = [1000, 1000, 1500, 2000, 2000, 2500];
+    private async waitForClaudeReady(agent: Agent, agentId: string, maxWaitMs: number = 30000): Promise<boolean> {
+        if (!this.maidAgentPath) return false;
+
+        const readyFile = path.join(this.maidAgentPath, `.ready-${agentId}`);
+        const startingFile = path.join(this.maidAgentPath, '.starting');
+        const pollInterval = 500; // 500ms間隔でポーリング
         let totalWaited = 0;
 
         const roleLabel = agent.role === 'butler' ? '執事' :
                          agent.role === 'chiefMaid' ? 'メイド長' : 'メイド';
 
-        for (const interval of intervals) {
-            if (totalWaited >= maxWaitMs) break;
-            await this.delay(interval);
-            totalWaited += interval;
-            this.log(`[${agent.name}] ${roleLabel}出勤準備中... (${totalWaited}ms)`);
+        // .starting ファイルにエージェントIDを書き込む（フックが読み取る）
+        try {
+            fs.writeFileSync(startingFile, agentId);
+        } catch (error) {
+            this.log(`[${agent.name}] .starting ファイル作成失敗、フォールバック待機`);
+            await this.delay(5000);
+            return false;
         }
 
-        this.log(`[${agent.name}] ${roleLabel}出勤完了 (${totalWaited}ms待機)`);
+        this.log(`[${agent.name}] ${roleLabel}のお仕えの準備を待機中...`);
+
+        // ファイルベース検知（ポーリング）
+        while (totalWaited < maxWaitMs) {
+            await this.delay(pollInterval);
+            totalWaited += pollInterval;
+
+            if (fs.existsSync(readyFile)) {
+                // 検知成功 - クリーンアップ
+                try {
+                    fs.unlinkSync(readyFile);
+                    if (fs.existsSync(startingFile)) {
+                        fs.unlinkSync(startingFile);
+                    }
+                } catch (e) {
+                    // クリーンアップ失敗は無視
+                }
+                this.log(`[${agent.name}] ${roleLabel}のお仕えの準備完了 (${totalWaited}ms)`);
+                return true;
+            }
+
+            // 進捗ログ（5秒ごと）
+            if (totalWaited % 5000 === 0) {
+                this.log(`[${agent.name}] ${roleLabel}のお仕えの準備を待機中... (${totalWaited}ms)`);
+            }
+        }
+
+        // タイムアウト - クリーンアップして続行
+        this.log(`[${agent.name}] [WARN] 準備完了検知タイムアウト - フォールバック続行`);
+        try {
+            if (fs.existsSync(startingFile)) {
+                fs.unlinkSync(startingFile);
+            }
+        } catch (e) {
+            // 無視
+        }
+        return false;
     }
 
     /**
@@ -701,8 +798,13 @@ class MultiAgentController {
         // Claude Code を起動（権限スキップモード）
         agent.terminal.sendText('claude --dangerously-skip-permissions', true);
 
-        // Claude Code の出勤完了を待つ（段階的待機、最大10秒）
-        await this.waitForClaudeReady(agent, 10000);
+        // Claude Code のお仕えの準備完了を待つ（フックによるファイル検知、最大30秒）
+        const detected = await this.waitForClaudeReady(agent, agentId, 30000);
+
+        // 検知失敗時も少し待ってから続行
+        if (!detected) {
+            await this.delay(2000);
+        }
 
         // 少し待ってから指示を送信（バッファ安定化）
         await this.delay(300);
@@ -837,7 +939,7 @@ class MultiAgentController {
         }
 
         const countStr = await vscode.window.showInputBox({
-            prompt: `何人のメイドを出勤させますか？（1〜${availableMaids.length}人）${random ? '【ランダム】' : '【順番】'}`,
+            prompt: `何人のメイドをお呼びしますか？（1〜${availableMaids.length}人）${random ? '【ランダム】' : '【順番】'}`,
             placeHolder: '例: 3',
             validateInput: (value) => {
                 const num = parseInt(value);
@@ -863,16 +965,16 @@ class MultiAgentController {
             maidsToStart = availableMaids.slice(0, count);
         }
 
-        // 進捗表示付きで出勤
+        // 進捗表示付きでお呼び出し
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: '🎀 メイド出勤中...',
+            title: '🎀 メイドお仕えの準備中...',
             cancellable: false
         }, async (progress) => {
             for (let i = 0; i < maidsToStart.length; i++) {
                 const maid = maidsToStart[i];
                 progress.report({
-                    message: `${maid.name}出勤中...`,
+                    message: `${maid.name}お仕えの準備中...`,
                     increment: (100 / maidsToStart.length)
                 });
                 this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
@@ -881,7 +983,7 @@ class MultiAgentController {
         });
 
         const maidNames = maidsToStart.map(m => m.name).join('、');
-        vscode.window.showInformationMessage(`🎀 ${maidNames} が出勤しました！`);
+        vscode.window.showInformationMessage(`🎀 ${maidNames} がお仕えの準備を整えました！`);
         this.updateDashboard();
     }
 
@@ -911,7 +1013,7 @@ class MultiAgentController {
         }
 
         const countStr = await vscode.window.showInputBox({
-            prompt: `メイドを何人出勤させますか？（1〜${availableMaids.length}人）執事+メイド長も出勤 ${random ? '【ランダム】' : '【順番】'}`,
+            prompt: `メイドを何人お呼びしますか？（1〜${availableMaids.length}人）執事+メイド長もお呼び ${random ? '【ランダム】' : '【順番】'}`,
             placeHolder: '例: 3',
             validateInput: (value) => {
                 const num = parseInt(value);
@@ -929,19 +1031,19 @@ class MultiAgentController {
 
         const count = parseInt(countStr);
 
-        // 進捗表示付きで出勤
+        // 進捗表示付きでお呼び出し
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: '🎩 スタッフ出勤中...',
+            title: '🎩 スタッフお仕えの準備中...',
             cancellable: false
         }, async (progress) => {
             const totalAgents = (this.agents.has('butler') ? 0 : 1) +
                                (this.agents.has('chief') ? 0 : 1) + count;
             let currentAgent = 0;
 
-            // 執事・メイド長を先に出勤
+            // 執事・メイド長を先にお呼び
             if (!this.agents.has('butler')) {
-                progress.report({ message: 'シルヴィア（執事）出勤中...', increment: 0 });
+                progress.report({ message: 'シルヴィア（執事）お仕えの準備中...', increment: 0 });
                 const butler = this.createAgent('シルヴィア', 'butler', 'butler', '🎩');
                 butler.terminal.show();
                 await this.launchClaudeWithRole('butler', 'butler');
@@ -950,7 +1052,7 @@ class MultiAgentController {
             }
 
             if (!this.agents.has('chief')) {
-                progress.report({ message: 'ビオラ（メイド長）出勤中...' });
+                progress.report({ message: 'ビオラ（メイド長）お仕えの準備中...' });
                 const chief = this.createAgent('ビオラ', 'chief', 'chiefMaid', '👑');
                 chief.terminal.show();
                 await this.launchClaudeWithRole('chief', 'chiefMaid');
@@ -967,7 +1069,7 @@ class MultiAgentController {
             }
 
             for (const maid of maidsToStart) {
-                progress.report({ message: `${maid.name}（メイド）出勤中...` });
+                progress.report({ message: `${maid.name}（メイド）お仕えの準備中...` });
                 this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
                 await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
                 currentAgent++;
@@ -975,7 +1077,7 @@ class MultiAgentController {
             }
 
             const maidNames = maidsToStart.map(m => m.name).join('、');
-            vscode.window.showInformationMessage(`🎩 執事 + 👑 メイド長 + 🎀 ${maidNames} が出勤しました！`);
+            vscode.window.showInformationMessage(`🎩 執事 + 👑 メイド長 + 🎀 ${maidNames} がお仕えの準備を整えました！`);
             this.updateDashboard();
         });
     }

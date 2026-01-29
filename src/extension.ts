@@ -815,6 +815,8 @@ class MultiAgentController {
     private tmuxManager: TmuxManager | undefined;
     private tmuxViewerTerminal: vscode.Terminal | undefined;  // tmuxセッション表示用
     private tmuxSessionName: string = '';  // ワークスペース固有のセッション名
+    private tmuxWindowPollingInterval: NodeJS.Timeout | undefined;  // tmuxウィンドウ監視用
+    private lastDetectedAgentId: string | null = null;  // 前回検出したエージェントID
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Maid Agent');
@@ -874,15 +876,12 @@ class MultiAgentController {
                 { encoding: 'utf-8', timeout: 1000 }
             ).trim();
 
-            this.log(`[AgentPanel] 現在のtmuxウィンドウ: ${result}`);
-
             // ウィンドウ名がエージェントIDと一致するか確認
             if (this.agents.has(result)) {
                 return result;
             }
-        } catch (error) {
-            // tmuxコマンドが失敗した場合は無視
-            this.log(`[AgentPanel] tmuxウィンドウ取得エラー: ${error}`);
+        } catch {
+            // tmuxコマンドが失敗した場合は無視（ポーリング中は頻繁に呼ばれるためログ省略）
         }
         return null;
     }
@@ -892,6 +891,7 @@ class MultiAgentController {
         if (!this.agentPanelProvider) return;
 
         if (!terminal) {
+            this.stopTmuxWindowPolling();
             this.agentPanelProvider.setCurrentAgent(null);
             return;
         }
@@ -899,12 +899,49 @@ class MultiAgentController {
         // まず従来の方式を試す
         let agentId = this.getAgentIdFromTerminal(terminal);
 
-        // tmuxビューアターミナルの場合、tmuxのウィンドウ名から特定
+        // tmuxビューアターミナルの場合、tmuxのウィンドウ名から特定 + ポーリング開始
         if (!agentId && terminal === this.tmuxViewerTerminal) {
             agentId = this.getCurrentTmuxWindowAgent();
+            this.startTmuxWindowPolling();
+        } else {
+            this.stopTmuxWindowPolling();
         }
 
         this.agentPanelProvider.setCurrentAgent(agentId);
+    }
+
+    /**
+     * tmuxウィンドウのポーリングを開始（500msごとにチェック）
+     */
+    private startTmuxWindowPolling(): void {
+        if (this.tmuxWindowPollingInterval) return; // 既に実行中
+
+        this.tmuxWindowPollingInterval = setInterval(() => {
+            const currentAgentId = this.getCurrentTmuxWindowAgent();
+
+            // 変更があった場合のみ更新
+            if (currentAgentId !== this.lastDetectedAgentId) {
+                this.log(`[AgentPanel] tmuxウィンドウ変更検出: ${this.lastDetectedAgentId} → ${currentAgentId}`);
+                this.lastDetectedAgentId = currentAgentId;
+                if (this.agentPanelProvider) {
+                    this.agentPanelProvider.setCurrentAgent(currentAgentId);
+                }
+            }
+        }, 500);
+
+        this.log('[tmux] ウィンドウ監視ポーリングを開始');
+    }
+
+    /**
+     * tmuxウィンドウのポーリングを停止
+     */
+    private stopTmuxWindowPolling(): void {
+        if (this.tmuxWindowPollingInterval) {
+            clearInterval(this.tmuxWindowPollingInterval);
+            this.tmuxWindowPollingInterval = undefined;
+            this.lastDetectedAgentId = null;
+            this.log('[tmux] ウィンドウ監視ポーリングを停止');
+        }
     }
 
     // =========================================================================
@@ -2810,6 +2847,9 @@ ${agentList || '  (なし)'}
     dispose(): void {
         // tmuxセッションを終了（オプション - ユーザーが選択できるようにしても良い）
         // this.tmuxManager?.killSession();
+
+        // ポーリングを停止
+        this.stopTmuxWindowPolling();
 
         // ビューアターミナルを閉じる
         this.tmuxViewerTerminal?.dispose();

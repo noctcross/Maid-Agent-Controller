@@ -753,7 +753,6 @@ class MultiAgentController {
     private workspaceRoot: string | undefined;
     private maidAgentPath: string | undefined;
     private fileWatcher: vscode.FileSystemWatcher | undefined;
-    private notificationWatcher: vscode.FileSystemWatcher | undefined;
     private agentPanelProvider: AgentPanelProvider | undefined;
     private tmuxManager: TmuxManager | undefined;
     private tmuxViewerTerminal: vscode.Terminal | undefined;  // tmuxセッション表示用
@@ -1001,10 +1000,32 @@ class MultiAgentController {
             this.tmuxManager.createSession();
             this.log(`[tmux] セッション '${this.tmuxSessionName}' を作成しました`);
 
+            // セッション名をファイルに保存（maid-notify用）
+            this.saveSessionNameToFile();
+
             // 通知システムを自動開始（ファイル監視含む）- サイレントモード
             this.startWatchingFiles(true);
         } catch (error) {
             this.log(`[tmux] セッション作成エラー: ${error}`);
+        }
+    }
+
+    /**
+     * セッション名をファイルに保存（maid-notify用）
+     */
+    private saveSessionNameToFile(): void {
+        if (!this.maidAgentPath || !this.tmuxSessionName) return;
+
+        try {
+            const configDir = path.join(this.maidAgentPath, 'config');
+            if (!fs.existsSync(configDir)) {
+                fs.mkdirSync(configDir, { recursive: true });
+            }
+            const sessionFile = path.join(configDir, '.session-name');
+            fs.writeFileSync(sessionFile, this.tmuxSessionName);
+            this.log(`[tmux] セッション名を保存: ${sessionFile}`);
+        } catch (error) {
+            this.log(`[tmux] セッション名保存エラー: ${error}`);
         }
     }
 
@@ -2107,11 +2128,11 @@ class MultiAgentController {
         this.context?.subscriptions.push(this.fileWatcher);
         this.log('[ファイル監視] 開始');
 
-        // 通知システムも同時に開始
-        this.startNotificationWatcher();
+        // 注: エージェント間通知は直接 tmux send-keys で行われるため、
+        // pending.json の監視は不要になりました
 
         if (!silent) {
-            vscode.window.showInformationMessage('📁 ファイル監視・通知システムを開始しました');
+            vscode.window.showInformationMessage('📁 ファイル監視を開始しました');
         }
     }
 
@@ -2212,36 +2233,39 @@ class MultiAgentController {
         const timer = setTimeout(async () => {
             this.pendingReportChecks.delete(maidName);
 
-            // 通知ファイルを確認
+            // 通知履歴ログを確認
             if (!this.maidAgentPath) return;
 
-            const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
+            const historyPath = path.join(this.maidAgentPath, 'notifications', 'history.log');
             let hasNotifiedChief = false;
 
             try {
-                if (fs.existsSync(notifyPath)) {
-                    const content = fs.readFileSync(notifyPath, 'utf-8');
-                    const notifications = this.safeParseJSON<Array<{
-                        target: string;
-                        sender: string;
-                        timestamp: string;
-                    }>>(content, notifyPath);
+                if (fs.existsSync(historyPath)) {
+                    const content = fs.readFileSync(historyPath, 'utf-8');
+                    const lines = content.trim().split('\n');
 
-                    if (notifications) {
-                        // 直近30秒以内にこのメイドからchiefへの通知があるかチェック
-                        const now = Date.now();
-                        const thirtySecondsAgo = now - 30000;
+                    // 直近30秒以内にこのメイドからchiefへの通知があるかチェック
+                    // ログ形式: [2025-01-29 12:34:56] sender → target: message
+                    const now = Date.now();
+                    const thirtySecondsAgo = now - 30000;
 
-                        hasNotifiedChief = notifications.some(n => {
-                            const notifyTime = new Date(n.timestamp).getTime();
-                            return n.target === 'chief' &&
-                                   n.sender === maidName &&
-                                   notifyTime > thirtySecondsAgo;
-                        });
+                    const pattern = new RegExp(`^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})\\] ${maidName} → chief:`);
+
+                    for (const line of lines.reverse()) {  // 新しいものから確認
+                        const match = line.match(pattern);
+                        if (match) {
+                            const notifyTime = new Date(match[1]).getTime();
+                            if (notifyTime > thirtySecondsAgo) {
+                                hasNotifiedChief = true;
+                                break;
+                            }
+                            // 30秒より古い通知なら、それ以前は確認不要
+                            break;
+                        }
                     }
                 }
             } catch {
-                // JSONパースエラーなどは無視
+                // パースエラーなどは無視
             }
 
             if (!hasNotifiedChief) {
@@ -2269,7 +2293,6 @@ class MultiAgentController {
             this.fileWatcher.dispose();
             this.fileWatcher = undefined;
         }
-        this.stopNotificationWatcher();
         this.log('[ファイル監視] 停止');
         vscode.window.showInformationMessage('📁 ファイル監視・通知システムを停止しました');
     }
@@ -2278,269 +2301,41 @@ class MultiAgentController {
     // 通知システム（エージェント間通信）
     // =========================================================================
 
-    /**
-     * 通知ファイルの監視を開始
-     * エージェントが maid-notify コマンドを実行すると、
-     * pending.json が更新され、それを検知して転送する
-     */
-    startNotificationWatcher(): void {
-        if (!this.maidAgentPath) return;
-
-        if (this.notificationWatcher) {
-            this.notificationWatcher.dispose();
-        }
-
-        const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
-
-        // notifications ディレクトリがなければ作成
-        const notifyDir = path.dirname(notifyPath);
-        if (!fs.existsSync(notifyDir)) {
-            fs.mkdirSync(notifyDir, { recursive: true });
-            fs.writeFileSync(notifyPath, '[]');
-        }
-
-        const pattern = new vscode.RelativePattern(notifyDir, 'pending.json');
-        this.notificationWatcher = vscode.workspace.createFileSystemWatcher(pattern);
-
-        // onChange と onCreate の両方を監視（WSL環境対応）
-        this.notificationWatcher.onDidChange(() => {
-            this.log('[通知システム] pending.json 変更を検知');
-            this.processNotifications();
-        });
-
-        this.notificationWatcher.onDidCreate(() => {
-            this.log('[通知システム] pending.json 作成を検知');
-            this.processNotifications();
-        });
-
-        this.context?.subscriptions.push(this.notificationWatcher);
-        this.log('[通知システム] エージェント間通信を開始');
-
-        // ポーリングによるバックアップ監視（WSL環境でFileSystemWatcherが効かない場合の対策）
-        this.startNotificationPolling();
-    }
-
-    private notificationPollingInterval?: NodeJS.Timeout;
-    private lastNotificationContent: string = '';
+    // =========================================================================
+    // 通知ログ（直接send-keys方式への移行により、pending.json処理は廃止）
+    // 通知履歴は .maid-agent/notifications/history.log に記録される
+    // =========================================================================
 
     /**
-     * 通知ファイルのポーリング監視（FileSystemWatcher のバックアップ）
-     */
-    private startNotificationPolling(): void {
-        if (this.notificationPollingInterval) {
-            clearInterval(this.notificationPollingInterval);
-        }
-
-        // 2秒ごとにチェック
-        this.notificationPollingInterval = setInterval(() => {
-            if (!this.maidAgentPath) return;
-
-            const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
-            if (!fs.existsSync(notifyPath)) return;
-
-            try {
-                const content = fs.readFileSync(notifyPath, 'utf-8');
-                // 内容が変わっていたら処理
-                if (content !== this.lastNotificationContent && content.trim() !== '[]') {
-                    this.lastNotificationContent = content;
-                    this.log('[通知システム] ポーリングで変更を検知');
-                    this.processNotifications();
-                }
-            } catch {
-                // ファイル読み込みエラーは無視
-            }
-        }, 2000);
-    }
-
-    private stopNotificationPolling(): void {
-        if (this.notificationPollingInterval) {
-            clearInterval(this.notificationPollingInterval);
-            this.notificationPollingInterval = undefined;
-        }
-    }
-
-    /**
-     * JSONを安全に解析する（壊れたJSONの回復を試みる）
-     */
-    private safeParseJSON<T>(content: string, filePath: string): T | null {
-        // 空またはホワイトスペースのみの場合
-        const trimmed = content.trim();
-        if (!trimmed || trimmed === '[]') {
-            return [] as unknown as T;
-        }
-
-        try {
-            return JSON.parse(trimmed) as T;
-        } catch (e) {
-            // 壊れたJSONの回復を試みる
-            this.log(`[JSON解析] 解析エラー、回復を試みます: ${filePath}`);
-
-            try {
-                // 末尾の不完全なエントリを削除して回復を試みる
-                // 例: [{...}, {... (不完全) の場合、最後のカンマまでを有効とする
-                let fixed = trimmed;
-
-                // 末尾が ] で終わっていない場合は追加
-                if (!fixed.endsWith(']')) {
-                    // 最後の完全なオブジェクトを探す
-                    const lastCompleteIndex = fixed.lastIndexOf('},');
-                    if (lastCompleteIndex > 0) {
-                        fixed = fixed.substring(0, lastCompleteIndex + 1) + ']';
-                    } else if (fixed.startsWith('[{') && fixed.includes('}')) {
-                        const lastBrace = fixed.lastIndexOf('}');
-                        fixed = fixed.substring(0, lastBrace + 1) + ']';
-                    } else {
-                        // 回復不能
-                        return [] as unknown as T;
-                    }
-                }
-
-                const result = JSON.parse(fixed) as T;
-                this.log(`[JSON解析] 回復成功`);
-
-                // 回復したJSONを保存
-                fs.writeFileSync(filePath, JSON.stringify(result, null, 2));
-
-                return result;
-            } catch {
-                // 回復に失敗した場合、バックアップを作成して空配列で初期化
-                const backupPath = filePath + '.backup.' + Date.now();
-                try {
-                    fs.writeFileSync(backupPath, content);
-                    this.log(`[JSON解析] 回復失敗。バックアップを作成: ${backupPath}`);
-                } catch {
-                    // バックアップも失敗
-                }
-                fs.writeFileSync(filePath, '[]');
-                return [] as unknown as T;
-            }
-        }
-    }
-
-    /**
-     * 保留中の通知を処理し、ターゲットエージェントに転送
-     * アトミックなリネーム処理で競合を防止
-     */
-    private async processNotifications(): Promise<void> {
-        if (!this.maidAgentPath) return;
-
-        const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
-        const processingPath = path.join(this.maidAgentPath, 'notifications', 'pending.processing.json');
-
-        if (!fs.existsSync(notifyPath)) return;
-
-        try {
-            // ステップ1: pending.json を processing にリネーム（アトミック操作）
-            // これにより、メイドは新しい pending.json に書き込める
-            try {
-                fs.renameSync(notifyPath, processingPath);
-            } catch (renameError) {
-                // リネーム失敗（別プロセスが処理中など）は無視
-                return;
-            }
-
-            // ステップ2: processing ファイルを読み込んで処理
-            const content = fs.readFileSync(processingPath, 'utf-8');
-            const notifications = this.safeParseJSON<Array<{
-                id: string;
-                target: string;
-                message: string;
-                sender: string;
-                timestamp: string;
-                status: string;
-            }>>(content, processingPath);
-
-            if (!notifications || notifications.length === 0) {
-                // 空なら processing ファイルを削除して終了
-                fs.unlinkSync(processingPath);
-                return;
-            }
-
-            // 未処理の通知を抽出
-            const pending = notifications.filter(n => n.status === 'pending');
-            if (pending.length === 0) {
-                fs.unlinkSync(processingPath);
-                return;
-            }
-
-            this.log(`[通知システム] ${pending.length}件の通知を処理中...`);
-
-            // 各通知を処理
-            for (const notification of pending) {
-                const agent = this.agents.get(notification.target);
-                if (agent) {
-                    // 2段階送信でメッセージを転送
-                    await this.sendMessageToAgent(notification.target, notification.message);
-                    notification.status = 'delivered';
-                    this.log(`[通知] ${notification.sender} → ${notification.target}: ${notification.message.substring(0, 40)}...`);
-                } else {
-                    // エージェントが見つからない場合はスキップ（後で再試行）
-                    this.log(`[通知] ターゲット ${notification.target} がオフライン - 保留`);
-                }
-            }
-
-            // ステップ3: 未処理の通知を pending.json にマージ
-            const stillPending = notifications.filter(n => n.status === 'pending');
-
-            if (stillPending.length > 0) {
-                // 新しい pending.json が作られていたらマージ
-                let newNotifications: typeof notifications = [];
-                if (fs.existsSync(notifyPath)) {
-                    const newContent = fs.readFileSync(notifyPath, 'utf-8');
-                    newNotifications = this.safeParseJSON<typeof notifications>(newContent, notifyPath) || [];
-                }
-                const merged = [...stillPending, ...newNotifications];
-                fs.writeFileSync(notifyPath, JSON.stringify(merged, null, 2));
-            }
-
-            // processing ファイルを削除
-            fs.unlinkSync(processingPath);
-
-        } catch (error) {
-            this.log(`[通知システム] エラー: ${error}`);
-            // エラー時は processing ファイルを pending に戻す
-            if (fs.existsSync(processingPath) && !fs.existsSync(notifyPath)) {
-                try {
-                    fs.renameSync(processingPath, notifyPath);
-                } catch {
-                    // 無視
-                }
-            }
-        }
-    }
-
-    stopNotificationWatcher(): void {
-        if (this.notificationWatcher) {
-            this.notificationWatcher.dispose();
-            this.notificationWatcher = undefined;
-        }
-        this.stopNotificationPolling();
-        this.log('[通知システム] 停止');
-    }
-
-    /**
-     * 通知を手動で処理（デバッグ用）
+     * 通知履歴を表示（デバッグ用）
+     * 直接send-keys方式では、通知履歴は history.log に記録される
      */
     async manualProcessNotifications(): Promise<void> {
-        this.log('[デバッグ] 手動通知処理を開始');
+        this.log('[デバッグ] 通知履歴を表示');
 
         if (!this.maidAgentPath) {
             vscode.window.showErrorMessage('maidAgentPath が設定されていません');
             return;
         }
 
-        const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
-        if (!fs.existsSync(notifyPath)) {
-            vscode.window.showWarningMessage('pending.json が存在しません');
+        const historyPath = path.join(this.maidAgentPath, 'notifications', 'history.log');
+        if (!fs.existsSync(historyPath)) {
+            vscode.window.showWarningMessage('history.log が存在しません（まだ通知が送信されていません）');
             return;
         }
 
         try {
-            const content = fs.readFileSync(notifyPath, 'utf-8');
-            this.log(`[デバッグ] pending.json 内容: ${content}`);
+            const content = fs.readFileSync(historyPath, 'utf-8');
+            const lines = content.trim().split('\n');
+            const recentLines = lines.slice(-20);  // 最新20件を表示
 
-            await this.processNotifications();
-            vscode.window.showInformationMessage('通知処理を実行しました。出力パネルを確認してください。');
+            this.log(`[通知履歴] 最新${recentLines.length}件:`);
+            recentLines.forEach(line => {
+                this.log(`  ${line}`);
+            });
+
+            this.outputChannel.show();
+            vscode.window.showInformationMessage(`通知履歴: ${lines.length}件（最新20件を出力パネルに表示）`);
         } catch (error) {
             vscode.window.showErrorMessage(`エラー: ${error}`);
         }
@@ -2554,13 +2349,25 @@ class MultiAgentController {
             return `  - ${id}: ${agent.name} (${agent.role}, ${agent.status})`;
         }).join('\n');
 
+        // 通知履歴の件数を取得
+        let notifyCount = 0;
+        if (this.maidAgentPath) {
+            const historyPath = path.join(this.maidAgentPath, 'notifications', 'history.log');
+            if (fs.existsSync(historyPath)) {
+                try {
+                    const content = fs.readFileSync(historyPath, 'utf-8');
+                    notifyCount = content.trim().split('\n').filter(l => l.length > 0).length;
+                } catch { /* ignore */ }
+            }
+        }
+
         const status = `
 === Maid Agent デバッグ情報 ===
 maidAgentPath: ${this.maidAgentPath || '未設定'}
 tmuxManager: ${this.tmuxManager ? '初期化済み' : '未初期化'}
 tmuxSessionName: ${this.tmuxSessionName || '未設定'}
-notificationWatcher: ${this.notificationWatcher ? '稼働中' : '停止'}
-notificationPolling: ${this.notificationPollingInterval ? '稼働中' : '停止'}
+通知方式: 直接send-keys（pending.json廃止）
+通知履歴: ${notifyCount}件
 fileWatcher: ${this.fileWatcher ? '稼働中' : '停止'}
 
 登録済みエージェント (${this.agents.size}):
@@ -2570,7 +2377,7 @@ ${agentList || '  (なし)'}
 
         // ポップアップでも表示
         vscode.window.showInformationMessage(
-            `エージェント数: ${this.agents.size}, 通知監視: ${this.notificationWatcher ? 'ON' : 'OFF'}, ポーリング: ${this.notificationPollingInterval ? 'ON' : 'OFF'}`,
+            `エージェント数: ${this.agents.size}, 通知履歴: ${notifyCount}件`,
             '出力パネルを開く'
         ).then(choice => {
             if (choice === '出力パネルを開く') {
@@ -2899,7 +2706,6 @@ ${agentList || '  (なし)'}
         this.outputChannel.dispose();
         this.dashboardPanel?.dispose();
         this.fileWatcher?.dispose();
-        this.notificationWatcher?.dispose();
     }
 
     /**

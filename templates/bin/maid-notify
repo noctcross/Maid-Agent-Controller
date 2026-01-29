@@ -1,43 +1,24 @@
 #!/bin/bash
-# maid-notify - エージェント間通知CLIツール
+# maid-notify - エージェント間通知CLIツール（直接send-keys方式）
 # 使用法: maid-notify <target> "<message>"
-# 例:     maid-notify chief "新しいタスクがあります"
-#         maid-notify emma "タスク task-001 を担当してください"
+# 例:     maid-notify chief "タスク完了しました"
 
 set -e
 
 MAID_AGENT_DIR=".maid-agent"
-NOTIFY_FILE="${MAID_AGENT_DIR}/notifications/pending.json"
+SESSION_FILE="${MAID_AGENT_DIR}/config/.session-name"
+LOG_FILE="${MAID_AGENT_DIR}/notifications/history.log"
 
 # 引数チェック
 if [ $# -lt 2 ]; then
     echo "使用法: maid-notify <target> \"<message>\""
     echo "  target: butler, chief, emma, sophia, lily, rose, alice, may, flora, luna"
-    echo "  例: maid-notify chief \"新しいタスクがあります\""
+    echo "  例: maid-notify chief \"タスク完了しました\""
     exit 1
 fi
 
 TARGET="$1"
 MESSAGE="$2"
-
-# メッセージをJSON用にエスケープする関数
-escape_json() {
-    local str="$1"
-    # バックスラッシュを先にエスケープ
-    str="${str//\\/\\\\}"
-    # ダブルクォートをエスケープ
-    str="${str//\"/\\\"}"
-    # 改行をエスケープ
-    str="${str//$'\n'/\\n}"
-    # タブをエスケープ
-    str="${str//$'\t'/\\t}"
-    # キャリッジリターンをエスケープ
-    str="${str//$'\r'/\\r}"
-    echo "$str"
-}
-
-# メッセージをエスケープ
-MESSAGE=$(escape_json "$MESSAGE")
 
 # 有効なターゲットをチェック
 VALID_TARGETS="butler chief emma sophia lily rose alice may flora luna"
@@ -54,62 +35,31 @@ if [ ! -d "$MAID_AGENT_DIR" ]; then
     exit 1
 fi
 
-# notifications ディレクトリを作成
-mkdir -p "${MAID_AGENT_DIR}/notifications"
+# セッション名を取得
+if [ ! -f "$SESSION_FILE" ]; then
+    echo "エラー: セッション名ファイルが見つかりません: $SESSION_FILE"
+    echo "拡張機能からエージェントを起動してください"
+    exit 1
+fi
 
-# ロックファイルのパス
-LOCK_FILE="${MAID_AGENT_DIR}/notifications/.pending.lock"
+SESSION_NAME=$(cat "$SESSION_FILE")
+
+# 送信者を特定（tmuxのウィンドウ名から取得）
+SENDER=$(tmux display-message -p '#{window_name}' 2>/dev/null || echo "unknown")
 
 # タイムスタンプを取得
-TIMESTAMP=$(date -Iseconds)
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
-# 通知IDを生成（タイムスタンプベース）
-NOTIFY_ID="notify-$(date +%s%N | cut -c1-13)"
+# ログディレクトリを作成
+mkdir -p "$(dirname "$LOG_FILE")"
 
-# 送信者を特定（現在のターミナル名から推測、またはunknown）
-SENDER="${MAID_AGENT_SENDER:-unknown}"
+# ログに記録（追記）
+echo "[$TIMESTAMP] $SENDER → $TARGET: $MESSAGE" >> "$LOG_FILE"
 
-# 新しいエントリを作成
-NEW_ENTRY="{\"id\": \"$NOTIFY_ID\", \"target\": \"$TARGET\", \"message\": \"$MESSAGE\", \"sender\": \"$SENDER\", \"timestamp\": \"$TIMESTAMP\", \"status\": \"pending\"}"
+# 直接 tmux send-keys で送信
+# シングルクォートをエスケープ
+ESCAPED_MESSAGE="${MESSAGE//\'/\'\\\'\'}"
 
-# ファイルロックを取得してJSON追加（排他制御）
-(
-    # ロックを取得（最大10秒待機）
-    flock -w 10 200 || { echo "エラー: ロック取得に失敗しました"; exit 1; }
+tmux send-keys -t "${SESSION_NAME}:${TARGET}" "'${ESCAPED_MESSAGE}'" Enter
 
-    # JSON形式で通知を追加
-    if [ -f "$NOTIFY_FILE" ]; then
-        # jqがあれば使用
-        if command -v jq &> /dev/null; then
-            TMP_FILE=$(mktemp)
-            jq --arg id "$NOTIFY_ID" \
-               --arg target "$TARGET" \
-               --arg message "$MESSAGE" \
-               --arg sender "$SENDER" \
-               --arg timestamp "$TIMESTAMP" \
-               '. += [{"id": $id, "target": $target, "message": $message, "sender": $sender, "timestamp": $timestamp, "status": "pending"}]' \
-               "$NOTIFY_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$NOTIFY_FILE"
-        else
-            # jqがない場合の簡易実装
-            # ファイル内容を読み込み（改行を削除）
-            CONTENT=$(tr -d '\n\r' < "$NOTIFY_FILE" | tr -s ' ')
-
-            # 空配列かどうかチェック
-            if [ "$CONTENT" = "[]" ] || [ -z "$CONTENT" ]; then
-                # 空配列の場合は新規作成
-                echo "[$NEW_ENTRY]" > "$NOTIFY_FILE"
-            else
-                # 既存データがある場合
-                # 末尾の ] を削除して、カンマとエントリを追加
-                # ${CONTENT%]} は末尾の ] を削除
-                echo "${CONTENT%]},$NEW_ENTRY]" > "$NOTIFY_FILE"
-            fi
-        fi
-    else
-        # 新規ファイル作成
-        echo "[$NEW_ENTRY]" > "$NOTIFY_FILE"
-    fi
-
-) 200>"$LOCK_FILE"
-
-echo "通知を送信しました: $TARGET <- $MESSAGE"
+echo "通知を送信しました: $SENDER → $TARGET"

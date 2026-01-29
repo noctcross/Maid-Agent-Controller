@@ -491,6 +491,7 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     public setWorkspaceRoot(workspaceRoot: string | undefined): void {
         this._workspaceRoot = workspaceRoot;
+        this._log(`setWorkspaceRoot: ${workspaceRoot}`);
         this._updateWebview();
     }
 
@@ -500,11 +501,13 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
         _token: vscode.CancellationToken
     ): void {
         this._view = webviewView;
+        this._log(`resolveWebviewView: workspaceRoot=${this._workspaceRoot}`);
 
         // localResourceRoots にワークスペースも追加
         const resourceRoots = [this._extensionUri];
         if (this._workspaceRoot) {
             resourceRoots.push(vscode.Uri.file(this._workspaceRoot));
+            this._log(`resolveWebviewView: localResourceRoots に ${this._workspaceRoot} を追加`);
         }
 
         webviewView.webview.options = {
@@ -522,6 +525,7 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     public setCurrentAgent(agentId: string | null): void {
         this._currentAgentId = agentId;
+        this._log(`setCurrentAgent: ${agentId}`);
         this._updateWebview();
     }
 
@@ -622,7 +626,12 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private _updateWebview(): void {
-        if (!this._view) return;
+        if (!this._view) {
+            this._log('_updateWebview: view が未設定');
+            return;
+        }
+
+        this._log(`_updateWebview: currentAgentId=${this._currentAgentId}, workspaceRoot=${this._workspaceRoot}`);
 
         const agent = this._currentAgentId ? this._agents.get(this._currentAgentId) : null;
         const colors = this._currentAgentId ? AGENT_COLORS[this._currentAgentId] : null;
@@ -640,6 +649,7 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
 
             // 画像があれば使用、なければ絵文字
             const imageUri = this._getAgentImageUri(this._currentAgentId!, agent.status);
+            this._log(`_updateWebview: imageUri=${imageUri ? '取得成功' : 'null'}`);
 
             if (imageUri) {
                 // 立ち絵スタイル（画像あり）

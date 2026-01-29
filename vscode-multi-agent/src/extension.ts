@@ -1736,7 +1736,10 @@ class MultiAgentController {
                         let killedCount = 0;
                         for (const item of selected) {
                             try {
-                                execSync(`tmux kill-session -t ${item.sessionName}`);
+                                const cmd = CURRENT_ENV === 'windows-native'
+                                    ? `wsl tmux kill-session -t ${item.sessionName}`
+                                    : `tmux kill-session -t ${item.sessionName}`;
+                                execSync(cmd, { stdio: 'pipe' });
                                 killedCount++;
                                 this.log(`[クリーンアップ] セッション終了: ${item.sessionName}`);
                             } catch {
@@ -1756,7 +1759,10 @@ class MultiAgentController {
                 if (confirm === '全て終了') {
                     sessions.forEach(sessionName => {
                         try {
-                            execSync(`tmux kill-session -t ${sessionName}`);
+                            const cmd = CURRENT_ENV === 'windows-native'
+                                ? `wsl tmux kill-session -t ${sessionName}`
+                                : `tmux kill-session -t ${sessionName}`;
+                            execSync(cmd, { stdio: 'pipe' });
                         } catch {
                             // 既に終了している場合は無視
                         }

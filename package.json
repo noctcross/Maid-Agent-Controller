@@ -15,97 +15,97 @@
     "commands": [
       {
         "command": "multiAgent.initialize",
-        "title": "Maid Agent: Init",
+        "title": "Init - ワークスペース初期化",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.resumeSessions",
-        "title": "Maid Agent: Resume Sessions",
+        "title": "Resume - 既存セッション復帰",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startButler",
-        "title": "Maid Agent: Call Butler",
+        "title": "Call Butler - 執事を呼ぶ",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startChiefMaid",
-        "title": "Maid Agent: Call Chief",
+        "title": "Call Chief - メイド長を呼ぶ",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startAgents",
-        "title": "Maid Agent: Call Butler & Chief",
+        "title": "Call Butler & Chief - 執事とメイド長を呼ぶ",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startSelectedMaids",
-        "title": "Maid Agent: Call Maids Pick",
+        "title": "Call Maids Pick - メイドを選んで呼ぶ",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startMaidsByCount",
-        "title": "Maid Agent: Call Maids xN",
+        "title": "Call Maids xN - メイドをN人呼ぶ（順番）",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startMaidsByCountRandom",
-        "title": "Maid Agent: Call Maids xN -r",
+        "title": "Call Maids xN Random - メイドをN人呼ぶ（ランダム）",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startAll",
-        "title": "Maid Agent: Call All",
+        "title": "Call All - 全員を呼ぶ",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startAllByCount",
-        "title": "Maid Agent: Call All xN",
+        "title": "Call All xN - 執事+メイド長+メイドN人（順番）",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startAllByCountRandom",
-        "title": "Maid Agent: Call All xN -r",
+        "title": "Call All xN Random - 執事+メイド長+メイドN人（ランダム）",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.sendToButler",
-        "title": "Maid Agent: Task to Butler",
+        "title": "Task to Butler - 執事にタスクを依頼",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.sendToMaid",
-        "title": "Maid Agent: Task to Maid",
+        "title": "Task to Maid - メイドにタスクを依頼",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.startClaude",
-        "title": "Maid Agent: Claude Start",
+        "title": "Claude Start - Claudeを起動",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.showDashboard",
-        "title": "Maid Agent: Dashboard",
+        "title": "Dashboard - ダッシュボードを表示",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.watchFiles",
-        "title": "Maid Agent: Watch Start",
+        "title": "Watch Start - ファイル監視を開始",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.stopWatchFiles",
-        "title": "Maid Agent: Watch Stop",
+        "title": "Watch Stop - ファイル監視を停止",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.openTmuxViewer",
-        "title": "Maid Agent: Open Tmux Viewer",
+        "title": "Tmux Viewer - tmuxビューアを開く",
         "category": "Maid Agent"
       },
       {
         "command": "multiAgent.killSession",
-        "title": "Maid Agent: Kill Session",
+        "title": "Kill Session - セッションを終了",
         "category": "Maid Agent"
       }
     ],

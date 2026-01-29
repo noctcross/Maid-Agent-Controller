@@ -651,7 +651,7 @@ class MultiAgentController {
      * エージェントにメッセージを送信（2段階送信 - Claude Code通知用）
      * multi-agent-shogun準拠: メッセージとEnterを別々に送信
      */
-    sendMessageToAgent(agentId: string, message: string): boolean {
+    async sendMessageToAgent(agentId: string, message: string): Promise<boolean> {
         const agent = this.agents.get(agentId);
         if (!agent) {
             this.log(`[ERROR] ${agentId} が見つかりません`);
@@ -660,6 +660,10 @@ class MultiAgentController {
 
         // ステップ1: メッセージ送信（Enterなし）
         agent.terminal.sendText(message, false);
+
+        // 少し待つ（バッファリング対策）
+        await this.delay(100);
+
         // ステップ2: Enter送信
         agent.terminal.sendText('', true);
 
@@ -694,7 +698,7 @@ class MultiAgentController {
                 break;
         }
 
-        this.sendMessageToAgent(agentId, instruction);
+        await this.sendMessageToAgent(agentId, instruction);
         agent.status = 'idle';
         this.updateAgentPanel();
     }
@@ -967,7 +971,7 @@ class MultiAgentController {
         // 執事にタスクを直接送信（2段階送信）
         // 執事がタスクを分解し、butler_to_chief.yaml に書き込む
         const instruction = `ご主人様からの指令です: ${taskDescription}\n\nこのタスクを分析し、必要に応じてサブタスクに分解して .maid-agent/queue/butler_to_chief.yaml に記載し、メイド長に通知してください。`;
-        this.sendMessageToAgent('butler', instruction);
+        await this.sendMessageToAgent('butler', instruction);
 
         vscode.window.showInformationMessage('🎩 執事にタスクを送信しました');
         this.updateDashboard();
@@ -977,26 +981,26 @@ class MultiAgentController {
      * 執事からメイド長への通知（butler.md の指示に従って実行される）
      * 執事のClaudeが内部的に使用するためのヘルパー
      */
-    notifyChief(message: string): void {
+    async notifyChief(message: string): Promise<void> {
         const chief = this.agents.get('chief');
         if (!chief) {
             this.log('[WARN] メイド長がおりません');
             return;
         }
-        this.sendMessageToAgent('chief', message);
+        await this.sendMessageToAgent('chief', message);
     }
 
     /**
      * メイド長からメイドへの通知（chief.md の指示に従って実行される）
      * メイド長のClaudeが内部的に使用するためのヘルパー
      */
-    notifyMaid(maidId: string, message: string): void {
+    async notifyMaid(maidId: string, message: string): Promise<void> {
         const maid = this.agents.get(maidId);
         if (!maid) {
             this.log(`[WARN] メイド ${maidId} がおりません`);
             return;
         }
-        this.sendMessageToAgent(maidId, message);
+        await this.sendMessageToAgent(maidId, message);
     }
 
     // =========================================================================
@@ -1357,7 +1361,7 @@ class MultiAgentController {
 
         if (command) {
             // 2段階送信でメイドに指示
-            this.sendMessageToAgent(selected.id, command);
+            await this.sendMessageToAgent(selected.id, command);
         }
     }
 

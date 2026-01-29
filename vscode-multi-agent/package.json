@@ -78,21 +78,12 @@
         "title": "Maid Agent: Watch Stop"
       }
     ],
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "maidAgentContainer",
-          "title": "Maid Agent",
-          "icon": "$(heart)"
-        }
-      ]
-    },
     "views": {
-      "maidAgentContainer": [
+      "explorer": [
         {
           "type": "webview",
           "id": "maidAgent.agentPanel",
-          "name": "Current Agent",
+          "name": "Maid Agent",
           "when": "config.maidAgent.showAgentPanel"
         }
       ]

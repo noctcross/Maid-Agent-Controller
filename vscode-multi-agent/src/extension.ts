@@ -469,9 +469,6 @@ class MultiAgentController {
             // プロジェクトルートの CLAUDE.md を処理
             await this.setupRootClaudeMd();
 
-            // Claude Code の SessionStart フック設定
-            await this.setupClaudeHooks();
-
             this.log('[初期化] .maid-agent ディレクトリを作成しました');
             vscode.window.showInformationMessage('🎩 Maid Agent の初期化が完了しました');
 
@@ -576,59 +573,6 @@ class MultiAgentController {
 `;
     }
 
-    /**
-     * Claude Code の SessionStart フックを設定
-     * プロジェクトルートの .claude/settings.json に書き込む
-     */
-    private async setupClaudeHooks(): Promise<void> {
-        if (!this.workspaceRoot) return;
-
-        const claudeDir = path.join(this.workspaceRoot, '.claude');
-        const settingsPath = path.join(claudeDir, 'settings.json');
-
-        // フック設定（SessionStart でお仕えの準備完了を通知）
-        const hooksConfig = {
-            hooks: {
-                SessionStart: [
-                    {
-                        hooks: [
-                            {
-                                type: 'command',
-                                command: 'if [ -f "$CLAUDE_PROJECT_DIR/.maid-agent/.starting" ]; then AGENT_ID=$(cat "$CLAUDE_PROJECT_DIR/.maid-agent/.starting"); touch "$CLAUDE_PROJECT_DIR/.maid-agent/.ready-$AGENT_ID"; fi'
-                            }
-                        ]
-                    }
-                ]
-            }
-        };
-
-        // .claude ディレクトリを作成
-        if (!fs.existsSync(claudeDir)) {
-            fs.mkdirSync(claudeDir, { recursive: true });
-        }
-
-        // 既存の設定があれば読み込んでマージ
-        let existingConfig: any = {};
-        if (fs.existsSync(settingsPath)) {
-            try {
-                const content = fs.readFileSync(settingsPath, 'utf-8');
-                existingConfig = JSON.parse(content);
-            } catch (e) {
-                // パース失敗時は空の設定として扱う
-            }
-        }
-
-        // hooks をマージ（既存の hooks がある場合は SessionStart を追加/上書き）
-        if (!existingConfig.hooks) {
-            existingConfig.hooks = {};
-        }
-        existingConfig.hooks.SessionStart = hooksConfig.hooks.SessionStart;
-
-        // 書き込み
-        fs.writeFileSync(settingsPath, JSON.stringify(existingConfig, null, 2));
-        this.log('[Claude Hooks] .claude/settings.json にフックを設定しました');
-    }
-
     private copyDirectorySync(src: string, dest: string): void {
         if (!fs.existsSync(dest)) {
             fs.mkdirSync(dest, { recursive: true });
@@ -722,94 +666,14 @@ class MultiAgentController {
     }
 
     /**
-     * Claude Code の起動完了を待つ
-     * 方式: SessionStart フックによるファイルベース検知
-     * フォールバック: 固定時間待機
-     */
-    private async waitForClaudeReady(agent: Agent, agentId: string, maxWaitMs: number = 30000): Promise<boolean> {
-        if (!this.maidAgentPath) return false;
-
-        const readyFile = path.join(this.maidAgentPath, `.ready-${agentId}`);
-        const startingFile = path.join(this.maidAgentPath, '.starting');
-        const pollInterval = 500; // 500ms間隔でポーリング
-        let totalWaited = 0;
-
-        const roleLabel = agent.role === 'butler' ? '執事' :
-                         agent.role === 'chiefMaid' ? 'メイド長' : 'メイド';
-
-        // .starting ファイルにエージェントIDを書き込む（フックが読み取る）
-        try {
-            fs.writeFileSync(startingFile, agentId);
-        } catch (error) {
-            this.log(`[${agent.name}] .starting ファイル作成失敗、フォールバック待機`);
-            await this.delay(5000);
-            return false;
-        }
-
-        this.log(`[${agent.name}] ${roleLabel}のお仕えの準備を待機中...`);
-
-        // ファイルベース検知（ポーリング）
-        while (totalWaited < maxWaitMs) {
-            await this.delay(pollInterval);
-            totalWaited += pollInterval;
-
-            if (fs.existsSync(readyFile)) {
-                // 検知成功 - クリーンアップ
-                try {
-                    fs.unlinkSync(readyFile);
-                    if (fs.existsSync(startingFile)) {
-                        fs.unlinkSync(startingFile);
-                    }
-                } catch (e) {
-                    // クリーンアップ失敗は無視
-                }
-                this.log(`[${agent.name}] ${roleLabel}のお仕えの準備完了 (${totalWaited}ms)`);
-                return true;
-            }
-
-            // 進捗ログ（5秒ごと）
-            if (totalWaited % 5000 === 0) {
-                this.log(`[${agent.name}] ${roleLabel}のお仕えの準備を待機中... (${totalWaited}ms)`);
-            }
-        }
-
-        // タイムアウト - クリーンアップして続行
-        this.log(`[${agent.name}] [WARN] 準備完了検知タイムアウト - フォールバック続行`);
-        try {
-            if (fs.existsSync(startingFile)) {
-                fs.unlinkSync(startingFile);
-            }
-        } catch (e) {
-            // 無視
-        }
-        return false;
-    }
-
-    /**
      * エージェントでClaude Codeを起動し、役割を認識させる
+     * 初期プロンプトを引数として渡すことで、起動と指示を1コマンドで実行
      */
     async launchClaudeWithRole(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {
         const agent = this.agents.get(agentId);
         if (!agent) return;
 
-        // ターミナルが準備できるまで待つ
-        await this.delay(500);
-
-        // Claude Code を起動（権限スキップモード）
-        agent.terminal.sendText('claude --dangerously-skip-permissions', true);
-
-        // Claude Code のお仕えの準備完了を待つ（フックによるファイル検知、最大30秒）
-        const detected = await this.waitForClaudeReady(agent, agentId, 30000);
-
-        // 検知失敗時も少し待ってから続行
-        if (!detected) {
-            await this.delay(2000);
-        }
-
-        // 少し待ってから指示を送信（バッファ安定化）
-        await this.delay(300);
-
-        // 役割に応じた指示を送信
+        // 役割に応じた指示を作成
         let instruction: string;
         switch (role) {
             case 'butler':
@@ -819,12 +683,25 @@ class MultiAgentController {
                 instruction = 'あなたはメイド長のビオラです。.maid-agent/instructions/chief.md を読んで役割を把握してください。また、.maid-agent/personas/chief.md を読んで口調・話し方を把握してください。準備ができたら、執事シルヴィアからの指示をお待ちください。';
                 break;
             case 'maid':
-                const maidId = agentId; // agentId がメイドIDと一致
+                const maidId = agentId;
                 instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/instructions/maid.md を読んで役割を把握してください。また、.maid-agent/personas/${maidId}.md を読んで口調・話し方を把握してください。準備ができたら、メイド長ビオラからの指示をお待ちください。`;
                 break;
         }
 
-        await this.sendMessageToAgent(agentId, instruction);
+        // シェルエスケープ（シングルクォートをエスケープ）
+        const escapedInstruction = instruction.replace(/'/g, "'\\''");
+
+        // ターミナルが準備できるまで待つ
+        await this.delay(500);
+
+        // Claude Code を初期プロンプト付きで起動
+        const command = `claude --dangerously-skip-permissions '${escapedInstruction}'`;
+        agent.terminal.sendText(command, true);
+
+        const roleLabel = agent.role === 'butler' ? '執事' :
+                         agent.role === 'chiefMaid' ? 'メイド長' : 'メイド';
+        this.log(`[${agent.name}] ${roleLabel}をお呼びしました`);
+
         agent.status = 'idle';
         this.updateAgentPanel();
     }

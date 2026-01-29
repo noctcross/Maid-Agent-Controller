@@ -1,7 +1,101 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { execSync, exec } from 'child_process';
+
+// =============================================================================
+// 環境検出
+// =============================================================================
+
+/**
+ * 実行環境の種類
+ */
+type ExecutionEnvironment = 'wsl' | 'windows-native' | 'linux' | 'macos';
+
+/**
+ * 現在の実行環境を検出
+ */
+function detectEnvironment(): ExecutionEnvironment {
+    const platform = os.platform();
+
+    if (platform === 'linux') {
+        // WSL内かネイティブLinuxかを判定
+        try {
+            const release = fs.readFileSync('/proc/version', 'utf-8').toLowerCase();
+            if (release.includes('microsoft') || release.includes('wsl')) {
+                return 'wsl';
+            }
+        } catch {
+            // /proc/versionが読めない場合はネイティブLinuxと判断
+        }
+        return 'linux';
+    } else if (platform === 'win32') {
+        return 'windows-native';
+    } else if (platform === 'darwin') {
+        return 'macos';
+    }
+
+    return 'linux'; // フォールバック
+}
+
+/**
+ * WindowsパスをWSLパスに変換
+ * C:\Users\... → /mnt/c/Users/...
+ */
+function windowsToWslPath(windowsPath: string): string {
+    // 既にWSLパスの場合はそのまま返す
+    if (windowsPath.startsWith('/')) {
+        return windowsPath;
+    }
+
+    // C:\path\to\file → /mnt/c/path/to/file
+    const match = windowsPath.match(/^([A-Za-z]):\\(.*)$/);
+    if (match) {
+        const driveLetter = match[1].toLowerCase();
+        const restPath = match[2].replace(/\\/g, '/');
+        return `/mnt/${driveLetter}/${restPath}`;
+    }
+
+    // UNCパスなどの場合はそのまま返す
+    return windowsPath.replace(/\\/g, '/');
+}
+
+/**
+ * 現在の環境をキャッシュ
+ */
+const CURRENT_ENV = detectEnvironment();
+
+/**
+ * tmuxが利用可能な環境かチェック
+ */
+function isTmuxAvailable(): boolean {
+    try {
+        if (CURRENT_ENV === 'windows-native') {
+            execSync('wsl tmux -V', { encoding: 'utf-8', stdio: 'pipe' });
+        } else {
+            execSync('tmux -V', { encoding: 'utf-8', stdio: 'pipe' });
+        }
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * tmuxのバージョンを取得
+ */
+function getTmuxVersion(): string | null {
+    try {
+        if (CURRENT_ENV === 'windows-native') {
+            return execSync('wsl tmux -V', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+        } else {
+            return execSync('tmux -V', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+        }
+    } catch {
+        return null;
+    }
+}
 
 // =============================================================================
 // 型定義
@@ -130,11 +224,30 @@ const AGENT_COLORS: { [key: string]: { bg: string; accent: string } } = {
 
 class TmuxManager {
     private sessionName: string;
-    private workingDirectory: string;
+    private workingDirectory: string;      // 元のパス（Windows or WSL）
+    private wslWorkingDirectory: string;   // WSL用パス
+    private isWindowsNative: boolean;
 
     constructor(sessionName: string, workingDirectory: string) {
         this.sessionName = sessionName;
         this.workingDirectory = workingDirectory;
+        this.isWindowsNative = CURRENT_ENV === 'windows-native';
+
+        // Windows環境の場合はパスをWSL形式に変換
+        this.wslWorkingDirectory = this.isWindowsNative
+            ? windowsToWslPath(workingDirectory)
+            : workingDirectory;
+    }
+
+    /**
+     * tmuxコマンドを構築
+     */
+    private buildCommand(args: string): string {
+        if (this.isWindowsNative) {
+            // Windows環境: wsl経由でtmuxを実行
+            return `wsl tmux ${args}`;
+        }
+        return `tmux ${args}`;
     }
 
     /**
@@ -142,10 +255,13 @@ class TmuxManager {
      */
     private exec(args: string): string {
         try {
-            return execSync(`tmux ${args}`, {
-                cwd: this.workingDirectory,
-                encoding: 'utf-8'
-            }).trim();
+            const command = this.buildCommand(args);
+            // Windows環境ではcwdを指定しない（WSL内のパスとして渡す）
+            const options: any = { encoding: 'utf-8' };
+            if (!this.isWindowsNative) {
+                options.cwd = this.workingDirectory;
+            }
+            return execSync(command, options).trim();
         } catch (error: any) {
             // tmuxコマンドが失敗した場合（セッションが存在しない等）
             throw new Error(`tmux command failed: ${error.message}`);
@@ -156,7 +272,26 @@ class TmuxManager {
      * tmuxコマンドを非同期で実行（結果を待たない）
      */
     private execAsync(args: string): void {
-        exec(`tmux ${args}`, { cwd: this.workingDirectory });
+        const command = this.buildCommand(args);
+        const options: any = {};
+        if (!this.isWindowsNative) {
+            options.cwd = this.workingDirectory;
+        }
+        exec(command, options);
+    }
+
+    /**
+     * WSL用の作業ディレクトリを取得
+     */
+    getWslWorkingDirectory(): string {
+        return this.wslWorkingDirectory;
+    }
+
+    /**
+     * Windows環境かどうか
+     */
+    isWindows(): boolean {
+        return this.isWindowsNative;
     }
 
     /**
@@ -176,7 +311,7 @@ class TmuxManager {
      */
     createSession(): void {
         if (!this.sessionExists()) {
-            this.exec(`new-session -d -s ${this.sessionName} -c "${this.workingDirectory}"`);
+            this.exec(`new-session -d -s ${this.sessionName} -c "${this.wslWorkingDirectory}"`);
         }
     }
 
@@ -198,8 +333,13 @@ class TmuxManager {
      */
     static countMaidAgentSessions(): { count: number; sessions: string[] } {
         try {
-            const result = execSync('tmux list-sessions -F "#{session_name}"', {
-                encoding: 'utf-8'
+            const command = CURRENT_ENV === 'windows-native'
+                ? 'wsl tmux list-sessions -F "#{session_name}"'
+                : 'tmux list-sessions -F "#{session_name}"';
+
+            const result = execSync(command, {
+                encoding: 'utf-8',
+                stdio: 'pipe'
             }).trim();
 
             if (!result) {
@@ -223,7 +363,7 @@ class TmuxManager {
      * 新しいウィンドウを作成
      */
     createWindow(windowName: string): void {
-        this.exec(`new-window -t ${this.sessionName} -n ${windowName} -c "${this.workingDirectory}"`);
+        this.exec(`new-window -t ${this.sessionName} -n ${windowName} -c "${this.wslWorkingDirectory}"`);
     }
 
     /**
@@ -858,11 +998,22 @@ class MultiAgentController {
         this.initializeTmuxSession();
 
         // VSCodeターミナルでtmuxにアタッチ
-        this.tmuxViewerTerminal = vscode.window.createTerminal({
-            name: '🎩 Maid Agent (tmux)',
-            cwd: this.workspaceRoot
-        });
-        this.tmuxViewerTerminal.sendText(`tmux attach-session -t ${this.tmuxSessionName}`);
+        if (CURRENT_ENV === 'windows-native') {
+            // Windows環境: WSLシェルを使用してtmuxにアタッチ
+            const wslPath = this.tmuxManager?.getWslWorkingDirectory() || '/home';
+            this.tmuxViewerTerminal = vscode.window.createTerminal({
+                name: '🎩 Maid Agent (tmux)',
+                shellPath: 'wsl.exe',
+                shellArgs: ['-e', 'bash', '-c', `cd "${wslPath}" && tmux attach-session -t ${this.tmuxSessionName}`]
+            });
+        } else {
+            // WSL/Linux/macOS環境: 直接tmuxにアタッチ
+            this.tmuxViewerTerminal = vscode.window.createTerminal({
+                name: '🎩 Maid Agent (tmux)',
+                cwd: this.workspaceRoot
+            });
+            this.tmuxViewerTerminal.sendText(`tmux attach-session -t ${this.tmuxSessionName}`);
+        }
         this.tmuxViewerTerminal.show();
 
         this.log('[tmux] ビューアターミナルを開きました');
@@ -1275,6 +1426,11 @@ class MultiAgentController {
     }
 
     private async ensureInitialized(): Promise<boolean> {
+        // tmuxが利用可能かチェック
+        if (!await this.ensureTmuxAvailable()) {
+            return false;
+        }
+
         if (!this.maidAgentPath || !fs.existsSync(this.maidAgentPath)) {
             const choice = await vscode.window.showWarningMessage(
                 'Maid Agent が初期化されていません。初期化しますか？',
@@ -1290,6 +1446,108 @@ class MultiAgentController {
         await this.checkSessionCountWarning();
 
         return true;
+    }
+
+    /**
+     * tmuxが利用可能かチェックし、なければインストールを提案
+     */
+    private async ensureTmuxAvailable(): Promise<boolean> {
+        if (isTmuxAvailable()) {
+            return true;
+        }
+
+        const envInfo = CURRENT_ENV === 'windows-native'
+            ? 'Windows環境でWSL経由でtmuxを使用します。'
+            : `現在の環境: ${CURRENT_ENV}`;
+
+        const choice = await vscode.window.showErrorMessage(
+            `tmuxがインストールされていません。\n${envInfo}\n\ntmuxをインストールしますか？`,
+            'インストールする',
+            'インストール方法を表示',
+            'キャンセル'
+        );
+
+        if (choice === 'インストールする') {
+            return await this.installTmux();
+        } else if (choice === 'インストール方法を表示') {
+            this.showTmuxInstallInstructions();
+            return false;
+        }
+
+        return false;
+    }
+
+    /**
+     * tmuxをインストール
+     */
+    private async installTmux(): Promise<boolean> {
+        const terminal = vscode.window.createTerminal({
+            name: '📦 tmux インストール',
+            shellPath: CURRENT_ENV === 'windows-native' ? 'wsl.exe' : undefined
+        });
+        terminal.show();
+
+        // インストールコマンドを送信
+        const installCmd = 'sudo apt-get update && sudo apt-get install -y tmux';
+        terminal.sendText(installCmd);
+
+        // ユーザーにインストール完了を確認させる
+        const result = await vscode.window.showInformationMessage(
+            'tmuxのインストールを開始しました。\n' +
+            'インストールが完了したら「完了」を押してください。\n' +
+            '（sudoパスワードの入力が必要な場合があります）',
+            '完了',
+            'キャンセル'
+        );
+
+        if (result === '完了') {
+            // インストールが成功したか確認
+            if (isTmuxAvailable()) {
+                const version = getTmuxVersion();
+                vscode.window.showInformationMessage(`✅ tmuxのインストールが完了しました: ${version}`);
+                return true;
+            } else {
+                vscode.window.showErrorMessage('tmuxのインストールに失敗したようです。手動でインストールしてください。');
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * tmuxインストール方法を表示
+     */
+    private showTmuxInstallInstructions(): void {
+        this.log('=== tmux インストール方法 ===');
+        this.log('');
+
+        if (CURRENT_ENV === 'windows-native') {
+            this.log('【Windows + WSL環境】');
+            this.log('1. WSLターミナルを開く');
+            this.log('2. 以下のコマンドを実行:');
+            this.log('   sudo apt-get update');
+            this.log('   sudo apt-get install -y tmux');
+            this.log('');
+            this.log('※ WSLがインストールされていない場合:');
+            this.log('   PowerShellを管理者権限で開き、以下を実行:');
+            this.log('   wsl --install');
+        } else if (CURRENT_ENV === 'macos') {
+            this.log('【macOS環境】');
+            this.log('Homebrewを使用:');
+            this.log('   brew install tmux');
+        } else {
+            this.log('【Linux環境】');
+            this.log('Ubuntu/Debian:');
+            this.log('   sudo apt-get install tmux');
+            this.log('');
+            this.log('Fedora/RHEL:');
+            this.log('   sudo dnf install tmux');
+        }
+
+        this.log('');
+        this.log('インストール後、再度Callコマンドを実行してください。');
+        this.outputChannel.show();
     }
 
     /**

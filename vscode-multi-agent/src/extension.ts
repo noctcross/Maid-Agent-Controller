@@ -625,6 +625,9 @@ class MultiAgentController {
         return agent;
     }
 
+    /**
+     * エージェントにコマンドを送信（1回送信 - シェルコマンド用）
+     */
     sendToAgent(agentId: string, command: string): boolean {
         const agent = this.agents.get(agentId);
         if (!agent) {
@@ -639,6 +642,62 @@ class MultiAgentController {
 
         this.updateDashboard();
         return true;
+    }
+
+    /**
+     * エージェントにメッセージを送信（2段階送信 - Claude Code通知用）
+     * multi-agent-shogun準拠: メッセージとEnterを別々に送信
+     */
+    sendMessageToAgent(agentId: string, message: string): boolean {
+        const agent = this.agents.get(agentId);
+        if (!agent) {
+            this.log(`[ERROR] ${agentId} が見つかりません`);
+            return false;
+        }
+
+        // ステップ1: メッセージ送信（Enterなし）
+        agent.terminal.sendText(message, false);
+        // ステップ2: Enter送信
+        agent.terminal.sendText('', true);
+
+        this.log(`[${agent.name}] 📨 ${message.substring(0, 60)}...`);
+        return true;
+    }
+
+    /**
+     * エージェントでClaude Codeを起動し、役割を認識させる
+     */
+    async launchClaudeWithRole(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {
+        const agent = this.agents.get(agentId);
+        if (!agent) return;
+
+        // Claude Code を起動（権限スキップモード）
+        agent.terminal.sendText('claude --dangerously-skip-permissions', true);
+
+        // Claude Code の起動を待つ（2秒）
+        await this.delay(2000);
+
+        // 役割に応じた指示を送信
+        let instruction: string;
+        switch (role) {
+            case 'butler':
+                instruction = 'あなたは執事です。.maid-agent/instructions/butler.md を読んで役割を把握し、ご主人様からの指示をお待ちください。';
+                break;
+            case 'chiefMaid':
+                instruction = 'あなたはメイド長です。.maid-agent/instructions/chief.md を読んで役割を把握し、執事からの指示をお待ちください。';
+                break;
+            case 'maid':
+                instruction = `あなたは${maidName || 'メイド'}です。.maid-agent/instructions/maid.md を読んで役割を把握し、メイド長からの指示をお待ちください。`;
+                break;
+        }
+
+        this.sendMessageToAgent(agentId, instruction);
+        agent.status = 'idle';
+        this.updateAgentPanel();
+    }
+
+    private delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     // =========================================================================
@@ -656,8 +715,8 @@ class MultiAgentController {
         const butler = this.createAgent('執事', 'butler', 'butler', '🎩');
         butler.terminal.show();
 
-        // Claude Code を起動（ルートの CLAUDE.md を自動で読み込む）
-        this.sendToAgent('butler', 'echo "🎩 執事、準備完了でございます。" && cat .maid-agent/instructions/butler.md');
+        // Claude Code を起動し、役割を認識させる
+        await this.launchClaudeWithRole('butler', 'butler');
 
         vscode.window.showInformationMessage('🎩 執事がお仕えする準備ができました！');
         this.updateDashboard();
@@ -672,7 +731,10 @@ class MultiAgentController {
         }
 
         const chief = this.createAgent('メイド長', 'chief', 'chiefMaid', '👑');
-        this.sendToAgent('chief', 'echo "👑 メイド長、参上いたしました。" && cat .maid-agent/instructions/chief.md');
+        chief.terminal.show();
+
+        // Claude Code を起動し、役割を認識させる
+        await this.launchClaudeWithRole('chief', 'chiefMaid');
 
         vscode.window.showInformationMessage('👑 メイド長がお仕えする準備ができました！');
         this.updateDashboard();
@@ -709,7 +771,8 @@ class MultiAgentController {
             const maid = MAIDS.find(m => m.id === item.id);
             if (maid) {
                 this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-                this.sendToAgent(maid.id, `echo "🎀 ${maid.name}、お仕えいたします♪"`);
+                // Claude Code を起動し、役割を認識させる
+                await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
             }
         }
 
@@ -771,7 +834,8 @@ class MultiAgentController {
 
         for (const maid of maidsToStart) {
             this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-            this.sendToAgent(maid.id, `echo "🎀 ${maid.name}、お仕えいたします♪"`);
+            // Claude Code を起動し、役割を認識させる
+            await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
         }
 
         const maidNames = maidsToStart.map(m => m.name).join('、');
@@ -827,12 +891,13 @@ class MultiAgentController {
         if (!this.agents.has('butler')) {
             const butler = this.createAgent('執事', 'butler', 'butler', '🎩');
             butler.terminal.show();
-            this.sendToAgent('butler', 'echo "🎩 執事、準備完了でございます。" && cat .maid-agent/instructions/butler.md');
+            await this.launchClaudeWithRole('butler', 'butler');
         }
 
         if (!this.agents.has('chief')) {
-            this.createAgent('メイド長', 'chief', 'chiefMaid', '👑');
-            this.sendToAgent('chief', 'echo "👑 メイド長、参上いたしました。" && cat .maid-agent/instructions/chief.md');
+            const chief = this.createAgent('メイド長', 'chief', 'chiefMaid', '👑');
+            chief.terminal.show();
+            await this.launchClaudeWithRole('chief', 'chiefMaid');
         }
 
         let maidsToStart: typeof availableMaids;
@@ -845,7 +910,7 @@ class MultiAgentController {
 
         for (const maid of maidsToStart) {
             this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-            this.sendToAgent(maid.id, `echo "🎀 ${maid.name}、お仕えいたします♪"`);
+            await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
         }
 
         const maidNames = maidsToStart.map(m => m.name).join('、');
@@ -861,7 +926,7 @@ class MultiAgentController {
         for (const maid of orderedMaids) {
             if (!this.agents.has(maid.id)) {
                 this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-                this.sendToAgent(maid.id, `echo "🎀 ${maid.name}、お仕えいたします♪"`);
+                await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
             }
         }
         this.updateDashboard();
@@ -894,54 +959,62 @@ class MultiAgentController {
 
         if (!this.maidAgentPath) return;
 
-        // butler_to_chief.yaml にタスクを追加
-        const queuePath = path.join(this.maidAgentPath, 'queue', 'butler_to_chief.yaml');
-        const taskId = `task-${Date.now()}`;
-        const timestamp = new Date().toISOString();
+        this.log(`[タスク] ご主人様からの指令: ${taskDescription}`);
 
-        const taskEntry = `
-  - task_id: "${taskId}"
-    description: "${taskDescription.replace(/"/g, '\\"')}"
-    priority: medium
-    created_at: "${timestamp}"
-`;
-
-        // YAMLファイルを更新
-        let content = fs.readFileSync(queuePath, 'utf-8');
-        content = content.replace('queue: []', `queue:${taskEntry}`);
-        if (!content.includes('queue:')) {
-            content = content.replace('queue:', `queue:${taskEntry}`);
-        }
-        fs.writeFileSync(queuePath, content);
-
-        this.log(`[タスク追加] ${taskId}: ${taskDescription}`);
-
-        // 執事にClaude Codeを起動して指示
-        this.sendToAgent('butler', `claude "queue/butler_to_chief.yaml に新しいタスクが追加されました。確認して対応してください。"`);
+        // 執事にタスクを直接送信（2段階送信）
+        // 執事がタスクを分解し、butler_to_chief.yaml に書き込む
+        const instruction = `ご主人様からの指令です: ${taskDescription}\n\nこのタスクを分析し、必要に応じてサブタスクに分解して .maid-agent/queue/butler_to_chief.yaml に記載し、メイド長に通知してください。`;
+        this.sendMessageToAgent('butler', instruction);
 
         vscode.window.showInformationMessage('🎩 執事にタスクを送信しました');
         this.updateDashboard();
     }
 
+    /**
+     * 執事からメイド長への通知（butler.md の指示に従って実行される）
+     * 執事のClaudeが内部的に使用するためのヘルパー
+     */
+    notifyChief(message: string): void {
+        const chief = this.agents.get('chief');
+        if (!chief) {
+            this.log('[WARN] メイド長がおりません');
+            return;
+        }
+        this.sendMessageToAgent('chief', message);
+    }
+
+    /**
+     * メイド長からメイドへの通知（chief.md の指示に従って実行される）
+     * メイド長のClaudeが内部的に使用するためのヘルパー
+     */
+    notifyMaid(maidId: string, message: string): void {
+        const maid = this.agents.get(maidId);
+        if (!maid) {
+            this.log(`[WARN] メイド ${maidId} がおりません`);
+            return;
+        }
+        this.sendMessageToAgent(maidId, message);
+    }
+
     // =========================================================================
-    // Claude Code 起動
+    // Claude Code 起動（手動用 - 通常は自動起動）
     // =========================================================================
 
     startClaudeOnAgent(agentId: string): void {
         const agent = this.agents.get(agentId);
         if (!agent) return;
 
-        // Claude Code は .maid-agent ディレクトリで起動され、
-        // CLAUDE.md を自動的に読み込む
-        this.sendToAgent(agentId, 'claude');
+        // Claude Code を権限スキップモードで起動
+        this.sendToAgent(agentId, 'claude --dangerously-skip-permissions');
     }
 
-    startClaudeOnAllAgents(): void {
+    async startClaudeOnAllAgents(): Promise<void> {
         let count = 0;
-        this.agents.forEach((agent, id) => {
-            this.startClaudeOnAgent(id);
+        for (const [id, agent] of this.agents) {
+            this.sendToAgent(id, 'claude --dangerously-skip-permissions');
+            await this.delay(500); // 各エージェント間で少し待つ
             count++;
-        });
+        }
 
         if (count > 0) {
             vscode.window.showInformationMessage(`🤖 ${count}人のエージェントがClaude Codeを起動しました`);
@@ -1280,7 +1353,8 @@ class MultiAgentController {
         });
 
         if (command) {
-            this.sendToAgent(selected.id, `claude "${command}"`);
+            // 2段階送信でメイドに指示
+            this.sendMessageToAgent(selected.id, command);
         }
     }
 

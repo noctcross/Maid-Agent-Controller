@@ -1066,7 +1066,11 @@ class MultiAgentController {
     // ステータス管理
     // =========================================================================
 
-    private updateMasterStatus(agentId: string, status: string): void {
+    /**
+     * master_status.yaml を更新
+     * エージェントのステータスと最終アクティブ時刻を記録
+     */
+    private updateMasterStatus(agentId: string, status: 'offline' | 'idle' | 'working' | 'done'): void {
         if (!this.maidAgentPath) return;
 
         const statusPath = path.join(this.maidAgentPath, 'status', 'master_status.yaml');
@@ -1076,10 +1080,50 @@ class MultiAgentController {
             let content = fs.readFileSync(statusPath, 'utf-8');
             const timestamp = new Date().toISOString();
 
-            // 簡易的な更新（実際にはYAMLパーサーを使うべき）
+            // last_updated を更新
             content = content.replace(/last_updated: .*/, `last_updated: "${timestamp}"`);
 
+            // session_start を設定（未設定の場合）
+            if (content.includes('session_start: null')) {
+                content = content.replace(/session_start: null/, `session_start: "${timestamp}"`);
+            }
+
+            // initialized_at を設定（未設定の場合）
+            if (content.includes('initialized_at: null')) {
+                content = content.replace(/initialized_at: null/, `initialized_at: "${timestamp}"`);
+            }
+
+            // エージェントのステータスを更新
+            // butler, chief の場合
+            if (agentId === 'butler' || agentId === 'chief') {
+                const agentSection = new RegExp(
+                    `(${agentId}:\\s*\\n\\s*status: )\\w+`,
+                    'g'
+                );
+                content = content.replace(agentSection, `$1${status}`);
+
+                const lastActiveSection = new RegExp(
+                    `(${agentId}:[\\s\\S]*?last_active: ).*`,
+                    ''
+                );
+                content = content.replace(lastActiveSection, `$1"${timestamp}"`);
+            } else {
+                // メイドの場合（maids セクション内）
+                const maidSection = new RegExp(
+                    `(${agentId}:\\s*\\n\\s*status: )\\w+`,
+                    'g'
+                );
+                content = content.replace(maidSection, `$1${status}`);
+
+                const lastActiveSection = new RegExp(
+                    `(${agentId}:[\\s\\S]*?last_active: ).*`,
+                    ''
+                );
+                content = content.replace(lastActiveSection, `$1"${timestamp}"`);
+            }
+
             fs.writeFileSync(statusPath, content);
+            this.log(`[ステータス] ${agentId}: ${status}`);
         } catch (error) {
             this.log(`[WARN] ステータス更新に失敗: ${error}`);
         }
@@ -1410,6 +1454,8 @@ class MultiAgentController {
         for (const [id, agent] of this.agents) {
             if (agent.terminal === terminal) {
                 this.log(`[${agent.name}] ターミナルが閉じられました`);
+                // ステータスを offline に更新
+                this.updateMasterStatus(id, 'offline');
                 this.agents.delete(id);
                 this.updateAgentPanel();
                 this.updateDashboard();

@@ -2302,12 +2302,61 @@ class MultiAgentController {
         const pattern = new vscode.RelativePattern(notifyDir, 'pending.json');
         this.notificationWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 
+        // onChange と onCreate の両方を監視（WSL環境対応）
         this.notificationWatcher.onDidChange(() => {
+            this.log('[通知システム] pending.json 変更を検知');
+            this.processNotifications();
+        });
+
+        this.notificationWatcher.onDidCreate(() => {
+            this.log('[通知システム] pending.json 作成を検知');
             this.processNotifications();
         });
 
         this.context?.subscriptions.push(this.notificationWatcher);
         this.log('[通知システム] エージェント間通信を開始');
+
+        // ポーリングによるバックアップ監視（WSL環境でFileSystemWatcherが効かない場合の対策）
+        this.startNotificationPolling();
+    }
+
+    private notificationPollingInterval?: NodeJS.Timeout;
+    private lastNotificationContent: string = '';
+
+    /**
+     * 通知ファイルのポーリング監視（FileSystemWatcher のバックアップ）
+     */
+    private startNotificationPolling(): void {
+        if (this.notificationPollingInterval) {
+            clearInterval(this.notificationPollingInterval);
+        }
+
+        // 2秒ごとにチェック
+        this.notificationPollingInterval = setInterval(() => {
+            if (!this.maidAgentPath) return;
+
+            const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
+            if (!fs.existsSync(notifyPath)) return;
+
+            try {
+                const content = fs.readFileSync(notifyPath, 'utf-8');
+                // 内容が変わっていたら処理
+                if (content !== this.lastNotificationContent && content.trim() !== '[]') {
+                    this.lastNotificationContent = content;
+                    this.log('[通知システム] ポーリングで変更を検知');
+                    this.processNotifications();
+                }
+            } catch {
+                // ファイル読み込みエラーは無視
+            }
+        }, 2000);
+    }
+
+    private stopNotificationPolling(): void {
+        if (this.notificationPollingInterval) {
+            clearInterval(this.notificationPollingInterval);
+            this.notificationPollingInterval = undefined;
+        }
     }
 
     /**
@@ -2423,8 +2472,70 @@ class MultiAgentController {
         if (this.notificationWatcher) {
             this.notificationWatcher.dispose();
             this.notificationWatcher = undefined;
-            this.log('[通知システム] 停止');
         }
+        this.stopNotificationPolling();
+        this.log('[通知システム] 停止');
+    }
+
+    /**
+     * 通知を手動で処理（デバッグ用）
+     */
+    async manualProcessNotifications(): Promise<void> {
+        this.log('[デバッグ] 手動通知処理を開始');
+
+        if (!this.maidAgentPath) {
+            vscode.window.showErrorMessage('maidAgentPath が設定されていません');
+            return;
+        }
+
+        const notifyPath = path.join(this.maidAgentPath, 'notifications', 'pending.json');
+        if (!fs.existsSync(notifyPath)) {
+            vscode.window.showWarningMessage('pending.json が存在しません');
+            return;
+        }
+
+        try {
+            const content = fs.readFileSync(notifyPath, 'utf-8');
+            this.log(`[デバッグ] pending.json 内容: ${content}`);
+
+            await this.processNotifications();
+            vscode.window.showInformationMessage('通知処理を実行しました。出力パネルを確認してください。');
+        } catch (error) {
+            vscode.window.showErrorMessage(`エラー: ${error}`);
+        }
+    }
+
+    /**
+     * 現在の状態を表示（デバッグ用）
+     */
+    showDebugStatus(): void {
+        const agentList = Array.from(this.agents.entries()).map(([id, agent]) => {
+            return `  - ${id}: ${agent.name} (${agent.role}, ${agent.status})`;
+        }).join('\n');
+
+        const status = `
+=== Maid Agent デバッグ情報 ===
+maidAgentPath: ${this.maidAgentPath || '未設定'}
+tmuxManager: ${this.tmuxManager ? '初期化済み' : '未初期化'}
+tmuxSessionName: ${this.tmuxSessionName || '未設定'}
+notificationWatcher: ${this.notificationWatcher ? '稼働中' : '停止'}
+notificationPolling: ${this.notificationPollingInterval ? '稼働中' : '停止'}
+fileWatcher: ${this.fileWatcher ? '稼働中' : '停止'}
+
+登録済みエージェント (${this.agents.size}):
+${agentList || '  (なし)'}
+`;
+        this.log(status);
+
+        // ポップアップでも表示
+        vscode.window.showInformationMessage(
+            `エージェント数: ${this.agents.size}, 通知監視: ${this.notificationWatcher ? 'ON' : 'OFF'}, ポーリング: ${this.notificationPollingInterval ? 'ON' : 'OFF'}`,
+            '出力パネルを開く'
+        ).then(choice => {
+            if (choice === '出力パネルを開く') {
+                this.outputChannel.show();
+            }
+        });
     }
 
     // =========================================================================
@@ -2858,6 +2969,12 @@ export function activate(context: vscode.ExtensionContext) {
         }),
         vscode.commands.registerCommand('multiAgent.killSession', () => {
             controller.killTmuxSession();
+        }),
+        vscode.commands.registerCommand('multiAgent.processNotifications', () => {
+            controller.manualProcessNotifications();
+        }),
+        vscode.commands.registerCommand('multiAgent.showStatus', () => {
+            controller.showDebugStatus();
         }),
     ];
 

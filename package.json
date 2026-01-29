@@ -107,6 +107,16 @@
         "command": "multiAgent.killSession",
         "title": "Kill Session - セッションを終了",
         "category": "Maid Agent"
+      },
+      {
+        "command": "multiAgent.processNotifications",
+        "title": "Process Notifications - 通知を手動処理（デバッグ用）",
+        "category": "Maid Agent"
+      },
+      {
+        "command": "multiAgent.showStatus",
+        "title": "Show Status - 現在の状態を表示（デバッグ用）",
+        "category": "Maid Agent"
       }
     ],
     "views": {

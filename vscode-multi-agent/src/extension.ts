@@ -27,7 +27,20 @@ interface MaidConfig {
 // =============================================================================
 
 const MAID_AGENT_DIR = '.maid-agent';
-const TMUX_SESSION = 'maid-agent';  // tmuxセッション名
+const TMUX_SESSION_PREFIX = 'maid-agent';  // tmuxセッション名のプレフィックス
+
+/**
+ * 文字列から短いハッシュを生成
+ */
+function hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36).substring(0, 8);
+}
 
 const MAIDS_MAP: { [key: string]: MaidConfig } = {
     emma: { name: 'エマ', id: 'emma', emoji: '🎀' },
@@ -528,6 +541,7 @@ class MultiAgentController {
     private agentPanelProvider: AgentPanelProvider | undefined;
     private tmuxManager: TmuxManager | undefined;
     private tmuxViewerTerminal: vscode.Terminal | undefined;  // tmuxセッション表示用
+    private tmuxSessionName: string = '';  // ワークスペース固有のセッション名
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Maid Agent');
@@ -538,8 +552,18 @@ class MultiAgentController {
         this.workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (this.workspaceRoot) {
             this.maidAgentPath = path.join(this.workspaceRoot, MAID_AGENT_DIR);
-            this.tmuxManager = new TmuxManager(TMUX_SESSION, this.workspaceRoot);
+            // ワークスペースパスからハッシュを生成してセッション名を一意にする
+            const workspaceHash = hashString(this.workspaceRoot);
+            this.tmuxSessionName = `${TMUX_SESSION_PREFIX}-${workspaceHash}`;
+            this.tmuxManager = new TmuxManager(this.tmuxSessionName, this.workspaceRoot);
         }
+    }
+
+    /**
+     * 現在のtmuxセッション名を取得
+     */
+    getTmuxSessionName(): string {
+        return this.tmuxSessionName;
     }
 
     setAgentPanelProvider(provider: AgentPanelProvider): void {
@@ -760,7 +784,7 @@ class MultiAgentController {
 
         try {
             this.tmuxManager.createSession();
-            this.log(`[tmux] セッション '${TMUX_SESSION}' を作成しました`);
+            this.log(`[tmux] セッション '${this.tmuxSessionName}' を作成しました`);
         } catch (error) {
             this.log(`[tmux] セッション作成エラー: ${error}`);
         }
@@ -786,7 +810,7 @@ class MultiAgentController {
             name: '🎩 Maid Agent (tmux)',
             cwd: this.workspaceRoot
         });
-        this.tmuxViewerTerminal.sendText(`tmux attach-session -t ${TMUX_SESSION}`);
+        this.tmuxViewerTerminal.sendText(`tmux attach-session -t ${this.tmuxSessionName}`);
         this.tmuxViewerTerminal.show();
 
         this.log('[tmux] ビューアターミナルを開きました');

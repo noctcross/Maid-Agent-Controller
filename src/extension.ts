@@ -2609,6 +2609,26 @@ ${agentList || '  (なし)'}
             }
         }
 
+        // 会話ログ（history.log）を読み込む
+        let conversationLogs = '';
+        if (this.maidAgentPath) {
+            const historyPath = path.join(this.maidAgentPath, 'notifications', 'history.log');
+            if (fs.existsSync(historyPath)) {
+                const content = fs.readFileSync(historyPath, 'utf-8');
+                const lines = content.trim().split('\n').filter(l => l.length > 0);
+                // 最新20件を逆順で表示
+                conversationLogs = lines.slice(-20).reverse().map(line => {
+                    // [2024-01-01 12:34:56] sender → target: message の形式をパース
+                    const match = line.match(/^\[([^\]]+)\] (\w+) → (\w+): (.+)$/);
+                    if (match) {
+                        const [, timestamp, sender, target, message] = match;
+                        return `<div class="conv-entry"><span class="conv-time">${timestamp.split(' ')[1]}</span> <span class="conv-sender">${sender}</span> → <span class="conv-target">${target}</span>: ${message}</div>`;
+                    }
+                    return `<div class="conv-entry">${line}</div>`;
+                }).join('');
+            }
+        }
+
         const renderAgent = (a: Agent, emoji: string, role: string) => {
             const statusEmoji = a.status === 'working' ? '⚡' : a.status === 'done' ? '✅' : '💤';
             const statusClass = a.status === 'working' ? 'working' : 'idle';
@@ -2689,17 +2709,32 @@ ${agentList || '  (なし)'}
         .dashboard-content {
             background: #0a0a0a; border-radius: 8px; padding: 15px;
             font-family: 'Consolas', monospace; font-size: 0.8em;
-            white-space: pre-wrap; max-height: 200px; overflow-y: auto;
+            white-space: pre-wrap; max-height: 300px; overflow-y: auto;
         }
 
         .log-container {
             background: #0a0a0a; border-radius: 8px; padding: 10px;
-            max-height: 150px; overflow-y: auto;
+            max-height: 300px; overflow-y: auto;
         }
         .log-entry {
             font-family: 'Consolas', monospace; font-size: 0.75em;
             color: #0f0; padding: 2px 5px; border-bottom: 1px solid #222;
         }
+
+        .conv-container {
+            background: #0a0a0a; border-radius: 8px; padding: 10px;
+            max-height: 300px; overflow-y: auto;
+        }
+        .conv-entry {
+            font-family: 'Consolas', monospace; font-size: 0.75em;
+            color: #ddd; padding: 4px 5px; border-bottom: 1px solid #222;
+        }
+        .conv-time { color: #666; }
+        .conv-sender { color: #4fc3f7; font-weight: bold; }
+        .conv-target { color: #81c784; font-weight: bold; }
+
+        .three-column { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+        @media (max-width: 900px) { .three-column { grid-template-columns: 1fr; } }
 
         @media (max-width: 600px) { .two-column { grid-template-columns: 1fr; } }
     </style>
@@ -2715,13 +2750,19 @@ ${agentList || '  (なし)'}
         <button class="action-btn secondary" onclick="openFile('queue/butler_to_chief.yaml')">📋 Queue</button>
     </div>
 
-    <div class="two-column">
+    <div class="three-column">
         <div class="section">
             <h2>📊 Dashboard.md</h2>
             <div class="dashboard-content">${dashboardContent || '(未読み込み)'}</div>
         </div>
         <div class="section">
-            <h2>📜 ログ</h2>
+            <h2>💬 会話ログ</h2>
+            <div class="conv-container">
+                ${conversationLogs || '<div class="conv-entry">会話ログはございません</div>'}
+            </div>
+        </div>
+        <div class="section">
+            <h2>📜 システムログ</h2>
             <div class="log-container">
                 ${recentLogs || '<div class="log-entry">ログはございません</div>'}
             </div>

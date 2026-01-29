@@ -66,10 +66,12 @@ NOTIFY_ID="notify-$(date +%s%N | cut -c1-13)"
 # 送信者を特定（現在のターミナル名から推測、またはunknown）
 SENDER="${MAID_AGENT_SENDER:-unknown}"
 
+# 新しいエントリを作成
+NEW_ENTRY="{\"id\": \"$NOTIFY_ID\", \"target\": \"$TARGET\", \"message\": \"$MESSAGE\", \"sender\": \"$SENDER\", \"timestamp\": \"$TIMESTAMP\", \"status\": \"pending\"}"
+
 # JSON形式で通知を追加
-# 既存のファイルがあれば読み込み、なければ空配列から開始
 if [ -f "$NOTIFY_FILE" ]; then
-    # jqがあれば使用、なければ簡易的に追加
+    # jqがあれば使用
     if command -v jq &> /dev/null; then
         TMP_FILE=$(mktemp)
         jq --arg id "$NOTIFY_ID" \
@@ -80,22 +82,24 @@ if [ -f "$NOTIFY_FILE" ]; then
            '. += [{"id": $id, "target": $target, "message": $message, "sender": $sender, "timestamp": $timestamp, "status": "pending"}]' \
            "$NOTIFY_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$NOTIFY_FILE"
     else
-        # jqがない場合の簡易実装（末尾に追加）
-        # 既存の ] を削除して新しいエントリを追加
-        sed -i '$ s/]$//' "$NOTIFY_FILE"
-        # ファイルが空でなければカンマを追加
-        if [ -s "$NOTIFY_FILE" ] && [ "$(tail -c 2 "$NOTIFY_FILE")" != "[" ]; then
-            echo "," >> "$NOTIFY_FILE"
+        # jqがない場合の簡易実装
+        # ファイル内容を読み込み（改行を削除）
+        CONTENT=$(tr -d '\n\r' < "$NOTIFY_FILE" | tr -s ' ')
+
+        # 空配列かどうかチェック
+        if [ "$CONTENT" = "[]" ] || [ -z "$CONTENT" ]; then
+            # 空配列の場合は新規作成
+            echo "[$NEW_ENTRY]" > "$NOTIFY_FILE"
+        else
+            # 既存データがある場合
+            # 末尾の ] を削除して、カンマとエントリを追加
+            # ${CONTENT%]} は末尾の ] を削除
+            echo "${CONTENT%]},$NEW_ENTRY]" > "$NOTIFY_FILE"
         fi
-        cat >> "$NOTIFY_FILE" << EOF
-{"id": "$NOTIFY_ID", "target": "$TARGET", "message": "$MESSAGE", "sender": "$SENDER", "timestamp": "$TIMESTAMP", "status": "pending"}]
-EOF
     fi
 else
     # 新規ファイル作成
-    cat > "$NOTIFY_FILE" << EOF
-[{"id": "$NOTIFY_ID", "target": "$TARGET", "message": "$MESSAGE", "sender": "$SENDER", "timestamp": "$TIMESTAMP", "status": "pending"}]
-EOF
+    echo "[$NEW_ENTRY]" > "$NOTIFY_FILE"
 fi
 
 echo "通知を送信しました: $TARGET <- $MESSAGE"

@@ -667,22 +667,25 @@ class MultiAgentController {
 
     /**
      * Claude Code の起動完了を待つ
-     * 方式: 段階的ポーリング（初期は短い間隔、徐々に長く）
+     * 方式: 段階的待機（検知手段がないため固定時間待機）
+     * ※ VSCode API の制限により、ターミナル出力を検知できないため
      */
-    private async waitForClaudeReady(agentId: string, maxWaitMs: number = 10000): Promise<void> {
-        // 段階的待機: 最初は短い間隔で確認の機会を設け、徐々に長くする
-        // 1秒 → 1秒 → 1.5秒 → 2秒 → 2秒 → 2.5秒 (合計約10秒)
+    private async waitForClaudeReady(agent: Agent, maxWaitMs: number = 10000): Promise<void> {
+        // 段階的待機: 1秒 → 1秒 → 1.5秒 → 2秒 → 2秒 → 2.5秒 (合計約10秒)
         const intervals = [1000, 1000, 1500, 2000, 2000, 2500];
         let totalWaited = 0;
+
+        const roleLabel = agent.role === 'butler' ? '執事' :
+                         agent.role === 'chiefMaid' ? 'メイド長' : 'メイド';
 
         for (const interval of intervals) {
             if (totalWaited >= maxWaitMs) break;
             await this.delay(interval);
             totalWaited += interval;
-            this.log(`[${agentId}] Claude 起動待機中... (${totalWaited}ms)`);
+            this.log(`[${agent.name}] ${roleLabel}出勤準備中... (${totalWaited}ms)`);
         }
 
-        this.log(`[${agentId}] Claude 起動待機完了 (${totalWaited}ms)`);
+        this.log(`[${agent.name}] ${roleLabel}出勤完了 (${totalWaited}ms待機)`);
     }
 
     /**
@@ -698,8 +701,8 @@ class MultiAgentController {
         // Claude Code を起動（権限スキップモード）
         agent.terminal.sendText('claude --dangerously-skip-permissions', true);
 
-        // Claude Code の起動完了を待つ（段階的待機、最大10秒）
-        await this.waitForClaudeReady(agentId, 10000);
+        // Claude Code の出勤完了を待つ（段階的待機、最大10秒）
+        await this.waitForClaudeReady(agent, 10000);
 
         // 少し待ってから指示を送信（バッファ安定化）
         await this.delay(300);
@@ -834,7 +837,7 @@ class MultiAgentController {
         }
 
         const countStr = await vscode.window.showInputBox({
-            prompt: `何人のメイドを起動しますか？（1〜${availableMaids.length}人）${random ? '【ランダム】' : '【順番】'}`,
+            prompt: `何人のメイドを出勤させますか？（1〜${availableMaids.length}人）${random ? '【ランダム】' : '【順番】'}`,
             placeHolder: '例: 3',
             validateInput: (value) => {
                 const num = parseInt(value);
@@ -860,16 +863,16 @@ class MultiAgentController {
             maidsToStart = availableMaids.slice(0, count);
         }
 
-        // 進捗表示付きで起動
+        // 進捗表示付きで出勤
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: '🎀 メイド起動中...',
+            title: '🎀 メイド出勤中...',
             cancellable: false
         }, async (progress) => {
             for (let i = 0; i < maidsToStart.length; i++) {
                 const maid = maidsToStart[i];
                 progress.report({
-                    message: `${maid.name}を起動中...`,
+                    message: `${maid.name}出勤中...`,
                     increment: (100 / maidsToStart.length)
                 });
                 this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
@@ -878,7 +881,7 @@ class MultiAgentController {
         });
 
         const maidNames = maidsToStart.map(m => m.name).join('、');
-        vscode.window.showInformationMessage(`🎀 ${maidNames} を起動しました！`);
+        vscode.window.showInformationMessage(`🎀 ${maidNames} が出勤しました！`);
         this.updateDashboard();
     }
 
@@ -908,7 +911,7 @@ class MultiAgentController {
         }
 
         const countStr = await vscode.window.showInputBox({
-            prompt: `メイドを何人起動しますか？（1〜${availableMaids.length}人）執事+メイド長も起動 ${random ? '【ランダム】' : '【順番】'}`,
+            prompt: `メイドを何人出勤させますか？（1〜${availableMaids.length}人）執事+メイド長も出勤 ${random ? '【ランダム】' : '【順番】'}`,
             placeHolder: '例: 3',
             validateInput: (value) => {
                 const num = parseInt(value);
@@ -926,19 +929,19 @@ class MultiAgentController {
 
         const count = parseInt(countStr);
 
-        // 進捗表示付きで起動
+        // 進捗表示付きで出勤
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: '🎩 エージェント起動中...',
+            title: '🎩 スタッフ出勤中...',
             cancellable: false
         }, async (progress) => {
             const totalAgents = (this.agents.has('butler') ? 0 : 1) +
                                (this.agents.has('chief') ? 0 : 1) + count;
             let currentAgent = 0;
 
-            // 執事・メイド長を先に起動
+            // 執事・メイド長を先に出勤
             if (!this.agents.has('butler')) {
-                progress.report({ message: 'シルヴィア（執事）を起動中...', increment: 0 });
+                progress.report({ message: 'シルヴィア（執事）出勤中...', increment: 0 });
                 const butler = this.createAgent('シルヴィア', 'butler', 'butler', '🎩');
                 butler.terminal.show();
                 await this.launchClaudeWithRole('butler', 'butler');
@@ -947,7 +950,7 @@ class MultiAgentController {
             }
 
             if (!this.agents.has('chief')) {
-                progress.report({ message: 'ビオラ（メイド長）を起動中...' });
+                progress.report({ message: 'ビオラ（メイド長）出勤中...' });
                 const chief = this.createAgent('ビオラ', 'chief', 'chiefMaid', '👑');
                 chief.terminal.show();
                 await this.launchClaudeWithRole('chief', 'chiefMaid');
@@ -964,7 +967,7 @@ class MultiAgentController {
             }
 
             for (const maid of maidsToStart) {
-                progress.report({ message: `${maid.name}（メイド）を起動中...` });
+                progress.report({ message: `${maid.name}（メイド）出勤中...` });
                 this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
                 await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
                 currentAgent++;
@@ -972,7 +975,7 @@ class MultiAgentController {
             }
 
             const maidNames = maidsToStart.map(m => m.name).join('、');
-            vscode.window.showInformationMessage(`🎩 執事 + 👑 メイド長 + 🎀 ${maidNames} を起動しました！`);
+            vscode.window.showInformationMessage(`🎩 執事 + 👑 メイド長 + 🎀 ${maidNames} が出勤しました！`);
             this.updateDashboard();
         });
     }

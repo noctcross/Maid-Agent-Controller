@@ -97,6 +97,29 @@ function getTmuxVersion(): string | null {
     }
 }
 
+/**
+ * WSLが利用可能かチェック（Windows環境のみ）
+ */
+function isWslAvailable(): boolean {
+    if (CURRENT_ENV !== 'windows-native') {
+        return true; // Windows以外では常にtrue
+    }
+
+    try {
+        // WSLが動作しているかチェック
+        execSync('wsl --status', { encoding: 'utf-8', stdio: 'pipe' });
+        return true;
+    } catch {
+        try {
+            // --statusがない古いバージョン用フォールバック
+            execSync('wsl echo ok', { encoding: 'utf-8', stdio: 'pipe' });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
 // =============================================================================
 // 型定義
 // =============================================================================
@@ -1452,6 +1475,13 @@ class MultiAgentController {
      * tmuxが利用可能かチェックし、なければインストールを提案
      */
     private async ensureTmuxAvailable(): Promise<boolean> {
+        // Windows環境ではまずWSLをチェック
+        if (CURRENT_ENV === 'windows-native') {
+            if (!await this.ensureWslAvailable()) {
+                return false;
+            }
+        }
+
         if (isTmuxAvailable()) {
             return true;
         }
@@ -1475,6 +1505,108 @@ class MultiAgentController {
         }
 
         return false;
+    }
+
+    /**
+     * WSLが利用可能かチェックし、なければインストールを提案
+     */
+    private async ensureWslAvailable(): Promise<boolean> {
+        if (isWslAvailable()) {
+            return true;
+        }
+
+        const choice = await vscode.window.showErrorMessage(
+            'WSL (Windows Subsystem for Linux) がインストールされていません。\n\n' +
+            'この拡張機能はWSL上のtmuxを使用します。\n' +
+            'WSLをインストールしますか？\n\n' +
+            '※ 管理者権限のPowerShellが開きます',
+            'インストールする',
+            'インストール方法を表示',
+            'キャンセル'
+        );
+
+        if (choice === 'インストールする') {
+            return await this.installWsl();
+        } else if (choice === 'インストール方法を表示') {
+            this.showWslInstallInstructions();
+            return false;
+        }
+
+        return false;
+    }
+
+    /**
+     * WSLをインストール
+     */
+    private async installWsl(): Promise<boolean> {
+        // PowerShellを管理者権限で開いてwsl --installを実行
+        try {
+            // 管理者権限でPowerShellを起動
+            const terminal = vscode.window.createTerminal({
+                name: '📦 WSL インストール',
+                shellPath: 'powershell.exe'
+            });
+            terminal.show();
+            terminal.sendText('Start-Process powershell -Verb RunAs -ArgumentList \'-Command\', \'wsl --install; Read-Host "インストールが完了したらEnterを押してください"\'');
+
+            const result = await vscode.window.showInformationMessage(
+                'WSLインストーラーを起動しました。\n\n' +
+                '1. 管理者権限のPowerShellウィンドウが開きます\n' +
+                '2. インストールが完了するまで待ちます\n' +
+                '3. PCを再起動してください\n' +
+                '4. 再起動後、再度このコマンドを実行してください\n\n' +
+                'インストールが完了しましたか？',
+                'PCを再起動する',
+                '後で手動で行う'
+            );
+
+            if (result === 'PCを再起動する') {
+                const confirmRestart = await vscode.window.showWarningMessage(
+                    '本当にPCを再起動しますか？\n作業中のファイルを保存してください。',
+                    '再起動',
+                    'キャンセル'
+                );
+                if (confirmRestart === '再起動') {
+                    execSync('shutdown /r /t 30 /c "WSLインストール完了のため再起動します"');
+                    vscode.window.showInformationMessage('30秒後にPCが再起動します。');
+                }
+            }
+
+            return false; // 再起動が必要なので一旦falseを返す
+        } catch (error) {
+            vscode.window.showErrorMessage(`WSLインストールの起動に失敗しました: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * WSLインストール方法を表示
+     */
+    private showWslInstallInstructions(): void {
+        this.log('=== WSL インストール方法 ===');
+        this.log('');
+        this.log('【方法1: コマンドでインストール（推奨）】');
+        this.log('1. PowerShellを管理者権限で開く');
+        this.log('   - Windowsキーを押して「powershell」と入力');
+        this.log('   - 「管理者として実行」を選択');
+        this.log('');
+        this.log('2. 以下のコマンドを実行:');
+        this.log('   wsl --install');
+        this.log('');
+        this.log('3. PCを再起動');
+        this.log('');
+        this.log('4. 再起動後、WSLが自動的に起動しUbuntuのセットアップが始まります');
+        this.log('   - ユーザー名とパスワードを設定してください');
+        this.log('');
+        this.log('【方法2: Windowsの機能から有効化】');
+        this.log('1. 「Windowsの機能の有効化または無効化」を開く');
+        this.log('2. 「Linux用Windowsサブシステム」にチェック');
+        this.log('3. 「仮想マシンプラットフォーム」にチェック');
+        this.log('4. PCを再起動');
+        this.log('5. Microsoft StoreからUbuntuをインストール');
+        this.log('');
+        this.log('インストール後、再度Callコマンドを実行してください。');
+        this.outputChannel.show();
     }
 
     /**

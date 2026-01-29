@@ -688,13 +688,13 @@ class MultiAgentController {
         let instruction: string;
         switch (role) {
             case 'butler':
-                instruction = 'あなたは執事です。.maid-agent/instructions/butler.md を読んで役割を把握し、ご主人様からの指示をお待ちください。';
+                instruction = 'あなたは執事のシルヴィアです。.maid-agent/instructions/butler.md を読んで役割を把握し、ご主人様からの指示をお待ちください。';
                 break;
             case 'chiefMaid':
-                instruction = 'あなたはメイド長です。.maid-agent/instructions/chief.md を読んで役割を把握し、執事からの指示をお待ちください。';
+                instruction = 'あなたはメイド長のビオラです。.maid-agent/instructions/chief.md を読んで役割を把握し、執事シルヴィアからの指示をお待ちください。';
                 break;
             case 'maid':
-                instruction = `あなたは${maidName || 'メイド'}です。.maid-agent/instructions/maid.md を読んで役割を把握し、メイド長からの指示をお待ちください。`;
+                instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/instructions/maid.md を読んで役割を把握し、メイド長ビオラからの指示をお待ちください。`;
                 break;
         }
 
@@ -719,13 +719,13 @@ class MultiAgentController {
             return;
         }
 
-        const butler = this.createAgent('執事', 'butler', 'butler', '🎩');
+        const butler = this.createAgent('シルヴィア', 'butler', 'butler', '🎩');
         butler.terminal.show();
 
         // Claude Code を起動し、役割を認識させる
         await this.launchClaudeWithRole('butler', 'butler');
 
-        vscode.window.showInformationMessage('🎩 執事がお仕えする準備ができました！');
+        vscode.window.showInformationMessage('🎩 シルヴィアがお仕えする準備ができました！');
         this.updateDashboard();
     }
 
@@ -737,13 +737,13 @@ class MultiAgentController {
             return;
         }
 
-        const chief = this.createAgent('メイド長', 'chief', 'chiefMaid', '👑');
+        const chief = this.createAgent('ビオラ', 'chief', 'chiefMaid', '👑');
         chief.terminal.show();
 
         // Claude Code を起動し、役割を認識させる
         await this.launchClaudeWithRole('chief', 'chiefMaid');
 
-        vscode.window.showInformationMessage('👑 メイド長がお仕えする準備ができました！');
+        vscode.window.showInformationMessage('👑 ビオラがお仕えする準備ができました！');
         this.updateDashboard();
     }
 
@@ -896,13 +896,13 @@ class MultiAgentController {
 
         // 執事・メイド長を先に起動
         if (!this.agents.has('butler')) {
-            const butler = this.createAgent('執事', 'butler', 'butler', '🎩');
+            const butler = this.createAgent('シルヴィア', 'butler', 'butler', '🎩');
             butler.terminal.show();
             await this.launchClaudeWithRole('butler', 'butler');
         }
 
         if (!this.agents.has('chief')) {
-            const chief = this.createAgent('メイド長', 'chief', 'chiefMaid', '👑');
+            const chief = this.createAgent('ビオラ', 'chief', 'chiefMaid', '👑');
             chief.terminal.show();
             await this.launchClaudeWithRole('chief', 'chiefMaid');
         }

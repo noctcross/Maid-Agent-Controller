@@ -1,0 +1,10 @@
+# Default behavior
+* text=auto
+
+# Shell scripts must use LF
+*.sh text eol=lf
+templates/bin/* text eol=lf
+
+# Batch files use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf

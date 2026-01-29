@@ -2321,9 +2321,24 @@ class MultiAgentController {
             const hasCompleted = content.includes('✅ 本日の成果') &&
                                  content.match(/\| \d{2}:\d{2} \|/); // 時刻パターンがあれば完了あり
 
-            // 要対応事項があるかチェック
-            const hasIssues = content.includes('🚨 要対応') &&
-                              content.split('🚨 要対応')[1]?.trim().length > 50;
+            // 要対応事項があるかチェック（セクション内の内容のみ確認）
+            let hasIssues = false;
+            if (content.includes('🚨 要対応')) {
+                // 🚨 要対応 と次の ## セクションの間の内容を抽出
+                const afterYoutaiou = content.split('🚨 要対応')[1];
+                if (afterYoutaiou) {
+                    // 次の ## までの内容を取得
+                    const sectionContent = afterYoutaiou.split(/\n## /)[0].trim();
+                    // プレースホルダーテキストでなければ要対応ありと判断
+                    const placeholders = [
+                        'ご主人様のご判断が必要な事項はございません',
+                        '（なし）',
+                        'なし',
+                        ''
+                    ];
+                    hasIssues = !placeholders.some(p => sectionContent === p || sectionContent.endsWith(p));
+                }
+            }
 
             // 進行中タスクがあるかチェック
             const hasInProgress = content.includes('⚡ 進行中') &&

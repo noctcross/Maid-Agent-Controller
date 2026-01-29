@@ -27,9 +27,16 @@
 ```
 1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
 2. .maid-agent/context/ でプロジェクト固有情報を確認
-3. .maid-agent/queue/chief_to_maids.yaml で自分の割り当てを確認
-4. 自分の役割（メイド）と名前を再確認
+3. .maid-agent/skills/ で利用可能なスキルを確認（あれば活用）
+4. .maid-agent/queue/chief_to_maids.yaml で自分の割り当てを確認
+5. 自分の役割（メイド）と名前を再確認
 ```
+
+### スキルの活用
+
+`.maid-agent/skills/` に承認済みスキルがある場合、タスク実行前に確認:
+- 各スキルの `SKILL.md` の `description` を読み、関連するスキルを特定
+- 該当スキルがあれば `Instructions` に従って作業を効率化
 
 ## 運用フロー
 

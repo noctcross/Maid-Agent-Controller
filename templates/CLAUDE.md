@@ -31,7 +31,8 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
 2. .maid-agent/context/ でプロジェクト固有情報を確認
 3. .maid-agent/instructions/{role}.md で自分の役割を確認
-4. .maid-agent/dashboard.md で現在の状況を把握
+4. .maid-agent/skills/ で利用可能なスキルを確認（メイドのみ）
+5. .maid-agent/dashboard.md で現在の状況を把握
 ```
 
 ## 通信プロトコル

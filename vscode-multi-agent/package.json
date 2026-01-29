@@ -112,6 +112,13 @@
           "type": "boolean",
           "default": true,
           "description": "サイドバーにエージェントパネルを表示"
+        },
+        "maidAgent.sessionWarningThreshold": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "この数以上のmaid-agentセッションが存在する場合、Call時に警告を表示"
         }
       }
     }

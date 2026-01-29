@@ -194,6 +194,32 @@ class TmuxManager {
     }
 
     /**
+     * maid-agentセッションの数を取得（静的メソッド）
+     */
+    static countMaidAgentSessions(): { count: number; sessions: string[] } {
+        try {
+            const result = execSync('tmux list-sessions -F "#{session_name}"', {
+                encoding: 'utf-8'
+            }).trim();
+
+            if (!result) {
+                return { count: 0, sessions: [] };
+            }
+
+            const allSessions = result.split('\n');
+            const maidSessions = allSessions.filter(name => name.startsWith(TMUX_SESSION_PREFIX));
+
+            return {
+                count: maidSessions.length,
+                sessions: maidSessions
+            };
+        } catch {
+            // tmuxサーバーが起動していない場合など
+            return { count: 0, sessions: [] };
+        }
+    }
+
+    /**
      * 新しいウィンドウを作成
      */
     createWindow(windowName: string): void {
@@ -1259,7 +1285,63 @@ class MultiAgentController {
             }
             return false;
         }
+
+        // セッション数の警告チェック
+        await this.checkSessionCountWarning();
+
         return true;
+    }
+
+    /**
+     * maid-agentセッション数をチェックし、しきい値を超えていたら警告
+     */
+    private async checkSessionCountWarning(): Promise<void> {
+        const config = vscode.workspace.getConfiguration('maidAgent');
+        const threshold = config.get<number>('sessionWarningThreshold', 10);
+
+        const { count, sessions } = TmuxManager.countMaidAgentSessions();
+
+        if (count >= threshold) {
+            const sessionList = sessions.slice(0, 5).join('\n  • ');
+            const moreText = count > 5 ? `\n  ...他 ${count - 5} セッション` : '';
+
+            const choice = await vscode.window.showWarningMessage(
+                `⚠️ maid-agentセッションが ${count} 個存在します（しきい値: ${threshold}）\n` +
+                `古いセッションのクリーンアップを検討してください。`,
+                'セッション一覧を表示',
+                '全てクリーンアップ',
+                '続行'
+            );
+
+            if (choice === 'セッション一覧を表示') {
+                // 出力チャンネルにセッション一覧を表示
+                this.log('=== maid-agent セッション一覧 ===');
+                sessions.forEach((s, i) => this.log(`  ${i + 1}. ${s}`));
+                this.log(`合計: ${count} セッション`);
+                this.log('クリーンアップするには: tmux kill-session -t <セッション名>');
+                this.log('全て削除するには: Maid Agent: Kill Session を各ワークスペースで実行');
+                this.outputChannel.show();
+            } else if (choice === '全てクリーンアップ') {
+                const confirm = await vscode.window.showWarningMessage(
+                    `本当に ${count} 個の maid-agent セッションを全て終了しますか？\n` +
+                    `（現在のセッションも含まれます）`,
+                    '全て終了',
+                    'キャンセル'
+                );
+                if (confirm === '全て終了') {
+                    sessions.forEach(sessionName => {
+                        try {
+                            execSync(`tmux kill-session -t ${sessionName}`);
+                        } catch {
+                            // 既に終了している場合は無視
+                        }
+                    });
+                    vscode.window.showInformationMessage(`${count} 個のセッションをクリーンアップしました`);
+                    this.log(`[クリーンアップ] ${count} 個のセッションを終了しました`);
+                }
+            }
+            // '続行' または閉じた場合は何もせず続行
+        }
     }
 
     // =========================================================================

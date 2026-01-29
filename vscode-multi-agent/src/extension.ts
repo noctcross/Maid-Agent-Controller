@@ -1000,6 +1000,9 @@ class MultiAgentController {
         try {
             this.tmuxManager.createSession();
             this.log(`[tmux] セッション '${this.tmuxSessionName}' を作成しました`);
+
+            // 通知システムを自動開始（ファイル監視含む）- サイレントモード
+            this.startWatchingFiles(true);
         } catch (error) {
             this.log(`[tmux] セッション作成エラー: ${error}`);
         }
@@ -1150,11 +1153,11 @@ class MultiAgentController {
                 instruction = 'あなたは執事のシルヴィアです。.maid-agent/instructions/butler.md を読んで役割を把握してください。また、.maid-agent/personas/butler.md を読んで口調・話し方を把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
                 break;
             case 'chiefMaid':
-                instruction = 'あなたはメイド長のビオラです。.maid-agent/instructions/chief.md を読んで役割を把握してください。また、.maid-agent/personas/chief.md を読んで口調・話し方を把握してください。準備ができたら、執事シルヴィアからの指示をお待ちください。';
+                instruction = 'あなたはメイド長のビオラです。.maid-agent/instructions/chief.md を読んで役割を把握してください。また、.maid-agent/personas/chief.md を読んで口調・話し方を把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
                 break;
             case 'maid':
                 const maidId = agentId;
-                instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/instructions/maid.md を読んで役割を把握してください。また、.maid-agent/personas/${maidId}.md を読んで口調・話し方を把握してください。準備ができたら、メイド長ビオラからの指示をお待ちください。`;
+                instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/instructions/maid.md を読んで役割を把握してください。また、.maid-agent/personas/${maidId}.md を読んで口調・話し方を把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
                 break;
         }
 
@@ -1921,11 +1924,15 @@ class MultiAgentController {
     // ファイル監視
     // =========================================================================
 
-    startWatchingFiles(): void {
+    startWatchingFiles(silent: boolean = false): void {
         if (!this.maidAgentPath) return;
 
+        // 既に監視中なら何もしない
         if (this.fileWatcher) {
-            this.fileWatcher.dispose();
+            if (!silent) {
+                vscode.window.showInformationMessage('📁 ファイル監視・通知システムは既に動作中です');
+            }
+            return;
         }
 
         // dashboard.md を監視
@@ -1947,7 +1954,9 @@ class MultiAgentController {
         // 通知システムも同時に開始
         this.startNotificationWatcher();
 
-        vscode.window.showInformationMessage('📁 ファイル監視・通知システムを開始しました');
+        if (!silent) {
+            vscode.window.showInformationMessage('📁 ファイル監視・通知システムを開始しました');
+        }
     }
 
     stopWatchingFiles(): void {

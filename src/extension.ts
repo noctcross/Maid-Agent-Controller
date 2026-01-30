@@ -170,21 +170,50 @@ function simpleMarkdownToHtml(markdown: string): string {
     // 斜体（*...*）- 太字の後に処理
     html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
 
-    // テーブル
-    html = html.replace(/^\|(.+)\|$/gm, (match, content) => {
-        const cells = content.split('|').map((cell: string) => cell.trim());
-        // ヘッダー行かセパレータ行かデータ行かを判定
-        if (cells.every((cell: string) => /^[-:]+$/.test(cell))) {
-            return '<!-- table separator -->';
+    // テーブル（より正確なパース）
+    // Markdownテーブル形式:
+    // | Header1 | Header2 |
+    // |---------|---------|
+    // | Data1   | Data2   |
+    const tableRegex = /(?:^\|.+\|$\n?)+/gm;
+    html = html.replace(tableRegex, (tableBlock) => {
+        const rows = tableBlock.trim().split('\n').filter(row => row.trim());
+        if (rows.length < 2) return tableBlock; // 最低2行必要（ヘッダー+セパレータ）
+
+        let tableHtml = '<table class="md-table">';
+        let isHeaderDone = false;
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            // セル内容を抽出（先頭と末尾の | を除去）
+            const cellContent = row.replace(/^\||\|$/g, '');
+            const cells = cellContent.split('|').map(cell => cell.trim());
+
+            // セパレータ行（|---|---|）をスキップ
+            if (cells.every(cell => /^[-:]+$/.test(cell))) {
+                isHeaderDone = true;
+                continue;
+            }
+
+            // ヘッダー行（セパレータの前の行）
+            if (!isHeaderDone) {
+                tableHtml += '<thead><tr>';
+                cells.forEach(cell => {
+                    tableHtml += `<th>${cell}</th>`;
+                });
+                tableHtml += '</tr></thead><tbody>';
+            } else {
+                // データ行
+                tableHtml += '<tr>';
+                cells.forEach(cell => {
+                    tableHtml += `<td>${cell}</td>`;
+                });
+                tableHtml += '</tr>';
+            }
         }
-        const isHeader = cells.some((cell: string) => cell.includes('---'));
-        const cellTag = isHeader ? 'th' : 'td';
-        const cellsHtml = cells.map((cell: string) => `<${cellTag}>${cell}</${cellTag}>`).join('');
-        return `<tr>${cellsHtml}</tr>`;
-    });
-    // trをtableで囲む
-    html = html.replace(/(<tr>.*?<\/tr>\n?)+/g, (match) => {
-        return `<table class="md-table">${match.replace(/<!-- table separator -->\n?/g, '')}</table>`;
+
+        tableHtml += '</tbody></table>';
+        return tableHtml;
     });
 
     // リンク [text](url) - 外部リンクは無効化

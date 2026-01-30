@@ -324,17 +324,26 @@ emma:
   substatus: "ご主人様判断待ち"
 ```
 
-## tmux 推奨設定
+## tmux 設定
 
-マウススクロール時の通知配信を改善するため、以下の設定を `~/.tmux.conf` に追加することを推奨します。
+### 自動設定（拡張機能が行う）
+
+セッション作成時に以下の設定が自動的に適用されます：
 
 ```bash
-# マウスサポート有効化
-set -g mouse on
-
 # スクロールモード（copy mode）の自動解除（5秒操作なしで解除）
-# tmux 3.2 以降で利用可能
-set -g copy-mode-timeout 5
+set-option -t {session} -g copy-mode-timeout 5
+```
+
+これにより、スクロール中でも5秒後に通知が配信されます。
+※ tmux 3.2 未満では無視されます（エラーにはなりません）
+
+### 手動設定（オプション）
+
+マウスサポートが必要な場合は `~/.tmux.conf` に追加：
+
+```bash
+set -g mouse on
 ```
 
 ### "jump to front" 表示について

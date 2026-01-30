@@ -364,6 +364,13 @@ class TmuxManager {
     createSession(): void {
         if (!this.sessionExists()) {
             this.exec(`new-session -d -s ${this.sessionName} -c "${this.wslWorkingDirectory}"`);
+            // copy-mode-timeout を設定（スクロール中の通知配信改善）
+            // セッション固有の設定なので .tmux.conf を変更しない
+            try {
+                this.exec(`set-option -t ${this.sessionName} -g copy-mode-timeout 5`);
+            } catch {
+                // tmux 3.2 未満では copy-mode-timeout がサポートされていない
+            }
         }
     }
 

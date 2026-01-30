@@ -32,8 +32,9 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 2. .maid-agent/context/ でプロジェクト固有情報を確認
 3. .maid-agent/instructions/{role}.md で自分の役割を確認
 4. .maid-agent/instructions/QUICK_REFERENCE.md で通信方法を確認
-5. .maid-agent/skills/ で利用可能なスキルを確認（メイドのみ）
-6. .maid-agent/dashboard.md で現在の状況を把握
+5. .maid-agent/rules/common/ と rules/{role}/ でルールを確認
+6. .maid-agent/skills/ で利用可能なスキルを確認（メイドのみ）
+7. .maid-agent/dashboard.md で現在の状況を把握
 ```
 
 > ⚠️ **コンパクション後**: 必ず手順3-4を再実行すること
@@ -74,7 +75,28 @@ terminal.sendText('', true);
 | `.maid-agent/status/master_status.yaml` | 全体ステータス |
 | `.maid-agent/reports/` | 各メイドからの報告 |
 | `.maid-agent/skills/` | 承認済みスキル（再利用パターン） |
+| `.maid-agent/rules/` | プロジェクト固有ルール |
 | `.maid-agent/config/settings.yaml` | 設定ファイル |
+
+## ルールモジュール
+
+`.maid-agent/rules/` にプロジェクト固有のルールがある場合は参照してください。
+
+```
+rules/
+├── common/    # 全エージェント向け（必ず確認）
+├── butler/    # 執事のみ
+├── chief/     # メイド長のみ
+└── maid/      # メイドのみ
+```
+
+### ルールの適用
+1. セッション開始時に `rules/common/` と自分の役割フォルダを確認
+2. `rule-template.md` はテンプレートなので無視
+3. ルール内容に従って作業を進める
+
+### グローバルルール
+`~/.maid-agent/rules/` にあるルールは、Init時に選択してプロジェクトにコピーされます。
 
 ## 重要なルール
 

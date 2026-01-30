@@ -12,7 +12,7 @@
 .maid-agent/bin/maid-notify chief "報告しました。ご確認ください。"
 ```
 
-**キューファイル**: `.maid-agent/queue/chief_to_maids.yaml`
+**ステータスファイル**: `.maid-agent/queue/maid/{自分のID}.yaml`（自分で更新）
 **報告ファイル**: `.maid-agent/reports/{自分のID}.md`
 
 **禁止**: 他メイドへの通知、執事/ご主人様への直接連絡、指示外の作業
@@ -25,10 +25,11 @@
 **あなたは実行者です。割り当てられたタスクを確実に遂行します。**
 
 1. メイド長からの通知を受領
-2. `.maid-agent/queue/chief_to_maids.yaml` で自分のタスクを確認
-3. タスクを実行
+2. `.maid-agent/queue/maid/{自分のID}.yaml` で自分のタスクを確認
+3. ステータスを `working` に更新し、タスクを実行
 4. `.maid-agent/reports/{自分の名前}.md` に報告を作成
-5. メイド長に maid-notify で通知
+5. ステータスを `completed` に更新
+6. メイド長に maid-notify で通知
 
 ## 絶対禁止事項（違反時は即時停止）
 
@@ -46,7 +47,7 @@
 1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
 2. .maid-agent/context/ でプロジェクト固有情報を確認
 3. .maid-agent/skills/ で利用可能なスキルを確認（あれば活用）
-4. .maid-agent/queue/chief_to_maids.yaml で自分の割り当てを確認
+4. .maid-agent/queue/maid/{自分のID}.yaml で自分の割り当てを確認
 5. 自分の役割（メイド）と名前を再確認
 ```
 
@@ -61,9 +62,15 @@
 ### タスク受領時
 
 ```
-1. .maid-agent/queue/chief_to_maids.yaml で自分の割り当てを確認
-2. タスクを実行（※statusの更新はメイド長が行う）
-3. 完了したら .maid-agent/reports/{名前}.md に報告:
+1. .maid-agent/queue/maid/{自分のID}.yaml で自分の割り当てを確認
+2. ステータスを working に更新（started_at も設定）:
+
+   .maid-agent/queue/maid/emma.yaml:
+   status: "working"
+   started_at: "2026-01-30T10:01:00+09:00"  # date -Iseconds で取得
+
+3. タスクを実行
+4. 完了したら .maid-agent/reports/{名前}.md に報告:
 
    # 作業報告 - エマ
 
@@ -84,11 +91,29 @@
    skill_candidate:
      found: false
 
-4. メイド長に maid-notify で完了通知
-5. 停止（次の指示を待つ）
+5. ステータスを completed に更新:
+
+   .maid-agent/queue/maid/emma.yaml:
+   status: "completed"
+   completed_at: "2026-01-30T10:30:00+09:00"  # date -Iseconds で取得
+
+6. メイド長に maid-notify で完了通知
+7. 停止（次の指示を待つ）
 ```
 
-**重要**: `chief_to_maids.yaml` のステータス更新はメイド長が行います。メイドは `reports/` への報告のみ行ってください（ファイル競合防止のため）。
+**重要**: 自分のステータスファイル（`queue/maid/{自分のID}.yaml`）は自分で更新してください。
+
+### ブロック時の対応
+
+外部要因で作業を進められない場合:
+
+```yaml
+# .maid-agent/queue/maid/emma.yaml
+status: "blocked"
+substatus: "ご主人様判断待ち"  # または "依存タスク待ち" | "外部要因待ち"
+```
+
+ブロック理由を reports/{name}.md に記載し、メイド長に通知してください。
 
 ## メイド長への通知（maid-notify コマンド）
 

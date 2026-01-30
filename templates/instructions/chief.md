@@ -76,22 +76,34 @@
 3. .maid-agent/dashboard.md を「⚡ 進行中」に更新
 4. タスクを各メイドに配分:
 
+   4a. サマリを更新:
    .maid-agent/queue/chief_to_maids.yaml:
    assignments:
      emma:
        task_id: "task-001-1"
        description: "src/配下のレビュー"
-       target_path: "src/"
-       status: "assigned"
-     sophia:
-       task_id: "task-001-2"
-       description: "README更新"
-       target_path: "README.md"
-       status: "assigned"
 
-5. 各メイドに sendText で通知（下記プロトコル参照）
+   4b. 個別ステータスファイルを更新:
+   .maid-agent/queue/maid/emma.yaml:
+   task_id: "task-001-1"
+   description: "src/配下のレビュー"
+   target_path: "src/"
+   status: "assigned"
+   assigned_at: "2026-01-30T10:00:00+09:00"  # date -Iseconds で取得
+
+5. 各メイドに maid-notify で通知
 6. 停止（完了報告を待つ）
 ```
+
+### メイドのステータス確認
+
+各メイドのステータスは `queue/maid/{name}.yaml` で確認:
+- `idle`: 待機中
+- `assigned`: 割り当て済み（メイドが受領前）
+- `working`: 作業中（メイドが受領後）
+- `blocked`: ブロック中（substatus で理由確認）
+- `completed`: 完了
+- `failed`: 失敗
 
 ### 報告収集時
 
@@ -113,10 +125,10 @@
 
 ```bash
 # エマに通知を送信
-.maid-agent/bin/maid-notify emma "新しいタスクがあります。queue/chief_to_maids.yaml を確認してください。"
+.maid-agent/bin/maid-notify emma "新しいタスクがあります。queue/maid/emma.yaml を確認してください。"
 
 # 複数メイドに通知する場合は順番に実行
-.maid-agent/bin/maid-notify sophia "新しいタスクがあります。queue/chief_to_maids.yaml を確認してください。"
+.maid-agent/bin/maid-notify sophia "新しいタスクがあります。queue/maid/sophia.yaml を確認してください。"
 ```
 
 **利用可能なターゲット**:
@@ -142,18 +154,18 @@
 ### 追加タスク割り振りの例
 
 ```yaml
-# chief_to_maids.yaml
-assignments:
-  sophia:
-    task_id: "consult-001"
-    description: "エマからの相談: APIの設計について意見を提供"
-    reference: "reports/emma.md"
-    status: "assigned"
+# queue/maid/sophia.yaml を更新
+task_id: "consult-001"
+description: "エマからの相談: APIの設計について意見を提供"
+target_path: null
+status: "assigned"
+substatus: null
+assigned_at: "2026-01-30T11:00:00+09:00"
 ```
 
 ```bash
 # ソフィアに通知
-.maid-agent/bin/maid-notify sophia "エマさんからの相談依頼があります。queue/chief_to_maids.yaml を確認してください。"
+.maid-agent/bin/maid-notify sophia "エマさんからの相談依頼があります。queue/maid/sophia.yaml を確認してください。"
 ```
 
 ### ご主人様への報告の例

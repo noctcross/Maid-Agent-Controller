@@ -1777,6 +1777,41 @@ auto_select: true/false
 
         agent.status = 'idle';
         this.updateAgentPanel();
+
+        // 保留中のメッセージがあれば配信
+        await this.deliverPendingMessages(agentId);
+    }
+
+    /**
+     * エージェント起動時に保留中のメッセージを配信
+     */
+    private async deliverPendingMessages(agentId: string): Promise<void> {
+        if (!this.maidAgentPath) return;
+
+        const pendingFile = path.join(this.maidAgentPath, 'notifications', 'pending', `${agentId}.txt`);
+
+        if (!fs.existsSync(pendingFile)) return;
+
+        try {
+            const content = fs.readFileSync(pendingFile, 'utf-8').trim();
+            if (!content) return;
+
+            const messages = content.split('\n');
+            this.log(`[${agentId}] ${messages.length}件の保留メッセージを配信します`);
+
+            // 少し待ってから配信（Claude起動を待つ）
+            await this.delay(3000);
+
+            // 保留メッセージをまとめて通知
+            const summary = `【保留メッセージ ${messages.length}件】\n` + messages.join('\n');
+            await this.sendMessageToAgent(agentId, summary);
+
+            // 配信完了後、保留ファイルを削除
+            fs.unlinkSync(pendingFile);
+            this.log(`[${agentId}] 保留メッセージを配信し、キューをクリアしました`);
+        } catch (error) {
+            this.log(`[${agentId}] 保留メッセージ配信エラー: ${error}`);
+        }
     }
 
     private delay(ms: number): Promise<void> {

@@ -6,6 +6,7 @@
 MAID_AGENT_DIR=".maid-agent"
 SESSION_FILE="${MAID_AGENT_DIR}/config/.session-name"
 LOG_FILE="${MAID_AGENT_DIR}/notifications/history.log"
+PENDING_DIR="${MAID_AGENT_DIR}/notifications/pending"
 
 # リトライ設定
 MAX_RETRIES=3
@@ -45,6 +46,11 @@ if [ ! -f "$SESSION_FILE" ]; then
 fi
 
 SESSION_NAME=$(cat "$SESSION_FILE")
+
+# ターゲットウィンドウが存在するかチェック
+check_target_online() {
+    tmux list-windows -t "$SESSION_NAME" -F '#{window_name}' 2>/dev/null | grep -qx "$TARGET"
+}
 
 # 送信者を特定（実行元ペインのウィンドウ名を正確に取得）
 # $TMUX_PANE を使うことで、ユーザーが別ウィンドウを見ていても正しい送信元を取得
@@ -104,6 +110,17 @@ send_message() {
         return 1
     fi
 }
+
+# ターゲットがオンラインかチェック
+if ! check_target_online; then
+    # オフライン: 保留キューに追加
+    mkdir -p "$PENDING_DIR"
+    PENDING_FILE="${PENDING_DIR}/${TARGET}.txt"
+    echo "[$TIMESTAMP] $SENDER: $MESSAGE" >> "$PENDING_FILE"
+    echo "警告: $TARGET はオフラインです。メッセージを保留キューに追加しました。"
+    echo "[$TIMESTAMP] [PENDING] $SENDER → $TARGET (offline): $MESSAGE" >> "$LOG_FILE"
+    exit 2  # 特別な終了コード（オフライン）
+fi
 
 # 送信実行
 if send_message; then

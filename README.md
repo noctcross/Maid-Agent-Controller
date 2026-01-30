@@ -114,7 +114,10 @@ F5でデバッグ起動 → Extension Development Host が開く
 │   └── QUICK_REFERENCE.md # コンパクション対策クイックリファレンス
 ├── queue/                 # タスクキュー
 │   ├── butler_to_chief.yaml
-│   └── chief_to_maids.yaml
+│   ├── chief_to_maids.yaml   # サマリビュー
+│   └── maid/                  # メイド別ステータス（本人が更新）
+│       ├── emma.yaml
+│       └── ...
 ├── reports/               # メイドからの報告
 ├── rules/                 # ルールモジュール（グローバルからコピー）
 ├── skills/                # 承認済みスキル
@@ -320,6 +323,36 @@ emma:
   status: blocked
   substatus: "ご主人様判断待ち"
 ```
+
+## tmux 推奨設定
+
+マウススクロール時の通知配信を改善するため、以下の設定を `~/.tmux.conf` に追加することを推奨します。
+
+```bash
+# マウスサポート有効化
+set -g mouse on
+
+# スクロールモード（copy mode）の自動解除（5秒操作なしで解除）
+# tmux 3.2 以降で利用可能
+set -g copy-mode-timeout 5
+```
+
+### "jump to front" 表示について
+
+tmux でスクロール中に新しい出力があると、下部に "jump to front" と表示されます。
+これは copy mode（スクロールモード）中であることを示しています。
+
+- `q` または表示されているキーを押すと copy mode を抜けます
+- copy mode 中は通知が入力されない場合があります
+- 上記の `copy-mode-timeout` 設定で自動解除されます
+
+### 通知が届かない場合
+
+maid-notify は最大3回リトライしますが、それでも失敗する場合：
+
+1. `~/.tmux.conf` の設定を確認
+2. ターゲットエージェントがスクロール中でないか確認
+3. `.maid-agent/notifications/history.log` でエラーを確認
 
 ## Memory MCP
 

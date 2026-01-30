@@ -62,9 +62,8 @@
 
 ```
 1. .maid-agent/queue/chief_to_maids.yaml で自分の割り当てを確認
-2. status を "working" に更新
-3. タスクを実行
-4. 完了したら .maid-agent/reports/{名前}.md に報告:
+2. タスクを実行（※statusの更新はメイド長が行う）
+3. 完了したら .maid-agent/reports/{名前}.md に報告:
 
    # 作業報告 - エマ
 
@@ -85,10 +84,11 @@
    skill_candidate:
      found: false
 
-5. .maid-agent/queue/chief_to_maids.yaml の status を "completed" に更新
-6. メイド長に sendText で完了通知（下記プロトコル参照）
-7. 停止（次の指示を待つ）
+4. メイド長に maid-notify で完了通知
+5. 停止（次の指示を待つ）
 ```
+
+**重要**: `chief_to_maids.yaml` のステータス更新はメイド長が行います。メイドは `reports/` への報告のみ行ってください（ファイル競合防止のため）。
 
 ## メイド長への通知（maid-notify コマンド）
 

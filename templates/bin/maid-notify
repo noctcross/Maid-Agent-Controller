@@ -3,11 +3,13 @@
 # 使用法: maid-notify <target> "<message>"
 # 例:     maid-notify chief "タスク完了しました"
 
-set -e
-
 MAID_AGENT_DIR=".maid-agent"
 SESSION_FILE="${MAID_AGENT_DIR}/config/.session-name"
 LOG_FILE="${MAID_AGENT_DIR}/notifications/history.log"
+
+# リトライ設定
+MAX_RETRIES=3
+RETRY_DELAY=0.5
 
 # 引数チェック
 if [ $# -lt 2 ]; then
@@ -44,8 +46,14 @@ fi
 
 SESSION_NAME=$(cat "$SESSION_FILE")
 
-# 送信者を特定（tmuxのウィンドウ名から取得）
-SENDER=$(tmux display-message -p '#{window_name}' 2>/dev/null || echo "unknown")
+# 送信者を特定（実行元ペインのウィンドウ名を正確に取得）
+# $TMUX_PANE を使うことで、ユーザーが別ウィンドウを見ていても正しい送信元を取得
+if [ -n "$TMUX_PANE" ]; then
+    SENDER=$(tmux display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || echo "unknown")
+else
+    # フォールバック: 従来の方法（アクティブウィンドウ）
+    SENDER=$(tmux display-message -p '#{window_name}' 2>/dev/null || echo "unknown")
+fi
 
 # タイムスタンプを取得
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
@@ -56,17 +64,47 @@ mkdir -p "$(dirname "$LOG_FILE")"
 # ログに記録（追記）
 echo "[$TIMESTAMP] $SENDER → $TARGET: $MESSAGE" >> "$LOG_FILE"
 
-# 直接 tmux send-keys で送信
-# まず、copy mode（スクロールモード）を解除する
-# ユーザーがマウススクロールした場合、copy modeに入っている可能性がある
-tmux send-keys -t "${SESSION_NAME}:${TARGET}" -X cancel 2>/dev/null || true
-tmux send-keys -t "${SESSION_NAME}:${TARGET}" Escape 2>/dev/null || true
+# 送信関数（リトライ機構付き）
+send_message() {
+    local attempt=1
+    local success=false
 
-# 少し待機（copy mode解除の反映を待つ）
-sleep 0.1
+    while [ $attempt -le $MAX_RETRIES ] && [ "$success" = "false" ]; do
+        # copy mode（スクロールモード）を解除
+        tmux send-keys -t "${SESSION_NAME}:${TARGET}" -X cancel 2>/dev/null || true
+        tmux send-keys -t "${SESSION_NAME}:${TARGET}" Escape 2>/dev/null || true
 
-# -l オプションでリテラル文字列として送信し、その後Enterを送信
-tmux send-keys -t "${SESSION_NAME}:${TARGET}" -l "$MESSAGE"
-tmux send-keys -t "${SESSION_NAME}:${TARGET}" Enter
+        # 少し待機（copy mode解除の反映を待つ）
+        sleep 0.1
 
-echo "通知を送信しました: $SENDER → $TARGET"
+        # メッセージ送信を試行
+        if tmux send-keys -t "${SESSION_NAME}:${TARGET}" -l "$MESSAGE" 2>/dev/null; then
+            if tmux send-keys -t "${SESSION_NAME}:${TARGET}" Enter 2>/dev/null; then
+                success=true
+            fi
+        fi
+
+        if [ "$success" = "false" ]; then
+            if [ $attempt -lt $MAX_RETRIES ]; then
+                echo "送信失敗（試行 $attempt/$MAX_RETRIES）、リトライ中..."
+                sleep $RETRY_DELAY
+            fi
+            attempt=$((attempt + 1))
+        fi
+    done
+
+    if [ "$success" = "true" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# 送信実行
+if send_message; then
+    echo "通知を送信しました: $SENDER → $TARGET"
+else
+    echo "エラー: 通知の送信に失敗しました（$MAX_RETRIES 回試行）"
+    echo "[$TIMESTAMP] [ERROR] 送信失敗: $SENDER → $TARGET: $MESSAGE" >> "$LOG_FILE"
+    exit 1
+fi

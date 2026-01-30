@@ -5,6 +5,8 @@
 ---
 ## 🔴 CRITICAL - 絶対に忘れてはいけない情報
 
+**自分の確認**: `tmux display-message -p '#{window_name}'` → `chief` = メイド長
+
 **通信コマンド（メイドへの通知）**:
 ```bash
 .maid-agent/bin/maid-notify emma "メッセージ"

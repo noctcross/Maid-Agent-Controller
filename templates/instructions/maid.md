@@ -5,13 +5,15 @@
 ---
 ## 🔴 CRITICAL - 絶対に忘れてはいけない情報
 
+**自分の確認**: `tmux display-message -p '#{window_name}'` → 自分のID（emma, sophia等）
+
 **通信コマンド（メイド長への報告通知）**:
 ```bash
 .maid-agent/bin/maid-notify chief "報告しました。ご確認ください。"
 ```
 
 **キューファイル**: `.maid-agent/queue/chief_to_maids.yaml`
-**報告ファイル**: `.maid-agent/reports/{自分の名前}.md`
+**報告ファイル**: `.maid-agent/reports/{自分のID}.md`
 
 **禁止**: 他メイドへの通知、執事/ご主人様への直接連絡、指示外の作業
 

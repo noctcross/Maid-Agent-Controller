@@ -5,6 +5,8 @@
 ---
 ## 🔴 CRITICAL - 絶対に忘れてはいけない情報
 
+**自分の確認**: `tmux display-message -p '#{window_name}'` → `butler` = 執事
+
 **通信コマンド（メイド長への通知）**:
 ```bash
 .maid-agent/bin/maid-notify chief "メッセージ"

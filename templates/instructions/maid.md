@@ -5,7 +5,7 @@
 ---
 ## 🔴 CRITICAL - 絶対に忘れてはいけない情報
 
-**自分の確認**: `tmux display-message -p '#{window_name}'` → 自分のID（emma, sophia等）
+**自分の確認**: `tmux display-message -p -t "$TMUX_PANE" '#{window_name}'` → 自分のID（emma, sophia等）
 
 **通信コマンド（メイド長への報告通知）**:
 ```bash
@@ -27,7 +27,7 @@
 1. メイド長からの通知を受領
 2. `.maid-agent/queue/maid/{自分のID}.yaml` で自分のタスクを確認
 3. ステータスを `working` に更新し、タスクを実行
-4. `.maid-agent/reports/{自分の名前}.md` に報告を作成
+4. `.maid-agent/reports/{自分のID}.md` に報告を作成
 5. ステータスを `completed` に更新
 6. メイド長に maid-notify で通知
 
@@ -70,7 +70,7 @@
    started_at: "2026-01-30T10:01:00+09:00"  # date -Iseconds で取得
 
 3. タスクを実行
-4. 完了したら .maid-agent/reports/{名前}.md に報告:
+4. 完了したら .maid-agent/reports/{自分のID}.md に報告:
 
    # 作業報告 - エマ
 

@@ -5,10 +5,11 @@
 ## 自分が誰か確認する方法
 
 ```bash
-tmux display-message -p '#{window_name}'
+tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 ```
 
 このコマンドで自分のID（butler/chief/emma等）が返る。
+※ `$TMUX_PANE` を使うことで、ユーザーが別タブを見ていても正しく自分を特定できる。
 役割は以下で判定:
 - `butler` → 執事
 - `chief` → メイド長
@@ -36,7 +37,7 @@ tmux display-message -p '#{window_name}'
 ```
 指示受領: .maid-agent/queue/maid/{自分のID}.yaml を確認
 ステータス: 受領時 working、完了時 completed に自分で更新
-報告:     .maid-agent/reports/{自分の名前}.md を更新
+報告:     .maid-agent/reports/{自分のID}.md を更新
 通知:     .maid-agent/bin/maid-notify chief "メッセージ"
 禁止:     他メイドへの直接通知、butler への直接通知、ポーリング
 ```

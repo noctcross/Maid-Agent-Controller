@@ -5,7 +5,7 @@
 ---
 ## 🔴 CRITICAL - 絶対に忘れてはいけない情報
 
-**自分の確認**: `tmux display-message -p '#{window_name}'` → `chief` = メイド長
+**自分の確認**: `tmux display-message -p -t "$TMUX_PANE" '#{window_name}'` → `chief` = メイド長
 
 **通信コマンド（メイドへの通知）**:
 ```bash

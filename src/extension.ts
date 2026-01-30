@@ -2968,9 +2968,10 @@ auto_select: true/false
             this.log(`[ファイル変更] ${fileName}`);
             this.updateDashboard();
 
-            // dashboard.md が更新されたらユーザーに通知
+            // dashboard.md が更新されたらユーザーに通知 + プレビュー更新
             if (fileName === 'dashboard.md') {
                 this.notifyDashboardUpdate(uri.fsPath);
+                this.updateDashboardMarkdownPanel();
             }
 
             // reports/*.md が更新されたらメイド長への報告チェック

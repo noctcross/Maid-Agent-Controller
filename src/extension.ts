@@ -121,6 +121,88 @@ function isWslAvailable(): boolean {
 }
 
 // =============================================================================
+// Markdown to HTML 変換
+// =============================================================================
+
+/**
+ * シンプルなMarkdown→HTML変換関数
+ * dashboard.mdのレンダリング用
+ */
+function simpleMarkdownToHtml(markdown: string): string {
+    let html = markdown;
+
+    // HTMLエスケープ（まず最初に）
+    html = html
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // コードブロック（```...```）- 先に処理
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        return `<pre class="md-code-block"><code>${code.trim()}</code></pre>`;
+    });
+
+    // インラインコード（`...`）
+    html = html.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
+
+    // 見出し（### ## #）
+    html = html.replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2 class="md-h2">$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1 class="md-h1">$1</h1>');
+
+    // 水平線（---）
+    html = html.replace(/^---$/gm, '<hr class="md-hr">');
+
+    // チェックボックス
+    html = html.replace(/^- \[x\] (.+)$/gm, '<div class="md-checkbox checked">☑ $1</div>');
+    html = html.replace(/^- \[ \] (.+)$/gm, '<div class="md-checkbox">☐ $1</div>');
+
+    // リスト（- item）
+    html = html.replace(/^- (.+)$/gm, '<li class="md-li">$1</li>');
+    // 連続するliをulで囲む
+    html = html.replace(/(<li class="md-li">.*?<\/li>\n?)+/g, (match) => {
+        return `<ul class="md-ul">${match}</ul>`;
+    });
+
+    // 太字（**...**）
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+    // 斜体（*...*）- 太字の後に処理
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+    // テーブル
+    html = html.replace(/^\|(.+)\|$/gm, (match, content) => {
+        const cells = content.split('|').map((cell: string) => cell.trim());
+        // ヘッダー行かセパレータ行かデータ行かを判定
+        if (cells.every((cell: string) => /^[-:]+$/.test(cell))) {
+            return '<!-- table separator -->';
+        }
+        const isHeader = cells.some((cell: string) => cell.includes('---'));
+        const cellTag = isHeader ? 'th' : 'td';
+        const cellsHtml = cells.map((cell: string) => `<${cellTag}>${cell}</${cellTag}>`).join('');
+        return `<tr>${cellsHtml}</tr>`;
+    });
+    // trをtableで囲む
+    html = html.replace(/(<tr>.*?<\/tr>\n?)+/g, (match) => {
+        return `<table class="md-table">${match.replace(/<!-- table separator -->\n?/g, '')}</table>`;
+    });
+
+    // リンク [text](url) - 外部リンクは無効化
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span class="md-link">$1</span>');
+
+    // 段落（空行で区切られたテキスト）
+    html = html.replace(/\n\n+/g, '</p><p class="md-p">');
+    html = `<p class="md-p">${html}</p>`;
+
+    // 空のpタグを削除
+    html = html.replace(/<p class="md-p"><\/p>/g, '');
+    html = html.replace(/<p class="md-p">(\s*<(?:h[1-3]|ul|table|pre|hr|div))/g, '$1');
+    html = html.replace(/(<\/(?:h[1-3]|ul|table|pre|hr|div)>\s*)<\/p>/g, '$1');
+
+    return html;
+}
+
+// =============================================================================
 // 型定義
 // =============================================================================
 
@@ -3083,12 +3165,13 @@ ${agentList || '  (なし)'}
         const chief = this.agents.get('chief');
         const maids = MAIDS.map(m => this.agents.get(m.id)).filter(Boolean) as Agent[];
 
-        // dashboard.md の内容を読み込む
-        let dashboardContent = '';
+        // dashboard.md の内容を読み込んでHTMLに変換
+        let dashboardContentHtml = '';
         if (this.maidAgentPath) {
             const dashboardPath = path.join(this.maidAgentPath, 'dashboard.md');
             if (fs.existsSync(dashboardPath)) {
-                dashboardContent = fs.readFileSync(dashboardPath, 'utf-8');
+                const rawContent = fs.readFileSync(dashboardPath, 'utf-8');
+                dashboardContentHtml = simpleMarkdownToHtml(rawContent);
             }
         }
 
@@ -3191,9 +3274,27 @@ ${agentList || '  (なし)'}
 
         .dashboard-content {
             background: #0a0a0a; border-radius: 8px; padding: 15px;
-            font-family: 'Consolas', monospace; font-size: 0.8em;
-            white-space: pre-wrap; max-height: 300px; overflow-y: auto;
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; font-size: 0.85em;
+            max-height: 400px; overflow-y: auto; line-height: 1.5;
         }
+        /* Markdown スタイル */
+        .dashboard-content .md-h1 { font-size: 1.3em; color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 5px; margin: 15px 0 10px 0; }
+        .dashboard-content .md-h2 { font-size: 1.1em; color: #ffc107; border-bottom: 1px solid #444; padding-bottom: 3px; margin: 12px 0 8px 0; }
+        .dashboard-content .md-h3 { font-size: 1em; color: #81c784; margin: 10px 0 5px 0; }
+        .dashboard-content .md-p { margin: 8px 0; }
+        .dashboard-content .md-ul { margin: 5px 0; padding-left: 20px; }
+        .dashboard-content .md-li { margin: 3px 0; list-style-type: disc; }
+        .dashboard-content .md-checkbox { padding: 3px 0; }
+        .dashboard-content .md-checkbox.checked { color: #81c784; }
+        .dashboard-content .md-table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 0.9em; }
+        .dashboard-content .md-table th, .dashboard-content .md-table td { border: 1px solid #444; padding: 5px 8px; text-align: left; }
+        .dashboard-content .md-table th { background: rgba(255,255,255,0.1); }
+        .dashboard-content .md-code-block { background: #1a1a1a; padding: 10px; border-radius: 5px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.9em; }
+        .dashboard-content .md-inline-code { background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 3px; font-family: 'Consolas', monospace; }
+        .dashboard-content .md-hr { border: none; border-top: 1px solid #444; margin: 15px 0; }
+        .dashboard-content .md-link { color: #4fc3f7; }
+        .dashboard-content strong { color: #ffc107; }
+        .dashboard-content em { font-style: italic; color: #aaa; }
 
         .log-container {
             background: #0a0a0a; border-radius: 8px; padding: 10px;
@@ -3236,7 +3337,7 @@ ${agentList || '  (なし)'}
     <div class="three-column">
         <div class="section">
             <h2>📊 Dashboard.md</h2>
-            <div class="dashboard-content">${dashboardContent || '(未読み込み)'}</div>
+            <div class="dashboard-content">${dashboardContentHtml || '<p class="md-p">(未読み込み)</p>'}</div>
         </div>
         <div class="section">
             <h2>💬 会話ログ</h2>

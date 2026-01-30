@@ -144,7 +144,36 @@ interface MaidConfig {
 // =============================================================================
 
 const MAID_AGENT_DIR = '.maid-agent';
+const GLOBAL_MAID_AGENT_DIR = '.maid-agent';  // ~/.maid-agent/
 const TMUX_SESSION_PREFIX = 'maid-agent';  // tmuxセッション名のプレフィックス
+
+/**
+ * グローバルフォルダのパスを取得
+ */
+function getGlobalMaidAgentPath(): string {
+    return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
+}
+
+/**
+ * ルールモジュールのメタデータ
+ */
+interface RuleModuleMeta {
+    name: string;
+    description: string;
+    auto_select: boolean;
+    target_roles: ('common' | 'butler' | 'chief' | 'maid')[];
+    filePath: string;
+}
+
+/**
+ * スキルのメタデータ
+ */
+interface SkillMeta {
+    name: string;
+    description: string;
+    auto_select: boolean;
+    filePath: string;
+}
 
 /**
  * 文字列から短いハッシュを生成
@@ -1032,6 +1061,9 @@ class MultiAgentController {
             // プロジェクトルートの CLAUDE.md を処理
             await this.setupRootClaudeMd();
 
+            // グローバル設定のマージ（ルール・スキルの選択）
+            await this.mergeGlobalSettings(maidAgentPath);
+
             this.log('[初期化] .maid-agent ディレクトリを作成しました');
             vscode.window.showInformationMessage('🎩 Maid Agent の初期化が完了しました');
 
@@ -1045,6 +1077,348 @@ class MultiAgentController {
             this.log(`[ERROR] 初期化に失敗: ${error}`);
             vscode.window.showErrorMessage(`初期化に失敗しました: ${error}`);
             return false;
+        }
+    }
+
+    /**
+     * グローバル設定フォルダを初期化
+     */
+    async initializeGlobalSettings(): Promise<boolean> {
+        const globalPath = getGlobalMaidAgentPath();
+
+        try {
+            // ディレクトリ構造を作成
+            const dirs = [
+                '',
+                'rules',
+                'rules/common',
+                'rules/butler',
+                'rules/chief',
+                'rules/maid',
+                'skills'
+            ];
+
+            for (const dir of dirs) {
+                const fullPath = path.join(globalPath, dir);
+                if (!fs.existsSync(fullPath)) {
+                    fs.mkdirSync(fullPath, { recursive: true });
+                }
+            }
+
+            // README.md を作成
+            const readmePath = path.join(globalPath, 'README.md');
+            if (!fs.existsSync(readmePath)) {
+                fs.writeFileSync(readmePath, `# Maid Agent グローバル設定
+
+このフォルダには、プロジェクト間で共有するルールとスキルを保存します。
+
+## フォルダ構造
+
+\`\`\`
+~/.maid-agent/
+├── rules/              # ルールモジュール
+│   ├── common/         # 全員に適用
+│   ├── butler/         # 執事のみ
+│   ├── chief/          # メイド長のみ
+│   └── maid/           # メイドのみ
+└── skills/             # 共有スキル
+\`\`\`
+
+## ルールモジュールの形式
+
+\`\`\`markdown
+---
+name: rule-name
+description: ルールの説明
+auto_select: true/false
+target_roles: [common] or [butler, chief, maid]
+---
+
+（ルール内容）
+\`\`\`
+
+## スキルの形式
+
+\`\`\`markdown
+---
+name: skill-name
+description: スキルの説明
+auto_select: true/false
+---
+
+（スキル内容）
+\`\`\`
+`);
+            }
+
+            // rules/README.md
+            const rulesReadmePath = path.join(globalPath, 'rules', 'README.md');
+            if (!fs.existsSync(rulesReadmePath)) {
+                fs.writeFileSync(rulesReadmePath, `# グローバルルール
+
+承認されたルール改善をここに保存します。
+新しいプロジェクトの init 時に選択してコピーできます。
+
+## サブフォルダ
+
+- \`common/\` - 全エージェントに適用
+- \`butler/\` - 執事のみに適用
+- \`chief/\` - メイド長のみに適用
+- \`maid/\` - メイドのみに適用
+`);
+            }
+
+            this.log(`[グローバル] 設定フォルダを初期化: ${globalPath}`);
+            return true;
+        } catch (error) {
+            this.log(`[ERROR] グローバル設定の初期化に失敗: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * グローバルルールのメタデータを読み込み
+     */
+    private parseRuleModules(): RuleModuleMeta[] {
+        const globalPath = getGlobalMaidAgentPath();
+        const rulesPath = path.join(globalPath, 'rules');
+        const rules: RuleModuleMeta[] = [];
+
+        if (!fs.existsSync(rulesPath)) {
+            return rules;
+        }
+
+        const roleTypes: ('common' | 'butler' | 'chief' | 'maid')[] = ['common', 'butler', 'chief', 'maid'];
+
+        for (const role of roleTypes) {
+            const rolePath = path.join(rulesPath, role);
+            if (!fs.existsSync(rolePath)) continue;
+
+            const files = fs.readdirSync(rolePath).filter(f => f.endsWith('.md') && f !== 'README.md');
+
+            for (const file of files) {
+                const filePath = path.join(rolePath, file);
+                const meta = this.parseMarkdownFrontmatter(filePath);
+
+                if (meta) {
+                    rules.push({
+                        name: meta.name || file.replace('.md', ''),
+                        description: meta.description || '',
+                        auto_select: meta.auto_select === true,
+                        target_roles: meta.target_roles || [role],
+                        filePath
+                    });
+                }
+            }
+        }
+
+        return rules;
+    }
+
+    /**
+     * グローバルスキルのメタデータを読み込み
+     */
+    private parseGlobalSkills(): SkillMeta[] {
+        const globalPath = getGlobalMaidAgentPath();
+        const skillsPath = path.join(globalPath, 'skills');
+        const skills: SkillMeta[] = [];
+
+        if (!fs.existsSync(skillsPath)) {
+            return skills;
+        }
+
+        const items = fs.readdirSync(skillsPath);
+
+        for (const item of items) {
+            const itemPath = path.join(skillsPath, item);
+            const stat = fs.statSync(itemPath);
+
+            if (stat.isDirectory()) {
+                // フォルダ形式のスキル（SKILL.md を含む）
+                const skillMdPath = path.join(itemPath, 'SKILL.md');
+                if (fs.existsSync(skillMdPath)) {
+                    const meta = this.parseMarkdownFrontmatter(skillMdPath);
+                    skills.push({
+                        name: meta?.name || item,
+                        description: meta?.description || '',
+                        auto_select: meta?.auto_select === true,
+                        filePath: itemPath
+                    });
+                }
+            } else if (item.endsWith('.md') && item !== 'README.md') {
+                // 単一ファイル形式のスキル
+                const meta = this.parseMarkdownFrontmatter(itemPath);
+                skills.push({
+                    name: meta?.name || item.replace('.md', ''),
+                    description: meta?.description || '',
+                    auto_select: meta?.auto_select === true,
+                    filePath: itemPath
+                });
+            }
+        }
+
+        return skills;
+    }
+
+    /**
+     * Markdown ファイルの frontmatter を解析
+     */
+    private parseMarkdownFrontmatter(filePath: string): Record<string, unknown> | null {
+        try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const match = content.match(/^---\n([\s\S]*?)\n---/);
+
+            if (!match) return null;
+
+            const frontmatter = match[1];
+            const result: Record<string, unknown> = {};
+
+            // 簡易YAML解析
+            const lines = frontmatter.split('\n');
+            for (const line of lines) {
+                const colonIndex = line.indexOf(':');
+                if (colonIndex > 0) {
+                    const key = line.substring(0, colonIndex).trim();
+                    let value: unknown = line.substring(colonIndex + 1).trim();
+
+                    // 配列の解析 [a, b, c]
+                    if (typeof value === 'string' && value.startsWith('[') && value.endsWith(']')) {
+                        value = value.slice(1, -1).split(',').map(s => s.trim());
+                    }
+                    // booleanの解析
+                    else if (value === 'true') value = true;
+                    else if (value === 'false') value = false;
+
+                    result[key] = value;
+                }
+            }
+
+            return result;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * グローバルルール/スキルの選択UIを表示してマージ
+     */
+    private async mergeGlobalSettings(maidAgentPath: string): Promise<void> {
+        const globalPath = getGlobalMaidAgentPath();
+
+        // グローバルフォルダが存在しない場合は初期化
+        if (!fs.existsSync(globalPath)) {
+            await this.initializeGlobalSettings();
+        }
+
+        // ルールの選択
+        const rules = this.parseRuleModules();
+        if (rules.length > 0) {
+            const selectedRules = await this.showRuleSelectionUI(rules);
+            if (selectedRules.length > 0) {
+                await this.copySelectedRules(selectedRules, maidAgentPath);
+            }
+        }
+
+        // スキルの選択
+        const skills = this.parseGlobalSkills();
+        if (skills.length > 0) {
+            const selectedSkills = await this.showSkillSelectionUI(skills);
+            if (selectedSkills.length > 0) {
+                await this.copySelectedSkills(selectedSkills, maidAgentPath);
+            }
+        }
+    }
+
+    /**
+     * ルール選択UIを表示
+     */
+    private async showRuleSelectionUI(rules: RuleModuleMeta[]): Promise<RuleModuleMeta[]> {
+        const items = rules.map(rule => ({
+            label: rule.name,
+            description: rule.description,
+            detail: `対象: ${rule.target_roles.join(', ')}`,
+            picked: rule.auto_select,
+            rule
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+            canPickMany: true,
+            placeHolder: 'グローバルルールを選択（ESCでスキップ）',
+            title: '📋 グローバルルールの追加'
+        });
+
+        return selected?.map(item => item.rule) || [];
+    }
+
+    /**
+     * スキル選択UIを表示
+     */
+    private async showSkillSelectionUI(skills: SkillMeta[]): Promise<SkillMeta[]> {
+        const items = skills.map(skill => ({
+            label: skill.name,
+            description: skill.description,
+            picked: skill.auto_select,
+            skill
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+            canPickMany: true,
+            placeHolder: 'グローバルスキルを選択（ESCでスキップ）',
+            title: '📚 グローバルスキルの追加'
+        });
+
+        return selected?.map(item => item.skill) || [];
+    }
+
+    /**
+     * 選択されたルールをプロジェクトにコピー
+     */
+    private async copySelectedRules(rules: RuleModuleMeta[], maidAgentPath: string): Promise<void> {
+        const rulesDestPath = path.join(maidAgentPath, 'rules');
+
+        // rules フォルダがなければ作成
+        if (!fs.existsSync(rulesDestPath)) {
+            fs.mkdirSync(rulesDestPath, { recursive: true });
+        }
+
+        for (const rule of rules) {
+            const fileName = path.basename(rule.filePath);
+
+            // 各ターゲットロールのフォルダにコピー
+            for (const role of rule.target_roles) {
+                const roleDestPath = path.join(rulesDestPath, role);
+                if (!fs.existsSync(roleDestPath)) {
+                    fs.mkdirSync(roleDestPath, { recursive: true });
+                }
+
+                const destPath = path.join(roleDestPath, fileName);
+                fs.copyFileSync(rule.filePath, destPath);
+            }
+
+            this.log(`[グローバル] ルールをコピー: ${rule.name}`);
+        }
+    }
+
+    /**
+     * 選択されたスキルをプロジェクトにコピー
+     */
+    private async copySelectedSkills(skills: SkillMeta[], maidAgentPath: string): Promise<void> {
+        const skillsDestPath = path.join(maidAgentPath, 'skills');
+
+        for (const skill of skills) {
+            const stat = fs.statSync(skill.filePath);
+
+            if (stat.isDirectory()) {
+                // フォルダごとコピー
+                const destPath = path.join(skillsDestPath, path.basename(skill.filePath));
+                this.copyDirectorySync(skill.filePath, destPath);
+            } else {
+                // 単一ファイルをコピー
+                const destPath = path.join(skillsDestPath, path.basename(skill.filePath));
+                fs.copyFileSync(skill.filePath, destPath);
+            }
+
+            this.log(`[グローバル] スキルをコピー: ${skill.name}`);
         }
     }
 
@@ -3000,6 +3374,16 @@ export function activate(context: vscode.ExtensionContext) {
     const commands = [
         vscode.commands.registerCommand('multiAgent.initialize', () => {
             controller.initializeWorkspace();
+        }),
+        vscode.commands.registerCommand('multiAgent.initializeGlobal', async () => {
+            const success = await controller.initializeGlobalSettings();
+            if (success) {
+                const globalPath = getGlobalMaidAgentPath();
+                vscode.window.showInformationMessage(`🌐 グローバル設定を初期化しました: ${globalPath}`);
+                // フォルダを開く
+                const uri = vscode.Uri.file(globalPath);
+                vscode.commands.executeCommand('revealFileInOS', uri);
+            }
         }),
         vscode.commands.registerCommand('multiAgent.resumeSessions', () => {
             controller.resumeSessions();

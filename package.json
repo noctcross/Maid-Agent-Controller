@@ -19,6 +19,11 @@
         "category": "Maid Agent"
       },
       {
+        "command": "multiAgent.initializeGlobal",
+        "title": "Init Global - グローバル設定初期化",
+        "category": "Maid Agent"
+      },
+      {
         "command": "multiAgent.resumeSessions",
         "title": "Resume - 既存セッション復帰",
         "category": "Maid Agent"

@@ -110,11 +110,13 @@ F5でデバッグ起動 → Extension Development Host が開く
 ├── instructions/          # 各役割の指示書
 │   ├── butler.md
 │   ├── chief.md
-│   └── maid.md
+│   ├── maid.md
+│   └── QUICK_REFERENCE.md # コンパクション対策クイックリファレンス
 ├── queue/                 # タスクキュー
 │   ├── butler_to_chief.yaml
 │   └── chief_to_maids.yaml
 ├── reports/               # メイドからの報告
+├── rules/                 # ルールモジュール（グローバルからコピー）
 ├── skills/                # 承認済みスキル
 │   └── skill-creator/     # スキル作成ガイド
 ├── status/
@@ -202,6 +204,7 @@ VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
 | コマンド | 検索キーワード | 説明 |
 |---------|--------------|------|
 | `Init` | init | ワークスペース初期化 |
+| `Init Global` | init global | グローバル設定初期化（~/.maid-agent/） |
 | `Call All` | all | 全員起動（10人） |
 | `Call All xN` | all xn | 執事+メイド長+メイドN人（順番） |
 | `Call All xN -r` | all xn -r | 執事+メイド長+メイドN人（ランダム） |
@@ -227,6 +230,96 @@ VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
 4. ユーザーが承認 → skills/ に作成
 
 詳細は `.maid-agent/skills/skill-creator/SKILL.md` を参照。
+
+## 改善提案システム
+
+メイドからルールやフローの改善提案を受け付ける仕組みがあります。
+
+### フロー
+
+1. メイドが改善点を発見 → reports/ に `improvement_proposal` を記載
+2. メイド長が集約 → dashboard.md の「💡 改善提案」に記載
+3. 執事が確認 → ユーザーに報告
+4. ユーザーが承認 → 該当ルールを更新
+
+### 提案の形式
+
+```yaml
+improvement_proposal:
+  found: true
+  category: rule     # process | rule | tool | other
+  target: maid       # common | butler | chief | maid
+  title: "タスク完了条件の明確化"
+  problem: "完了の判断基準が曖昧"
+  proposal: "チェックリスト化"
+  benefit: "報告漏れの削減"
+```
+
+## グローバル設定
+
+プロジェクト間で共有するルールとスキルを `~/.maid-agent/` に保存できます。
+
+### フォルダ構造
+
+```
+~/.maid-agent/
+├── rules/              # ルールモジュール
+│   ├── common/         # 全員に適用
+│   ├── butler/         # 執事のみ
+│   ├── chief/          # メイド長のみ
+│   └── maid/           # メイドのみ
+└── skills/             # 共有スキル
+```
+
+### グローバル設定の初期化
+
+コマンドパレットから `Init Global` を実行すると、`~/.maid-agent/` フォルダが作成されます。
+
+### init時の動作
+
+新しいプロジェクトで `Init` を実行すると:
+
+1. テンプレートからコピー
+2. グローバルルール選択UI表示（auto_select: true のものは事前選択）
+3. グローバルスキル選択UI表示
+4. 選択されたルール・スキルをプロジェクトにコピー
+
+### ルールモジュールの形式
+
+```markdown
+---
+name: compaction-recovery
+description: コンパクション対策ルール
+auto_select: true
+target_roles: [common]
+---
+
+（ルール内容）
+```
+
+## タスクステータス
+
+メイドのタスクステータスは以下の値を取ります：
+
+| ステータス | 説明 |
+|-----------|-----|
+| `idle` | 待機中 |
+| `assigned` | タスク割り当て済み |
+| `working` | 作業中 |
+| `blocked` | 外部要因で停止中（依存待ち、判断待ち等） |
+| `completed` | 完了 |
+| `failed` | 失敗 |
+
+### blocked ステータス
+
+外部要因で進められない場合に使用します。`substatus` で理由を明示できます。
+
+```yaml
+emma:
+  task_id: "task-001"
+  status: blocked
+  substatus: "ご主人様判断待ち"
+```
 
 ## Memory MCP
 

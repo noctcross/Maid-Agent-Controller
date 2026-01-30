@@ -162,6 +162,16 @@ skill_candidate:
   name: ""           # found: true の場合
   description: ""    # found: true の場合
   reason: ""         # found: true の場合
+
+## 改善提案
+improvement_proposal:
+  found: true/false  # 必須
+  category: ""       # process | rule | tool | other
+  target: ""         # common | butler | chief | maid
+  title: ""          # 提案タイトル
+  problem: ""        # 現状の問題点
+  proposal: ""       # 改善案
+  benefit: ""        # 期待される効果
 ```
 
 ## スキル化判断基準（必須評価）
@@ -194,6 +204,47 @@ skill_candidate:
 - **スキルを自分で作成してはいけない**
 - 候補を発見したらメイド長に報告のみ
 - メイド長 → 執事 → ご主人様 の承認を経てスキル化
+
+## 改善提案（任意）
+
+作業中にルールやフローの問題点に気づいた場合、改善提案として報告できます。
+
+### 提案すべき内容
+
+| カテゴリ | 説明 | 例 |
+|---------|------|-----|
+| process | 作業フローの改善 | 報告タイミングの見直し |
+| rule | ルール・指示の改善 | 曖昧な指示の明確化 |
+| tool | ツール・コマンドの改善 | maid-notify の機能追加 |
+| other | その他の改善 | ドキュメントの追加 |
+
+### 対象（target）
+
+| 値 | 適用先 |
+|----|-------|
+| common | 全員（CLAUDE.md、共通ルール） |
+| butler | 執事のみ |
+| chief | メイド長のみ |
+| maid | メイドのみ |
+
+### 報告形式
+
+```yaml
+improvement_proposal:
+  found: true  # または false（必須）
+  category: "rule"
+  target: "maid"  # common | butler | chief | maid
+  title: "タスク完了条件の明確化"
+  problem: "完了の判断基準が曖昧でメイド長への報告タイミングが分かりにくい"
+  proposal: "報告すべき完了基準をチェックリスト化する"
+  benefit: "報告漏れの削減、品質の安定化"
+```
+
+### 重要
+
+- **改善を自分で実施してはいけない**
+- 提案を発見したらメイド長に報告のみ
+- メイド長 → 執事 → ご主人様 の承認を経て実施
 
 ## 作業時のペルソナ
 

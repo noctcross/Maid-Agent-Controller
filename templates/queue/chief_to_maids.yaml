@@ -7,40 +7,54 @@ assignments:
     description: null
     target_path: null
     status: idle
+    substatus: null
   sophia:
     task_id: null
     description: null
     target_path: null
     status: idle
+    substatus: null
   lily:
     task_id: null
     description: null
     target_path: null
     status: idle
+    substatus: null
   rose:
     task_id: null
     description: null
     target_path: null
     status: idle
+    substatus: null
   alice:
     task_id: null
     description: null
     target_path: null
     status: idle
+    substatus: null
   may:
     task_id: null
     description: null
     target_path: null
     status: idle
+    substatus: null
   flora:
     task_id: null
     description: null
     target_path: null
     status: idle
+    substatus: null
   luna:
     task_id: null
     description: null
     target_path: null
     status: idle
+    substatus: null
 
-# status: idle | assigned | working | completed | failed
+# status: idle | assigned | working | blocked | completed | failed
+# substatus: null | "依存タスク待ち" | "ご主人様判断待ち" | "外部要因待ち"（任意）
+#
+# blocked の使い方:
+# - メイドが外部要因で進められない場合に設定
+# - substatus で理由を明示（任意だが推奨）
+# - メイド長が状況を把握し、解消したら working に戻す

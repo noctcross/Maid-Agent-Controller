@@ -1561,6 +1561,11 @@ auto_select: true/false
             if (entry.isDirectory()) {
                 this.copyDirectorySync(srcPath, destPath);
             } else {
+                // dashboard.md は存在する場合スキップ（進捗情報を保持）
+                if (entry.name === 'dashboard.md' && fs.existsSync(destPath)) {
+                    this.log('[初期化] dashboard.md は既存のため保持');
+                    continue;
+                }
                 fs.copyFileSync(srcPath, destPath);
             }
         }

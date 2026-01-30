@@ -90,9 +90,10 @@ send_message() {
 
         # メッセージ送信を試行
         if tmux send-keys -t "${SESSION_NAME}:${TARGET}" -l "$MESSAGE" 2>/dev/null; then
-            # メッセージがバッファに入るのを待つ
-            sleep 0.1
-            if tmux send-keys -t "${SESSION_NAME}:${TARGET}" Enter 2>/dev/null; then
+            # メッセージがバッファに入るのを待つ（Claude Codeの処理時間考慮）
+            sleep 0.3
+            # Enter送信（C-m = Ctrl+M = CR = Enter キー）
+            if tmux send-keys -t "${SESSION_NAME}:${TARGET}" C-m 2>/dev/null; then
                 success=true
             fi
         fi

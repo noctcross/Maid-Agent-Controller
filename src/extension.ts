@@ -2809,15 +2809,13 @@ auto_select: true/false
                 icon = '⚡';
                 message = 'タスクが進行中です';
             } else {
-                // 大きな変更がなければ通知しないが、プレビューはリフレッシュ
-                this.refreshDashboardPreview(dashboardPath);
+                // 大きな変更がなければ通知しない
                 return;
             }
 
-            // プレビューが開いていればリフレッシュ
-            this.refreshDashboardPreview(dashboardPath);
-
             // 🚨 要対応のみモーダルダイアログ、それ以外はステータスバー通知（ターミナル入力を中断しない）
+            // 注: プレビュー自動リフレッシュは削除（フォーカスが奪われるため）
+            //     ユーザーはステータスバーをクリックしてダッシュボードを開ける
             if (hasIssues) {
                 const choice = await vscode.window.showWarningMessage(
                     `${icon} Dashboard更新: ${message}`,
@@ -2845,19 +2843,6 @@ auto_select: true/false
             }
         } catch (error) {
             this.log(`[Dashboard通知] エラー: ${error}`);
-        }
-    }
-
-    /**
-     * dashboard.md のプレビューをリフレッシュ
-     */
-    private refreshDashboardPreview(dashboardPath: string): void {
-        try {
-            const uri = vscode.Uri.file(dashboardPath);
-            // プレビューが開いていれば再表示でリフレッシュ
-            vscode.commands.executeCommand('markdown.showPreview', uri);
-        } catch {
-            // プレビューが開いていない場合は何もしない
         }
     }
 

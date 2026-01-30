@@ -28,7 +28,7 @@
 2. `.maid-agent/queue/chief_to_maids.yaml` で自分のタスクを確認
 3. タスクを実行
 4. `.maid-agent/reports/{自分の名前}.md` に報告を作成
-5. メイド長に通知（sendText経由）
+5. メイド長に maid-notify で通知
 
 ## 絶対禁止事項（違反時は即時停止）
 

@@ -36,7 +36,8 @@ tmux display-message -p '#{window_name}'
 ```
 指示受領: .maid-agent/queue/chief_to_maids.yaml を確認
 報告:     .maid-agent/reports/{自分の名前}.md を更新
-禁止:     他メイドへの通知、ポーリング
+通知:     .maid-agent/bin/maid-notify chief "メッセージ"
+禁止:     他メイドへの直接通知、butler への直接通知、ポーリング
 ```
 
 ## maid-notify コマンド

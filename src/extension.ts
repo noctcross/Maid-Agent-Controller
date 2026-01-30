@@ -865,6 +865,8 @@ class MultiAgentController {
     private tmuxSessionName: string = '';  // ワークスペース固有のセッション名
     private tmuxWindowPollingInterval: NodeJS.Timeout | undefined;  // tmuxウィンドウ監視用
     private lastDetectedAgentId: string | null = null;  // 前回検出したエージェントID
+    private statusBarItem: vscode.StatusBarItem | undefined;  // ステータスバー通知用
+    private statusBarResetTimeout: NodeJS.Timeout | undefined;  // ステータスバー表示リセット用
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Maid Agent');
@@ -892,6 +894,34 @@ class MultiAgentController {
         this.agentPanelProvider = provider;
         // ログ出力用に outputChannel を共有
         provider.setOutputChannel(this.outputChannel);
+    }
+
+    setStatusBarItem(item: vscode.StatusBarItem): void {
+        this.statusBarItem = item;
+    }
+
+    /**
+     * ステータスバーに一時的なメッセージを表示（5秒後に元に戻る）
+     */
+    private showStatusBarNotification(icon: string, message: string): void {
+        if (!this.statusBarItem) return;
+
+        // 既存のリセットタイマーをクリア
+        if (this.statusBarResetTimeout) {
+            clearTimeout(this.statusBarResetTimeout);
+        }
+
+        // ステータスバーを更新
+        this.statusBarItem.text = `${icon} ${message}`;
+        this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+
+        // 5秒後に元に戻す
+        this.statusBarResetTimeout = setTimeout(() => {
+            if (this.statusBarItem) {
+                this.statusBarItem.text = '🎩 Maid Agent';
+                this.statusBarItem.backgroundColor = undefined;
+            }
+        }, 5000);
     }
 
     // エージェントパネルを更新
@@ -1202,10 +1232,10 @@ auto_select: true/false
 
                 if (meta) {
                     rules.push({
-                        name: meta.name || file.replace('.md', ''),
-                        description: meta.description || '',
+                        name: (meta.name as string) || file.replace('.md', ''),
+                        description: (meta.description as string) || '',
                         auto_select: meta.auto_select === true,
-                        target_roles: meta.target_roles || [role],
+                        target_roles: (meta.target_roles as RuleModuleMeta['target_roles']) || [role],
                         filePath
                     });
                 }
@@ -1239,8 +1269,8 @@ auto_select: true/false
                 if (fs.existsSync(skillMdPath)) {
                     const meta = this.parseMarkdownFrontmatter(skillMdPath);
                     skills.push({
-                        name: meta?.name || item,
-                        description: meta?.description || '',
+                        name: (meta?.name as string) || item,
+                        description: (meta?.description as string) || '',
                         auto_select: meta?.auto_select === true,
                         filePath: itemPath
                     });
@@ -1249,8 +1279,8 @@ auto_select: true/false
                 // 単一ファイル形式のスキル
                 const meta = this.parseMarkdownFrontmatter(itemPath);
                 skills.push({
-                    name: meta?.name || item.replace('.md', ''),
-                    description: meta?.description || '',
+                    name: (meta?.name as string) || item.replace('.md', ''),
+                    description: (meta?.description as string) || '',
                     auto_select: meta?.auto_select === true,
                     filePath: itemPath
                 });
@@ -2740,24 +2770,31 @@ auto_select: true/false
             // プレビューが開いていればリフレッシュ
             this.refreshDashboardPreview(dashboardPath);
 
-            const choice = await vscode.window.showInformationMessage(
-                `${icon} Dashboard更新: ${message}`,
-                'Dashboardを開く',
-                '執事に確認を依頼'
-            );
+            // 🚨 要対応のみモーダルダイアログ、それ以外はステータスバー通知（ターミナル入力を中断しない）
+            if (hasIssues) {
+                const choice = await vscode.window.showWarningMessage(
+                    `${icon} Dashboard更新: ${message}`,
+                    'Dashboardを開く',
+                    '執事に確認を依頼'
+                );
 
-            if (choice === 'Dashboardを開く') {
-                // マークダウンプレビューで開く
-                const uri = vscode.Uri.file(dashboardPath);
-                await vscode.commands.executeCommand('markdown.showPreview', uri);
-            } else if (choice === '執事に確認を依頼') {
-                const butler = this.agents.get('butler');
-                if (butler) {
-                    await this.sendMessageToAgent('butler', 'dashboard.md を確認して、現在の状況を報告してください。');
-                    vscode.window.showInformationMessage('🎩 執事に確認を依頼しました');
-                } else {
-                    vscode.window.showWarningMessage('執事がまだ起動していません');
+                if (choice === 'Dashboardを開く') {
+                    // マークダウンプレビューで開く
+                    const uri = vscode.Uri.file(dashboardPath);
+                    await vscode.commands.executeCommand('markdown.showPreview', uri);
+                } else if (choice === '執事に確認を依頼') {
+                    const butler = this.agents.get('butler');
+                    if (butler) {
+                        await this.sendMessageToAgent('butler', 'dashboard.md を確認して、現在の状況を報告してください。');
+                        vscode.window.showInformationMessage('🎩 執事に確認を依頼しました');
+                    } else {
+                        vscode.window.showWarningMessage('執事がまだ起動していません');
+                    }
                 }
+            } else {
+                // 非クリティカルな更新はステータスバーに表示（入力を中断しない）
+                this.showStatusBarNotification(icon, message);
+                this.log(`[Dashboard] ${icon} ${message}`);
             }
         } catch (error) {
             this.log(`[Dashboard通知] エラー: ${error}`);
@@ -3312,6 +3349,11 @@ ${agentList || '  (なし)'}
         // ポーリングを停止
         this.stopTmuxWindowPolling();
 
+        // ステータスバー通知タイマーを停止
+        if (this.statusBarResetTimeout) {
+            clearTimeout(this.statusBarResetTimeout);
+        }
+
         // ビューアターミナルを閉じる
         this.tmuxViewerTerminal?.dispose();
 
@@ -3456,6 +3498,9 @@ export function activate(context: vscode.ExtensionContext) {
     statusBarItem.tooltip = 'クリックでダッシュボードを表示';
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
+
+    // コントローラーにステータスバーを設定（通知用）
+    controller.setStatusBarItem(statusBarItem);
 }
 
 export function deactivate() {

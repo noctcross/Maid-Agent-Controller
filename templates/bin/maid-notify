@@ -61,6 +61,11 @@ TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 # ログディレクトリを作成
 mkdir -p "$(dirname "$LOG_FILE")"
 
+# ログローテーション（1000行を超えたら古い500行を削除）
+if [ -f "$LOG_FILE" ] && [ $(wc -l < "$LOG_FILE" 2>/dev/null || echo 0) -gt 1000 ]; then
+    tail -n 500 "$LOG_FILE" > "${LOG_FILE}.tmp" && mv "${LOG_FILE}.tmp" "$LOG_FILE"
+fi
+
 # ログに記録（追記）
 echo "[$TIMESTAMP] $SENDER → $TARGET: $MESSAGE" >> "$LOG_FILE"
 

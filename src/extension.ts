@@ -1599,6 +1599,101 @@ auto_select: true/false
     }
 
     /**
+     * プロジェクトのルールをグローバルに昇格
+     */
+    async promoteRuleToGlobal(): Promise<void> {
+        if (!this.maidAgentPath) {
+            vscode.window.showWarningMessage('ワークスペースが初期化されていません');
+            return;
+        }
+
+        const projectRulesPath = path.join(this.maidAgentPath, 'rules');
+        if (!fs.existsSync(projectRulesPath)) {
+            vscode.window.showWarningMessage('プロジェクトに rules フォルダがありません');
+            return;
+        }
+
+        const globalPath = getGlobalMaidAgentPath();
+        const globalRulesPath = path.join(globalPath, 'rules');
+
+        // グローバルフォルダが存在しない場合は作成
+        if (!fs.existsSync(globalRulesPath)) {
+            await this.initializeGlobalSettings();
+        }
+
+        // プロジェクトのルールファイルを収集
+        const roleTypes = ['common', 'butler', 'chief', 'maid'];
+        const projectRules: { name: string; role: string; filePath: string }[] = [];
+        const globalExisting = new Set<string>();
+
+        // グローバルに既に存在するファイル名を収集
+        for (const role of roleTypes) {
+            const globalRolePath = path.join(globalRulesPath, role);
+            if (fs.existsSync(globalRolePath)) {
+                const files = fs.readdirSync(globalRolePath);
+                files.forEach(f => globalExisting.add(`${role}/${f}`));
+            }
+        }
+
+        // プロジェクトのルールを収集（グローバルに存在しないもののみ）
+        for (const role of roleTypes) {
+            const projectRolePath = path.join(projectRulesPath, role);
+            if (fs.existsSync(projectRolePath)) {
+                const files = fs.readdirSync(projectRolePath);
+                for (const file of files) {
+                    if (file.endsWith('.md') && file !== 'README.md' && file !== 'rule-template.md') {
+                        const key = `${role}/${file}`;
+                        if (!globalExisting.has(key)) {
+                            projectRules.push({
+                                name: file.replace('.md', ''),
+                                role,
+                                filePath: path.join(projectRolePath, file)
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        if (projectRules.length === 0) {
+            vscode.window.showInformationMessage('昇格可能なルールがありません（全てグローバル化済み、またはルールなし）');
+            return;
+        }
+
+        // 選択UI
+        const items = projectRules.map(rule => ({
+            label: rule.name,
+            description: `[${rule.role}]`,
+            detail: rule.filePath,
+            rule
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+            canPickMany: true,
+            placeHolder: 'グローバルに昇格するルールを選択',
+            title: '📋 ルールをグローバルに昇格'
+        });
+
+        if (!selected || selected.length === 0) {
+            return;
+        }
+
+        // コピー実行
+        for (const item of selected) {
+            const globalRolePath = path.join(globalRulesPath, item.rule.role);
+            if (!fs.existsSync(globalRolePath)) {
+                fs.mkdirSync(globalRolePath, { recursive: true });
+            }
+
+            const destPath = path.join(globalRolePath, path.basename(item.rule.filePath));
+            fs.copyFileSync(item.rule.filePath, destPath);
+            this.log(`[グローバル] ルールを昇格: ${item.rule.name} → ${item.rule.role}/`);
+        }
+
+        vscode.window.showInformationMessage(`🌐 ${selected.length}個のルールをグローバルに昇格しました`);
+    }
+
+    /**
      * プロジェクトルートの CLAUDE.md を設定
      * - 存在しない場合: 新規作成
      * - 存在する場合: 先頭に Maid Agent 指示を追記
@@ -3830,6 +3925,9 @@ export function activate(context: vscode.ExtensionContext) {
         }),
         vscode.commands.registerCommand('multiAgent.showStatus', () => {
             controller.showDebugStatus();
+        }),
+        vscode.commands.registerCommand('multiAgent.promoteRuleToGlobal', () => {
+            controller.promoteRuleToGlobal();
         }),
     ];
 

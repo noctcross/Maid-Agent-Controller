@@ -122,6 +122,11 @@
         "command": "multiAgent.showStatus",
         "title": "Show Status - 現在の状態を表示（デバッグ用）",
         "category": "Maid Agent"
+      },
+      {
+        "command": "multiAgent.promoteRuleToGlobal",
+        "title": "Promote Rule - ルールをグローバルに昇格",
+        "category": "Maid Agent"
       }
     ],
     "views": {

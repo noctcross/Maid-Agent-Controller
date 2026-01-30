@@ -260,8 +260,21 @@ const TMUX_SESSION_PREFIX = 'maid-agent';  // tmuxセッション名のプレフ
 
 /**
  * グローバルフォルダのパスを取得
+ * Windows環境ではWSLのホームディレクトリを使用
  */
 function getGlobalMaidAgentPath(): string {
+    if (CURRENT_ENV === 'windows-native') {
+        // Windows環境: WSLのホームディレクトリを使用
+        try {
+            const wslHome = execSync('wsl echo $HOME', { encoding: 'utf-8' }).trim();
+            // WSLパスをWindowsパスに変換 (/home/user → \\wsl$\Ubuntu\home\user)
+            const distro = execSync('wsl -l -q', { encoding: 'utf-8' }).split('\n')[0].trim().replace(/\0/g, '');
+            return `\\\\wsl$\\${distro}${wslHome}/${GLOBAL_MAID_AGENT_DIR}`;
+        } catch {
+            // フォールバック: Windowsのホームディレクトリ
+            return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
+        }
+    }
     return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
 }
 

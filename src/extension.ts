@@ -1243,11 +1243,6 @@ class MultiAgentController {
             this.log('[初期化] .maid-agent ディレクトリを作成しました');
             vscode.window.showInformationMessage('🎩 Maid Agent の初期化が完了しました');
 
-            // ルートの CLAUDE.md を開く
-            const claudeMdPath = path.join(this.workspaceRoot, 'CLAUDE.md');
-            const doc = await vscode.workspace.openTextDocument(claudeMdPath);
-            await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
-
             return true;
         } catch (error) {
             this.log(`[ERROR] 初期化に失敗: ${error}`);

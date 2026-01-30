@@ -12,6 +12,12 @@ PENDING_DIR="${MAID_AGENT_DIR}/notifications/pending"
 MAX_RETRIES=3
 RETRY_DELAY=0.5
 
+# 遅延設定（Claude Code がビジー状態でも確実に受け付けるため長めに設定）
+# 参考: tmux-cliツールは1.5秒のデフォルト遅延を推奨
+MESSAGE_TO_ENTER_DELAY=1.0
+ENTER_RETRY_COUNT=2
+ENTER_RETRY_DELAY=0.3
+
 # 引数チェック
 if [ $# -lt 2 ]; then
     echo "使用法: maid-notify <target> \"<message>\""
@@ -75,7 +81,7 @@ fi
 # ログに記録（追記）
 echo "[$TIMESTAMP] $SENDER → $TARGET: $MESSAGE" >> "$LOG_FILE"
 
-# 送信関数（リトライ機構付き）
+# 送信関数（リトライ機構付き + Enter key verification）
 send_message() {
     local attempt=1
     local success=false
@@ -86,16 +92,27 @@ send_message() {
         tmux send-keys -t "${SESSION_NAME}:${TARGET}" Escape 2>/dev/null || true
 
         # 少し待機（copy mode解除の反映を待つ）
-        sleep 0.1
+        sleep 0.2
 
         # メッセージ送信を試行
         if tmux send-keys -t "${SESSION_NAME}:${TARGET}" -l "$MESSAGE" 2>/dev/null; then
-            # メッセージがバッファに入るのを待つ（Claude Codeの処理時間考慮）
-            sleep 0.3
-            # Enter送信（C-m = Ctrl+M = CR = Enter キー）
-            if tmux send-keys -t "${SESSION_NAME}:${TARGET}" C-m 2>/dev/null; then
-                success=true
-            fi
+            # メッセージがバッファに入るのを待つ
+            # Claude Codeの処理時間を考慮して長めに設定（推奨: 1.0秒以上）
+            sleep $MESSAGE_TO_ENTER_DELAY
+
+            # Enter送信（複数回試行）
+            # C-m (Ctrl+M) = CR (Carriage Return) = Enter キー
+            local enter_attempt=1
+            while [ $enter_attempt -le $ENTER_RETRY_COUNT ]; do
+                if tmux send-keys -t "${SESSION_NAME}:${TARGET}" C-m 2>/dev/null; then
+                    # 最初のEnterが処理される時間を待つ
+                    if [ $enter_attempt -lt $ENTER_RETRY_COUNT ]; then
+                        sleep $ENTER_RETRY_DELAY
+                    fi
+                fi
+                enter_attempt=$((enter_attempt + 1))
+            done
+            success=true
         fi
 
         if [ "$success" = "false" ]; then

@@ -1034,7 +1034,9 @@ class MultiAgentController {
      * tmuxの現在のウィンドウ名からエージェントIDを取得
      */
     private getCurrentTmuxWindowAgent(): string | null {
-        if (!this.tmuxManager || !this.tmuxSessionName) return null;
+        if (!this.tmuxManager || !this.tmuxSessionName) {
+            return null;
+        }
 
         try {
             // Windows環境では wsl tmux を使用
@@ -1048,6 +1050,11 @@ class MultiAgentController {
             if (this.agents.has(result)) {
                 return result;
             }
+
+            // デバッグ: ウィンドウ名が見つかったが登録エージェントに存在しない場合
+            // (一時的なログ - 安定したら削除可能)
+            const registeredAgents = Array.from(this.agents.keys()).join(', ');
+            this.log(`[AgentPanel] ウィンドウ '${result}' は登録エージェントに存在しません (登録: ${registeredAgents || 'なし'})`);
         } catch {
             // tmuxコマンドが失敗した場合は無視（ポーリング中は頻繁に呼ばれるためログ省略）
         }
@@ -1068,7 +1075,15 @@ class MultiAgentController {
         let agentId = this.getAgentIdFromTerminal(terminal);
 
         // tmuxビューアターミナルの場合、tmuxのウィンドウ名から特定 + ポーリング開始
-        if (!agentId && terminal === this.tmuxViewerTerminal) {
+        const isTmuxViewer = terminal === this.tmuxViewerTerminal;
+        const terminalName = terminal.name;
+
+        if (!agentId && isTmuxViewer) {
+            agentId = this.getCurrentTmuxWindowAgent();
+            this.startTmuxWindowPolling();
+        } else if (!agentId && terminalName.includes('Maid Agent')) {
+            // ターミナル名でtmuxビューアを判定（参照比較の代替）
+            this.log(`[AgentPanel] tmuxビューア検出（名前ベース）: ${terminalName}`);
             agentId = this.getCurrentTmuxWindowAgent();
             this.startTmuxWindowPolling();
         } else {
@@ -3135,6 +3150,9 @@ ${agentList || '  (なし)'}
                     case 'openFile':
                         this.openMaidAgentFile(message.file);
                         break;
+                    case 'showDashboardPanel':
+                        this.showDashboardMarkdownPanel();
+                        break;
                 }
             },
             undefined,
@@ -3156,6 +3174,155 @@ ${agentList || '  (なし)'}
                 await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(filePath));
             }
         }
+    }
+
+    private dashboardMarkdownPanel: vscode.WebviewPanel | undefined;
+
+    /**
+     * dashboard.md を専用のWebviewパネルでレンダリング表示
+     * （VSCodeのMarkdownプレビュータブを占有しない）
+     */
+    private showDashboardMarkdownPanel(): void {
+        if (!this.maidAgentPath) {
+            vscode.window.showWarningMessage('ワークスペースが初期化されていません');
+            return;
+        }
+
+        const dashboardPath = path.join(this.maidAgentPath, 'dashboard.md');
+        if (!fs.existsSync(dashboardPath)) {
+            vscode.window.showWarningMessage('dashboard.md が見つかりません');
+            return;
+        }
+
+        // 既存パネルがあれば更新して表示
+        if (this.dashboardMarkdownPanel) {
+            this.updateDashboardMarkdownPanel();
+            this.dashboardMarkdownPanel.reveal(vscode.ViewColumn.Beside);
+            return;
+        }
+
+        // 新規パネルを作成
+        this.dashboardMarkdownPanel = vscode.window.createWebviewPanel(
+            'dashboardMarkdown',
+            '📊 Dashboard.md',
+            vscode.ViewColumn.Beside,
+            { enableScripts: true }
+        );
+
+        this.dashboardMarkdownPanel.onDidDispose(() => {
+            this.dashboardMarkdownPanel = undefined;
+        });
+
+        // 更新ボタン用のメッセージハンドラ
+        this.dashboardMarkdownPanel.webview.onDidReceiveMessage(
+            message => {
+                if (message.command === 'refresh') {
+                    this.updateDashboardMarkdownPanel();
+                } else if (message.command === 'edit') {
+                    this.openMaidAgentFile('dashboard.md');
+                }
+            },
+            undefined,
+            this.context?.subscriptions
+        );
+
+        this.updateDashboardMarkdownPanel();
+    }
+
+    /**
+     * dashboard.md 専用パネルの内容を更新
+     */
+    private updateDashboardMarkdownPanel(): void {
+        if (!this.dashboardMarkdownPanel || !this.maidAgentPath) return;
+
+        const dashboardPath = path.join(this.maidAgentPath, 'dashboard.md');
+        let contentHtml = '<p>dashboard.md が見つかりません</p>';
+
+        if (fs.existsSync(dashboardPath)) {
+            const rawContent = fs.readFileSync(dashboardPath, 'utf-8');
+            contentHtml = simpleMarkdownToHtml(rawContent);
+        }
+
+        this.dashboardMarkdownPanel.webview.html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            min-height: 100vh;
+            margin: 0;
+            line-height: 1.6;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e94560;
+        }
+        h1 { color: #e94560; margin: 0; font-size: 1.4em; }
+        .actions { display: flex; gap: 10px; }
+        .btn {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .btn:hover { background: rgba(255,255,255,0.2); }
+        .btn.primary { background: #e94560; border-color: #e94560; }
+        .btn.primary:hover { background: #d63050; }
+        .content {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        /* Markdown スタイル */
+        .md-h1 { font-size: 1.5em; color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 8px; margin: 20px 0 15px 0; }
+        .md-h2 { font-size: 1.25em; color: #ffc107; border-bottom: 1px solid #444; padding-bottom: 5px; margin: 18px 0 12px 0; }
+        .md-h3 { font-size: 1.1em; color: #81c784; margin: 15px 0 8px 0; }
+        .md-p { margin: 10px 0; }
+        .md-ul { margin: 8px 0; padding-left: 25px; }
+        .md-li { margin: 5px 0; list-style-type: disc; }
+        .md-checkbox { padding: 5px 0; }
+        .md-checkbox.checked { color: #81c784; }
+        .md-table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        .md-table th, .md-table td { border: 1px solid #444; padding: 8px 12px; text-align: left; }
+        .md-table th { background: rgba(255,255,255,0.1); color: #ffc107; }
+        .md-code-block { background: #0a0a0a; padding: 15px; border-radius: 8px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.9em; margin: 10px 0; }
+        .md-inline-code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', monospace; }
+        .md-hr { border: none; border-top: 1px solid #444; margin: 20px 0; }
+        .md-link { color: #4fc3f7; }
+        strong { color: #ffc107; }
+        em { font-style: italic; color: #aaa; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Dashboard.md</h1>
+        <div class="actions">
+            <button class="btn" onclick="refresh()">🔄 更新</button>
+            <button class="btn primary" onclick="edit()">✏️ 編集</button>
+        </div>
+    </div>
+    <div class="content">
+        ${contentHtml}
+    </div>
+    <script>
+        const vscode = acquireVsCodeApi();
+        function refresh() { vscode.postMessage({ command: 'refresh' }); }
+        function edit() { vscode.postMessage({ command: 'edit' }); }
+    </script>
+</body>
+</html>`;
     }
 
     private updateDashboard(): void {
@@ -3330,7 +3497,7 @@ ${agentList || '  (なし)'}
     <div class="action-bar">
         <button class="action-btn" onclick="sendTask()">📝 執事に指令</button>
         <button class="action-btn secondary" onclick="refresh()">🔄 更新</button>
-        <button class="action-btn secondary" onclick="openFile('dashboard.md')">📊 dashboard.md</button>
+        <button class="action-btn secondary" onclick="showDashboardPanel()">📊 dashboard.md</button>
         <button class="action-btn secondary" onclick="openFile('queue/butler_to_chief.yaml')">📋 Queue</button>
     </div>
 
@@ -3380,6 +3547,7 @@ ${agentList || '  (なし)'}
         function refresh() { vscode.postMessage({ command: 'refresh' }); }
         function sendTask() { vscode.postMessage({ command: 'sendTask' }); }
         function openFile(file) { vscode.postMessage({ command: 'openFile', file: file }); }
+        function showDashboardPanel() { vscode.postMessage({ command: 'showDashboardPanel' }); }
     </script>
 </body>
 </html>`;

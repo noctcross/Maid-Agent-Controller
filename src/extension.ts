@@ -3159,7 +3159,7 @@ ${agentList || '  (なし)'}
         this.dashboardPanel = vscode.window.createWebviewPanel(
             'multiAgentDashboard',
             '🎩 Maid Agent Dashboard',
-            vscode.ViewColumn.Beside,
+            vscode.ViewColumn.Active,
             { enableScripts: true }
         );
 
@@ -3226,7 +3226,7 @@ ${agentList || '  (なし)'}
         // 既存パネルがあれば更新して表示
         if (this.dashboardMarkdownPanel) {
             this.updateDashboardMarkdownPanel();
-            this.dashboardMarkdownPanel.reveal(vscode.ViewColumn.Beside);
+            this.dashboardMarkdownPanel.reveal(vscode.ViewColumn.Active);
             return;
         }
 
@@ -3234,7 +3234,7 @@ ${agentList || '  (なし)'}
         this.dashboardMarkdownPanel = vscode.window.createWebviewPanel(
             'dashboardMarkdown',
             '📊 Dashboard.md',
-            vscode.ViewColumn.Beside,
+            vscode.ViewColumn.Active,
             { enableScripts: true }
         );
 

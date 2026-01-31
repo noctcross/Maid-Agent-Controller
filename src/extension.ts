@@ -1240,6 +1240,9 @@ class MultiAgentController {
             // グローバル設定のマージ（ルール・スキルの選択）
             await this.mergeGlobalSettings(maidAgentPath);
 
+            // .mcp.json を生成（MCPサーバー接続設定）
+            await this.generateMcpJson();
+
             this.log('[初期化] .maid-agent ディレクトリを作成しました');
             vscode.window.showInformationMessage('🎩 Maid Agent の初期化が完了しました');
 
@@ -1266,7 +1269,8 @@ class MultiAgentController {
                 'rules/butler',
                 'rules/chief',
                 'rules/maid',
-                'skills'
+                'skills',
+                'mcp-server'
             ];
 
             for (const dir of dirs) {
@@ -1281,7 +1285,7 @@ class MultiAgentController {
             if (!fs.existsSync(readmePath)) {
                 fs.writeFileSync(readmePath, `# Maid Agent グローバル設定
 
-このフォルダには、プロジェクト間で共有するルールとスキルを保存します。
+このフォルダには、プロジェクト間で共有するルール、スキル、MCPサーバーを保存します。
 
 ## フォルダ構造
 
@@ -1292,7 +1296,14 @@ class MultiAgentController {
 │   ├── butler/         # 執事のみ
 │   ├── chief/          # メイド長のみ
 │   └── maid/           # メイドのみ
-└── skills/             # 共有スキル
+├── skills/             # 共有スキル
+└── mcp-server/         # MCP サーバー（全プロジェクト共通）
+\`\`\`
+
+## MCPサーバー
+
+\`mcp-server/\` フォルダには、トークン消費軽減のための共通MCPサーバーを配置します。
+サーバーはpm2などで起動し、各プロジェクトの \`.mcp.json\` から接続します。
 \`\`\`
 
 ## ルールモジュールの形式
@@ -1498,6 +1509,43 @@ auto_select: true/false
                 await this.copySelectedSkills(selectedSkills, maidAgentPath);
             }
         }
+    }
+
+    /**
+     * .mcp.json をプロジェクトルートに生成
+     * MCPサーバー接続設定（プロジェクトパス含む）
+     */
+    private async generateMcpJson(): Promise<void> {
+        if (!this.workspaceRoot) return;
+
+        const mcpJsonPath = path.join(this.workspaceRoot, '.mcp.json');
+
+        // 既に存在する場合はスキップ
+        if (fs.existsSync(mcpJsonPath)) {
+            this.log('[MCP] .mcp.json は既存のためスキップ');
+            return;
+        }
+
+        // プロジェクトパスを取得（WSL環境ではWSLパスを使用）
+        let projectPath = this.workspaceRoot;
+        if (CURRENT_ENV === 'windows-native' && this.tmuxManager) {
+            projectPath = this.tmuxManager.getWslWorkingDirectory();
+        }
+
+        const mcpConfig = {
+            mcpServers: {
+                "maid-task-server": {
+                    type: "sse",
+                    url: "http://localhost:3100/sse",
+                    headers: {
+                        "X-Maid-Project-Path": projectPath
+                    }
+                }
+            }
+        };
+
+        fs.writeFileSync(mcpJsonPath, JSON.stringify(mcpConfig, null, 2));
+        this.log(`[MCP] .mcp.json を生成: ${mcpJsonPath}`);
     }
 
     /**

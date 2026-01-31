@@ -2,3 +2,6 @@ node_modules/
 out/
 .vscode-test/
 *.vsix
+
+# MCP Server runtime logs (dist/ is included for distribution)
+global-templates/mcp-server/logs/*.log

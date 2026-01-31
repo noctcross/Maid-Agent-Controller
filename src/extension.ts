@@ -1198,12 +1198,12 @@ class MultiAgentController {
                 throw new Error('拡張機能のパスが取得できません');
             }
 
-            const templatesPath = path.join(extensionPath, 'templates');
+            const templatesPath = path.join(extensionPath, 'project-templates');
             this.log(`[初期化] extensionPath: ${extensionPath}`);
             this.log(`[初期化] templatesPath: ${templatesPath}`);
-            this.log(`[初期化] templates存在: ${fs.existsSync(templatesPath)}`);
+            this.log(`[初期化] project-templates存在: ${fs.existsSync(templatesPath)}`);
 
-            // templates/images の確認
+            // project-templates/images の確認
             const templatesImagesPath = path.join(templatesPath, 'images');
             this.log(`[初期化] templates/images存在: ${fs.existsSync(templatesImagesPath)}`);
             if (fs.existsSync(templatesImagesPath)) {
@@ -1261,100 +1261,253 @@ class MultiAgentController {
         const globalPath = getGlobalMaidAgentPath();
 
         try {
-            // ディレクトリ構造を作成
-            const dirs = [
-                '',
-                'rules',
-                'rules/common',
-                'rules/butler',
-                'rules/chief',
-                'rules/maid',
-                'skills',
-                'mcp-server'
-            ];
+            // 拡張機能のパスを取得
+            const extensionPath = this.context?.extensionPath;
+            if (!extensionPath) {
+                throw new Error('拡張機能のパスが取得できません');
+            }
 
-            for (const dir of dirs) {
-                const fullPath = path.join(globalPath, dir);
-                if (!fs.existsSync(fullPath)) {
-                    fs.mkdirSync(fullPath, { recursive: true });
+            const globalTemplatesPath = path.join(extensionPath, 'global-templates');
+            this.log(`[グローバル] globalTemplatesPath: ${globalTemplatesPath}`);
+            this.log(`[グローバル] global-templates存在: ${fs.existsSync(globalTemplatesPath)}`);
+
+            // global-templates からコピー
+            if (fs.existsSync(globalTemplatesPath)) {
+                this.copyDirectorySync(globalTemplatesPath, globalPath);
+                this.log(`[グローバル] global-templates からコピー完了`);
+            } else {
+                // フォールバック: 手動でディレクトリ構造を作成
+                this.log(`[グローバル] global-templates が見つからないため、手動で構造を作成`);
+                const dirs = [
+                    '',
+                    'rules',
+                    'rules/common',
+                    'rules/butler',
+                    'rules/chief',
+                    'rules/maid',
+                    'skills',
+                    'maid-agent-messenger'
+                ];
+
+                for (const dir of dirs) {
+                    const fullPath = path.join(globalPath, dir);
+                    if (!fs.existsSync(fullPath)) {
+                        fs.mkdirSync(fullPath, { recursive: true });
+                    }
                 }
             }
 
-            // README.md を作成
-            const readmePath = path.join(globalPath, 'README.md');
-            if (!fs.existsSync(readmePath)) {
-                fs.writeFileSync(readmePath, `# Maid Agent グローバル設定
-
-このフォルダには、プロジェクト間で共有するルール、スキル、MCPサーバーを保存します。
-
-## フォルダ構造
-
-\`\`\`
-~/.maid-agent/
-├── rules/              # ルールモジュール
-│   ├── common/         # 全員に適用
-│   ├── butler/         # 執事のみ
-│   ├── chief/          # メイド長のみ
-│   └── maid/           # メイドのみ
-├── skills/             # 共有スキル
-└── mcp-server/         # MCP サーバー（全プロジェクト共通）
-\`\`\`
-
-## MCPサーバー
-
-\`mcp-server/\` フォルダには、トークン消費軽減のための共通MCPサーバーを配置します。
-サーバーはpm2などで起動し、各プロジェクトの \`.mcp.json\` から接続します。
-\`\`\`
-
-## ルールモジュールの形式
-
-\`\`\`markdown
----
-name: rule-name
-description: ルールの説明
-auto_select: true/false
-target_roles: [common] or [butler, chief, maid]
----
-
-（ルール内容）
-\`\`\`
-
-## スキルの形式
-
-\`\`\`markdown
----
-name: skill-name
-description: スキルの説明
-auto_select: true/false
----
-
-（スキル内容）
-\`\`\`
-`);
-            }
-
-            // rules/README.md
-            const rulesReadmePath = path.join(globalPath, 'rules', 'README.md');
-            if (!fs.existsSync(rulesReadmePath)) {
-                fs.writeFileSync(rulesReadmePath, `# グローバルルール
-
-承認されたルール改善をここに保存します。
-新しいプロジェクトの init 時に選択してコピーできます。
-
-## サブフォルダ
-
-- \`common/\` - 全エージェントに適用
-- \`butler/\` - 執事のみに適用
-- \`chief/\` - メイド長のみに適用
-- \`maid/\` - メイドのみに適用
-`);
-            }
-
             this.log(`[グローバル] 設定フォルダを初期化: ${globalPath}`);
+
+            // MCPサーバー (maid-agent-messenger) のセットアップ
+            if (CURRENT_ENV === 'windows-native') {
+                await this.setupMcpServer();
+            }
+
             return true;
         } catch (error) {
             this.log(`[ERROR] グローバル設定の初期化に失敗: ${error}`);
             return false;
+        }
+    }
+
+    /**
+     * MCPサーバー (maid-agent-messenger) をセットアップ
+     * - npm install
+     * - pm2 start + save
+     * - pm2 startup (オプション、sudo必要)
+     */
+    private async setupMcpServer(): Promise<void> {
+        const messengerPath = '~/.maid-agent/maid-agent-messenger';
+
+        try {
+            // 進捗表示
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'MCPサーバーをセットアップ中...',
+                cancellable: false
+            }, async (progress) => {
+                // 1. npm install
+                progress.report({ message: 'npm install 実行中...' });
+                try {
+                    execSync(`wsl bash -c "cd ${messengerPath} && npm install"`, {
+                        encoding: 'utf-8',
+                        timeout: 120000 // 2分タイムアウト
+                    });
+                    this.log('[MCP] npm install 完了');
+                } catch (error) {
+                    this.log(`[MCP] npm install 失敗: ${error}`);
+                    throw new Error('npm install に失敗しました');
+                }
+
+                // 2. pm2 start
+                progress.report({ message: 'pm2 でサーバー起動中...' });
+                try {
+                    // 既存のプロセスがあれば削除
+                    try {
+                        execSync(`wsl bash -c "pm2 delete maid-agent-messenger 2>/dev/null || true"`, {
+                            encoding: 'utf-8'
+                        });
+                    } catch { /* ignore */ }
+
+                    execSync(`wsl bash -c "cd ${messengerPath} && pm2 start ecosystem.config.cjs"`, {
+                        encoding: 'utf-8'
+                    });
+                    this.log('[MCP] pm2 start 完了');
+                } catch (error) {
+                    this.log(`[MCP] pm2 start 失敗: ${error}`);
+                    throw new Error('pm2 start に失敗しました。pm2がインストールされているか確認してください。');
+                }
+
+                // 3. pm2 save
+                progress.report({ message: 'pm2 状態を保存中...' });
+                try {
+                    execSync(`wsl bash -c "pm2 save"`, { encoding: 'utf-8' });
+                    this.log('[MCP] pm2 save 完了');
+                } catch (error) {
+                    this.log(`[MCP] pm2 save 失敗: ${error}`);
+                    // saveの失敗は致命的ではないので続行
+                }
+            });
+
+            vscode.window.showInformationMessage('✅ MCPサーバーを起動しました');
+
+            // 4. 自動起動設定の確認
+            await this.setupPm2Startup();
+
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`MCPサーバーのセットアップに失敗: ${message}`);
+            this.log(`[ERROR] MCPサーバーセットアップ失敗: ${error}`);
+        }
+    }
+
+    /**
+     * pm2 startup を設定（WSL起動時の自動起動）
+     */
+    private async setupPm2Startup(): Promise<void> {
+        const choice = await vscode.window.showInformationMessage(
+            'MCPサーバーの自動起動を設定しますか？（WSL起動時に自動で起動します）',
+            '設定する',
+            'スキップ'
+        );
+
+        if (choice !== '設定する') {
+            this.log('[MCP] pm2 startup をスキップ');
+            return;
+        }
+
+        // pm2 startup コマンドを取得
+        let startupCommand: string;
+        try {
+            const output = execSync(`wsl bash -c "pm2 startup 2>&1"`, { encoding: 'utf-8' });
+            // 出力から sudo コマンドを抽出
+            const match = output.match(/sudo .+$/m);
+            if (!match) {
+                // 既に設定済みの場合
+                if (output.includes('already')) {
+                    vscode.window.showInformationMessage('自動起動は既に設定されています');
+                    return;
+                }
+                throw new Error('startup コマンドを取得できませんでした');
+            }
+            startupCommand = match[0];
+            this.log(`[MCP] startup コマンド: ${startupCommand}`);
+        } catch (error) {
+            this.log(`[MCP] pm2 startup 取得失敗: ${error}`);
+            vscode.window.showWarningMessage('自動起動設定の取得に失敗しました');
+            return;
+        }
+
+        // パスワード入力（最大3回）
+        const maxAttempts = 3;
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            const promptMessage = attempts === 0
+                ? 'WSL (Linux) のパスワードを入力してください'
+                : `パスワードが正しくありません（残り${maxAttempts - attempts}回）`;
+
+            const password = await vscode.window.showInputBox({
+                prompt: promptMessage,
+                placeHolder: 'WSL初回設定時のパスワード（WindowsのPINではありません）',
+                password: true,
+                ignoreFocusOut: true
+            });
+
+            // キャンセルまたは空
+            if (!password) {
+                await this.showPasswordHelp();
+                return;
+            }
+
+            // パスワードのエスケープ（シングルクォート対応）
+            const escapedPassword = password.replace(/'/g, "'\\''");
+
+            try {
+                // sudo -S でパスワードを stdin から渡して実行
+                execSync(
+                    `wsl bash -c "echo '${escapedPassword}' | ${startupCommand}"`,
+                    { encoding: 'utf-8', timeout: 30000 }
+                );
+                this.log('[MCP] pm2 startup 設定完了');
+                vscode.window.showInformationMessage('✅ 自動起動を設定しました');
+                return;
+            } catch (error) {
+                attempts++;
+                this.log(`[MCP] pm2 startup 失敗 (${attempts}/${maxAttempts}): ${error}`);
+            }
+        }
+
+        // 3回失敗
+        vscode.window.showErrorMessage('パスワードの認証に失敗しました。手動で設定してください。');
+        await this.showPasswordHelp();
+    }
+
+    /**
+     * パスワードのヘルプを表示
+     */
+    private async showPasswordHelp(): Promise<void> {
+        const help = await vscode.window.showInformationMessage(
+            'パスワードを忘れた場合は、管理者権限のPowerShellで「wsl -u root」→「passwd ユーザー名」でリセットできます',
+            'OK',
+            'リセット方法を詳しく見る'
+        );
+
+        if (help === 'リセット方法を詳しく見る') {
+            const panel = vscode.window.createWebviewPanel(
+                'passwordHelp',
+                'WSLパスワードのリセット方法',
+                vscode.ViewColumn.One,
+                {}
+            );
+            panel.webview.html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: sans-serif; padding: 20px; }
+                        code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
+                        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
+                    </style>
+                </head>
+                <body>
+                    <h1>WSLパスワードのリセット方法</h1>
+                    <ol>
+                        <li>PowerShell または コマンドプロンプトを<strong>「管理者として実行」</strong>で開く</li>
+                        <li>以下のコマンドを実行（rootユーザーでWSLに入る）：
+                            <pre>wsl -u root</pre>
+                        </li>
+                        <li>パスワードをリセット（<code>username</code> は自分のWSLユーザー名に置き換え）：
+                            <pre>passwd username</pre>
+                        </li>
+                        <li>新しいパスワードを2回入力</li>
+                        <li><code>exit</code> でWSLを終了</li>
+                    </ol>
+                    <p>その後、もう一度 Init Global を実行してください。</p>
+                </body>
+                </html>
+            `;
         }
     }
 
@@ -1512,35 +1665,78 @@ auto_select: true/false
     }
 
     /**
-     * .mcp.json をプロジェクトルートに生成
+     * .mcp.json をプロジェクトルートに生成または追記
      * MCPサーバー接続設定（プロジェクトパス含む）
      */
     private async generateMcpJson(): Promise<void> {
         if (!this.workspaceRoot) return;
 
         const mcpJsonPath = path.join(this.workspaceRoot, '.mcp.json');
+        const serverName = 'maid-agent-messenger';
 
-        // 既に存在する場合はスキップ
+        // プロジェクトパスを取得（Windows環境ではWSLパスに変換）
+        const projectPath = CURRENT_ENV === 'windows-native'
+            ? windowsToWslPath(this.workspaceRoot)
+            : this.workspaceRoot;
+
+        const maidAgentServerConfig = {
+            type: "sse",
+            url: "http://localhost:3100/sse",
+            headers: {
+                "X-Maid-Project-Path": projectPath
+            }
+        };
+
+        // 既存ファイルがある場合
         if (fs.existsSync(mcpJsonPath)) {
-            this.log('[MCP] .mcp.json は既存のためスキップ');
+            try {
+                const existingContent = fs.readFileSync(mcpJsonPath, 'utf-8');
+                const existingConfig = JSON.parse(existingContent) as {
+                    mcpServers?: Record<string, unknown>;
+                };
+
+                // mcpServers が存在しない場合は追加
+                if (!existingConfig.mcpServers) {
+                    existingConfig.mcpServers = {};
+                }
+
+                // 既に maid-agent-messenger が存在する場合はスキップ
+                if (existingConfig.mcpServers[serverName]) {
+                    this.log(`[MCP] ${serverName} は既に設定済みのためスキップ`);
+                    return;
+                }
+
+                // ユーザーに確認
+                const choice = await vscode.window.showInformationMessage(
+                    `.mcp.json に ${serverName} を追加しますか？`,
+                    '追加する',
+                    'スキップ'
+                );
+
+                if (choice !== '追加する') {
+                    this.log('[MCP] ユーザーがキャンセルしました');
+                    return;
+                }
+
+                // 追記
+                existingConfig.mcpServers[serverName] = maidAgentServerConfig;
+                fs.writeFileSync(mcpJsonPath, JSON.stringify(existingConfig, null, 2));
+                this.log(`[MCP] ${serverName} を .mcp.json に追加しました`);
+
+            } catch (error) {
+                // JSONパースエラーなど
+                this.log(`[MCP] .mcp.json の読み込みに失敗: ${error}`);
+                vscode.window.showWarningMessage(
+                    `.mcp.json の読み込みに失敗しました。手動で ${serverName} を追加してください。`
+                );
+            }
             return;
         }
 
-        // プロジェクトパスを取得（WSL環境ではWSLパスを使用）
-        let projectPath = this.workspaceRoot;
-        if (CURRENT_ENV === 'windows-native' && this.tmuxManager) {
-            projectPath = this.tmuxManager.getWslWorkingDirectory();
-        }
-
+        // 新規作成
         const mcpConfig = {
             mcpServers: {
-                "maid-task-server": {
-                    type: "sse",
-                    url: "http://localhost:3100/sse",
-                    headers: {
-                        "X-Maid-Project-Path": projectPath
-                    }
-                }
+                [serverName]: maidAgentServerConfig
             }
         };
 
@@ -2536,10 +2732,79 @@ auto_select: true/false
             return false;
         }
 
+        // MCPサーバーのヘルスチェック（Windows環境のみ）
+        if (CURRENT_ENV === 'windows-native') {
+            await this.ensureMcpServerRunning();
+        }
+
         // セッション数の警告チェック
         await this.checkSessionCountWarning();
 
         return true;
+    }
+
+    /**
+     * MCPサーバーが起動しているか確認し、起動していなければ起動する
+     */
+    private async ensureMcpServerRunning(): Promise<void> {
+        const healthUrl = 'http://localhost:3100/health';
+
+        try {
+            // ヘルスチェック（タイムアウト3秒）
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            try {
+                const response = await fetch(healthUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (response.ok) {
+                    this.log('[MCP] サーバーは起動中');
+                    return;
+                }
+            } catch {
+                clearTimeout(timeoutId);
+            }
+
+            // サーバーが起動していない場合、起動を試みる
+            this.log('[MCP] サーバーが応答しません。起動を試みます...');
+
+            try {
+                execSync(
+                    `wsl bash -c "cd ~/.maid-agent/maid-agent-messenger && pm2 start ecosystem.config.cjs 2>/dev/null || pm2 restart maid-agent-messenger 2>/dev/null"`,
+                    { encoding: 'utf-8', timeout: 10000 }
+                );
+                this.log('[MCP] サーバーを起動しました');
+
+                // 起動待機（最大5秒）
+                for (let i = 0; i < 5; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    try {
+                        const checkController = new AbortController();
+                        const checkTimeoutId = setTimeout(() => checkController.abort(), 2000);
+                        const checkResponse = await fetch(healthUrl, { signal: checkController.signal });
+                        clearTimeout(checkTimeoutId);
+                        if (checkResponse.ok) {
+                            this.log('[MCP] サーバー起動確認完了');
+                            return;
+                        }
+                    } catch {
+                        // 再試行
+                    }
+                }
+
+                vscode.window.showWarningMessage(
+                    'MCPサーバーの起動に時間がかかっています。エージェント間通信が不安定になる可能性があります。'
+                );
+            } catch (error) {
+                this.log(`[MCP] サーバー起動失敗: ${error}`);
+                vscode.window.showWarningMessage(
+                    'MCPサーバーを起動できませんでした。Init Global を実行してセットアップしてください。'
+                );
+            }
+        } catch (error) {
+            this.log(`[MCP] ヘルスチェックエラー: ${error}`);
+        }
     }
 
     /**

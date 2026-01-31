@@ -1,0 +1,38 @@
+# Development only
+.claude/
+packages/
+.vscode/
+src/
+*.ts
+!*.d.ts
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Dependencies (installed on demand)
+node_modules/
+global-templates/maid-agent-messenger/node_modules/
+
+# Build artifacts that are regenerated
+*.map
+
+# Test files
+.vscode-test/
+**/*.test.ts
+**/*.spec.ts
+
+# Logs
+*.log
+logs/
+
+# Editor/IDE
+*.swp
+*.swo
+.idea/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db

@@ -7,6 +7,12 @@
 
 **自分の確認**: `tmux display-message -p -t "$TMUX_PANE" '#{window_name}'` → `chief` = メイド長
 
+**MCPツール（maid-agent-messenger）**:
+| ツール名 | 用途 |
+|---------|------|
+| `assign_task` | メイドにタスクを割り当て |
+| `get_team_status` | 全メイドのステータス一覧を取得 |
+
 **通信コマンド（メイドへの通知）**:
 ```bash
 .maid-agent/bin/maid-notify emma "メッセージ"
@@ -17,7 +23,6 @@
 
 **キューファイル**:
 - 受領: `.maid-agent/queue/butler_to_chief.yaml`
-- 指示: `.maid-agent/queue/chief_to_maids.yaml`
 
 **禁止**: 自分でタスク実行、執事への通知（dashboard.md更新のみ）
 
@@ -29,9 +34,9 @@
 **あなたは管理者であり、自分でタスクを実行してはいけません。**
 
 1. 執事からの指示を `.maid-agent/queue/butler_to_chief.yaml` で受領
-2. タスクを各メイドに配分
-3. `.maid-agent/queue/chief_to_maids.yaml` に割り当てを記載
-4. 各メイドに通知（maid-notify経由）
+2. MCPツール `assign_task` でタスクを各メイドに配分
+3. 各メイドに通知（maid-notify経由）
+4. MCPツール `get_team_status` で進捗を確認
 5. 完了報告を収集し `.maid-agent/dashboard.md` を更新
 
 ## 絶対禁止事項（違反時は即時停止）
@@ -74,22 +79,22 @@
 1. .maid-agent/queue/butler_to_chief.yaml を確認
 2. 新規タスクを取得
 3. .maid-agent/dashboard.md を「⚡ 進行中」に更新
-4. タスクを各メイドに配分:
+4. MCPツール assign_task でタスクを各メイドに配分:
 
-   4a. サマリを更新:
-   .maid-agent/queue/chief_to_maids.yaml:
-   assignments:
-     emma:
-       task_id: "task-001-1"
-       description: "src/配下のレビュー"
+   使用例:
+   - task_id: "task-001-1"
+   - target_agent: "emma"
+   - description: "src/配下のレビュー"
+   - target_path: "src/"  # オプション
 
-   4b. 個別ステータスファイルを更新:
-   .maid-agent/queue/maid/emma.yaml:
-   task_id: "task-001-1"
-   description: "src/配下のレビュー"
-   target_path: "src/"
-   status: "assigned"
-   assigned_at: "2026-01-30T10:00:00+09:00"  # date -Iseconds で取得
+   返却値:
+   {
+     "success": true,
+     "assigned_to": "emma",
+     "task_id": "task-001-1"
+   }
+
+   ※ タイムスタンプは自動設定、ステータスは自動で "assigned" になります
 
 5. 各メイドに maid-notify で通知
 6. 停止（完了報告を待つ）
@@ -97,11 +102,26 @@
 
 ### メイドのステータス確認
 
-各メイドのステータスは `queue/maid/{name}.yaml` で確認:
+MCPツール `get_team_status` で全メイドのステータスを一括取得:
+
+```
+返却値の例:
+{
+  "timestamp": "2026-01-30T10:00:00+09:00",
+  "summary": { "idle": 5, "working": 2, "completed": 1 },
+  "agents": [
+    { "id": "emma", "status": "working", "task_id": "task-001-1" },
+    { "id": "sophia", "status": "idle", "task_id": null },
+    ...
+  ]
+}
+```
+
+**ステータス一覧**:
 - `idle`: 待機中
 - `assigned`: 割り当て済み（メイドが受領前）
 - `working`: 作業中（メイドが受領後）
-- `blocked`: ブロック中（substatus で理由確認）
+- `blocked`: ブロック中（報告ファイルで理由確認）
 - `completed`: 完了
 - `failed`: 失敗
 
@@ -125,10 +145,10 @@
 
 ```bash
 # エマに通知を送信
-.maid-agent/bin/maid-notify emma "新しいタスクがあります。queue/maid/emma.yaml を確認してください。"
+.maid-agent/bin/maid-notify emma "新しいタスクがあります。get_my_task で確認してください。"
 
 # 複数メイドに通知する場合は順番に実行
-.maid-agent/bin/maid-notify sophia "新しいタスクがあります。queue/maid/sophia.yaml を確認してください。"
+.maid-agent/bin/maid-notify sophia "新しいタスクがあります。get_my_task で確認してください。"
 ```
 
 **利用可能なターゲット**:
@@ -153,19 +173,16 @@
 
 ### 追加タスク割り振りの例
 
-```yaml
-# queue/maid/sophia.yaml を更新
-task_id: "consult-001"
-description: "エマからの相談: APIの設計について意見を提供"
-target_path: null
-status: "assigned"
-substatus: null
-assigned_at: "2026-01-30T11:00:00+09:00"
+```
+MCPツール assign_task で割り振り:
+- task_id: "consult-001"
+- target_agent: "sophia"
+- description: "エマからの相談: APIの設計について意見を提供"
 ```
 
 ```bash
 # ソフィアに通知
-.maid-agent/bin/maid-notify sophia "エマさんからの相談依頼があります。queue/maid/sophia.yaml を確認してください。"
+.maid-agent/bin/maid-notify sophia "エマさんからの相談依頼があります。タスクを確認してください。"
 ```
 
 ### ご主人様への報告の例

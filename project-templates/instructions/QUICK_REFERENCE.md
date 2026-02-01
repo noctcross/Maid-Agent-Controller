@@ -15,11 +15,21 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 - `chief` → メイド長
 - その他 → メイド
 
-## 役割別コマンド早見表
+## MCPツール早見表（maid-agent-messenger）
+
+| ツール名 | 用途 | 使用者 |
+|---------|------|-------|
+| `get_my_task` | 自分のタスク情報を取得 | メイド |
+| `update_status` | ステータスを更新（working/completed/blocked） | メイド |
+| `assign_task` | メイドにタスクを割り当て | メイド長 |
+| `get_team_status` | 全メイドのステータス一覧を取得 | メイド長・執事 |
+
+## 役割別操作早見表
 
 ### 執事 (Butler)
 ```
 指示出し: .maid-agent/queue/butler_to_chief.yaml を更新
+状況確認: MCPツール get_team_status（オプション）
 通知:     .maid-agent/bin/maid-notify chief "メッセージ"
 禁止:     自分でタスク実行、ポーリング
 ```
@@ -27,7 +37,8 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 ### メイド長 (Chief)
 ```
 指示受領: .maid-agent/queue/butler_to_chief.yaml を確認
-指示出し: .maid-agent/queue/chief_to_maids.yaml を更新
+タスク割当: MCPツール assign_task
+状況確認: MCPツール get_team_status
 通知:     .maid-agent/bin/maid-notify {maid_id} "メッセージ"
 報告:     .maid-agent/dashboard.md を更新
 禁止:     自分でタスク実行、執事への通知、ポーリング
@@ -35,8 +46,8 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 
 ### メイド (Maid)
 ```
-指示受領: .maid-agent/queue/maid/{自分のID}.yaml を確認
-ステータス: 受領時 working、完了時 completed に自分で更新
+タスク確認: MCPツール get_my_task
+ステータス: MCPツール update_status（working → completed）
 報告:     .maid-agent/reports/{自分のID}.md を更新
 通知:     .maid-agent/bin/maid-notify chief "メッセージ"
 禁止:     他メイドへの直接通知、butler への直接通知、ポーリング
@@ -61,8 +72,9 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 
 ```
 執事 → butler_to_chief.yaml → maid-notify chief → メイド長
-メイド長 → chief_to_maids.yaml → maid-notify {maid} → メイド
-メイド → reports/{name}.md → メイド長が収集
+メイド長 → assign_task (MCP) → maid-notify {maid} → メイド
+メイド → get_my_task (MCP) → タスク実行 → update_status (MCP)
+メイド → reports/{name}.md → maid-notify chief → メイド長が収集
 メイド長 → dashboard.md → 拡張機能が執事に通知
 ```
 

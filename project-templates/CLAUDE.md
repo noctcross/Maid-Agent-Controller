@@ -42,13 +42,27 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 ## 通信プロトコル
 
 ### 基本原則
-- **ポーリング禁止**: YAML + terminal.sendText() のイベント駆動
-- **下への指示**: YAMLキューファイル経由 + sendText()で起動
+- **ポーリング禁止**: MCP + maid-notify のイベント駆動
+- **タスク管理**: MCPツール（maid-agent-messenger）経由
+- **通知**: maid-notify コマンドで起動
 - **上への報告**: dashboard.md 更新のみ（sendText禁止）
 
-### sendText 2段階プロトコル（重要）
+### MCPツール（maid-agent-messenger）
 
-通知は必ず **2回に分けて** 送信:
+エージェント間のタスク管理は以下のMCPツールを使用:
+
+| ツール名 | 用途 | 使用者 |
+|---------|------|-------|
+| `get_my_task` | 自分のタスク情報を取得 | メイド |
+| `update_status` | ステータスを更新（working/completed/blocked） | メイド |
+| `assign_task` | メイドにタスクを割り当て | メイド長 |
+| `get_team_status` | 全メイドのステータス一覧を取得 | メイド長・執事 |
+
+**利点**: YAMLファイル直接操作よりもトークン消費が少なく、タイムスタンプ自動設定
+
+### sendText 2段階プロトコル（maid-notify内部）
+
+maid-notify コマンドの内部動作:
 
 ```typescript
 // ステップ1: メッセージ送信（Enterなし）
@@ -71,8 +85,7 @@ terminal.sendText('', true);
 | `.maid-agent/instructions/chief.md` | メイド長の役割定義 |
 | `.maid-agent/instructions/maid.md` | メイドの役割定義 |
 | `.maid-agent/queue/butler_to_chief.yaml` | 執事→メイド長への指示 |
-| `.maid-agent/queue/chief_to_maids.yaml` | メイド長→メイドへの割り当て |
-| `.maid-agent/status/master_status.yaml` | 全体ステータス |
+| `.maid-agent/queue/maid/{name}.yaml` | 各メイドのタスク（MCPツール経由で更新） |
 | `.maid-agent/reports/` | 各メイドからの報告 |
 | `.maid-agent/skills/` | 承認済みスキル（再利用パターン） |
 | `.maid-agent/rules/` | プロジェクト固有ルール |
@@ -123,11 +136,12 @@ rules/
 **セッション要約後、または通信方法が不明な場合**:
 1. **必ず** `.maid-agent/instructions/QUICK_REFERENCE.md` を読む
 2. 自分の役割に応じた指示書を再読み込み
-3. `maid-notify` コマンドの使い方を確認
+3. MCPツールと `maid-notify` コマンドの使い方を確認
 
 **要約時は以下を必ず含める**:
 - 自分の役割（執事/メイド長/メイド）
-- 通信コマンド: `.maid-agent/bin/maid-notify`
+- MCPツール: `get_my_task`, `update_status`, `assign_task`, `get_team_status`
+- 通知コマンド: `.maid-agent/bin/maid-notify`
 - 禁止事項
 - 現在のタスク
 

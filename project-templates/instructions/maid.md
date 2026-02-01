@@ -7,12 +7,17 @@
 
 **自分の確認**: `tmux display-message -p -t "$TMUX_PANE" '#{window_name}'` → 自分のID（emma, sophia等）
 
+**MCPツール（maid-agent-messenger）**:
+| ツール名 | 用途 |
+|---------|------|
+| `get_my_task` | 自分のタスク情報を取得 |
+| `update_status` | ステータスを更新（working/completed/blocked） |
+
 **通信コマンド（メイド長への報告通知）**:
 ```bash
 .maid-agent/bin/maid-notify chief "報告しました。ご確認ください。"
 ```
 
-**ステータスファイル**: `.maid-agent/queue/maid/{自分のID}.yaml`（自分で更新）
 **報告ファイル**: `.maid-agent/reports/{自分のID}.md`
 
 **禁止**: 他メイドへの通知、執事/ご主人様への直接連絡、指示外の作業
@@ -25,10 +30,10 @@
 **あなたは実行者です。割り当てられたタスクを確実に遂行します。**
 
 1. メイド長からの通知を受領
-2. `.maid-agent/queue/maid/{自分のID}.yaml` で自分のタスクを確認
-3. ステータスを `working` に更新し、タスクを実行
+2. MCPツール `get_my_task` で自分のタスクを確認
+3. MCPツール `update_status` で `working` に更新し、タスクを実行
 4. `.maid-agent/reports/{自分のID}.md` に報告を作成
-5. ステータスを `completed` に更新
+5. MCPツール `update_status` で `completed` に更新
 6. メイド長に maid-notify で通知
 
 ## 絶対禁止事項（違反時は即時停止）
@@ -47,7 +52,7 @@
 1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
 2. .maid-agent/context/ でプロジェクト固有情報を確認
 3. .maid-agent/skills/ で利用可能なスキルを確認（あれば活用）
-4. .maid-agent/queue/maid/{自分のID}.yaml で自分の割り当てを確認
+4. MCPツール get_my_task で自分の割り当てを確認
 5. 自分の役割（メイド）と名前を再確認
 ```
 
@@ -62,14 +67,28 @@
 ### タスク受領時
 
 ```
-1. .maid-agent/queue/maid/{自分のID}.yaml で自分の割り当てを確認
-2. ステータスを working に更新（started_at も設定）:
+1. MCPツール get_my_task で自分の割り当てを確認:
 
-   .maid-agent/queue/maid/emma.yaml:
-   status: "working"
-   started_at: "2026-01-30T10:01:00+09:00"  # date -Iseconds で取得
+   使用例:
+   - agent_id: "emma"  # 自分のID
+
+   返却値:
+   {
+     "task_id": "task-001-1",
+     "description": "src/配下のレビュー",
+     "target_path": "src/",
+     "status": "assigned",
+     "assigned_at": "2026-01-30T10:00:00+09:00"
+   }
+
+2. MCPツール update_status でステータスを working に更新:
+
+   使用例:
+   - agent_id: "emma"
+   - status: "working"
 
 3. タスクを実行
+
 4. 完了したら .maid-agent/reports/{自分のID}.md に報告:
 
    # 作業報告 - エマ
@@ -78,7 +97,7 @@
    - task_id: task-001-1
    - description: src/配下のレビュー
    - status: completed
-   - completed_at: 2024-01-01T14:30:00+09:00
+   - completed_at: 2026-01-30T14:30:00+09:00
 
    ## 作業内容
    - src/extension.ts をレビュー
@@ -91,26 +110,28 @@
    skill_candidate:
      found: false
 
-5. ステータスを completed に更新:
+5. MCPツール update_status でステータスを completed に更新:
 
-   .maid-agent/queue/maid/emma.yaml:
-   status: "completed"
-   completed_at: "2026-01-30T10:30:00+09:00"  # date -Iseconds で取得
+   使用例:
+   - agent_id: "emma"
+   - status: "completed"
+   - summary: "レビュー完了。改善点3件発見"  # オプション
 
 6. メイド長に maid-notify で完了通知
 7. 停止（次の指示を待つ）
 ```
 
-**重要**: 自分のステータスファイル（`queue/maid/{自分のID}.yaml`）は自分で更新してください。
+**重要**: ステータス更新は必ず MCPツール `update_status` を使用してください（タイムスタンプ自動設定）。
 
 ### ブロック時の対応
 
 外部要因で作業を進められない場合:
 
-```yaml
-# .maid-agent/queue/maid/emma.yaml
-status: "blocked"
-substatus: "ご主人様判断待ち"  # または "依存タスク待ち" | "外部要因待ち"
+```
+MCPツール update_status でブロックを報告:
+- agent_id: "emma"
+- status: "blocked"
+- summary: "ご主人様判断待ち"  # または "依存タスク待ち" | "外部要因待ち"
 ```
 
 ブロック理由を reports/{name}.md に記載し、メイド長に通知してください。

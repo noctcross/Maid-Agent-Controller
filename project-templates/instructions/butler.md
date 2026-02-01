@@ -7,6 +7,11 @@
 
 **自分の確認**: `tmux display-message -p -t "$TMUX_PANE" '#{window_name}'` → `butler` = 執事
 
+**MCPツール（maid-agent-messenger）**:
+| ツール名 | 用途 |
+|---------|------|
+| `get_team_status` | 全メイドのステータス一覧を取得（オプション） |
+
 **通信コマンド（メイド長への通知）**:
 ```bash
 .maid-agent/bin/maid-notify chief "メッセージ"
@@ -53,6 +58,7 @@
 - タイムスタンプの取得（`date -Iseconds`）
 - maid-notify の実行
 - キューファイル（butler_to_chief.yaml）の更新
+- MCPツール `get_team_status` でチーム状況の確認（オプション）
 
 ## 「確認して」「調べて」等の指示を受けた場合
 

@@ -3,6 +3,13 @@
 VSCode拡張として動作するマルチエージェントClaude Code管理システム。
 **multi-agent-shogun** の階層構造をVSCode上で再現します。
 
+## 特徴
+
+- **階層型マルチエージェント**: 執事→メイド長→メイド8人の階層構造
+- **MCPサーバー連携**: エージェント間通信をMCP経由で効率化（トークン消費削減）
+- **WSL + tmux**: Windows環境でもWSL経由で安定動作
+- **ビジュアル管理**: サイドバーの立ち絵表示、ダッシュボードで進捗確認
+
 ## 階層構造
 
 ```
@@ -43,18 +50,35 @@ npm run compile
 F5でデバッグ起動 → Extension Development Host が開く
 ```
 
-### 2. 初期化
+### 2. グローバル初期化（初回のみ）
 
-コマンドパレット（`Ctrl+Shift+P`）から `init` と入力:
+コマンドパレット（`Ctrl+Shift+P`）から `Init Global` を実行:
+
+```
+Maid Agent: Init Global
+```
+
+以下がセットアップされます：
+- `~/.maid-agent/` グローバル設定ディレクトリ
+- **maid-agent-messenger** MCPサーバー（エージェント間通信用）
+- pm2による自動起動設定（WSL起動時に自動でサーバー起動）
+
+> **Note**: MCPサーバーのセットアップ時にWSLのパスワード入力が必要です。
+
+### 3. プロジェクト初期化
+
+コマンドパレットから `init` と入力:
 
 | コマンド | 説明 |
 |---------|------|
 | `Maid Agent: Init` | `.maid-agent/` ディレクトリを作成 |
 
+プロジェクト初期化時に `.mcp.json` が自動生成され、MCPサーバーとの連携が設定されます。
+
 > **Note**: コマンドパレットではファジー検索が使えます。
 > 例: `call all`, `xn -r`, `butler` など部分入力でOK
 
-### 3. エージェントを召喚
+### 4. エージェントを召喚
 
 | コマンド | 検索キーワード | 説明 |
 |---------|--------------|------|
@@ -74,14 +98,14 @@ F5でデバッグ起動 → Extension Development Host が開く
 > **事前に別のターミナルで一度実行し、Yes を選択してください。**
 > 2回目以降は確認なしで起動します。
 
-### 4. タスクを実行
+### 5. タスクを実行
 
 **執事のターミナルに直接入力してください。**
 
 執事のターミナル（🎩 執事）を選択し、Claude Code に直接タスクを入力します。
 執事がタスクを分析し、メイド長→メイドへと階層的に処理されます。
 
-### 5. 進捗確認
+### 6. 進捗確認
 
 #### サイドバー（エージェントパネル）
 
@@ -114,8 +138,7 @@ F5でデバッグ起動 → Extension Development Host が開く
 │   └── QUICK_REFERENCE.md # コンパクション対策クイックリファレンス
 ├── queue/                 # タスクキュー
 │   ├── butler_to_chief.yaml
-│   ├── chief_to_maids.yaml   # サマリビュー
-│   └── maid/                  # メイド別ステータス（本人が更新）
+│   └── maid/                  # メイド別ステータス（MCPツール経由で更新）
 │       ├── emma.yaml
 │       └── ...
 ├── reports/               # メイドからの報告
@@ -286,6 +309,7 @@ improvement_proposal:
 2. グローバルルール選択UI表示（auto_select: true のものは事前選択）
 3. グローバルスキル選択UI表示
 4. 選択されたルール・スキルをプロジェクトにコピー
+5. `.mcp.json` を生成（MCPサーバー連携設定）
 
 ### ルールモジュールの形式
 
@@ -298,6 +322,57 @@ target_roles: [common]
 ---
 
 （ルール内容）
+```
+
+## MCPサーバー（maid-agent-messenger）
+
+エージェント間のタスク管理を効率化するMCPサーバーです。
+
+### 提供ツール
+
+| ツール名 | 用途 | 使用者 |
+|---------|------|-------|
+| `get_my_task` | 自分のタスク情報を取得 | メイド |
+| `update_status` | ステータスを更新（working/completed/blocked） | メイド |
+| `assign_task` | メイドにタスクを割り当て | メイド長 |
+| `get_team_status` | 全メイドのステータス一覧を取得 | メイド長・執事 |
+
+### メリット
+
+- **トークン消費削減**: YAMLファイル全体を読み書きする代わりに、必要な情報のみを取得・更新
+- **タイムスタンプ自動設定**: `assigned_at`, `started_at`, `completed_at` が自動で設定される
+- **ファイルロック**: 複数エージェントからの同時アクセスでも安全
+
+### セットアップ
+
+`Init Global` コマンドで自動セットアップされます：
+
+1. `~/.maid-agent/maid-agent-messenger/` にサーバーをインストール
+2. pm2でプロセス管理を設定
+3. WSL起動時の自動起動を設定（`pm2 startup`）
+
+### サーバー管理コマンド
+
+```bash
+# WSL内で実行
+pm2 status                        # ステータス確認
+pm2 logs maid-agent-messenger     # ログ確認
+pm2 restart maid-agent-messenger  # 再起動
+pm2 stop maid-agent-messenger     # 停止
+```
+
+### .mcp.json
+
+プロジェクト初期化時に `.mcp.json` が自動生成されます：
+
+```json
+{
+  "mcpServers": {
+    "maid-agent-messenger": {
+      "url": "http://localhost:3100/sse"
+    }
+  }
+}
 ```
 
 ## タスクステータス
@@ -372,8 +447,9 @@ Memory MCP が利用可能な場合、セッション間で知識を共有でき
 
 | 項目 | multi-agent-shogun | Maid Agent Controller |
 |------|-------------------|----------------------|
-| 環境 | tmux (Linux/macOS) | VSCode (クロスプラットフォーム) |
-| ターミナル管理 | tmux send-keys | terminal.sendText() |
+| 環境 | tmux (Linux/macOS) | VSCode + WSL (Windows対応) |
+| ターミナル管理 | tmux send-keys | tmux send-keys (WSL経由) |
+| エージェント間通信 | YAMLファイル直接操作 | MCPツール経由（トークン節約） |
 | 階層構造 | 将軍→家老→足軽 | 執事→メイド長→メイド |
 | GUI | なし | サイドバー + ダッシュボード |
 | 起動方法 | シェルスクリプト | VSCodeコマンド |

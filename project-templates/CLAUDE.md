@@ -60,19 +60,20 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 
 **利点**: YAMLファイル直接操作よりもトークン消費が少なく、タイムスタンプ自動設定
 
-### sendText 2段階プロトコル（maid-notify内部）
+### send-keys 2段階プロトコル（maid-notify内部）
 
-maid-notify コマンドの内部動作:
+maid-notify コマンドの内部動作（tmux send-keys使用）:
 
-```typescript
-// ステップ1: メッセージ送信（Enterなし）
-terminal.sendText('メッセージ', false);
+```bash
+# ステップ1: メッセージ送信（-l でリテラル送信）
+tmux send-keys -t "${SESSION}:${TARGET}" -l "$MESSAGE"
 
-// ステップ2: Enter送信（別の呼び出しで）
-terminal.sendText('', true);
+# ステップ2: Enter送信（C-m = Ctrl+M = Enter）
+sleep 1.0  # Claude Codeの処理待ち
+tmux send-keys -t "${SESSION}:${TARGET}" C-m
 ```
 
-**禁止**: 1回の sendText でメッセージと Enter を同時に送信しない
+**禁止**: 1回の send-keys でメッセージと Enter を同時に送信しない
 
 ### ファイル構成（すべて `.maid-agent/` 配下）
 

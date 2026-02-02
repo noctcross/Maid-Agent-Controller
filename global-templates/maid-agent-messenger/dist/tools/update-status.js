@@ -5,11 +5,12 @@
  */
 import { z } from "zod";
 import { MAID_IDS, UPDATABLE_STATUSES, } from "../types/index.js";
-import { readYamlFile, writeYamlFile, getTimestamp, } from "../utils/yaml-helper.js";
+import { readYamlFile, writeYamlFile, getTimestamp, fileExists, sanitizeDescription, renameFile, } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
 // STDIO モード用パス（カレントディレクトリ = プロジェクトディレクトリ）
 const PATHS = {
     QUEUE_MAID: ".maid-agent/queue/maid",
+    REPORTS: ".maid-agent/reports",
 };
 export function registerUpdateStatus(server) {
     server.tool("update_status", "自分のタスクステータスを更新します", {
@@ -39,10 +40,22 @@ export function registerUpdateStatus(server) {
                     task.started_at = timestamp;
                     updatedFields.push("started_at");
                 }
-                // completed に変更時、completed_at を設定
+                // completed に変更時、completed_at を設定 + レポートリネーム
                 if (status === "completed") {
                     task.completed_at = timestamp;
                     updatedFields.push("completed_at");
+                    // レポートファイルのリネーム
+                    if (task.task_id) {
+                        const currentPath = `${PATHS.REPORTS}/current_${agent_id}.md`;
+                        const description = sanitizeDescription(task.description);
+                        const newPath = `${PATHS.REPORTS}/task-${task.task_id}-${agent_id}-${description}.md`;
+                        if (await fileExists(currentPath)) {
+                            const renamed = await renameFile(currentPath, newPath);
+                            if (renamed) {
+                                updatedFields.push("report_renamed");
+                            }
+                        }
+                    }
                 }
                 // サマリがあれば追加
                 if (summary) {

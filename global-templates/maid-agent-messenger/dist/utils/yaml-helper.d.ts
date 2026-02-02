@@ -22,3 +22,11 @@ export declare function getFirstLine(text: string | null): string | null;
  * ISO 8601形式のタイムスタンプを取得
  */
 export declare function getTimestamp(): string;
+/**
+ * descriptionを最大文字数に切り詰め、ファイル名に使えない文字を除去
+ */
+export declare function sanitizeDescription(description: string | null, maxLength?: number): string;
+/**
+ * ファイルをリネーム
+ */
+export declare function renameFile(oldPath: string, newPath: string): Promise<boolean>;

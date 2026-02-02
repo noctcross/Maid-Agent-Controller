@@ -58,3 +58,37 @@ export function getFirstLine(text: string | null): string | null {
 export function getTimestamp(): string {
   return new Date().toISOString();
 }
+
+/**
+ * descriptionを最大文字数に切り詰め、ファイル名に使えない文字を除去
+ */
+export function sanitizeDescription(
+  description: string | null,
+  maxLength = 15
+): string {
+  if (!description) return "untitled";
+
+  // 1行目のみ取得
+  const firstLine = description.split("\n")[0].trim();
+
+  // ファイル名に使えない文字を除去（Windows/Linux両対応）
+  const sanitized = firstLine.replace(/[<>:"/\\|?*\x00-\x1f]/g, "");
+
+  // 最大文字数に切り詰め
+  return sanitized.slice(0, maxLength) || "untitled";
+}
+
+/**
+ * ファイルをリネーム
+ */
+export async function renameFile(
+  oldPath: string,
+  newPath: string
+): Promise<boolean> {
+  try {
+    await fs.rename(oldPath, newPath);
+    return true;
+  } catch {
+    return false;
+  }
+}

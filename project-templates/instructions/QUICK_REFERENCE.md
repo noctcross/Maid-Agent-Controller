@@ -48,7 +48,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 ```
 タスク確認: MCPツール get_my_task
 ステータス: MCPツール update_status（working → completed）
-報告:     .maid-agent/reports/{自分のID}.md を更新
+報告:     .maid-agent/reports/current_{自分のID}.md を更新
 通知:     .maid-agent/bin/maid-notify chief "メッセージ"
 禁止:     他メイドへの直接通知、butler への直接通知、ポーリング
 ```
@@ -74,7 +74,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 執事 → butler_to_chief.yaml → maid-notify chief → メイド長
 メイド長 → assign_task (MCP) → maid-notify {maid} → メイド
 メイド → get_my_task (MCP) → タスク実行 → update_status (MCP)
-メイド → reports/{name}.md → maid-notify chief → メイド長が収集
+メイド → reports/current_{name}.md → maid-notify chief → メイド長が収集
 メイド長 → dashboard.md → 拡張機能が執事に通知
 ```
 

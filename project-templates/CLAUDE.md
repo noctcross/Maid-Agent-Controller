@@ -81,6 +81,7 @@ tmux send-keys -t "${SESSION}:${TARGET}" C-m
 |---------|------|
 | `.maid-agent/CLAUDE.md` | 本ファイル（詳細リファレンス） |
 | `.maid-agent/dashboard.md` | 戦況報告（下→上への報告） |
+| `.maid-agent/master/NOTES.md` | ご主人様メモ（後でやること等） |
 | `.maid-agent/context/` | プロジェクト固有コンテキスト |
 | `.maid-agent/instructions/butler.md` | 執事の役割定義 |
 | `.maid-agent/instructions/chief.md` | メイド長の役割定義 |

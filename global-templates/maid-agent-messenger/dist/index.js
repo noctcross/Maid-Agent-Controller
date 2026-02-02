@@ -15,7 +15,7 @@ import { registerUpdateStatus } from "./tools/update-status.js";
 import { registerAssignTask } from "./tools/assign-task.js";
 import { registerGetTeamStatus } from "./tools/get-team-status.js";
 import { loadConfig, getServerUrl } from "./utils/config-loader.js";
-const SERVER_NAME = "maid-task-server";
+const SERVER_NAME = "maid-agent-messenger";
 const SERVER_VERSION = "2.0.0";
 /**
  * 中央サーバーが起動しているかチェック

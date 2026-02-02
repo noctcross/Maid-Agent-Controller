@@ -94,8 +94,8 @@ send_message() {
         # 少し待機（copy mode解除の反映を待つ）
         sleep 0.2
 
-        # メッセージ送信を試行
-        if tmux send-keys -t "${SESSION_NAME}:${TARGET}" -l "$MESSAGE" 2>/dev/null; then
+        # メッセージ送信を試行（送信者情報を付加）
+        if tmux send-keys -t "${SESSION_NAME}:${TARGET}" -l "[From: $SENDER] $MESSAGE" 2>/dev/null; then
             # メッセージがバッファに入るのを待つ
             # Claude Codeの処理時間を考慮して長めに設定（推奨: 1.0秒以上）
             sleep $MESSAGE_TO_ENTER_DELAY

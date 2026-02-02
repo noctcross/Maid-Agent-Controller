@@ -92,3 +92,33 @@ export async function renameFile(
     return false;
   }
 }
+
+/**
+ * ファイルをコピー
+ */
+export async function copyFile(
+  srcPath: string,
+  destPath: string
+): Promise<boolean> {
+  try {
+    await fs.copyFile(srcPath, destPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ファイルに書き込み（新規作成または上書き）
+ */
+export async function writeTextFile(
+  filePath: string,
+  content: string
+): Promise<boolean> {
+  try {
+    await fs.writeFile(filePath, content, "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}

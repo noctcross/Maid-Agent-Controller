@@ -369,7 +369,8 @@ pm2 stop maid-agent-messenger     # 停止
 {
   "mcpServers": {
     "maid-agent-messenger": {
-      "url": "http://localhost:3100/sse"
+      "type": "http",
+      "url": "http://localhost:3100/mcp"
     }
   }
 }

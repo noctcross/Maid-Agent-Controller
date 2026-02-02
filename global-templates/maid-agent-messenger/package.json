@@ -1,11 +1,12 @@
 {
-  "name": "maid-task-server",
-  "version": "2.0.0",
-  "description": "MCP server for Maid Agent System task management (Hybrid mode)",
+  "name": "maid-agent-messenger",
+  "version": "4.0.0",
+  "description": "MCP server for Maid Agent System - inter-agent messaging",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "postbuild": "node scripts/sync-to-global.js",
     "start": "node dist/index.js",
     "start:central": "node dist/central-server.js",
     "dev": "tsc --watch"

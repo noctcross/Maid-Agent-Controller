@@ -3,5 +3,8 @@ out/
 .vscode-test/
 *.vsix
 
-# MCP Server runtime logs (dist/ is included for distribution)
-global-templates/mcp-server/logs/*.log
+# MCP Server runtime logs
+global-templates/maid-agent-messenger/logs/
+
+# Development build artifacts (packages/ is source, global-templates/ is distribution)
+packages/maid-agent-messenger/dist/

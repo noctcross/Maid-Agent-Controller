@@ -1,15 +1,15 @@
 /**
- * assign_task ツール
+ * assign_task ツール（STDIOモード用ラッパー）
  *
  * メイドにタスクを割り当て（メイド長専用）
  */
 import { z } from "zod";
 import { MAID_IDS } from "../types/index.js";
-import { readYamlFile, writeYamlFile, getTimestamp, } from "../utils/yaml-helper.js";
-import { withFileLock } from "../utils/file-lock.js";
+import { executeAssignTask } from "../services/index.js";
 // STDIO モード用パス（カレントディレクトリ = プロジェクトディレクトリ）
 const PATHS = {
     QUEUE_MAID: ".maid-agent/queue/maid",
+    REPORTS: ".maid-agent/reports",
 };
 export function registerAssignTask(server) {
     server.tool("assign_task", "メイドにタスクを割り当てます（メイド長専用）", {
@@ -26,37 +26,14 @@ export function registerAssignTask(server) {
             .optional()
             .describe("作業対象パス（オプション）"),
     }, async ({ task_id, target_agent, description, target_path }) => {
-        const filePath = `${PATHS.QUEUE_MAID}/${target_agent}.yaml`;
-        const timestamp = getTimestamp();
         try {
-            const result = await withFileLock(filePath, async () => {
-                // YAML読み込み
-                const task = await readYamlFile(filePath);
-                // 作業中の場合は警告
-                if (task.status === "working") {
-                    return {
-                        success: false,
-                        assigned_to: target_agent,
-                        task_id: task.task_id || "",
-                        error: `${target_agent} は現在作業中です（${task.task_id}）`,
-                    };
-                }
-                // 新しいタスクを設定
-                task.task_id = task_id;
-                task.description = description;
-                task.target_path = target_path || null;
-                task.status = "assigned";
-                task.substatus = null;
-                task.assigned_at = timestamp;
-                task.started_at = null;
-                task.completed_at = null;
-                // YAML書き込み
-                await writeYamlFile(filePath, task);
-                return {
-                    success: true,
-                    assigned_to: target_agent,
-                    task_id,
-                };
+            const result = await executeAssignTask({
+                queueMaidPath: PATHS.QUEUE_MAID,
+                reportsPath: PATHS.REPORTS,
+                taskId: task_id,
+                targetAgent: target_agent,
+                description,
+                targetPath: target_path,
             });
             return {
                 content: [

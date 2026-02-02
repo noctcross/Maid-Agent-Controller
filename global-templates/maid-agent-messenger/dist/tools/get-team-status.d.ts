@@ -1,5 +1,5 @@
 /**
- * get_team_status ツール
+ * get_team_status ツール（STDIOモード用ラッパー）
  *
  * 全メイドのステータス一覧を取得
  */

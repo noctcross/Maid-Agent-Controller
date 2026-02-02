@@ -73,3 +73,27 @@ export async function renameFile(oldPath, newPath) {
         return false;
     }
 }
+/**
+ * ファイルをコピー
+ */
+export async function copyFile(srcPath, destPath) {
+    try {
+        await fs.copyFile(srcPath, destPath);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * ファイルに書き込み（新規作成または上書き）
+ */
+export async function writeTextFile(filePath, content) {
+    try {
+        await fs.writeFile(filePath, content, "utf-8");
+        return true;
+    }
+    catch {
+        return false;
+    }
+}

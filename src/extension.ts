@@ -129,7 +129,8 @@ function isWslAvailable(): boolean {
  * dashboard.mdのレンダリング用
  */
 function simpleMarkdownToHtml(markdown: string): string {
-    let html = markdown;
+    // 改行コードを統一（Windows対応）
+    let html = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
     // HTMLエスケープ（まず最初に）
     html = html
@@ -145,37 +146,12 @@ function simpleMarkdownToHtml(markdown: string): string {
     // インラインコード（`...`）
     html = html.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
 
-    // 見出し（### ## #）
-    html = html.replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>');
-    html = html.replace(/^## (.+)$/gm, '<h2 class="md-h2">$1</h2>');
-    html = html.replace(/^# (.+)$/gm, '<h1 class="md-h1">$1</h1>');
-
-    // 水平線（---）
-    html = html.replace(/^---$/gm, '<hr class="md-hr">');
-
-    // チェックボックス
-    html = html.replace(/^- \[x\] (.+)$/gm, '<div class="md-checkbox checked">☑ $1</div>');
-    html = html.replace(/^- \[ \] (.+)$/gm, '<div class="md-checkbox">☐ $1</div>');
-
-    // リスト（- item）
-    html = html.replace(/^- (.+)$/gm, '<li class="md-li">$1</li>');
-    // 連続するliをulで囲む
-    html = html.replace(/(<li class="md-li">.*?<\/li>\n?)+/g, (match) => {
-        return `<ul class="md-ul">${match}</ul>`;
-    });
-
-    // 太字（**...**）
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-
-    // 斜体（*...*）- 太字の後に処理
-    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-
-    // テーブル（より正確なパース）
+    // テーブル（より正確なパース）- 見出しより先に処理
     // Markdownテーブル形式:
     // | Header1 | Header2 |
     // |---------|---------|
     // | Data1   | Data2   |
-    const tableRegex = /(?:^\|.+\|$\n?)+/gm;
+    const tableRegex = /(?:^[ \t]*\|.+\|[ \t]*$\n?)+/gm;
     html = html.replace(tableRegex, (tableBlock) => {
         const rows = tableBlock.trim().split('\n').filter(row => row.trim());
         if (rows.length < 2) return tableBlock; // 最低2行必要（ヘッダー+セパレータ）
@@ -184,7 +160,7 @@ function simpleMarkdownToHtml(markdown: string): string {
         let isHeaderDone = false;
 
         for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
+            const row = rows[i].trim();
             // セル内容を抽出（先頭と末尾の | を除去）
             const cellContent = row.replace(/^\||\|$/g, '');
             const cells = cellContent.split('|').map(cell => cell.trim());
@@ -215,6 +191,31 @@ function simpleMarkdownToHtml(markdown: string): string {
         tableHtml += '</tbody></table>';
         return tableHtml;
     });
+
+    // 見出し（### ## #）
+    html = html.replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2 class="md-h2">$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1 class="md-h1">$1</h1>');
+
+    // 水平線（---）
+    html = html.replace(/^---$/gm, '<hr class="md-hr">');
+
+    // チェックボックス
+    html = html.replace(/^- \[x\] (.+)$/gm, '<div class="md-checkbox checked">☑ $1</div>');
+    html = html.replace(/^- \[ \] (.+)$/gm, '<div class="md-checkbox">☐ $1</div>');
+
+    // リスト（- item）
+    html = html.replace(/^- (.+)$/gm, '<li class="md-li">$1</li>');
+    // 連続するliをulで囲む
+    html = html.replace(/(<li class="md-li">.*?<\/li>\n?)+/g, (match) => {
+        return `<ul class="md-ul">${match}</ul>`;
+    });
+
+    // 太字（**...**）
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+    // 斜体（*...*）- 太字の後に処理
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
 
     // リンク [text](url) - 外部リンクは無効化
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span class="md-link">$1</span>');
@@ -266,10 +267,14 @@ function getGlobalMaidAgentPath(): string {
     if (CURRENT_ENV === 'windows-native') {
         // Windows環境: WSLのホームディレクトリを使用
         try {
-            const wslHome = execSync('wsl echo $HOME', { encoding: 'utf-8' }).trim();
-            // WSLパスをWindowsパスに変換 (/home/user → \\wsl$\Ubuntu\home\user)
-            const distro = execSync('wsl -l -q', { encoding: 'utf-8' }).split('\n')[0].trim().replace(/\0/g, '');
-            return `\\\\wsl$\\${distro}${wslHome}/${GLOBAL_MAID_AGENT_DIR}`;
+            // シングルクォートで囲んでWindowsシェルでの$HOME展開を防ぐ
+            const wslHome = execSync("wsl bash -c 'echo $HOME'", { encoding: 'utf-8' }).trim();
+            // WSLディストリビューション名を取得（UTF-16のヌルバイトと空白を除去）
+            const distroRaw = execSync('wsl -l -q', { encoding: 'utf-8' });
+            const distro = distroRaw.replace(/\0/g, '').split('\n')[0].trim();
+            // スラッシュをバックスラッシュに変換してパスを構築
+            const windowsHome = wslHome.replace(/\//g, '\\');
+            return `\\\\wsl$\\${distro}${windowsHome}\\${GLOBAL_MAID_AGENT_DIR}`;
         } catch {
             // フォールバック: Windowsのホームディレクトリ
             return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
@@ -1182,8 +1187,20 @@ class MultiAgentController {
         const maidAgentPath = path.join(this.workspaceRoot, MAID_AGENT_DIR);
 
         if (fs.existsSync(maidAgentPath)) {
+            // 上書きされるフォルダを確認
+            const overwriteDirs = ['instructions', 'bin'];
+            const existingOverwriteDirs = overwriteDirs.filter(dir =>
+                fs.existsSync(path.join(maidAgentPath, dir))
+            );
+
+            let message = `.maid-agent ディレクトリは既に存在します。再初期化しますか？`;
+            if (existingOverwriteDirs.length > 0) {
+                message += `\n\n⚠️ 以下のフォルダは上書きされます:\n${existingOverwriteDirs.map(d => `  - ${d}/`).join('\n')}`;
+            }
+
             const choice = await vscode.window.showWarningMessage(
-                `.maid-agent ディレクトリは既に存在します。再初期化しますか？`,
+                message,
+                { modal: true },
                 '再初期化', 'キャンセル'
             );
             if (choice !== '再初期化') {
@@ -1255,70 +1272,226 @@ class MultiAgentController {
     }
 
     /**
+     * WSL2の状態をチェックし、必要に応じてセットアップを案内
+     * @returns true: WSL準備完了、false: 再起動等が必要
+     */
+    private async checkAndSetupWsl(): Promise<boolean> {
+        this.log('[WSL] チェック開始');
+
+        // 1. WSL2がインストールされているかチェック
+        try {
+            execSync('wsl.exe --version', { encoding: 'utf-8', stdio: 'pipe' });
+            this.log('[WSL] WSL2 確認OK');
+        } catch {
+            this.log('[WSL] WSL2 未インストール');
+
+            const choice = await vscode.window.showWarningMessage(
+                'WSL2がインストールされていません。インストールしますか？（管理者権限が必要です）',
+                'インストールする',
+                'キャンセル'
+            );
+
+            if (choice === 'インストールする') {
+                try {
+                    // 管理者権限でwsl --installを実行
+                    execSync('powershell -Command "Start-Process wsl -ArgumentList \'--install --no-launch\' -Verb RunAs -Wait"', {
+                        encoding: 'utf-8',
+                        stdio: 'pipe'
+                    });
+
+                    await vscode.window.showInformationMessage(
+                        '✅ WSL2のインストールを開始しました。\n\n' +
+                        '**PCを再起動してから、再度 Init Global を実行してください。**',
+                        { modal: true }
+                    );
+                } catch (error) {
+                    this.log(`[WSL] インストール失敗: ${error}`);
+                    vscode.window.showErrorMessage(
+                        'WSL2のインストールに失敗しました。\n' +
+                        'PowerShell（管理者）で以下を実行してください:\n' +
+                        'wsl --install'
+                    );
+                }
+            }
+            return false;
+        }
+
+        // 2. Ubuntuディストロがインストールされているかチェック
+        try {
+            const distros = execSync('wsl.exe -l -q', { encoding: 'utf-8' })
+                .replace(/\0/g, '')
+                .split('\n')
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+
+            this.log(`[WSL] ディストロ一覧: ${distros.join(', ')}`);
+
+            if (distros.length === 0) {
+                this.log('[WSL] ディストロなし');
+
+                const choice = await vscode.window.showWarningMessage(
+                    'WSL用のLinuxディストリビューションがありません。Ubuntuをインストールしますか？',
+                    'インストールする',
+                    'キャンセル'
+                );
+
+                if (choice === 'インストールする') {
+                    try {
+                        execSync('powershell -Command "Start-Process wsl -ArgumentList \'--install -d Ubuntu --no-launch\' -Verb RunAs -Wait"', {
+                            encoding: 'utf-8',
+                            stdio: 'pipe'
+                        });
+
+                        await vscode.window.showInformationMessage(
+                            '✅ Ubuntuのインストールを開始しました。\n\n' +
+                            '**PCを再起動してから、再度 Init Global を実行してください。**\n\n' +
+                            '再起動後、Ubuntuを起動してユーザー名とパスワードを設定してください。',
+                            { modal: true }
+                        );
+                    } catch (error) {
+                        this.log(`[WSL] Ubuntu インストール失敗: ${error}`);
+                        vscode.window.showErrorMessage(
+                            'Ubuntuのインストールに失敗しました。\n' +
+                            'PowerShell（管理者）で以下を実行してください:\n' +
+                            'wsl --install -d Ubuntu'
+                        );
+                    }
+                }
+                return false;
+            }
+        } catch (error) {
+            this.log(`[WSL] ディストロ確認失敗: ${error}`);
+            vscode.window.showErrorMessage('WSLの状態を確認できませんでした');
+            return false;
+        }
+
+        // 3. WSLが正常に動作するかチェック
+        try {
+            execSync("wsl bash -c 'echo ok'", { encoding: 'utf-8', stdio: 'pipe' });
+            this.log('[WSL] 動作確認OK');
+        } catch {
+            this.log('[WSL] WSL動作不可');
+
+            await vscode.window.showWarningMessage(
+                'WSLが正常に動作していません。\n\n' +
+                '以下を確認してください:\n' +
+                '1. Ubuntuを一度起動してユーザー設定を完了\n' +
+                '2. PCを再起動\n\n' +
+                'その後、再度 Init Global を実行してください。',
+                { modal: true }
+            );
+            return false;
+        }
+
+        this.log('[WSL] 全チェックOK');
+        return true;
+    }
+
+    /**
      * グローバル設定フォルダを初期化
      */
     async initializeGlobalSettings(): Promise<boolean> {
+        this.log(`[グローバル] 初期化開始`);
+
+        // Windows環境ではWSL2のチェックを行う
+        if (CURRENT_ENV === 'windows-native') {
+            const wslReady = await this.checkAndSetupWsl();
+            if (!wslReady) {
+                return false; // WSL未設定、再起動が必要
+            }
+        }
+
         const globalPath = getGlobalMaidAgentPath();
+        this.log(`[グローバル] globalPath: ${globalPath}`);
 
         try {
-            // 拡張機能のパスを取得
-            const extensionPath = this.context?.extensionPath;
-            if (!extensionPath) {
-                throw new Error('拡張機能のパスが取得できません');
-            }
+            // 進捗表示付きで実行
+            return await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'グローバル設定を初期化中...',
+                cancellable: false
+            }, async (progress) => {
+                // 拡張機能のパスを取得
+                const extensionPath = this.context?.extensionPath;
+                if (!extensionPath) {
+                    throw new Error('拡張機能のパスが取得できません');
+                }
 
-            const globalTemplatesPath = path.join(extensionPath, 'global-templates');
-            this.log(`[グローバル] globalTemplatesPath: ${globalTemplatesPath}`);
-            this.log(`[グローバル] global-templates存在: ${fs.existsSync(globalTemplatesPath)}`);
+                const globalTemplatesPath = path.join(extensionPath, 'global-templates');
+                this.log(`[グローバル] globalTemplatesPath: ${globalTemplatesPath}`);
+                this.log(`[グローバル] global-templates存在: ${fs.existsSync(globalTemplatesPath)}`);
 
-            // global-templates からコピー
-            if (fs.existsSync(globalTemplatesPath)) {
-                this.copyDirectorySync(globalTemplatesPath, globalPath);
-                this.log(`[グローバル] global-templates からコピー完了`);
-            } else {
-                // フォールバック: 手動でディレクトリ構造を作成
-                this.log(`[グローバル] global-templates が見つからないため、手動で構造を作成`);
-                const dirs = [
-                    '',
-                    'rules',
-                    'rules/common',
-                    'rules/butler',
-                    'rules/chief',
-                    'rules/maid',
-                    'skills',
-                    'maid-agent-messenger'
-                ];
+                progress.report({ message: 'フォルダを作成中...' });
 
-                for (const dir of dirs) {
-                    const fullPath = path.join(globalPath, dir);
-                    if (!fs.existsSync(fullPath)) {
-                        fs.mkdirSync(fullPath, { recursive: true });
+                // global-templates からコピー（maid-agent-messenger の dist を含む）
+                if (fs.existsSync(globalTemplatesPath)) {
+                    try {
+                        this.copyDirectorySync(globalTemplatesPath, globalPath, true, { includeDist: true });
+                        this.log(`[グローバル] global-templates からコピー完了`);
+                    } catch (copyError) {
+                        const message = copyError instanceof Error ? copyError.message : String(copyError);
+                        this.log(`[ERROR] コピー失敗: ${message}`);
+                        vscode.window.showErrorMessage(`フォルダのコピーに失敗しました: ${message}`);
+                        throw copyError;
+                    }
+                } else {
+                    // フォールバック: 手動でディレクトリ構造を作成
+                    this.log(`[グローバル] global-templates が見つからないため、手動で構造を作成`);
+                    const dirs = [
+                        '',
+                        'rules',
+                        'rules/common',
+                        'rules/butler',
+                        'rules/chief',
+                        'rules/maid',
+                        'skills',
+                        'maid-agent-messenger'
+                    ];
+
+                    for (const dir of dirs) {
+                        const fullPath = path.join(globalPath, dir);
+                        if (!fs.existsSync(fullPath)) {
+                            fs.mkdirSync(fullPath, { recursive: true });
+                        }
                     }
                 }
-            }
 
-            this.log(`[グローバル] 設定フォルダを初期化: ${globalPath}`);
+                // コピー後の検証
+                if (!fs.existsSync(globalPath)) {
+                    throw new Error(`フォルダが作成されませんでした: ${globalPath}`);
+                }
 
-            // MCPサーバー (maid-agent-messenger) のセットアップ
-            if (CURRENT_ENV === 'windows-native') {
-                await this.setupMcpServer();
-            }
+                this.log(`[グローバル] 設定フォルダを初期化: ${globalPath}`);
 
-            return true;
+                // MCPサーバー (maid-agent-messenger) のセットアップ
+                if (CURRENT_ENV === 'windows-native') {
+                    progress.report({ message: 'MCPサーバーをセットアップ中...' });
+                    await this.setupMcpServer();
+                }
+
+                return true;
+            });
         } catch (error) {
-            this.log(`[ERROR] グローバル設定の初期化に失敗: ${error}`);
+            const message = error instanceof Error ? error.message : String(error);
+            this.log(`[ERROR] グローバル設定の初期化に失敗: ${message}`);
+            vscode.window.showErrorMessage(`グローバル設定の初期化に失敗しました: ${message}`);
             return false;
         }
     }
 
+    // セットアップ中に取得したWSLパスワード（一時保持）
+    private cachedWslPassword: string | undefined;
+
     /**
      * MCPサーバー (maid-agent-messenger) をセットアップ
+     * - pm2 インストール確認（なければ自動インストール）
      * - npm install
      * - pm2 start + save
      * - pm2 startup (オプション、sudo必要)
      */
     private async setupMcpServer(): Promise<void> {
         const messengerPath = '~/.maid-agent/maid-agent-messenger';
+        this.cachedWslPassword = undefined; // 初期化
 
         try {
             // 進捗表示
@@ -1327,6 +1500,23 @@ class MultiAgentController {
                 title: 'MCPサーバーをセットアップ中...',
                 cancellable: false
             }, async (progress) => {
+                // 0. pm2 インストール確認
+                progress.report({ message: 'pm2 を確認中...' });
+                try {
+                    execSync(`wsl bash -c 'which pm2'`, { encoding: 'utf-8', stdio: 'pipe' });
+                    this.log('[MCP] pm2 確認OK');
+                } catch {
+                    // pm2がない場合は自動インストール（sudo必要）
+                    this.log('[MCP] pm2 が見つかりません。インストールします...');
+
+                    const password = await this.installPm2WithSudo();
+                    if (!password) {
+                        throw new Error('pm2 のインストールがキャンセルされました');
+                    }
+                    // パスワードをキャッシュ（startup設定で再利用）
+                    this.cachedWslPassword = password;
+                }
+
                 // 1. npm install
                 progress.report({ message: 'npm install 実行中...' });
                 try {
@@ -1356,7 +1546,7 @@ class MultiAgentController {
                     this.log('[MCP] pm2 start 完了');
                 } catch (error) {
                     this.log(`[MCP] pm2 start 失敗: ${error}`);
-                    throw new Error('pm2 start に失敗しました。pm2がインストールされているか確認してください。');
+                    throw new Error('pm2 start に失敗しました');
                 }
 
                 // 3. pm2 save
@@ -1372,22 +1562,97 @@ class MultiAgentController {
 
             vscode.window.showInformationMessage('✅ MCPサーバーを起動しました');
 
-            // 4. 自動起動設定の確認
-            await this.setupPm2Startup();
+            // 4. 自動起動設定の確認（キャッシュしたパスワードを渡す）
+            await this.setupPm2Startup(this.cachedWslPassword);
 
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             vscode.window.showErrorMessage(`MCPサーバーのセットアップに失敗: ${message}`);
             this.log(`[ERROR] MCPサーバーセットアップ失敗: ${error}`);
+        } finally {
+            // セキュリティ: パスワードをクリア
+            this.cachedWslPassword = undefined;
         }
     }
 
     /**
-     * pm2 startup を設定（WSL起動時の自動起動）
+     * WSLパスワードを取得（説明ダイアログ付き）
      */
-    private async setupPm2Startup(): Promise<void> {
+    private async promptWslPassword(purpose: string, attempt: number, maxAttempts: number): Promise<string | undefined> {
+        // 初回は説明ダイアログを表示
+        if (attempt === 1) {
+            const proceed = await vscode.window.showInformationMessage(
+                `${purpose}\n\nWSL (Ubuntu) のパスワード入力が必要です。\n（Windows のパスワードではありません）`,
+                { modal: true },
+                'パスワードを入力'
+            );
+            if (proceed !== 'パスワードを入力') {
+                return undefined;
+            }
+        }
+
+        return await vscode.window.showInputBox({
+            prompt: attempt > 1
+                ? `パスワードが正しくありません（残り${maxAttempts - attempt + 1}回）`
+                : 'WSL (Ubuntu) のパスワード',
+            password: true,
+            placeHolder: 'Ubuntu 初回起動時に設定したパスワード',
+            ignoreFocusOut: true
+        });
+    }
+
+    /**
+     * pm2をsudo付きでインストール
+     * @returns パスワード（成功時）、undefined（キャンセルまたは失敗）
+     */
+    private async installPm2WithSudo(): Promise<string | undefined> {
+        const MAX_ATTEMPTS = 3;
+
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            const password = await this.promptWslPassword('pm2 のインストール', attempt, MAX_ATTEMPTS);
+
+            if (password === undefined) {
+                this.log('[MCP] pm2 インストールがキャンセルされました');
+                return undefined;
+            }
+
+            try {
+                const escapedPassword = password.replace(/'/g, "'\\''");
+
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'pm2 をインストール中...',
+                    cancellable: false
+                }, async () => {
+                    execSync(
+                        `wsl bash -c "echo '${escapedPassword}' | sudo -S npm install -g pm2 2>&1"`,
+                        { encoding: 'utf-8', timeout: 120000, stdio: 'pipe' }
+                    );
+                });
+
+                this.log('[MCP] pm2 インストール完了');
+                vscode.window.showInformationMessage('✅ pm2 をインストールしました');
+                return password; // 成功時はパスワードを返す
+            } catch (error) {
+                this.log(`[MCP] pm2 インストール試行 ${attempt} 失敗: ${error}`);
+            }
+        }
+
+        vscode.window.showErrorMessage(
+            'pm2 のインストールに失敗しました。\n' +
+            'WSL で以下を手動実行してください:\n' +
+            'sudo npm install -g pm2'
+        );
+        return undefined;
+    }
+
+    /**
+     * pm2 startup を設定（WSL起動時の自動起動）
+     * @param cachedPassword 既に取得済みのパスワード（あれば再利用）
+     */
+    private async setupPm2Startup(cachedPassword?: string): Promise<void> {
         const choice = await vscode.window.showInformationMessage(
-            'MCPサーバーの自動起動を設定しますか？（WSL起動時に自動で起動します）',
+            'MCPサーバーの自動起動を設定しますか？\n（WSL起動時に自動で起動します）',
             '設定する',
             'スキップ'
         );
@@ -1398,13 +1663,27 @@ class MultiAgentController {
         }
 
         // pm2 startup コマンドを取得
+        // 注意: pm2 startup はexit code 1を返すことがあるが、出力は正常
         let startupCommand: string;
         try {
-            const output = execSync(`wsl bash -c "pm2 startup 2>&1"`, { encoding: 'utf-8' });
-            // 出力から sudo コマンドを抽出
+            let output: string;
+            try {
+                output = execSync(`wsl bash -c "pm2 startup 2>&1"`, { encoding: 'utf-8' });
+            } catch (execError: unknown) {
+                if (execError && typeof execError === 'object' && 'stdout' in execError) {
+                    output = (execError as { stdout: string }).stdout || '';
+                } else if (execError && typeof execError === 'object' && 'message' in execError) {
+                    const msg = (execError as Error).message;
+                    output = msg;
+                } else {
+                    throw execError;
+                }
+            }
+
+            this.log(`[MCP] pm2 startup 出力: ${output}`);
+
             const match = output.match(/sudo .+$/m);
             if (!match) {
-                // 既に設定済みの場合
                 if (output.includes('already')) {
                     vscode.window.showInformationMessage('自動起動は既に設定されています');
                     return;
@@ -1419,36 +1698,31 @@ class MultiAgentController {
             return;
         }
 
-        // パスワード入力（最大3回）
+        // パスワード入力（キャッシュがあれば使用、なければ新規取得）
         const maxAttempts = 3;
+        let password = cachedPassword;
         let attempts = 0;
 
         while (attempts < maxAttempts) {
-            const promptMessage = attempts === 0
-                ? 'WSL (Linux) のパスワードを入力してください'
-                : `パスワードが正しくありません（残り${maxAttempts - attempts}回）`;
-
-            const password = await vscode.window.showInputBox({
-                prompt: promptMessage,
-                placeHolder: 'WSL初回設定時のパスワード（WindowsのPINではありません）',
-                password: true,
-                ignoreFocusOut: true
-            });
-
-            // キャンセルまたは空
+            // キャッシュがない場合のみ入力を求める
             if (!password) {
-                await this.showPasswordHelp();
-                return;
+                password = await this.promptWslPassword('自動起動の設定', attempts + 1, maxAttempts);
+                if (!password) {
+                    await this.showPasswordHelp();
+                    return;
+                }
             }
 
-            // パスワードのエスケープ（シングルクォート対応）
-            const escapedPassword = password.replace(/'/g, "'\\''");
-
             try {
-                // sudo -S でパスワードを stdin から渡して実行
+                const escapedPassword = password.replace(/'/g, "'\\''");
+                // sudo と env PATH=... の部分を除去（pm2は絶対パスで指定されているので不要）
+                let command = startupCommand
+                    .replace(/^sudo\s+/, '')
+                    .replace(/env\s+PATH=[^\s]+\s+/, '');
+                this.log(`[MCP] 実行コマンド: ${command}`);
                 execSync(
-                    `wsl bash -c "echo '${escapedPassword}' | ${startupCommand}"`,
-                    { encoding: 'utf-8', timeout: 30000 }
+                    `wsl bash -c "echo '${escapedPassword}' | sudo -S ${command}"`,
+                    { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' }
                 );
                 this.log('[MCP] pm2 startup 設定完了');
                 vscode.window.showInformationMessage('✅ 自動起動を設定しました');
@@ -1456,10 +1730,10 @@ class MultiAgentController {
             } catch (error) {
                 attempts++;
                 this.log(`[MCP] pm2 startup 失敗 (${attempts}/${maxAttempts}): ${error}`);
+                password = undefined; // 次回は新規入力
             }
         }
 
-        // 3回失敗
         vscode.window.showErrorMessage('パスワードの認証に失敗しました。手動で設定してください。');
         await this.showPasswordHelp();
     }
@@ -1474,41 +1748,51 @@ class MultiAgentController {
             'リセット方法を詳しく見る'
         );
 
-        if (help === 'リセット方法を詳しく見る') {
-            const panel = vscode.window.createWebviewPanel(
-                'passwordHelp',
-                'WSLパスワードのリセット方法',
-                vscode.ViewColumn.One,
-                {}
-            );
-            panel.webview.html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <style>
-                        body { font-family: sans-serif; padding: 20px; }
-                        code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
-                        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
-                    </style>
-                </head>
-                <body>
-                    <h1>WSLパスワードのリセット方法</h1>
-                    <ol>
-                        <li>PowerShell または コマンドプロンプトを<strong>「管理者として実行」</strong>で開く</li>
-                        <li>以下のコマンドを実行（rootユーザーでWSLに入る）：
-                            <pre>wsl -u root</pre>
-                        </li>
-                        <li>パスワードをリセット（<code>username</code> は自分のWSLユーザー名に置き換え）：
-                            <pre>passwd username</pre>
-                        </li>
-                        <li>新しいパスワードを2回入力</li>
-                        <li><code>exit</code> でWSLを終了</li>
-                    </ol>
-                    <p>その後、もう一度 Init Global を実行してください。</p>
-                </body>
-                </html>
-            `;
+        if (help !== 'リセット方法を詳しく見る') {
+            return;
         }
+
+        const panel = vscode.window.createWebviewPanel(
+            'passwordHelp',
+            'WSLパスワードのリセット方法',
+            vscode.ViewColumn.One,
+            {}
+        );
+        panel.webview.html = this.getPasswordHelpHtml();
+    }
+
+    /**
+     * パスワードヘルプのHTML
+     */
+    private getPasswordHelpHtml(): string {
+        return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: sans-serif; padding: 20px; }
+                    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
+                    pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
+                </style>
+            </head>
+            <body>
+                <h1>WSLパスワードのリセット方法</h1>
+                <ol>
+                    <li>PowerShell を<strong>管理者として</strong>起動</li>
+                    <li>以下のコマンドを実行:
+                        <pre>wsl -u root</pre>
+                    </li>
+                    <li>rootでログインしたら、パスワードをリセット:
+                        <pre>passwd ユーザー名</pre>
+                        ※ユーザー名は <code>whoami</code> で確認できます
+                    </li>
+                    <li>新しいパスワードを2回入力</li>
+                    <li><code>exit</code> でrootを終了</li>
+                    <li>再度 Init Global を実行</li>
+                </ol>
+            </body>
+            </html>
+        `;
     }
 
     /**
@@ -1662,6 +1946,33 @@ class MultiAgentController {
                 await this.copySelectedSkills(selectedSkills, maidAgentPath);
             }
         }
+
+        // テンプレートのコピー（グローバルに存在すれば自動コピー）
+        await this.copyGlobalTemplates(globalPath, maidAgentPath);
+    }
+
+    /**
+     * グローバルテンプレートをプロジェクトにコピー
+     */
+    private async copyGlobalTemplates(globalPath: string, maidAgentPath: string): Promise<void> {
+        const globalReportsPath = path.join(globalPath, 'reports');
+        const globalTemplatePath = path.join(globalReportsPath, 'current_template.md');
+
+        // グローバルテンプレートが存在しない場合はスキップ
+        if (!fs.existsSync(globalTemplatePath)) {
+            return;
+        }
+
+        // プロジェクトの reports フォルダを作成（なければ）
+        const destReportsPath = path.join(maidAgentPath, 'reports');
+        if (!fs.existsSync(destReportsPath)) {
+            fs.mkdirSync(destReportsPath, { recursive: true });
+        }
+
+        // テンプレートをコピー
+        const destTemplatePath = path.join(destReportsPath, 'current_template.md');
+        fs.copyFileSync(globalTemplatePath, destTemplatePath);
+        this.log('[グローバル] テンプレートをコピー: current_template.md');
     }
 
     /**
@@ -1680,8 +1991,8 @@ class MultiAgentController {
             : this.workspaceRoot;
 
         const maidAgentServerConfig = {
-            type: "sse",
-            url: "http://localhost:3100/sse",
+            type: "http",
+            url: "http://localhost:3100/mcp",
             headers: {
                 "X-Maid-Project-Path": projectPath
             }
@@ -2020,7 +2331,16 @@ class MultiAgentController {
 `;
     }
 
-    private copyDirectorySync(src: string, dest: string): void {
+    private copyDirectorySync(src: string, dest: string, isRoot: boolean = true, options?: { includeDist?: boolean }): void {
+        // 完全スキップ（コピーしない）
+        // ※ maid-agent-messenger では dist が必要なので options.includeDist で制御
+        const skipDirs = options?.includeDist
+            ? ['node_modules', '.git', 'logs']
+            : ['node_modules', '.git', 'dist', 'logs'];
+        // 保持するディレクトリ（既存フォルダがあればスキップ）
+        // ※ instructions, bin は上書き対象（ここに含めない）
+        const preserveDirs = ['skills', 'rules', 'images', 'queue', 'config', 'context', 'notifications', 'status', 'reports', 'personas'];
+
         if (!fs.existsSync(dest)) {
             fs.mkdirSync(dest, { recursive: true });
         }
@@ -2032,7 +2352,17 @@ class MultiAgentController {
             const destPath = path.join(dest, entry.name);
 
             if (entry.isDirectory()) {
-                this.copyDirectorySync(srcPath, destPath);
+                // 完全スキップ
+                if (skipDirs.includes(entry.name)) {
+                    this.log(`[コピー] スキップ: ${entry.name}`);
+                    continue;
+                }
+                // ルートレベルで保持対象かつ既存なら保持
+                if (isRoot && preserveDirs.includes(entry.name) && fs.existsSync(destPath)) {
+                    this.log(`[コピー] 既存を保持: ${entry.name}/`);
+                    continue;
+                }
+                this.copyDirectorySync(srcPath, destPath, false, options);
             } else {
                 // dashboard.md は存在する場合スキップ（進捗情報を保持）
                 if (entry.name === 'dashboard.md' && fs.existsSync(destPath)) {
@@ -3652,15 +3982,33 @@ ${agentList || '  (なし)'}
             'dashboardMarkdown',
             '📊 Dashboard.md',
             vscode.ViewColumn.Active,
-            { enableScripts: true }
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true  // 非表示時も状態を保持
+            }
         );
+        this.setupDashboardPanelHandlers(this.dashboardMarkdownPanel);
+        this.updateDashboardMarkdownPanel();
+    }
 
-        this.dashboardMarkdownPanel.onDidDispose(() => {
+    private dashboardFileWatcher: vscode.FileSystemWatcher | undefined;
+
+    /**
+     * ダッシュボードパネルのイベントハンドラーをセットアップ
+     * （新規作成時とSerializer復元時の両方で使用）
+     */
+    private setupDashboardPanelHandlers(panel: vscode.WebviewPanel): void {
+        // ファイル変更監視を開始
+        this.startDashboardFileWatcher();
+
+        panel.onDidDispose(() => {
             this.dashboardMarkdownPanel = undefined;
+            // パネルが閉じられたらファイル監視を停止
+            this.stopDashboardFileWatcher();
         });
 
         // 更新ボタン用のメッセージハンドラ
-        this.dashboardMarkdownPanel.webview.onDidReceiveMessage(
+        panel.webview.onDidReceiveMessage(
             message => {
                 if (message.command === 'refresh') {
                     this.updateDashboardMarkdownPanel();
@@ -3671,7 +4019,49 @@ ${agentList || '  (なし)'}
             undefined,
             this.context?.subscriptions
         );
+    }
 
+    /**
+     * dashboard.md のファイル変更監視を開始
+     */
+    private startDashboardFileWatcher(): void {
+        if (this.dashboardFileWatcher || !this.maidAgentPath) return;
+
+        const dashboardPath = path.join(this.maidAgentPath, 'dashboard.md');
+        const pattern = new vscode.RelativePattern(
+            vscode.Uri.file(this.maidAgentPath),
+            'dashboard.md'
+        );
+
+        this.dashboardFileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
+
+        // ファイル変更時に自動更新
+        this.dashboardFileWatcher.onDidChange(() => {
+            this.updateDashboardMarkdownPanel();
+        });
+
+        // ファイル作成時も更新
+        this.dashboardFileWatcher.onDidCreate(() => {
+            this.updateDashboardMarkdownPanel();
+        });
+    }
+
+    /**
+     * dashboard.md のファイル変更監視を停止
+     */
+    private stopDashboardFileWatcher(): void {
+        if (this.dashboardFileWatcher) {
+            this.dashboardFileWatcher.dispose();
+            this.dashboardFileWatcher = undefined;
+        }
+    }
+
+    /**
+     * Serializerからパネルを復元する
+     */
+    restoreDashboardPanel(panel: vscode.WebviewPanel): void {
+        this.dashboardMarkdownPanel = panel;
+        this.setupDashboardPanelHandlers(panel);
         this.updateDashboardMarkdownPanel();
     }
 
@@ -4144,6 +4534,17 @@ export function activate(context: vscode.ExtensionContext) {
             AgentPanelProvider.viewType,
             agentPanelProvider
         )
+    );
+
+    // Dashboard パネルの永続化（VSCode再起動時に復元）
+    context.subscriptions.push(
+        vscode.window.registerWebviewPanelSerializer('dashboardMarkdown', {
+            async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown) {
+                // パネルのオプションを再設定
+                panel.webview.options = { enableScripts: true };
+                controller.restoreDashboardPanel(panel);
+            }
+        })
     );
 
     // ターミナル切り替え時にパネルを更新

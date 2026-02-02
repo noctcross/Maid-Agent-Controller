@@ -1,27 +1,27 @@
 /**
  * PM2 設定ファイル
  *
- * 中央MCPサーバーを常時稼働させる
+ * maid-agent-messenger（エージェント間メッセージングサーバー）を常時稼働させる
  *
  * 使用方法:
  *   初回セットアップ:
- *     cd .maid-agent/mcp-server
- *     npm install -g pm2
+ *     cd ~/.maid-agent/maid-agent-messenger
+ *     npm install
  *     pm2 start ecosystem.config.cjs
  *     pm2 save
  *     pm2 startup  # OS起動時の自動起動設定
  *
  *   運用コマンド:
- *     pm2 status                    # ステータス確認
- *     pm2 logs maid-mcp-server     # ログ確認
- *     pm2 restart maid-mcp-server  # 再起動
- *     pm2 stop maid-mcp-server     # 停止
+ *     pm2 status                        # ステータス確認
+ *     pm2 logs maid-agent-messenger     # ログ確認
+ *     pm2 restart maid-agent-messenger  # 再起動
+ *     pm2 stop maid-agent-messenger     # 停止
  */
 
 module.exports = {
   apps: [
     {
-      name: "maid-mcp-server",
+      name: "maid-agent-messenger",
       script: "dist/central-server.js",
       cwd: __dirname,
       instances: 1,

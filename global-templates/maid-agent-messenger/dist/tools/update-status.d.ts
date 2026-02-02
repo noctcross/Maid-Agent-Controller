@@ -1,5 +1,5 @@
 /**
- * update_status ツール
+ * update_status ツール（STDIOモード用ラッパー）
  *
  * 自分のタスクステータスを更新
  */

@@ -2509,7 +2509,7 @@ class MultiAgentController {
 
     /**
      * エージェントにメッセージを送信（2段階送信 - Claude Code通知用）
-     * multi-agent-shogun準拠: メッセージとEnterを別々に送信
+     * メッセージとEnterを別々に送信
      */
     async sendMessageToAgent(agentId: string, message: string): Promise<boolean> {
         const agent = this.agents.get(agentId);
@@ -3906,7 +3906,7 @@ ${agentList || '  (なし)'}
 
         this.dashboardPanel = vscode.window.createWebviewPanel(
             'multiAgentDashboard',
-            '🎩 Maid Agent Dashboard',
+            '🎩 Controller',
             vscode.ViewColumn.Active,
             { enableScripts: true }
         );
@@ -4556,7 +4556,7 @@ ${agentList || '  (なし)'}
 </head>
 <body>
     <h1>🎩 Maid Agent Controller</h1>
-    <p class="subtitle">執事 → メイド長 → メイド の階層構造（multi-agent-shogun準拠）</p>
+    <p class="subtitle">執事 → メイド長 → メイド の階層構造</p>
 
     <div class="action-bar">
         <button class="action-btn" onclick="sendTask()">📝 執事に指令</button>

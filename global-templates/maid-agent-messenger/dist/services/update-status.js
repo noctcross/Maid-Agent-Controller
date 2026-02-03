@@ -3,10 +3,12 @@
  *
  * タスクステータスを更新する処理
  * completed時のレポートローテーションも含む
+ * Phase 3: tasks.yaml への同期も追加
  */
 import path from "path";
 import { readYamlFile, writeYamlFile, getTimestamp, fileExists, sanitizeDescription, copyFile, } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
+import { executeUpdateTask } from "./task-manager.js";
 /**
  * ステータスを更新
  */
@@ -25,20 +27,43 @@ export async function executeUpdateStatus(params) {
             task.started_at = timestamp;
             updatedFields.push("started_at");
         }
-        // completed に変更時、completed_at を設定 + レポートリネーム
+        // completed に変更時、completed_at を設定 + レポートリネーム + tasks.yaml同期
         if (status === "completed") {
             task.completed_at = timestamp;
             updatedFields.push("completed_at");
             // レポートファイルのアーカイブ（コピーして保存、currentは残す）
+            let archivePath;
             if (task.task_id) {
                 const currentPath = path.join(reportsPath, `current_${agentId}.md`);
                 const description = sanitizeDescription(task.description);
-                const archivePath = path.join(reportsPath, `task-${task.task_id}-${agentId}-${description}.md`);
+                // task_id を正規化
+                // 1. 先頭の "task-" を全て除去（複数回出現しても対応）
+                // 2. 末尾の "-{agentId}" を除去（重複防止）
+                const taskIdNormalized = String(task.task_id)
+                    .replace(/^(task-)+/i, "")
+                    .replace(new RegExp(`-${agentId}$`, "i"), "");
+                archivePath = path.join(reportsPath, `task-${taskIdNormalized}-${agentId}-${description}.md`);
                 if (await fileExists(currentPath)) {
                     const copied = await copyFile(currentPath, archivePath);
                     if (copied) {
                         updatedFields.push("report_archived");
                     }
+                }
+                // Phase 3: tasks.yaml への同期
+                // queueMaidPath から projectPath を導出（.maid-agent/queue/maid の3階層上）
+                const projectPath = path.resolve(queueMaidPath, "..", "..", "..");
+                try {
+                    await executeUpdateTask(projectPath, {
+                        taskId: taskIdNormalized,
+                        status: "completed",
+                        summary: summary,
+                        reportPath: archivePath,
+                    });
+                    updatedFields.push("tasks_yaml_synced");
+                }
+                catch {
+                    // tasks.yaml が存在しない場合などはスキップ（後方互換性のため）
+                    // エラーログは出さない（tasks.yamlが未導入の環境でも動作するため）
                 }
             }
         }

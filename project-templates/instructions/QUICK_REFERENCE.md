@@ -19,6 +19,12 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 
 | ツール名 | 用途 | 使用者 |
 |---------|------|-------|
+| `create_task` | 新規タスク作成 | 執事・メイド長（※） |
+| `list_tasks` | タスク一覧取得（フィルタ対応） | 執事・メイド長 |
+
+※ メイド長は🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生のみ
+| `get_task` | タスク詳細取得 | 全員 |
+| `update_task` | タスク状態更新 | メイド長 |
 | `get_my_task` | 自分のタスク情報を取得 | メイド |
 | `update_status` | ステータスを更新（working/completed/blocked） | メイド |
 | `assign_task` | メイドにタスクを割り当て | メイド長 |
@@ -28,21 +34,23 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 
 ### 執事 (Butler)
 ```
-指示出し: .maid-agent/queue/butler_to_chief.yaml を更新
-状況確認: MCPツール get_team_status（オプション）
+タスク作成: MCPツール create_task
+状況確認: MCPツール list_tasks / get_team_status
 通知:     .maid-agent/bin/maid-notify chief "メッセージ"
 禁止:     自分でタスク実行、ポーリング
 ```
 
 ### メイド長 (Chief)
 ```
-指示受領: .maid-agent/queue/butler_to_chief.yaml を確認
+タスク確認: MCPツール list_tasks
 タスク割当: MCPツール assign_task
+タスク作成: MCPツール create_task（※ご主人様向けのみ）
 状況確認: MCPツール get_team_status
+状態更新: MCPツール update_task
 通知:     .maid-agent/bin/maid-notify {maid_id} "メッセージ"
-報告:     .maid-agent/dashboard.md を更新
 禁止:     自分でタスク実行、執事への通知、ポーリング
 ```
+※ create_task対象: 🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生
 
 ### メイド (Maid)
 ```
@@ -65,21 +73,40 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 ```
 
 **利用可能なターゲット**:
-- `chief` - メイド長（執事からのみ）
+- `chief` - メイド長ビオラ（執事からのみ）
 - `emma`, `sophia`, `lily`, `rose`, `alice`, `may`, `flora`, `luna` - メイド（メイド長からのみ）
+
+### MCP再接続オプション
+
+MCPツール使用時に「Server not initialized」エラーが発生した場合:
+
+```bash
+# 自分自身のMCP接続をリセット（バックグラウンド実行必須）
+.maid-agent/bin/maid-notify --mcp-reconnect {自分のID} &
+
+# 例: ルナの場合
+.maid-agent/bin/maid-notify --mcp-reconnect luna &
+
+# 他のエージェントをリセット（メイド長用）
+.maid-agent/bin/maid-notify --mcp-reconnect emma
+```
+
+**注意**:
+- 自分自身に送る場合は `&` でバックグラウンド実行が必須
+- `[MCP再接続完了]` メッセージを受信したら再試行可能
 
 ## 通信の流れ
 
 ```
-執事 → butler_to_chief.yaml → maid-notify chief → メイド長
-メイド長 → assign_task (MCP) → maid-notify {maid} → メイド
+執事 → create_task (MCP) → maid-notify chief → メイド長
+メイド長 → list_tasks (MCP) → assign_task (MCP) → maid-notify {maid} → メイド
 メイド → get_my_task (MCP) → タスク実行 → update_status (MCP)
 メイド → reports/current_{name}.md → maid-notify chief → メイド長が収集
-メイド長 → dashboard.md → 拡張機能が執事に通知
+メイド長 → update_task (MCP) → Webビューに反映
 ```
 
 ## 迷ったら
 
 1. `.maid-agent/instructions/{role}.md` を再読み込み
 2. このファイルで通信コマンドを確認
-3. それでも不明なら dashboard.md の「🚨 要対応」に記載
+3. それでも不明なら🚨 要対応としてタスクを blocked にし、ご主人様の判断を待つ

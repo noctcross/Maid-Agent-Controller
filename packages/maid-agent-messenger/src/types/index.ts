@@ -39,6 +39,16 @@ export const UPDATABLE_STATUSES = [
 
 export type UpdatableStatus = (typeof UPDATABLE_STATUSES)[number];
 
+// タスクカテゴリ
+export const TASK_CATEGORIES = [
+  "task",              // 通常タスク（デフォルト）
+  "action_required",   // 🚨 要対応
+  "skill_candidate",   // 📚 スキル化候補
+  "improvement",       // 💡 改善提案
+] as const;
+
+export type TaskCategory = (typeof TASK_CATEGORIES)[number];
+
 // タスクYAML構造
 export interface TaskYaml {
   task_id: string | null;

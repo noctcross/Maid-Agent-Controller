@@ -27,6 +27,13 @@ export const UPDATABLE_STATUSES = [
     "completed",
     "blocked",
 ];
+// タスクカテゴリ
+export const TASK_CATEGORIES = [
+    "task", // 通常タスク（デフォルト）
+    "action_required", // 🚨 要対応
+    "skill_candidate", // 📚 スキル化候補
+    "improvement", // 💡 改善提案
+];
 // パス定数（レガシー - 動的パス解決に移行）
 // プロジェクトパスは X-Maid-Project-Path ヘッダーで指定され、
 // central-server.ts 内で動的に解決される

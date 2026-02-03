@@ -3,6 +3,7 @@
  *
  * タスクステータスを更新する処理
  * completed時のレポートローテーションも含む
+ * Phase 3: tasks.yaml への同期も追加
  */
 import type { UpdateStatusOutput, UpdatableStatus } from "../types/index.js";
 export interface UpdateStatusParams {

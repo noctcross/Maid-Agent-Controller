@@ -14,6 +14,7 @@ import { registerGetMyTask } from "./tools/get-my-task.js";
 import { registerUpdateStatus } from "./tools/update-status.js";
 import { registerAssignTask } from "./tools/assign-task.js";
 import { registerGetTeamStatus } from "./tools/get-team-status.js";
+import { registerTaskManagerTools } from "./tools/task-manager.js";
 import { loadConfig, getServerUrl } from "./utils/config-loader.js";
 const SERVER_NAME = "maid-agent-messenger";
 const SERVER_VERSION = "2.0.0";
@@ -69,6 +70,8 @@ async function main() {
     registerUpdateStatus(server);
     registerAssignTask(server);
     registerGetTeamStatus(server);
+    // タスク管理ツール（Phase 1）
+    registerTaskManagerTools(server);
     // STDIO トランスポートで接続
     const transport = new StdioServerTransport();
     await server.connect(transport);

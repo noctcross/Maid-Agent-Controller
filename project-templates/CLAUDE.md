@@ -11,12 +11,12 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 ```
 ┌─────────────────┐
 │  🎩 執事        │  統括・タスク分解
-│  (Butler)       │
+│  シルヴィア     │  (butler)
 └────────┬────────┘
          │
 ┌────────▼────────┐
 │  👑 メイド長    │  タスク配分・進捗管理
-│  (Chief Maid)   │
+│  ビオラ         │  (chief)
 └────────┬────────┘
          │
 ┌────────▼────────┐
@@ -24,6 +24,8 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 │  (Maids)        │
 └─────────────────┘
 ```
+
+※ 括弧内はシステムID（tmuxタブ名、maid-notify等で使用）
 
 ## セッション開始時（必須）
 
@@ -34,7 +36,7 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 4. .maid-agent/instructions/QUICK_REFERENCE.md で通信方法を確認
 5. .maid-agent/rules/common/ と rules/{role}/ でルールを確認
 6. .maid-agent/skills/ で利用可能なスキルを確認（メイドのみ）
-7. .maid-agent/dashboard.md で現在の状況を把握
+7. MCPツール（list_tasks, get_team_status）で現在の状況を把握
 ```
 
 > ⚠️ **コンパクション後**: 必ず手順3-4を再実行すること
@@ -45,20 +47,98 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 - **ポーリング禁止**: MCP + maid-notify のイベント駆動
 - **タスク管理**: MCPツール（maid-agent-messenger）経由
 - **通知**: maid-notify コマンドで起動
-- **上への報告**: dashboard.md 更新のみ（sendText禁止）
+- **上への報告**: タスク状態を更新して待機（sendText禁止）
 
-### MCPツール（maid-agent-messenger）
+## MCPサーバー
 
-エージェント間のタスク管理は以下のMCPツールを使用:
+### MCPとは
+
+MCPサーバーは Claude Code に機能を追加する仕組みです。
+
+**仕組み**:
+- 各MCPサーバーがツールを提供し、Claude Code に統合される
+- bash コマンドや HTTP API 経由ではなく、**ツールとして直接呼び出す**
+
+**接続確認**:
+- MCPツールを呼び出した際に以下のエラーが出れば未接続:
+  - 「Server not initialized」
+  - 「ツールが見つからない」
+
+**未接続時の対応**:
+1. maid-notify で再接続を試行
+   ```bash
+   # 基盤MCP（maid-agent-messenger）の再接続
+   .maid-agent/bin/maid-notify --mcp-reconnect {自分のID} &
+
+   # 特定のMCPサーバーを指定する場合
+   .maid-agent/bin/maid-notify --mcp-reconnect {自分のID} {server-name} &
+   ```
+   ※ server-name 省略時は maid-agent-messenger が対象
+2. `[MCP再接続完了]` メッセージを待つ
+3. MCPツールを再試行
+4. 継続して失敗する場合は上位（ご主人様またはメイド長）に報告
+
+---
+
+### maid-agent-messenger（タスク管理）
+
+エージェント間のタスク管理を担当する基盤MCPサーバー。
 
 | ツール名 | 用途 | 使用者 |
 |---------|------|-------|
+| `create_task` | 新規タスク作成 | 執事・メイド長（※） |
+| `list_tasks` | タスク一覧取得（フィルタ対応） | 執事・メイド長 |
+| `get_task` | タスク詳細取得 | 全員 |
+| `update_task` | タスク更新 | メイド長 |
 | `get_my_task` | 自分のタスク情報を取得 | メイド |
 | `update_status` | ステータスを更新（working/completed/blocked） | メイド |
 | `assign_task` | メイドにタスクを割り当て | メイド長 |
 | `get_team_status` | 全メイドのステータス一覧を取得 | メイド長・執事 |
 
+※ メイド長の`create_task`使用: 🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生タスクのみ
+
 **利点**: YAMLファイル直接操作よりもトークン消費が少なく、タイムスタンプ自動設定
+
+**list_tasks フィルタオプション**:
+| パラメータ | 説明 | 例 |
+|-----------|------|-----|
+| `status` | ステータスでフィルタ | `["pending"]`, `["working", "blocked"]` |
+| `assignee` | 担当者でフィルタ | `"emma"` |
+| `parentId` | 親タスクIDでフィルタ | `"077"` |
+| `category` | カテゴリでフィルタ | `["action_required"]`, `["skill_candidate", "improvement"]` |
+| `limit` | 取得件数上限 | `10` |
+
+**タスクカテゴリ**:
+| 値 | 用途 | 絵文字 |
+|----|------|--------|
+| `task` | 通常タスク（デフォルト） | - |
+| `action_required` | 要対応（ご主人様判断待ち） | 🚨 |
+| `skill_candidate` | スキル化候補 | 📚 |
+| `improvement` | 改善提案 | 💡 |
+
+**ステータス遷移（エージェント）**:
+```
+pending → assigned → working → completed
+                  ↘ blocked（問題発生時）
+```
+
+| ステータス | 説明 | 設定者 |
+|-----------|------|--------|
+| `pending` | 未着手（執事が作成） | 執事 |
+| `assigned` | 割り当て済み（メイドが受領前） | メイド長 |
+| `working` | 作業中 | メイド |
+| `completed` | 完了 | メイド |
+| `blocked` | 問題発生・判断待ち | メイド |
+
+---
+
+### Memory MCP（知識永続化）※未実装
+
+セッションをまたいだ知識の永続化を担当。
+
+- ご主人様の好み・過去の決定事項
+- プロジェクト固有の知識
+- 過去のタスクで得た教訓
 
 ### send-keys 2段階プロトコル（maid-notify内部）
 
@@ -80,13 +160,14 @@ tmux send-keys -t "${SESSION}:${TARGET}" C-m
 | ファイル | 用途 |
 |---------|------|
 | `.maid-agent/CLAUDE.md` | 本ファイル（詳細リファレンス） |
-| `.maid-agent/dashboard.md` | 戦況報告（下→上への報告） |
+| `.maid-agent/dashboard.md` | （廃止予定）Webビューに移行中 |
+| `.maid-agent/tasks.yaml` | タスク管理データ（MCPツール経由） |
 | `.maid-agent/master/NOTES.md` | ご主人様メモ（後でやること等） |
 | `.maid-agent/context/` | プロジェクト固有コンテキスト |
 | `.maid-agent/instructions/butler.md` | 執事の役割定義 |
 | `.maid-agent/instructions/chief.md` | メイド長の役割定義 |
 | `.maid-agent/instructions/maid.md` | メイドの役割定義 |
-| `.maid-agent/queue/butler_to_chief.yaml` | 執事→メイド長への指示 |
+| `.maid-agent/queue/butler_to_chief.yaml` | （廃止予定）従来の指示キュー |
 | `.maid-agent/queue/maid/{name}.yaml` | 各メイドのタスク（MCPツール経由で更新） |
 | `.maid-agent/reports/` | 各メイドからの報告 |
 | `.maid-agent/skills/` | 承認済みスキル（再利用パターン） |
@@ -129,9 +210,9 @@ rules/
 - Race Condition 防止: 同一リソースへのアクセスは直列化
 
 ### 4. 報告規約
-- 上への報告は `.maid-agent/dashboard.md` の更新のみ
+- 上への報告はタスク状態を更新して待機（MCPツール使用）
 - 完了時は `.maid-agent/reports/` にレポートを作成
-- dashboard.md の更新はメイド長のみが行う
+- 進捗はWebビューまたはMCPツールで確認可能
 
 ### 5. コンパクション対応（重要）
 
@@ -142,17 +223,10 @@ rules/
 
 **要約時は以下を必ず含める**:
 - 自分の役割（執事/メイド長/メイド）
-- MCPツール: `get_my_task`, `update_status`, `assign_task`, `get_team_status`
+- MCPツール: `create_task`, `list_tasks`, `get_task`, `update_task`, `assign_task`, `get_team_status`
 - 通知コマンド: `.maid-agent/bin/maid-notify`
 - 禁止事項
 - 現在のタスク
-
-## Memory MCP 活用
-
-Memory MCP が利用可能な場合、セッション開始時に必ず読み込み:
-- ご主人様の好み・過去の決定事項
-- プロジェクト固有の知識
-- 過去のタスクで得た教訓
 
 ## 言語設定
 
@@ -175,12 +249,12 @@ Memory MCP が利用可能な場合、セッション開始時に必ず読み込
 ```
 メイド: 候補発見 → reports/ に記載
     ↓
-メイド長: 集約 → dashboard.md に記載
-    ↓
-執事: 確認 → ご主人様に報告
+メイド長: 集約 → 執事経由でご主人様に報告
     ↓
 ご主人様: 承認 → skills/ に作成（skill-creator使用）
 ```
+
+※ 将来的にWebビューで「📚 スキル化候補」として表示・管理予定
 
 ### スキル作成ガイド
 詳細は `.maid-agent/skills/skill-creator/SKILL.md` を参照。
@@ -193,10 +267,12 @@ Memory MCP が利用可能な場合、セッション開始時に必ず読み込
 
 日時は必ず `date -Iseconds` コマンドで取得。推測禁止。
 
-## ご主人様への確認事項
+## ご主人様への確認事項（🚨 要対応）
 
-判断が必要な事項は全て `.maid-agent/dashboard.md` の「🚨 要対応」セクションに集約。
+判断が必要な事項は「🚨 要対応」としてタスクを blocked にし、ご主人様の判断を待つ:
 - スキル化候補の承認依頼
 - 著作権・ライセンスに関する判断
 - 技術的な重要決定
 - ブロッキングイシュー
+
+※ 将来Webビューで「🚨 要対応」セクションとして表示・管理予定

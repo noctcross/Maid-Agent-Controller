@@ -94,6 +94,16 @@
         "category": "Maid Agent"
       },
       {
+        "command": "multiAgent.showWebDashboard",
+        "title": "Web Dashboard - タスクダッシュボードを表示",
+        "category": "Maid Agent"
+      },
+      {
+        "command": "multiAgent.openDashboardInBrowser",
+        "title": "Open Dashboard in Browser - ブラウザでダッシュボードを開く",
+        "category": "Maid Agent"
+      },
+      {
         "command": "multiAgent.watchFiles",
         "title": "Watch Start - ファイル監視を開始",
         "category": "Maid Agent"

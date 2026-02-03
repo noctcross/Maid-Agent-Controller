@@ -23,7 +23,18 @@ extraction_check:
 ## スキル化候補
 skill_candidate:
   found: false
+  # found: true の場合は以下を記載
+  # name: ""           # スキル名（例: api-endpoint-creator）
+  # description: ""    # スキルの説明
+  # reason: ""         # なぜスキル化すべきか
 
 ## 改善提案
 improvement_proposal:
   found: false
+  # found: true の場合は以下を記載
+  # category: ""       # process | rule | tool | other
+  # target: ""         # common | butler | chief | maid
+  # title: ""          # 提案タイトル
+  # problem: ""        # 現状の問題点
+  # proposal: ""       # 改善案
+  # benefit: ""        # 期待される効果

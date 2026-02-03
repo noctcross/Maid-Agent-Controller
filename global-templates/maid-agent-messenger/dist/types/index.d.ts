@@ -9,6 +9,8 @@ export declare const TASK_STATUSES: readonly ["idle", "assigned", "working", "co
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export declare const UPDATABLE_STATUSES: readonly ["working", "completed", "blocked"];
 export type UpdatableStatus = (typeof UPDATABLE_STATUSES)[number];
+export declare const TASK_CATEGORIES: readonly ["task", "action_required", "skill_candidate", "improvement"];
+export type TaskCategory = (typeof TASK_CATEGORIES)[number];
 export interface TaskYaml {
     task_id: string | null;
     description: string | null;

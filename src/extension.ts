@@ -3929,6 +3929,9 @@ ${agentList || '  (なし)'}
                     case 'showDashboardPanel':
                         this.showDashboardMarkdownPanel();
                         break;
+                    case 'showTaskDashboard':
+                        this.showWebDashboard();
+                        break;
                 }
             },
             undefined,
@@ -3936,6 +3939,230 @@ ${agentList || '  (なし)'}
         );
 
         this.updateDashboard();
+    }
+
+    // =========================================================================
+    // Webダッシュボード（MCPサーバー版）
+    // =========================================================================
+
+    private webDashboardPanel: vscode.WebviewPanel | undefined;
+
+    showWebDashboard(): void {
+        if (this.webDashboardPanel) {
+            this.webDashboardPanel.reveal();
+            this.updateWebDashboard();
+            return;
+        }
+
+        this.webDashboardPanel = vscode.window.createWebviewPanel(
+            'maidAgentWebDashboard',
+            '🎩 Task Dashboard',
+            vscode.ViewColumn.Active,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true
+            }
+        );
+
+        this.webDashboardPanel.onDidDispose(() => {
+            this.webDashboardPanel = undefined;
+        });
+
+        this.webDashboardPanel.webview.onDidReceiveMessage(
+            message => {
+                switch (message.command) {
+                    case 'refresh':
+                        this.updateWebDashboard();
+                        break;
+                    case 'openInBrowser':
+                        this.openDashboardInBrowser();
+                        break;
+                    case 'showController':
+                        this.showDashboard();
+                        break;
+                }
+            },
+            undefined,
+            this.context?.subscriptions
+        );
+
+        this.updateWebDashboard();
+    }
+
+    private async updateWebDashboard(): Promise<void> {
+        if (!this.webDashboardPanel) return;
+
+        // workspaceRootがない場合は再取得を試みる
+        let projectPath = this.workspaceRoot;
+        if (!projectPath) {
+            projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        }
+
+        if (!projectPath) {
+            // ワークスペースが開かれていない場合のエラー表示
+            this.webDashboardPanel.webview.html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body {
+                            font-family: -apple-system, sans-serif;
+                            background: #1e1e1e;
+                            color: #cccccc;
+                            padding: 40px;
+                            text-align: center;
+                        }
+                        .error-icon { font-size: 4rem; margin-bottom: 20px; }
+                        .error-title { font-size: 1.5rem; color: #f14c4c; margin-bottom: 10px; }
+                        .error-message { color: #808080; }
+                    </style>
+                </head>
+                <body>
+                    <div class="error-icon">📁</div>
+                    <div class="error-title">ワークスペースが開かれていません</div>
+                    <div class="error-message">フォルダを開いてから再度お試しください</div>
+                </body>
+                </html>
+            `;
+            return;
+        }
+
+        try {
+            // MCPサーバーからHTMLを取得
+            const serverUrl = 'http://localhost:3100';
+            // Windows環境の場合はWSLパスに変換
+            const normalizedPath = CURRENT_ENV === 'windows-native'
+                ? windowsToWslPath(projectPath)
+                : projectPath;
+            const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(normalizedPath)}`;
+
+            const response = await fetch(dashboardUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            let html = await response.text();
+
+            // VSCode Webview用に修正
+            // 1. 自動リロードを無効化（Webviewで手動更新）
+            html = html.replace(/<meta http-equiv="refresh"[^>]*>/gi, '');
+            html = html.replace(/setTimeout\(\(\) => location\.reload\(\)[^)]*\);?/g, '');
+
+            // 2. Webview用のスクリプトを追加
+            const webviewScript = `
+                <script>
+                    const vscode = acquireVsCodeApi();
+                    function refreshDashboard() { vscode.postMessage({ command: 'refresh' }); }
+                    function openInBrowser() { vscode.postMessage({ command: 'openInBrowser' }); }
+                    function showController() { vscode.postMessage({ command: 'showController' }); }
+                </script>
+                <style>
+                    .header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        flex-wrap: wrap;
+                        gap: 10px;
+                    }
+                    .header-right {
+                        display: flex;
+                        align-items: center;
+                        gap: 15px;
+                    }
+                    .vscode-controls {
+                        display: flex;
+                        gap: 8px;
+                    }
+                    .vscode-btn {
+                        background: var(--accent-color, #569cd6);
+                        color: white;
+                        border: none;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 0.85rem;
+                    }
+                    .vscode-btn:hover {
+                        opacity: 0.9;
+                    }
+                </style>
+            `;
+
+            // 3. ヘッダー内にコントロールボタンを配置
+            // 元の <div class="timestamp">...</div> を header-right で囲んでボタンを追加
+            html = html.replace(
+                /<div class="timestamp">([^<]*)<\/div>/,
+                `<div class="header-right">
+                    <div class="vscode-controls">
+                        <button class="vscode-btn" onclick="showController()">⚙️ Controller</button>
+                        <button class="vscode-btn" onclick="refreshDashboard()">🔄 更新</button>
+                        <button class="vscode-btn" onclick="openInBrowser()">🌐 ブラウザ</button>
+                    </div>
+                    <div class="timestamp">$1</div>
+                </div>`
+            );
+
+            // HTMLに挿入
+            html = html.replace('</head>', `${webviewScript}</head>`);
+
+            this.webDashboardPanel.webview.html = html;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.webDashboardPanel.webview.html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body {
+                            font-family: -apple-system, sans-serif;
+                            background: #1e1e1e;
+                            color: #cccccc;
+                            padding: 40px;
+                            text-align: center;
+                        }
+                        .error-icon { font-size: 4rem; margin-bottom: 20px; }
+                        .error-title { font-size: 1.5rem; color: #f14c4c; margin-bottom: 10px; }
+                        .error-message { color: #808080; margin-bottom: 20px; }
+                        .btn {
+                            background: #569cd6;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 1rem;
+                        }
+                        .hint { margin-top: 30px; font-size: 0.9rem; color: #808080; }
+                        code { background: #333; padding: 2px 6px; border-radius: 3px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-title">MCPサーバーに接続できません</div>
+                    <div class="error-message">${message}</div>
+                    <button class="btn" onclick="location.reload()">🔄 再試行</button>
+                    <div class="hint">
+                        <p>MCPサーバーが起動していることを確認してください:</p>
+                        <code>pm2 status maid-agent-messenger</code>
+                    </div>
+                </body>
+                </html>
+            `;
+        }
+    }
+
+    /**
+     * ブラウザでWebダッシュボードを開く
+     */
+    public openDashboardInBrowser(): void {
+        if (!this.workspaceRoot) return;
+        const serverUrl = 'http://localhost:3100';
+        // Windows環境の場合はWSLパスに変換
+        const normalizedPath = CURRENT_ENV === 'windows-native'
+            ? windowsToWslPath(this.workspaceRoot)
+            : this.workspaceRoot;
+        const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(normalizedPath)}`;
+        vscode.env.openExternal(vscode.Uri.parse(dashboardUrl));
     }
 
     private async openMaidAgentFile(filename: string): Promise<void> {
@@ -4333,8 +4560,9 @@ ${agentList || '  (なし)'}
     <div class="action-bar">
         <button class="action-btn" onclick="sendTask()">📝 執事に指令</button>
         <button class="action-btn secondary" onclick="refresh()">🔄 更新</button>
+        <button class="action-btn secondary" onclick="showTaskDashboard()">📋 Tasks</button>
         <button class="action-btn secondary" onclick="showDashboardPanel()">📊 dashboard.md</button>
-        <button class="action-btn secondary" onclick="openFile('queue/butler_to_chief.yaml')">📋 Queue</button>
+        <button class="action-btn secondary" onclick="openFile('queue/butler_to_chief.yaml')">📂 Queue</button>
     </div>
 
     <div class="three-column">
@@ -4384,6 +4612,7 @@ ${agentList || '  (なし)'}
         function sendTask() { vscode.postMessage({ command: 'sendTask' }); }
         function openFile(file) { vscode.postMessage({ command: 'openFile', file: file }); }
         function showDashboardPanel() { vscode.postMessage({ command: 'showDashboardPanel' }); }
+        function showTaskDashboard() { vscode.postMessage({ command: 'showTaskDashboard' }); }
     </script>
 </body>
 </html>`;
@@ -4617,6 +4846,12 @@ export function activate(context: vscode.ExtensionContext) {
         }),
         vscode.commands.registerCommand('multiAgent.showDashboard', () => {
             controller.showDashboard();
+        }),
+        vscode.commands.registerCommand('multiAgent.showWebDashboard', () => {
+            controller.showWebDashboard();
+        }),
+        vscode.commands.registerCommand('multiAgent.openDashboardInBrowser', () => {
+            controller.openDashboardInBrowser();
         }),
         vscode.commands.registerCommand('multiAgent.watchFiles', () => {
             controller.startWatchingFiles();

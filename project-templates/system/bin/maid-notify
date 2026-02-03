@@ -8,9 +8,9 @@
 # =============================================================================
 
 MAID_AGENT_DIR=".maid-agent"
-SESSION_FILE="${MAID_AGENT_DIR}/config/.session-name"
-LOG_FILE="${MAID_AGENT_DIR}/notifications/history.log"
-PENDING_DIR="${MAID_AGENT_DIR}/notifications/pending"
+SESSION_FILE="${MAID_AGENT_DIR}/system/config/.session-name"
+LOG_FILE="${MAID_AGENT_DIR}/system/data/notifications/history.log"
+PENDING_DIR="${MAID_AGENT_DIR}/system/data/notifications/pending"
 VALID_TARGETS="butler chief emma sophia lily rose alice may flora luna"
 
 # リトライ設定

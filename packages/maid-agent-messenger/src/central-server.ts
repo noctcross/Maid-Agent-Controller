@@ -65,11 +65,11 @@ const sessions = new Map<string, SessionInfo>();
 // ========================================
 
 function getQueueMaidPath(projectPath: string): string {
-  return path.join(projectPath, ".maid-agent", "queue", "maid");
+  return path.join(projectPath, ".maid-agent", "system", "data", "queue", "maid");
 }
 
 function getReportsPath(projectPath: string): string {
-  return path.join(projectPath, ".maid-agent", "reports");
+  return path.join(projectPath, ".maid-agent", "master", "reports");
 }
 
 // ========================================

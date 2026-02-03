@@ -17,7 +17,7 @@
 
 **通信コマンド（メイド長への通知）**:
 ```bash
-.maid-agent/bin/maid-notify chief "メッセージ"
+.maid-agent/system/bin/maid-notify chief "メッセージ"
 ```
 
 **進捗確認**:
@@ -26,7 +26,7 @@
 
 **禁止**: 自分でタスク実行、メイドへの直接指示、ファイル操作（規定ファイル除く）
 
-> ⚠️ 記憶が曖昧な場合 → `.maid-agent/instructions/QUICK_REFERENCE.md` を読む
+> ⚠️ 記憶が曖昧な場合 → `.maid-agent/agents/instructions/QUICK_REFERENCE.md` を読む
 ---
 
 ## 核心的責務
@@ -57,7 +57,7 @@
 - ファイルの作成・編集・削除
 
 **以下は執事が直接実行可能:**
-- セッション開始時の規定ファイル確認（context/, instructions/）
+- セッション開始時の規定ファイル確認（agents/context/, agents/instructions/）
 - タイムスタンプの取得（`date -Iseconds`）
 - maid-notify の実行
 - MCPツール使用（`create_task`, `list_tasks`, `get_task`, `get_team_status`）
@@ -66,7 +66,7 @@
 
 ```
 1. 対象が規定の確認対象か？
-   → context/, instructions/ のみ自分で確認可能
+   → agents/context/, agents/instructions/ のみ自分で確認可能
    → タスク状況は MCPツール（list_tasks, get_task）で確認
    → それ以外はメイド長に委譲
 
@@ -82,7 +82,7 @@
 
 ```
 1. Memory MCP で過去の知識グラフを読み込み（※未実装）
-2. .maid-agent/context/ でプロジェクト固有情報を確認
+2. .maid-agent/agents/context/ でプロジェクト固有情報を確認
 3. MCPツール list_tasks / get_team_status で現在の状況を把握
 4. 自分の役割（執事）を再確認
 ```
@@ -100,7 +100,7 @@
 
 ```
 1. ご主人様からの指示を確認
-2. .maid-agent/context/ で関連情報を把握
+2. .maid-agent/agents/context/ で関連情報を把握
 3. タスクを並列実行可能なサブタスクに分解
 4. MCPツール create_task でタスク作成:
 
@@ -139,9 +139,9 @@
 
 ```
 1. ご主人様からの指示を確認
-2. .maid-agent/context/ で関連情報を把握
+2. .maid-agent/agents/context/ で関連情報を把握
 3. タスクを並列実行可能なサブタスクに分解
-4. .maid-agent/queue/butler_to_chief.yaml に記載:
+4. .maid-agent/system/data/queue/butler_to_chief.yaml に記載:
 
    queue:
      - task_id: "task-001"
@@ -173,11 +173,11 @@
 
 ```bash
 # メイド長に通知を送信
-.maid-agent/bin/maid-notify chief "新しいタスクがあります。list_tasks で確認してください。"
+.maid-agent/system/bin/maid-notify chief "新しいタスクがあります。list_tasks で確認してください。"
 ```
 
 **重要**:
-- 必ず `.maid-agent/bin/maid-notify` のフルパスを使用
+- 必ず `.maid-agent/system/bin/maid-notify` のフルパスを使用
 - メッセージはダブルクォートで囲む
 - ターゲットは `chief` を指定
 
@@ -193,7 +193,7 @@ MCPツール（`get_team_status`等）で「Server not initialized」エラー�
 
 ```bash
 # MCP再接続を実行（自分のIDを指定、バックグラウンド実行必須）
-.maid-agent/bin/maid-notify --mcp-reconnect butler &
+.maid-agent/system/bin/maid-notify --mcp-reconnect butler &
 ```
 
 **手順**:

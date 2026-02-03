@@ -35,10 +35,10 @@ const sessions = new Map();
 // パスヘルパー関数
 // ========================================
 function getQueueMaidPath(projectPath) {
-    return path.join(projectPath, ".maid-agent", "queue", "maid");
+    return path.join(projectPath, ".maid-agent", "system", "data", "queue", "maid");
 }
 function getReportsPath(projectPath) {
-    return path.join(projectPath, ".maid-agent", "reports");
+    return path.join(projectPath, ".maid-agent", "master", "reports");
 }
 function generateDashboardHtml(data) {
     const { projectPath, timestamp, pending, working, recentCompleted, teamStatus } = data;

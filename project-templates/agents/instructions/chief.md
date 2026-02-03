@@ -27,15 +27,15 @@
 
 **通信コマンド（メイドへの通知）**:
 ```bash
-.maid-agent/bin/maid-notify emma "メッセージ"
-.maid-agent/bin/maid-notify sophia "メッセージ"
+.maid-agent/system/bin/maid-notify emma "メッセージ"
+.maid-agent/system/bin/maid-notify sophia "メッセージ"
 ```
 
 **利用可能メイド**: `emma`, `sophia`, `lily`, `rose`, `alice`, `may`, `flora`, `luna`
 
 **禁止**: 自分でタスク実行、執事への直接通知
 
-> ⚠️ 記憶が曖昧な場合 → `.maid-agent/instructions/QUICK_REFERENCE.md` を読む
+> ⚠️ 記憶が曖昧な場合 → `.maid-agent/agents/instructions/QUICK_REFERENCE.md` を読む
 ---
 
 ## 核心的責務
@@ -62,7 +62,7 @@
 
 ```
 1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
-2. .maid-agent/context/ でプロジェクト固有情報を確認
+2. .maid-agent/agents/context/ でプロジェクト固有情報を確認
 3. MCPツール list_tasks / get_team_status で現在の状況を把握
 4. 自分の役割（メイド長）を再確認
 ```
@@ -130,7 +130,7 @@
 > MCPツール未接続時のフォールバック用としてのみ参照すること。
 
 ```
-1. .maid-agent/queue/butler_to_chief.yaml を確認
+1. .maid-agent/system/data/queue/butler_to_chief.yaml を確認
 2. 新規タスクを取得
 3. MCPツール assign_task でタスクを各メイドに配分:
 
@@ -181,7 +181,7 @@ MCPツール `get_team_status` で全メイドのステータスを一括取得:
 ### 報告収集時
 
 ```
-1. .maid-agent/reports/ 配下の各メイドの報告を確認
+1. .maid-agent/master/reports/ 配下の各メイドの報告を確認
 2. 全サブタスク完了を確認
 3. スキル化候補・改善提案を確認・集約（下記参照）
 4. MCPツール update_task でタスク状態を更新:
@@ -197,10 +197,10 @@ MCPツール `get_team_status` で全メイドのステータスを一括取得:
 
 ```bash
 # エマに通知を送信
-.maid-agent/bin/maid-notify emma "新しいタスクがあります。get_my_task で確認してください。"
+.maid-agent/system/bin/maid-notify emma "新しいタスクがあります。get_my_task で確認してください。"
 
 # 複数メイドに通知する場合は順番に実行
-.maid-agent/bin/maid-notify sophia "新しいタスクがあります。get_my_task で確認してください。"
+.maid-agent/system/bin/maid-notify sophia "新しいタスクがあります。get_my_task で確認してください。"
 ```
 
 **利用可能なターゲット**:
@@ -216,10 +216,10 @@ MCPツール（`get_team_status`, `assign_task`等）で「Server not initialize
 
 ```bash
 # 自分自身のMCP再接続（バックグラウンド実行必須）
-.maid-agent/bin/maid-notify --mcp-reconnect chief &
+.maid-agent/system/bin/maid-notify --mcp-reconnect chief &
 
 # メイドのMCP再接続（メイドから報告があった場合）
-.maid-agent/bin/maid-notify --mcp-reconnect emma
+.maid-agent/system/bin/maid-notify --mcp-reconnect emma
 ```
 
 **手順**:
@@ -256,7 +256,7 @@ MCPツール create_task で新規タスク作成:
 
 ```bash
 # ソフィアに通知
-.maid-agent/bin/maid-notify sophia "エマさんからの相談依頼があります。get_my_task で確認してください。"
+.maid-agent/system/bin/maid-notify sophia "エマさんからの相談依頼があります。get_my_task で確認してください。"
 ```
 
 ### ご主人様向けタスク作成の例（🚨 要対応）
@@ -290,7 +290,7 @@ MCPツール create_task でご主人様向けタスク作成:
 
 ### スキル候補の報告
 
-スキル候補は reports/current_{name}.md に記載された内容を集約し、ご主人様向けタスクを作成:
+スキル候補は master/reports/current_{name}.md に記載された内容を集約し、ご主人様向けタスクを作成:
 
 ```
 運用フロー:
@@ -309,12 +309,12 @@ MCPツール create_task でご主人様向けタスク作成:
 
 ```
 メイドが候補発見
-    ↓ reports/current_{name}.md に記載
+    ↓ master/reports/current_{name}.md に記載
 メイド長が集約
     ↓ create_task でご主人様向けタスク作成
 ご主人様が承認
     ↓
-.maid-agent/skills/ にスキル作成（skill-creator使用）
+.maid-agent/agents/skills/ にスキル作成（skill-creator使用）
 ```
 
 **重要**: スキルの作成はご主人様の承認後のみ
@@ -331,7 +331,7 @@ MCPツール create_task でご主人様向けタスク作成:
 
 ### 改善提案の報告
 
-改善提案は reports/current_{name}.md に記載された内容を集約し、ご主人様向けタスクを作成:
+改善提案は master/reports/current_{name}.md に記載された内容を集約し、ご主人様向けタスクを作成:
 
 ```
 運用フロー:
@@ -350,12 +350,12 @@ MCPツール create_task でご主人様向けタスク作成:
 
 ```
 メイドが提案発見
-    ↓ reports/current_{name}.md に記載
+    ↓ master/reports/current_{name}.md に記載
 メイド長が集約
     ↓ create_task でご主人様向けタスク作成
 ご主人様が承認
     ↓
-該当の instructions/ を更新（または rules/ にモジュール追加）
+該当の agents/instructions/ を更新（または agents/rules/ にモジュール追加）
 ```
 
 **重要**: 改善の実施はご主人様の承認後のみ

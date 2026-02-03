@@ -31,11 +31,11 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 
 ```
 1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
-2. .maid-agent/context/ でプロジェクト固有情報を確認
-3. .maid-agent/instructions/{role}.md で自分の役割を確認
-4. .maid-agent/instructions/QUICK_REFERENCE.md で通信方法を確認
-5. .maid-agent/rules/common/ と rules/{role}/ でルールを確認
-6. .maid-agent/skills/ で利用可能なスキルを確認（メイドのみ）
+2. .maid-agent/agents/context/ でプロジェクト固有情報を確認
+3. .maid-agent/agents/instructions/{role}.md で自分の役割を確認
+4. .maid-agent/agents/instructions/QUICK_REFERENCE.md で通信方法を確認
+5. .maid-agent/agents/rules/common/ と rules/{role}/ でルールを確認
+6. .maid-agent/agents/skills/ で利用可能なスキルを確認（メイドのみ）
 7. MCPツール（list_tasks, get_team_status）で現在の状況を把握
 ```
 
@@ -68,10 +68,10 @@ MCPサーバーは Claude Code に機能を追加する仕組みです。
 1. maid-notify で再接続を試行
    ```bash
    # 基盤MCP（maid-agent-messenger）の再接続
-   .maid-agent/bin/maid-notify --mcp-reconnect {自分のID} &
+   .maid-agent/system/bin/maid-notify --mcp-reconnect {自分のID} &
 
    # 特定のMCPサーバーを指定する場合
-   .maid-agent/bin/maid-notify --mcp-reconnect {自分のID} {server-name} &
+   .maid-agent/system/bin/maid-notify --mcp-reconnect {自分のID} {server-name} &
    ```
    ※ server-name 省略時は maid-agent-messenger が対象
 2. `[MCP再接続完了]` メッセージを待つ
@@ -155,31 +155,35 @@ tmux send-keys -t "${SESSION}:${TARGET}" C-m
 
 **禁止**: 1回の send-keys でメッセージと Enter を同時に送信しない
 
-### ファイル構成（すべて `.maid-agent/` 配下）
+### ファイル構成（`.maid-agent/` 配下 - B案構造）
 
-| ファイル | 用途 |
-|---------|------|
-| `.maid-agent/CLAUDE.md` | 本ファイル（詳細リファレンス） |
-| `.maid-agent/dashboard.md` | （廃止予定）Webビューに移行中 |
-| `.maid-agent/tasks.yaml` | タスク管理データ（MCPツール経由） |
-| `.maid-agent/master/NOTES.md` | ご主人様メモ（後でやること等） |
-| `.maid-agent/context/` | プロジェクト固有コンテキスト |
-| `.maid-agent/instructions/butler.md` | 執事の役割定義 |
-| `.maid-agent/instructions/chief.md` | メイド長の役割定義 |
-| `.maid-agent/instructions/maid.md` | メイドの役割定義 |
-| `.maid-agent/queue/butler_to_chief.yaml` | （廃止予定）従来の指示キュー |
-| `.maid-agent/queue/maid/{name}.yaml` | 各メイドのタスク（MCPツール経由で更新） |
-| `.maid-agent/reports/` | 各メイドからの報告 |
-| `.maid-agent/skills/` | 承認済みスキル（再利用パターン） |
-| `.maid-agent/rules/` | プロジェクト固有ルール |
-| `.maid-agent/config/settings.yaml` | 設定ファイル |
+```
+.maid-agent/
+├── master/              # 👑 ご主人様エリア
+│   ├── NOTES.md         # ご主人様メモ
+│   └── reports/         # 各メイドからの報告
+├── agents/              # 🎀 エージェントエリア
+│   ├── context/         # プロジェクト固有コンテキスト
+│   ├── instructions/    # 役割定義書
+│   ├── personas/        # ペルソナ定義
+│   ├── rules/           # ルールモジュール
+│   └── skills/          # 承認済みスキル
+├── system/              # ⚙️ システムエリア
+│   ├── bin/             # 実行スクリプト（maid-notify）
+│   ├── config/          # 設定ファイル
+│   ├── data/            # データ（queue/, notifications/, status/）
+│   └── resources/       # リソース（images/）
+├── CLAUDE.md            # 本ファイル（詳細リファレンス）
+├── dashboard.md         # （廃止予定）Webビューに移行中
+└── tasks.yaml           # タスク管理データ（MCPツール経由）
+```
 
 ## ルールモジュール
 
-`.maid-agent/rules/` にプロジェクト固有のルールがある場合は参照してください。
+`.maid-agent/agents/rules/` にプロジェクト固有のルールがある場合は参照してください。
 
 ```
-rules/
+agents/rules/
 ├── common/    # 全エージェント向け（必ず確認）
 ├── butler/    # 執事のみ
 ├── chief/     # メイド長のみ
@@ -187,12 +191,12 @@ rules/
 ```
 
 ### ルールの適用
-1. セッション開始時に `rules/common/` と自分の役割フォルダを確認
+1. セッション開始時に `agents/rules/common/` と自分の役割フォルダを確認
 2. `rule-template.md` はテンプレートなので無視
 3. ルール内容に従って作業を進める
 
 ### グローバルルール
-`~/.maid-agent/rules/` にあるルールは、Init時に選択してプロジェクトにコピーされます。
+`~/.maid-agent/agents/rules/` にあるルールは、Init時に選択してプロジェクトにコピーされます。
 
 ## 重要なルール
 
@@ -211,33 +215,33 @@ rules/
 
 ### 4. 報告規約
 - 上への報告はタスク状態を更新して待機（MCPツール使用）
-- 完了時は `.maid-agent/reports/` にレポートを作成
+- 完了時は `.maid-agent/master/reports/` にレポートを作成
 - 進捗はWebビューまたはMCPツールで確認可能
 
 ### 5. コンパクション対応（重要）
 
 **セッション要約後、または通信方法が不明な場合**:
-1. **必ず** `.maid-agent/instructions/QUICK_REFERENCE.md` を読む
+1. **必ず** `.maid-agent/agents/instructions/QUICK_REFERENCE.md` を読む
 2. 自分の役割に応じた指示書を再読み込み
 3. MCPツールと `maid-notify` コマンドの使い方を確認
 
 **要約時は以下を必ず含める**:
 - 自分の役割（執事/メイド長/メイド）
 - MCPツール: `create_task`, `list_tasks`, `get_task`, `update_task`, `assign_task`, `get_team_status`
-- 通知コマンド: `.maid-agent/bin/maid-notify`
+- 通知コマンド: `.maid-agent/system/bin/maid-notify`
 - 禁止事項
 - 現在のタスク
 
 ## 言語設定
 
-`.maid-agent/config/settings.yaml` の `language` 設定に従う:
+`.maid-agent/system/config/settings.yaml` の `language` 設定に従う:
 - `ja`: メイド口調の日本語
 - `en`: 英語（メイド口調 + 英訳）
 
 ## スキルシステム
 
 ### スキルとは
-繰り返し使える作業パターンを文書化したもの。メイドが発見し、承認後に `.maid-agent/skills/` に保存。
+繰り返し使える作業パターンを文書化したもの。メイドが発見し、承認後に `.maid-agent/agents/skills/` に保存。
 
 ### スキル化基準
 - **再利用性**: 他プロジェクトでも使える
@@ -257,7 +261,7 @@ rules/
 ※ 将来的にWebビューで「📚 スキル化候補」として表示・管理予定
 
 ### スキル作成ガイド
-詳細は `.maid-agent/skills/skill-creator/SKILL.md` を参照。
+詳細は `.maid-agent/agents/skills/skill-creator/SKILL.md` を参照。
 
 ### 重要ルール
 - メイドは候補を**報告のみ**（自分で作成禁止）

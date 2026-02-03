@@ -726,7 +726,7 @@ class AgentPanelProvider implements vscode.WebviewViewProvider {
             return null;
         }
 
-        const imagesDir = path.join(this._workspaceRoot, MAID_AGENT_DIR, 'images');
+        const imagesDir = path.join(this._workspaceRoot, MAID_AGENT_DIR, 'system', 'resources', 'images');
         const extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
         // imagesDir の存在確認
@@ -1220,27 +1220,27 @@ class MultiAgentController {
             this.log(`[初期化] templatesPath: ${templatesPath}`);
             this.log(`[初期化] project-templates存在: ${fs.existsSync(templatesPath)}`);
 
-            // project-templates/images の確認
-            const templatesImagesPath = path.join(templatesPath, 'images');
-            this.log(`[初期化] templates/images存在: ${fs.existsSync(templatesImagesPath)}`);
+            // project-templates/system/resources/images の確認
+            const templatesImagesPath = path.join(templatesPath, 'system', 'resources', 'images');
+            this.log(`[初期化] templates/system/resources/images存在: ${fs.existsSync(templatesImagesPath)}`);
             if (fs.existsSync(templatesImagesPath)) {
                 const imageFiles = fs.readdirSync(templatesImagesPath);
-                this.log(`[初期化] templates/images内容: ${imageFiles.join(', ')}`);
+                this.log(`[初期化] templates/system/resources/images内容: ${imageFiles.join(', ')}`);
             }
 
             // ディレクトリ構造を作成
             this.copyDirectorySync(templatesPath, maidAgentPath);
 
             // コピー後の確認
-            const destImagesPath = path.join(maidAgentPath, 'images');
-            this.log(`[初期化] .maid-agent/images存在: ${fs.existsSync(destImagesPath)}`);
+            const destImagesPath = path.join(maidAgentPath, 'system', 'resources', 'images');
+            this.log(`[初期化] .maid-agent/system/resources/images存在: ${fs.existsSync(destImagesPath)}`);
             if (fs.existsSync(destImagesPath)) {
                 const copiedImages = fs.readdirSync(destImagesPath);
-                this.log(`[初期化] .maid-agent/images内容: ${copiedImages.join(', ')}`);
+                this.log(`[初期化] .maid-agent/system/resources/images内容: ${copiedImages.join(', ')}`);
             }
 
-            // reports ディレクトリに各メイド用のファイルを作成
-            const reportsPath = path.join(maidAgentPath, 'reports');
+            // master/reports ディレクトリに各メイド用のファイルを作成
+            const reportsPath = path.join(maidAgentPath, 'master', 'reports');
             if (!fs.existsSync(reportsPath)) {
                 fs.mkdirSync(reportsPath, { recursive: true });
             }
@@ -1963,8 +1963,8 @@ class MultiAgentController {
             return;
         }
 
-        // プロジェクトの reports フォルダを作成（なければ）
-        const destReportsPath = path.join(maidAgentPath, 'reports');
+        // プロジェクトの master/reports フォルダを作成（なければ）
+        const destReportsPath = path.join(maidAgentPath, 'master', 'reports');
         if (!fs.existsSync(destReportsPath)) {
             fs.mkdirSync(destReportsPath, { recursive: true });
         }
@@ -2100,7 +2100,7 @@ class MultiAgentController {
      * 選択されたルールをプロジェクトにコピー
      */
     private async copySelectedRules(rules: RuleModuleMeta[], maidAgentPath: string): Promise<void> {
-        const rulesDestPath = path.join(maidAgentPath, 'rules');
+        const rulesDestPath = path.join(maidAgentPath, 'agents', 'rules');
 
         // rules フォルダがなければ作成
         if (!fs.existsSync(rulesDestPath)) {
@@ -2129,7 +2129,7 @@ class MultiAgentController {
      * 選択されたスキルをプロジェクトにコピー
      */
     private async copySelectedSkills(skills: SkillMeta[], maidAgentPath: string): Promise<void> {
-        const skillsDestPath = path.join(maidAgentPath, 'skills');
+        const skillsDestPath = path.join(maidAgentPath, 'agents', 'skills');
 
         for (const skill of skills) {
             const stat = fs.statSync(skill.filePath);
@@ -2157,9 +2157,9 @@ class MultiAgentController {
             return;
         }
 
-        const projectRulesPath = path.join(this.maidAgentPath, 'rules');
+        const projectRulesPath = path.join(this.maidAgentPath, 'agents', 'rules');
         if (!fs.existsSync(projectRulesPath)) {
-            vscode.window.showWarningMessage('プロジェクトに rules フォルダがありません');
+            vscode.window.showWarningMessage('プロジェクトに agents/rules フォルダがありません');
             return;
         }
 
@@ -2293,15 +2293,15 @@ class MultiAgentController {
 ## セッション開始時（必須）
 
 1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
-2. \`.maid-agent/context/\` でプロジェクト固有情報を確認
+2. \`.maid-agent/agents/context/\` でプロジェクト固有情報を確認
 3. 自分の役割を確認（下記参照）
 
 ## あなたの役割
 
 起動時に自分の役割を確認してください:
-- 🎩 執事 (Butler): \`.maid-agent/instructions/butler.md\` を参照
-- 👑 メイド長 (Chief Maid): \`.maid-agent/instructions/chief.md\` を参照
-- 🎀 メイド (Maid): \`.maid-agent/instructions/maid.md\` を参照
+- 🎩 執事 (Butler): \`.maid-agent/agents/instructions/butler.md\` を参照
+- 👑 メイド長 (Chief Maid): \`.maid-agent/agents/instructions/chief.md\` を参照
+- 🎀 メイド (Maid): \`.maid-agent/agents/instructions/maid.md\` を参照
 
 ## 階層構造
 
@@ -2320,14 +2320,14 @@ class MultiAgentController {
 1. **指揮系統厳守**: 執事→メイド長→メイド の順序を守る
 2. **自己実行禁止**: 執事・メイド長は自分で作業しない
 3. **報告は dashboard.md**: 上への報告は \`.maid-agent/dashboard.md\` を更新
-4. **指示は YAML キュー**: 下への指示は \`.maid-agent/queue/\` のYAMLファイル経由
+4. **指示は YAML キュー**: 下への指示は \`.maid-agent/system/data/queue/\` のYAMLファイル経由
 5. **sendText 2段階**: 通知時はメッセージとEnterを別々に送信
 
 ## ファイル構成
 
 - 詳細設計書: \`.maid-agent/CLAUDE.md\`
-- プロジェクトコンテキスト: \`.maid-agent/context/\`
-- スキル: \`.maid-agent/skills/\`
+- プロジェクトコンテキスト: \`.maid-agent/agents/context/\`
+- スキル: \`.maid-agent/agents/skills/\`
 `;
     }
 
@@ -2338,8 +2338,9 @@ class MultiAgentController {
             ? ['node_modules', '.git', 'logs']
             : ['node_modules', '.git', 'dist', 'logs'];
         // 保持するディレクトリ（既存フォルダがあればスキップ）
-        // ※ instructions, bin は上書き対象（ここに含めない）
-        const preserveDirs = ['skills', 'rules', 'images', 'queue', 'config', 'context', 'notifications', 'status', 'reports', 'personas'];
+        // ※ agents/instructions, system/bin は上書き対象（ここに含めない）
+        // B案構造: master/（ユーザーデータ保持）, 旧構造の名前も互換性のため残す
+        const preserveDirs = ['master', 'skills', 'rules', 'images', 'queue', 'config', 'context', 'notifications', 'status', 'reports', 'personas'];
 
         if (!fs.existsSync(dest)) {
             fs.mkdirSync(dest, { recursive: true });
@@ -2405,7 +2406,7 @@ class MultiAgentController {
         if (!this.maidAgentPath || !this.tmuxSessionName) return;
 
         try {
-            const configDir = path.join(this.maidAgentPath, 'config');
+            const configDir = path.join(this.maidAgentPath, 'system', 'config');
             if (!fs.existsSync(configDir)) {
                 fs.mkdirSync(configDir, { recursive: true });
             }
@@ -2565,14 +2566,14 @@ class MultiAgentController {
         let instruction: string;
         switch (role) {
             case 'butler':
-                instruction = 'あなたは執事のシルヴィアです。.maid-agent/instructions/butler.md を読んで役割を把握してください。通信方法は .maid-agent/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/personas/butler.md を読んで口調・話し方を把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
+                instruction = 'あなたは執事のシルヴィアです。.maid-agent/agents/instructions/butler.md を読んで役割を把握してください。通信方法は .maid-agent/agents/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/agents/personas/butler.md を読んで口調・話し方を把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
                 break;
             case 'chiefMaid':
-                instruction = 'あなたはメイド長のビオラです。.maid-agent/instructions/chief.md を読んで役割を把握してください。通信方法は .maid-agent/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/personas/chief.md を読んで口調・話し方を把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
+                instruction = 'あなたはメイド長のビオラです。.maid-agent/agents/instructions/chief.md を読んで役割を把握してください。通信方法は .maid-agent/agents/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/agents/personas/chief.md を読んで口調・話し方を把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
                 break;
             case 'maid':
                 const maidId = agentId;
-                instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/instructions/maid.md を読んで役割を把握してください。通信方法は .maid-agent/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/personas/${maidId}.md を読んで口調・話し方を把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
+                instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/agents/instructions/maid.md を読んで役割を把握してください。通信方法は .maid-agent/agents/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/agents/personas/${maidId}.md を読んで口調・話し方を把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
                 break;
         }
 
@@ -3458,7 +3459,7 @@ class MultiAgentController {
 
         // 執事にタスクを直接送信（2段階送信）
         // 執事がタスクを分解し、butler_to_chief.yaml に書き込む
-        const instruction = `ご主人様からの指令です: ${taskDescription}\n\nこのタスクを分析し、必要に応じてサブタスクに分解して .maid-agent/queue/butler_to_chief.yaml に記載し、メイド長に通知してください。`;
+        const instruction = `ご主人様からの指令です: ${taskDescription}\n\nこのタスクを分析し、必要に応じてサブタスクに分解して .maid-agent/system/data/queue/butler_to_chief.yaml に記載し、メイド長に通知してください。`;
         await this.sendMessageToAgent('butler', instruction);
 
         vscode.window.showInformationMessage('🎩 執事にタスクを送信しました');
@@ -3781,7 +3782,7 @@ class MultiAgentController {
                     this.log(`[報告チェック] ${maidName} がメイド長への報告を忘れている可能性`);
 
                     // リマインドを送信
-                    const reminder = `レポートを更新したようですが、メイド長への報告はお済みですか？\n完了した場合は .maid-agent/bin/maid-notify chief "タスク完了の報告" を実行してください。`;
+                    const reminder = `レポートを更新したようですが、メイド長への報告はお済みですか？\n完了した場合は .maid-agent/system/bin/maid-notify chief "タスク完了の報告" を実行してください。`;
                     await this.sendMessageToAgent(maidName, reminder);
 
                     this.log(`[報告チェック] ${maidName} にリマインドを送信しました`);
@@ -3809,7 +3810,7 @@ class MultiAgentController {
 
     // =========================================================================
     // 通知ログ（直接send-keys方式への移行により、pending.json処理は廃止）
-    // 通知履歴は .maid-agent/notifications/history.log に記録される
+    // 通知履歴は .maid-agent/system/data/notifications/history.log に記録される
     // =========================================================================
 
     /**

@@ -52,8 +52,8 @@ export async function executeGetTeamStatus(params) {
     let recentCompleted;
     if (filter?.includeCompleted && filter.includeCompleted > 0) {
         try {
-            // queueMaidPath から projectPath を導出
-            const projectPath = path.resolve(queueMaidPath, "..", "..", "..");
+            // maidStatusPath から projectPath を導出（.maid-agent/system/data/maid の4階層上）
+            const projectPath = path.resolve(queueMaidPath, "..", "..", "..", "..");
             const completedResult = await executeListTasks(projectPath, {
                 status: ["completed"],
                 limit: filter.includeCompleted,

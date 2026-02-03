@@ -12,7 +12,7 @@ import { withFileLock } from "../utils/file-lock.js";
 import { getTimestamp, fileExists } from "../utils/yaml-helper.js";
 // === ファイルパス ===
 const getTasksFilePath = (projectPath) => {
-    return path.join(projectPath, ".maid-agent", "tasks.yaml");
+    return path.join(projectPath, ".maid-agent", "system", "data", "tasks.yaml");
 };
 // === ファイルロック付き操作 ===
 /**

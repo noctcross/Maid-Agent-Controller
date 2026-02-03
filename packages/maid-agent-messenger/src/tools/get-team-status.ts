@@ -12,7 +12,7 @@ import { MAID_IDS } from "../types/index.js";
 
 // STDIO モード用パス（カレントディレクトリ = プロジェクトディレクトリ）
 const PATHS = {
-  QUEUE_MAID: ".maid-agent/queue/maid",
+  MAID_STATUS: ".maid-agent/system/data/maid",
 } as const;
 
 export function registerGetTeamStatus(server: McpServer): void {
@@ -36,7 +36,7 @@ export function registerGetTeamStatus(server: McpServer): void {
     async ({ status, agentId, includeCompleted }) => {
       try {
         const result = await executeGetTeamStatus({
-          queueMaidPath: PATHS.QUEUE_MAID,
+          queueMaidPath: PATHS.MAID_STATUS,
           filter: {
             status,
             agentId,

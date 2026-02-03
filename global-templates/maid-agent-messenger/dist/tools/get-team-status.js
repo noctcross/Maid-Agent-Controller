@@ -9,7 +9,7 @@ import { executeGetTeamStatus } from "../services/index.js";
 import { MAID_IDS } from "../types/index.js";
 // STDIO モード用パス（カレントディレクトリ = プロジェクトディレクトリ）
 const PATHS = {
-    QUEUE_MAID: ".maid-agent/queue/maid",
+    MAID_STATUS: ".maid-agent/system/data/maid",
 };
 export function registerGetTeamStatus(server) {
     server.tool("get_team_status", "全メイドのステータス一覧を取得します（メイド長・執事用）。フィルタ・完了タスク取得対応。", {
@@ -28,7 +28,7 @@ export function registerGetTeamStatus(server) {
     }, async ({ status, agentId, includeCompleted }) => {
         try {
             const result = await executeGetTeamStatus({
-                queueMaidPath: PATHS.QUEUE_MAID,
+                queueMaidPath: PATHS.MAID_STATUS,
                 filter: {
                     status,
                     agentId,

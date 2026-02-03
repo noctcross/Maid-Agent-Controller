@@ -1,0 +1,6 @@
+# Maid Agent タスク管理ファイル
+# このファイルはMCPツール (maid-agent-messenger) によって自動管理されます
+# 手動編集は推奨されません
+
+lastTaskNumber: 0
+tasks: []

@@ -11,8 +11,8 @@ import { executeUpdateStatus } from "../services/index.js";
 
 // STDIO モード用パス（カレントディレクトリ = プロジェクトディレクトリ）
 const PATHS = {
-  QUEUE_MAID: ".maid-agent/queue/maid",
-  REPORTS: ".maid-agent/reports",
+  MAID_STATUS: ".maid-agent/system/data/maid",
+  REPORTS: ".maid-agent/master/reports",
 } as const;
 
 export function registerUpdateStatus(server: McpServer): void {
@@ -35,7 +35,7 @@ export function registerUpdateStatus(server: McpServer): void {
     async ({ agent_id, status, summary }) => {
       try {
         const result = await executeUpdateStatus({
-          queueMaidPath: PATHS.QUEUE_MAID,
+          queueMaidPath: PATHS.MAID_STATUS,
           reportsPath: PATHS.REPORTS,
           agentId: agent_id,
           status,

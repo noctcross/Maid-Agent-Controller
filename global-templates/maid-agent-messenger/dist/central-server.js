@@ -35,7 +35,7 @@ const sessions = new Map();
 // パスヘルパー関数
 // ========================================
 function getQueueMaidPath(projectPath) {
-    return path.join(projectPath, ".maid-agent", "system", "data", "queue", "maid");
+    return path.join(projectPath, ".maid-agent", "system", "data", "maid");
 }
 function getReportsPath(projectPath) {
     return path.join(projectPath, ".maid-agent", "master", "reports");

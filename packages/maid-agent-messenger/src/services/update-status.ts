@@ -80,8 +80,8 @@ export async function executeUpdateStatus(
         }
 
         // Phase 3: tasks.yaml への同期
-        // queueMaidPath から projectPath を導出（.maid-agent/queue/maid の3階層上）
-        const projectPath = path.resolve(queueMaidPath, "..", "..", "..");
+        // maidStatusPath から projectPath を導出（.maid-agent/system/data/maid の4階層上）
+        const projectPath = path.resolve(queueMaidPath, "..", "..", "..", "..");
         try {
           await executeUpdateTask(projectPath, {
             taskId: taskIdNormalized,

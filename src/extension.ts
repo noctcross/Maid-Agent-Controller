@@ -1494,27 +1494,31 @@ class MultiAgentController {
         this.cachedWslPassword = undefined; // 初期化
 
         try {
+            // 0. パスワードレスsudo設定を確認・セットアップ
+            const hasPasswordlessSudo = this.checkPasswordlessSudo();
+            if (!hasPasswordlessSudo) {
+                await this.setupPasswordlessSudo();
+            }
+
             // 進捗表示
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 title: 'MCPサーバーをセットアップ中...',
                 cancellable: false
             }, async (progress) => {
-                // 0. pm2 インストール確認
+                // 1. pm2 インストール確認
                 progress.report({ message: 'pm2 を確認中...' });
                 try {
                     execSync(`wsl bash -c 'which pm2'`, { encoding: 'utf-8', stdio: 'pipe' });
                     this.log('[MCP] pm2 確認OK');
                 } catch {
-                    // pm2がない場合は自動インストール（sudo必要）
+                    // pm2がない場合は自動インストール
                     this.log('[MCP] pm2 が見つかりません。インストールします...');
 
-                    const password = await this.installPm2WithSudo();
-                    if (!password) {
+                    const installed = await this.installPm2();
+                    if (!installed) {
                         throw new Error('pm2 のインストールがキャンセルされました');
                     }
-                    // パスワードをキャッシュ（startup設定で再利用）
-                    this.cachedWslPassword = password;
                 }
 
                 // 1. npm install
@@ -1602,18 +1606,41 @@ class MultiAgentController {
     }
 
     /**
-     * pm2をsudo付きでインストール
-     * @returns パスワード（成功時）、undefined（キャンセルまたは失敗）
+     * pm2をインストール（パスワードレスsudo対応）
+     * @returns 成功したらtrue
      */
-    private async installPm2WithSudo(): Promise<string | undefined> {
-        const MAX_ATTEMPTS = 3;
+    private async installPm2(): Promise<boolean> {
+        // パスワードレスsudoが設定されている場合
+        if (this.checkPasswordlessSudo()) {
+            try {
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'pm2 をインストール中...',
+                    cancellable: false
+                }, async () => {
+                    execSync(
+                        `wsl bash -c "sudo -n npm install -g pm2 2>&1"`,
+                        { encoding: 'utf-8', timeout: 120000, stdio: 'pipe' }
+                    );
+                });
 
+                this.log('[MCP] pm2 インストール完了（パスワードレス）');
+                vscode.window.showInformationMessage('✅ pm2 をインストールしました');
+                return true;
+            } catch (error) {
+                this.log(`[MCP] pm2 インストール失敗（パスワードレス）: ${error}`);
+                // パスワードレスで失敗した場合、パスワード入力にフォールバック
+            }
+        }
+
+        // パスワード入力が必要な場合
+        const MAX_ATTEMPTS = 3;
         for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             const password = await this.promptWslPassword('pm2 のインストール', attempt, MAX_ATTEMPTS);
 
             if (password === undefined) {
                 this.log('[MCP] pm2 インストールがキャンセルされました');
-                return undefined;
+                return false;
             }
 
             try {
@@ -1632,7 +1659,8 @@ class MultiAgentController {
 
                 this.log('[MCP] pm2 インストール完了');
                 vscode.window.showInformationMessage('✅ pm2 をインストールしました');
-                return password; // 成功時はパスワードを返す
+                this.cachedWslPassword = password; // startup用にキャッシュ
+                return true;
             } catch (error) {
                 this.log(`[MCP] pm2 インストール試行 ${attempt} 失敗: ${error}`);
             }
@@ -1643,7 +1671,7 @@ class MultiAgentController {
             'WSL で以下を手動実行してください:\n' +
             'sudo npm install -g pm2'
         );
-        return undefined;
+        return false;
     }
 
     /**
@@ -1698,6 +1726,28 @@ class MultiAgentController {
             return;
         }
 
+        // sudo と env PATH=... の部分を除去（pm2は絶対パスで指定されているので不要）
+        const command = startupCommand
+            .replace(/^sudo\s+/, '')
+            .replace(/env\s+PATH=[^\s]+\s+/, '');
+        this.log(`[MCP] startup コマンド（整形後）: ${command}`);
+
+        // パスワードレスsudoが設定されている場合
+        if (this.checkPasswordlessSudo()) {
+            try {
+                execSync(
+                    `wsl bash -c "sudo -n ${command}"`,
+                    { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' }
+                );
+                this.log('[MCP] pm2 startup 設定完了（パスワードレス）');
+                vscode.window.showInformationMessage('✅ 自動起動を設定しました');
+                return;
+            } catch (error) {
+                this.log(`[MCP] pm2 startup 失敗（パスワードレス）: ${error}`);
+                // パスワードレスで失敗した場合、パスワード入力にフォールバック
+            }
+        }
+
         // パスワード入力（キャッシュがあれば使用、なければ新規取得）
         const maxAttempts = 3;
         let password = cachedPassword;
@@ -1715,10 +1765,6 @@ class MultiAgentController {
 
             try {
                 const escapedPassword = password.replace(/'/g, "'\\''");
-                // sudo と env PATH=... の部分を除去（pm2は絶対パスで指定されているので不要）
-                let command = startupCommand
-                    .replace(/^sudo\s+/, '')
-                    .replace(/env\s+PATH=[^\s]+\s+/, '');
                 this.log(`[MCP] 実行コマンド: ${command}`);
                 execSync(
                     `wsl bash -c "echo '${escapedPassword}' | sudo -S ${command}"`,
@@ -1793,6 +1839,119 @@ class MultiAgentController {
             </body>
             </html>
         `;
+    }
+
+    /**
+     * パスワードレスsudoが設定されているか確認
+     */
+    private checkPasswordlessSudo(): boolean {
+        try {
+            // sudoers.d に maid-agent 設定ファイルが存在するか確認
+            const result = execSync(
+                `wsl bash -c "test -f /etc/sudoers.d/maid-agent && echo 'exists' || echo 'not_found'"`,
+                { encoding: 'utf-8', stdio: 'pipe' }
+            ).trim();
+            return result === 'exists';
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * WSLのユーザー名を取得
+     */
+    private getWslUsername(): string {
+        try {
+            return execSync(`wsl bash -c "whoami"`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
+        } catch {
+            return 'user'; // フォールバック
+        }
+    }
+
+    /**
+     * パスワードレスsudoを設定（/etc/sudoers.d/maid-agent を作成）
+     * @returns 成功したらtrue
+     */
+    private async setupPasswordlessSudo(): Promise<boolean> {
+        // 既に設定済みならスキップ
+        if (this.checkPasswordlessSudo()) {
+            this.log('[Sudo] パスワードレスsudo 設定済み');
+            return true;
+        }
+
+        // ユーザーに確認
+        const choice = await vscode.window.showInformationMessage(
+            'sudoパスワードの自動化設定を行いますか？\n\n' +
+            '一度だけパスワードを入力すると、以降は自動で実行されます。\n' +
+            '（/etc/sudoers.d/maid-agent に設定を追加します）',
+            { modal: true },
+            '設定する',
+            'スキップ'
+        );
+
+        if (choice !== '設定する') {
+            this.log('[Sudo] パスワードレスsudo 設定をスキップ');
+            return false;
+        }
+
+        const username = this.getWslUsername();
+        this.log(`[Sudo] WSLユーザー名: ${username}`);
+
+        // sudoersファイルの内容
+        // 注意: visudoを通さずに直接書き込むため、構文エラーに注意
+        const sudoersContent = `# Maid Agent - Passwordless sudo for pm2 operations
+# Created by VSCode Maid Agent Extension
+${username} ALL=(ALL) NOPASSWD: /usr/bin/npm install -g pm2
+${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
+`;
+
+        const MAX_ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            const password = await this.promptWslPassword('パスワードレスsudo設定', attempt, MAX_ATTEMPTS);
+            if (!password) {
+                this.log('[Sudo] パスワード入力がキャンセルされました');
+                return false;
+            }
+
+            try {
+                const escapedPassword = password.replace(/'/g, "'\\''");
+                const escapedContent = sudoersContent.replace(/'/g, "'\\''");
+
+                // sudoers.d に設定ファイルを作成
+                execSync(
+                    `wsl bash -c "echo '${escapedPassword}' | sudo -S bash -c 'echo \\"${escapedContent}\\" > /etc/sudoers.d/maid-agent && chmod 440 /etc/sudoers.d/maid-agent'"`,
+                    { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' }
+                );
+
+                // 設定の検証
+                execSync(
+                    `wsl bash -c "sudo -n true 2>/dev/null"`,
+                    { encoding: 'utf-8', stdio: 'pipe' }
+                );
+
+                this.log('[Sudo] パスワードレスsudo 設定完了');
+                vscode.window.showInformationMessage('✅ パスワードレスsudo を設定しました。以降は自動で実行されます。');
+                return true;
+            } catch (error) {
+                this.log(`[Sudo] 設定失敗 (${attempt}/${MAX_ATTEMPTS}): ${error}`);
+            }
+        }
+
+        vscode.window.showErrorMessage('パスワードレスsudoの設定に失敗しました。');
+        return false;
+    }
+
+    /**
+     * パスワードレスでsudoコマンドを実行（設定済みの場合）
+     * @returns 成功したらtrue
+     */
+    private execSudoNoPassword(command: string): boolean {
+        try {
+            execSync(`wsl bash -c "sudo -n ${command}"`, { encoding: 'utf-8', stdio: 'pipe' });
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     /**
@@ -2340,7 +2499,8 @@ class MultiAgentController {
         // 保持するディレクトリ（既存フォルダがあればスキップ）
         // ※ agents/instructions, system/bin は上書き対象（ここに含めない）
         // B案構造: master/（ユーザーデータ保持）, 旧構造の名前も互換性のため残す
-        const preserveDirs = ['master', 'skills', 'rules', 'images', 'queue', 'config', 'context', 'notifications', 'status', 'reports', 'personas'];
+        // maid: メイドステータスファイル（任意の深さで保護）
+        const preserveDirs = ['master', 'skills', 'rules', 'images', 'config', 'context', 'notifications', 'reports', 'personas', 'maid'];
 
         if (!fs.existsSync(dest)) {
             fs.mkdirSync(dest, { recursive: true });
@@ -2358,16 +2518,19 @@ class MultiAgentController {
                     this.log(`[コピー] スキップ: ${entry.name}`);
                     continue;
                 }
-                // ルートレベルで保持対象かつ既存なら保持
-                if (isRoot && preserveDirs.includes(entry.name) && fs.existsSync(destPath)) {
+                // 保持対象かつ既存なら保持（maidは任意の深さで保護、他はルートレベルのみ）
+                const isPreserveDir = preserveDirs.includes(entry.name);
+                const shouldPreserve = isPreserveDir && fs.existsSync(destPath) && (isRoot || entry.name === 'maid');
+                if (shouldPreserve) {
                     this.log(`[コピー] 既存を保持: ${entry.name}/`);
                     continue;
                 }
                 this.copyDirectorySync(srcPath, destPath, false, options);
             } else {
-                // dashboard.md は存在する場合スキップ（進捗情報を保持）
-                if (entry.name === 'dashboard.md' && fs.existsSync(destPath)) {
-                    this.log('[初期化] dashboard.md は既存のため保持');
+                // ユーザーデータを含むファイルは既存があれば保持
+                const preserveFiles = ['dashboard.md', 'tasks.yaml'];
+                if (preserveFiles.includes(entry.name) && fs.existsSync(destPath)) {
+                    this.log(`[初期化] ${entry.name} は既存のため保持`);
                     continue;
                 }
                 fs.copyFileSync(srcPath, destPath);
@@ -2479,7 +2642,6 @@ class MultiAgentController {
         this.agents.set(id, agent);
 
         this.log(`[${name}] 準備完了 (tmux window: ${windowName})`);
-        this.updateMasterStatus(id, 'idle');
         this.updateAgentPanel();
         return agent;
     }
@@ -2498,7 +2660,6 @@ class MultiAgentController {
             this.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
             agent.status = 'working';
             this.log(`[${agent.name}] → ${command.substring(0, 60)}...`);
-            this.updateMasterStatus(agentId, 'working');
             this.updateDashboard();
             return true;
         } catch (error) {
@@ -3514,73 +3675,6 @@ class MultiAgentController {
 
         if (count > 0) {
             vscode.window.showInformationMessage(`🤖 ${count}人のエージェントがClaude Codeを起動しました`);
-        }
-    }
-
-    // =========================================================================
-    // ステータス管理
-    // =========================================================================
-
-    /**
-     * master_status.yaml を更新
-     * エージェントのステータスと最終アクティブ時刻を記録
-     */
-    private updateMasterStatus(agentId: string, status: 'offline' | 'idle' | 'working' | 'done'): void {
-        if (!this.maidAgentPath) return;
-
-        const statusPath = path.join(this.maidAgentPath, 'status', 'master_status.yaml');
-        if (!fs.existsSync(statusPath)) return;
-
-        try {
-            let content = fs.readFileSync(statusPath, 'utf-8');
-            const timestamp = new Date().toISOString();
-
-            // last_updated を更新
-            content = content.replace(/last_updated: .*/, `last_updated: "${timestamp}"`);
-
-            // session_start を設定（未設定の場合）
-            if (content.includes('session_start: null')) {
-                content = content.replace(/session_start: null/, `session_start: "${timestamp}"`);
-            }
-
-            // initialized_at を設定（未設定の場合）
-            if (content.includes('initialized_at: null')) {
-                content = content.replace(/initialized_at: null/, `initialized_at: "${timestamp}"`);
-            }
-
-            // エージェントのステータスを更新
-            // butler, chief の場合
-            if (agentId === 'butler' || agentId === 'chief') {
-                const agentSection = new RegExp(
-                    `(${agentId}:\\s*\\n\\s*status: )\\w+`,
-                    'g'
-                );
-                content = content.replace(agentSection, `$1${status}`);
-
-                const lastActiveSection = new RegExp(
-                    `(${agentId}:[\\s\\S]*?last_active: ).*`,
-                    ''
-                );
-                content = content.replace(lastActiveSection, `$1"${timestamp}"`);
-            } else {
-                // メイドの場合（maids セクション内）
-                const maidSection = new RegExp(
-                    `(${agentId}:\\s*\\n\\s*status: )\\w+`,
-                    'g'
-                );
-                content = content.replace(maidSection, `$1${status}`);
-
-                const lastActiveSection = new RegExp(
-                    `(${agentId}:[\\s\\S]*?last_active: ).*`,
-                    ''
-                );
-                content = content.replace(lastActiveSection, `$1"${timestamp}"`);
-            }
-
-            fs.writeFileSync(statusPath, content);
-            this.log(`[ステータス] ${agentId}: ${status}`);
-        } catch (error) {
-            this.log(`[WARN] ステータス更新に失敗: ${error}`);
         }
     }
 
@@ -4702,7 +4796,6 @@ ${agentList || '  (なし)'}
 
         // tmuxウィンドウを終了
         this.tmuxManager.killWindow(agent.tmuxWindow);
-        this.updateMasterStatus(agentId, 'offline');
         this.agents.delete(agentId);
         this.updateAgentPanel();
         this.updateDashboard();

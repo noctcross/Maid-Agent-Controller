@@ -8,7 +8,7 @@ import { MAID_IDS } from "../types/index.js";
 import { executeGetMyTask } from "../services/index.js";
 // STDIO モード用パス（カレントディレクトリ = プロジェクトディレクトリ）
 const PATHS = {
-    QUEUE_MAID: ".maid-agent/queue/maid",
+    MAID_STATUS: ".maid-agent/system/data/maid",
 };
 export function registerGetMyTask(server) {
     server.tool("get_my_task", "自分に割り当てられたタスク情報を取得します", {
@@ -18,7 +18,7 @@ export function registerGetMyTask(server) {
     }, async ({ agent_id }) => {
         try {
             const result = await executeGetMyTask({
-                queueMaidPath: PATHS.QUEUE_MAID,
+                queueMaidPath: PATHS.MAID_STATUS,
                 agentId: agent_id,
             });
             return {

@@ -31,7 +31,7 @@ function getConfigPath() {
         return process.env.MAID_MCP_CONFIG;
     }
     // デフォルトパス
-    return ".maid-agent/config/mcp-server.yaml";
+    return ".maid-agent/system/config/mcp-server.yaml";
 }
 /**
  * 設定ファイルを読み込む

@@ -55,7 +55,7 @@ export interface TasksData {
 // === ファイルパス ===
 
 const getTasksFilePath = (projectPath: string): string => {
-  return path.join(projectPath, ".maid-agent", "tasks.yaml");
+  return path.join(projectPath, ".maid-agent", "system", "data", "tasks.yaml");
 };
 
 // === ファイルロック付き操作 ===

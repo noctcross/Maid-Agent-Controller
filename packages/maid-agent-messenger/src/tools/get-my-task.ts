@@ -11,7 +11,7 @@ import { executeGetMyTask } from "../services/index.js";
 
 // STDIO モード用パス（カレントディレクトリ = プロジェクトディレクトリ）
 const PATHS = {
-  QUEUE_MAID: ".maid-agent/queue/maid",
+  MAID_STATUS: ".maid-agent/system/data/maid",
 } as const;
 
 export function registerGetMyTask(server: McpServer): void {
@@ -26,7 +26,7 @@ export function registerGetMyTask(server: McpServer): void {
     async ({ agent_id }) => {
       try {
         const result = await executeGetMyTask({
-          queueMaidPath: PATHS.QUEUE_MAID,
+          queueMaidPath: PATHS.MAID_STATUS,
           agentId: agent_id,
         });
 

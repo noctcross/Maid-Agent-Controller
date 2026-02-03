@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 noctcross
+Copyright (c) 2026 noctcross
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,33 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+## Character Images / キャラクター画像
+
+The following files are NOT covered by the MIT License:
+
+```
+project-templates/system/resources/images/
+```
+
+© 2026 noctcross All Rights Reserved.
+
+### Permitted Uses / 許可される使用
+- Using this extension as intended (displaying characters within the extension)
+- Screenshots and videos of this extension in use
+- Fan art and derivative creative works (二次創作)
+
+### Prohibited Uses / 禁止される使用
+- Selling merchandise using these character images directly
+- Using these character images in other products, services, or advertisements
+- Redistributing the original image files separately from this extension
+
+### 日本語
+上記パスに含まれるキャラクター画像はMITライセンスの対象外です。
+- ✅ 拡張機能としての通常使用
+- ✅ 使用中のスクリーンショット・動画
+- ✅ 二次創作
+- ❌ 画像をそのまま使用したグッズ販売
+- ❌ 他の製品・サービス・広告への転用

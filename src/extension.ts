@@ -1054,7 +1054,7 @@ class MultiAgentController {
         // 5秒後に元に戻す
         this.statusBarResetTimeout = setTimeout(() => {
             if (this.statusBarItem) {
-                this.statusBarItem.text = '🎩 Maid Agent';
+                this.statusBarItem.text = '🎩 Controller';
                 this.statusBarItem.backgroundColor = undefined;
             }
         }, 5000);
@@ -4879,15 +4879,24 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(...commands);
 
-    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.text = '🎩 Maid Agent';
-    statusBarItem.command = 'multiAgent.showDashboard';
-    statusBarItem.tooltip = 'クリックでダッシュボードを表示';
-    statusBarItem.show();
-    context.subscriptions.push(statusBarItem);
+    // Dashboard ボタン（タスク一覧）
+    const dashboardStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 101);
+    dashboardStatusBarItem.text = '📋 Dashboard';
+    dashboardStatusBarItem.command = 'multiAgent.showWebDashboard';
+    dashboardStatusBarItem.tooltip = 'クリックでタスク一覧を表示';
+    dashboardStatusBarItem.show();
+    context.subscriptions.push(dashboardStatusBarItem);
+
+    // Controller ボタン（コントローラー）
+    const controllerStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+    controllerStatusBarItem.text = '🎩 Controller';
+    controllerStatusBarItem.command = 'multiAgent.showDashboard';
+    controllerStatusBarItem.tooltip = 'クリックでコントローラーを表示';
+    controllerStatusBarItem.show();
+    context.subscriptions.push(controllerStatusBarItem);
 
     // コントローラーにステータスバーを設定（通知用）
-    controller.setStatusBarItem(statusBarItem);
+    controller.setStatusBarItem(controllerStatusBarItem);
 }
 
 export function deactivate() {

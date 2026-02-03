@@ -3957,7 +3957,7 @@ ${agentList || '  (なし)'}
 
         this.webDashboardPanel = vscode.window.createWebviewPanel(
             'maidAgentWebDashboard',
-            '🎩 Task Dashboard',
+            '📋 Dashboard',
             vscode.ViewColumn.Active,
             {
                 enableScripts: true,

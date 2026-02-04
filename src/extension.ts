@@ -1696,18 +1696,7 @@ class MultiAgentController {
      * @param cachedPassword 既に取得済みのパスワード（あれば再利用）
      */
     private async setupPm2Startup(cachedPassword?: string): Promise<void> {
-        const choice = await vscode.window.showInformationMessage(
-            'MCPサーバーの自動起動を設定しますか？\n（WSL起動時に自動で起動します）',
-            '設定する',
-            'スキップ'
-        );
-
-        if (choice !== '設定する') {
-            this.log('[MCP] pm2 startup をスキップ');
-            return;
-        }
-
-        // pm2 startup コマンドを取得
+        // pm2 startup コマンドを取得（先に設定済みかどうかを確認）
         // 注意: pm2 startup はexit code 1を返すことがあるが、出力は正常
         let startupCommand: string;
         try {
@@ -1730,7 +1719,8 @@ class MultiAgentController {
             const match = output.match(/sudo .+$/m);
             if (!match) {
                 if (output.includes('already')) {
-                    vscode.window.showInformationMessage('自動起動は既に設定されています');
+                    // 既に設定済みの場合はポップアップを出さずに終了
+                    this.log('[MCP] pm2 startup 既に設定済み');
                     return;
                 }
                 throw new Error('startup コマンドを取得できませんでした');
@@ -1749,20 +1739,32 @@ class MultiAgentController {
             .replace(/env\s+PATH=[^\s]+\s+/, '');
         this.log(`[MCP] startup コマンド（整形後）: ${command}`);
 
-        // パスワードレスsudoが設定されている場合
+        // パスワードレスsudoが設定されている場合は自動で設定（ポップアップなし）
         if (this.checkPasswordlessSudo()) {
             try {
                 execSync(
                     `wsl bash -c "sudo -n ${command}"`,
                     { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' }
                 );
-                this.log('[MCP] pm2 startup 設定完了（パスワードレス）');
+                this.log('[MCP] pm2 startup 設定完了（パスワードレス・自動）');
                 vscode.window.showInformationMessage('✅ 自動起動を設定しました');
                 return;
             } catch (error) {
                 this.log(`[MCP] pm2 startup 失敗（パスワードレス）: ${error}`);
-                // パスワードレスで失敗した場合、パスワード入力にフォールバック
+                // パスワードレスで失敗した場合、ユーザーに確認してからパスワード入力にフォールバック
             }
+        }
+
+        // パスワードレスsudoが未設定、またはパスワードレス実行に失敗した場合は確認ダイアログを表示
+        const choice = await vscode.window.showInformationMessage(
+            'MCPサーバーの自動起動を設定しますか？\n（WSL起動時に自動で起動します）',
+            '設定する',
+            'スキップ'
+        );
+
+        if (choice !== '設定する') {
+            this.log('[MCP] pm2 startup をスキップ');
+            return;
         }
 
         // パスワード入力（キャッシュがあれば使用、なければ新規取得）
@@ -1932,11 +1934,13 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
 
             try {
                 const escapedPassword = password.replace(/'/g, "'\\''");
-                const escapedContent = sudoersContent.replace(/'/g, "'\\''");
+                const escapedContent = sudoersContent
+                    .replace(/'/g, "'\\''")
+                    .replace(/\n/g, '\\n');  // 改行をリテラル \n に変換
 
                 // sudoers.d に設定ファイルを作成
                 execSync(
-                    `wsl bash -c "echo '${escapedPassword}' | sudo -S bash -c 'echo \\"${escapedContent}\\" > /etc/sudoers.d/maid-agent && chmod 440 /etc/sudoers.d/maid-agent'"`,
+                    `wsl bash -c "echo '${escapedPassword}' | sudo -S bash -c 'echo -e \\"${escapedContent}\\" > /etc/sudoers.d/maid-agent && chmod 440 /etc/sudoers.d/maid-agent'"`,
                     { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' }
                 );
 

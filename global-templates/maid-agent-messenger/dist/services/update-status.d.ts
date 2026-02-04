@@ -8,7 +8,10 @@
 import type { UpdateStatusOutput, UpdatableStatus } from "../types/index.js";
 export interface UpdateStatusParams {
     queueMaidPath: string;
-    reportsPath: string;
+    /** 作業中レポートのパス: .maid-agent/reports/ */
+    currentReportsPath: string;
+    /** 完了レポートのパス: .maid-agent/master/reports/ */
+    archiveReportsPath: string;
     agentId: string;
     status: UpdatableStatus;
     summary?: string;

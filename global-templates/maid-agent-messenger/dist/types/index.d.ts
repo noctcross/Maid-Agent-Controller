@@ -20,6 +20,7 @@ export interface TaskYaml {
     assigned_at: string | null;
     started_at: string | null;
     completed_at: string | null;
+    completion_summary: string | null;
 }
 export interface GetMyTaskOutput {
     task_id: string | null;
@@ -33,6 +34,8 @@ export interface UpdateStatusOutput {
     success: boolean;
     updated_fields: string[];
     timestamp: string;
+    /** 完了レポートのアーカイブパス（completed時のみ） */
+    archive_path?: string;
 }
 export interface AssignTaskOutput {
     success: boolean;

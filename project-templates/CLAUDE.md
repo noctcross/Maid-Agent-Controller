@@ -171,7 +171,7 @@ tmux send-keys -t "${SESSION}:${TARGET}" C-m
 ├── system/              # ⚙️ システムエリア
 │   ├── bin/             # 実行スクリプト（maid-notify）
 │   ├── config/          # 設定ファイル
-│   ├── data/            # データ（queue/, notifications/, status/）
+│   ├── data/            # データ（maid/, reports/, tasks.yaml）
 │   └── resources/       # リソース（images/）
 ├── CLAUDE.md            # 本ファイル（詳細リファレンス）
 ├── dashboard.md         # （廃止予定）Webビューに移行中
@@ -251,11 +251,11 @@ agents/rules/
 
 ### スキル化フロー
 ```
-メイド: 候補発見 → reports/ に記載
+メイド: 候補発見 → .maid-agent/system/data/reports/current_{name}.md に記載
     ↓
-メイド長: 集約 → 執事経由でご主人様に報告
+メイド長: 集約 → create_task でご主人様向けタスク作成
     ↓
-ご主人様: 承認 → skills/ に作成（skill-creator使用）
+ご主人様: 承認 → .maid-agent/agents/skills/ に作成（skill-creator使用）
 ```
 
 ※ 将来的にWebビューで「📚 スキル化候補」として表示・管理予定

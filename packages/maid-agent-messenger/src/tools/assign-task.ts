@@ -12,7 +12,8 @@ import { executeAssignTask } from "../services/index.js";
 // STDIO モード用パス（カレントディレクトリ = プロジェクトディレクトリ）
 const PATHS = {
   MAID_STATUS: ".maid-agent/system/data/maid",
-  REPORTS: ".maid-agent/master/reports",
+  CURRENT_REPORTS: ".maid-agent/system/data/reports",  // 作業中レポート（中間ファイル）
+  // テンプレートは CURRENT_REPORTS と同じ場所
 } as const;
 
 export function registerAssignTask(server: McpServer): void {
@@ -37,7 +38,8 @@ export function registerAssignTask(server: McpServer): void {
       try {
         const result = await executeAssignTask({
           queueMaidPath: PATHS.MAID_STATUS,
-          reportsPath: PATHS.REPORTS,
+          currentReportsPath: PATHS.CURRENT_REPORTS,
+          templatePath: PATHS.CURRENT_REPORTS,  // テンプレートは作業中レポートと同じ場所
           taskId: task_id,
           targetAgent: target_agent,
           description,

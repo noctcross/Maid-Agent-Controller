@@ -21,7 +21,10 @@ import { executeUpdateTask } from "./task-manager.js";
 
 export interface UpdateStatusParams {
   queueMaidPath: string;
-  reportsPath: string;
+  /** 作業中レポートのパス: .maid-agent/reports/ */
+  currentReportsPath: string;
+  /** 完了レポートのパス: .maid-agent/master/reports/ */
+  archiveReportsPath: string;
   agentId: string;
   status: UpdatableStatus;
   summary?: string;
@@ -33,7 +36,7 @@ export interface UpdateStatusParams {
 export async function executeUpdateStatus(
   params: UpdateStatusParams
 ): Promise<UpdateStatusOutput> {
-  const { queueMaidPath, reportsPath, agentId, status, summary } = params;
+  const { queueMaidPath, currentReportsPath, archiveReportsPath, agentId, status, summary } = params;
   const filePath = path.join(queueMaidPath, `${agentId}.yaml`);
   const timestamp = getTimestamp();
 
@@ -52,14 +55,16 @@ export async function executeUpdateStatus(
     }
 
     // completed に変更時、completed_at を設定 + レポートリネーム + tasks.yaml同期
+    // archivePathはreturnで使うのでwithFileLockスコープ内で宣言
+    let archivePath: string | undefined;
     if (status === "completed") {
       task.completed_at = timestamp;
       updatedFields.push("completed_at");
 
-      // レポートファイルのアーカイブ（コピーして保存、currentは残す）
-      let archivePath: string | undefined;
+      // レポートファイルのアーカイブ（currentReportsPathからarchiveReportsPathへコピー）
       if (task.task_id) {
-        const currentPath = path.join(reportsPath, `current_${agentId}.md`);
+        // 作業中レポート: .maid-agent/reports/current_{agentId}.md
+        const currentPath = path.join(currentReportsPath, `current_${agentId}.md`);
         const description = sanitizeDescription(task.description);
         // task_id を正規化
         // 1. 先頭の "task-" を全て除去（複数回出現しても対応）
@@ -67,8 +72,9 @@ export async function executeUpdateStatus(
         const taskIdNormalized = String(task.task_id)
           .replace(/^(task-)+/i, "")
           .replace(new RegExp(`-${agentId}$`, "i"), "");
+        // 完了レポート: .maid-agent/master/reports/task-{id}-{agentId}-{description}.md
         archivePath = path.join(
-          reportsPath,
+          archiveReportsPath,
           `task-${taskIdNormalized}-${agentId}-${description}.md`
         );
 
@@ -110,6 +116,7 @@ export async function executeUpdateStatus(
       success: true,
       updated_fields: updatedFields,
       timestamp,
+      ...(archivePath && { archive_path: archivePath }),
     };
   });
 }

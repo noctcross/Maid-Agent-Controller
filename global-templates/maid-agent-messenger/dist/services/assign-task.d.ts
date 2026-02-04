@@ -6,7 +6,10 @@
 import type { AssignTaskOutput } from "../types/index.js";
 export interface AssignTaskParams {
     queueMaidPath: string;
-    reportsPath: string;
+    /** 作業中レポートのパス: .maid-agent/reports/ */
+    currentReportsPath: string;
+    /** テンプレートのパス: .maid-agent/master/reports/ */
+    templatePath: string;
     taskId: string;
     targetAgent: string;
     description: string;

@@ -345,14 +345,14 @@ function getSessionNameFromPath(workspacePath: string): string {
 }
 
 const MAIDS_MAP: { [key: string]: MaidConfig } = {
-    emma: { name: 'エマ', id: 'emma', emoji: '🎀' },
-    sophia: { name: 'ソフィア', id: 'sophia', emoji: '🎀' },
-    lily: { name: 'リリー', id: 'lily', emoji: '🎀' },
-    rose: { name: 'ローズ', id: 'rose', emoji: '🎀' },
-    alice: { name: 'アリス', id: 'alice', emoji: '🎀' },
-    may: { name: 'メイ', id: 'may', emoji: '🎀' },
-    flora: { name: 'フローラ', id: 'flora', emoji: '🎀' },
-    luna: { name: 'ルナ', id: 'luna', emoji: '🎀' },
+    emma: { name: 'エマ', id: 'emma', emoji: '🌸' },
+    sophia: { name: 'ソフィア', id: 'sophia', emoji: '📚' },
+    lily: { name: 'リリー', id: 'lily', emoji: '🎨' },
+    rose: { name: 'ローズ', id: 'rose', emoji: '🌹' },
+    alice: { name: 'アリス', id: 'alice', emoji: '🔧' },
+    may: { name: 'メイ', id: 'may', emoji: '🍰' },
+    flora: { name: 'フローラ', id: 'flora', emoji: '🌷' },
+    luna: { name: 'ルナ', id: 'luna', emoji: '🌙' },
 };
 
 const DEFAULT_MAID_ORDER = ['emma', 'sophia', 'lily', 'rose', 'alice', 'may', 'flora', 'luna'];
@@ -1185,17 +1185,19 @@ class MultiAgentController {
         }
 
         const maidAgentPath = path.join(this.workspaceRoot, MAID_AGENT_DIR);
+        let preserveInstructions = false;
 
         if (fs.existsSync(maidAgentPath)) {
-            // 上書きされるフォルダを確認
-            const overwriteDirs = ['instructions', 'bin'];
-            const existingOverwriteDirs = overwriteDirs.filter(dir =>
-                fs.existsSync(path.join(maidAgentPath, dir))
+            // 上書きされるフォルダを確認（binのみ常に上書き）
+            const alwaysOverwriteDirs = ['bin'];
+            const existingOverwriteDirs = alwaysOverwriteDirs.filter(dir =>
+                fs.existsSync(path.join(maidAgentPath, 'agents', dir)) ||
+                fs.existsSync(path.join(maidAgentPath, 'system', dir))
             );
 
             let message = `.maid-agent ディレクトリは既に存在します。再初期化しますか？`;
             if (existingOverwriteDirs.length > 0) {
-                message += `\n\n⚠️ 以下のフォルダは上書きされます:\n${existingOverwriteDirs.map(d => `  - ${d}/`).join('\n')}`;
+                message += `\n\n⚠️ system/bin/ は最新版に上書きされます`;
             }
 
             const choice = await vscode.window.showWarningMessage(
@@ -1205,6 +1207,21 @@ class MultiAgentController {
             );
             if (choice !== '再初期化') {
                 return false;
+            }
+
+            // instructions の上書き確認（カスタマイズ対応）
+            const instructionsPath = path.join(maidAgentPath, 'agents', 'instructions');
+            if (fs.existsSync(instructionsPath)) {
+                const instructionsChoice = await vscode.window.showWarningMessage(
+                    'agents/instructions/ を上書きしますか？\n\n' +
+                    '⚠️ カスタマイズしている場合は「保持」を選択してください。',
+                    { modal: true },
+                    '上書き', '保持'
+                );
+                preserveInstructions = instructionsChoice === '保持';
+                if (preserveInstructions) {
+                    this.log('[初期化] instructions/ は既存を保持');
+                }
             }
         }
 
@@ -1229,7 +1246,7 @@ class MultiAgentController {
             }
 
             // ディレクトリ構造を作成
-            this.copyDirectorySync(templatesPath, maidAgentPath);
+            this.copyDirectorySync(templatesPath, maidAgentPath, true, { preserveInstructions });
 
             // コピー後の確認
             const destImagesPath = path.join(maidAgentPath, 'system', 'resources', 'images');
@@ -2490,17 +2507,27 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
 `;
     }
 
-    private copyDirectorySync(src: string, dest: string, isRoot: boolean = true, options?: { includeDist?: boolean }): void {
+    private copyDirectorySync(src: string, dest: string, isRoot: boolean = true, options?: { includeDist?: boolean; preserveInstructions?: boolean }): void {
         // 完全スキップ（コピーしない）
         // ※ maid-agent-messenger では dist が必要なので options.includeDist で制御
         const skipDirs = options?.includeDist
             ? ['node_modules', '.git', 'logs']
             : ['node_modules', '.git', 'dist', 'logs'];
         // 保持するディレクトリ（既存フォルダがあればスキップ）
-        // ※ agents/instructions, system/bin は上書き対象（ここに含めない）
+        // ※ system/bin は常に上書き対象（ここに含めない）
+        // ※ agents/instructions は preserveInstructions オプションで制御
+        // ※ agents/skills はマージ対象（mergeDirs で処理）
         // B案構造: master/（ユーザーデータ保持）, 旧構造の名前も互換性のため残す
         // maid: メイドステータスファイル（任意の深さで保護）
-        const preserveDirs = ['master', 'skills', 'rules', 'images', 'config', 'context', 'notifications', 'reports', 'personas', 'maid'];
+        // data: system/data/（タスク・通知データ保持）
+        const preserveDirs = ['master', 'rules', 'images', 'config', 'context', 'notifications', 'reports', 'personas', 'maid', 'data'];
+        // マージするディレクトリ（新規のみ追加、既存は保持）
+        const mergeDirs = ['skills'];
+
+        // preserveInstructions オプションが true なら instructions も保持対象に追加
+        if (options?.preserveInstructions) {
+            preserveDirs.push('instructions');
+        }
 
         if (!fs.existsSync(dest)) {
             fs.mkdirSync(dest, { recursive: true });
@@ -2518,9 +2545,15 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
                     this.log(`[コピー] スキップ: ${entry.name}`);
                     continue;
                 }
-                // 保持対象かつ既存なら保持（maidは任意の深さで保護、他はルートレベルのみ）
+                // マージ対象（新規のみ追加、既存は保持）
+                if (mergeDirs.includes(entry.name) && fs.existsSync(destPath)) {
+                    this.log(`[コピー] マージ: ${entry.name}/`);
+                    this.mergeDirectorySync(srcPath, destPath);
+                    continue;
+                }
+                // 保持対象かつ既存なら保持（maid/dataは任意の深さで保護、他はルートレベルのみ）
                 const isPreserveDir = preserveDirs.includes(entry.name);
-                const shouldPreserve = isPreserveDir && fs.existsSync(destPath) && (isRoot || entry.name === 'maid');
+                const shouldPreserve = isPreserveDir && fs.existsSync(destPath) && (isRoot || entry.name === 'maid' || entry.name === 'data');
                 if (shouldPreserve) {
                     this.log(`[コピー] 既存を保持: ${entry.name}/`);
                     continue;
@@ -2535,6 +2568,32 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
                 }
                 fs.copyFileSync(srcPath, destPath);
             }
+        }
+    }
+
+    /**
+     * ディレクトリをマージ（新規のみ追加、既存は保持）
+     */
+    private mergeDirectorySync(src: string, dest: string): void {
+        const entries = fs.readdirSync(src, { withFileTypes: true });
+
+        for (const entry of entries) {
+            const srcPath = path.join(src, entry.name);
+            const destPath = path.join(dest, entry.name);
+
+            // 既存があればスキップ（保持）
+            if (fs.existsSync(destPath)) {
+                this.log(`[マージ] 既存を保持: ${entry.name}`);
+                continue;
+            }
+
+            // 新規のみコピー
+            if (entry.isDirectory()) {
+                this.copyDirectorySync(srcPath, destPath, false);
+            } else {
+                fs.copyFileSync(srcPath, destPath);
+            }
+            this.log(`[マージ] 新規追加: ${entry.name}`);
         }
     }
 

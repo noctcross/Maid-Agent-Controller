@@ -9,7 +9,8 @@ import { executeUpdateStatus } from "../services/index.js";
 // STDIO モード用パス（カレントディレクトリ = プロジェクトディレクトリ）
 const PATHS = {
     MAID_STATUS: ".maid-agent/system/data/maid",
-    REPORTS: ".maid-agent/master/reports",
+    CURRENT_REPORTS: ".maid-agent/system/data/reports", // 作業中レポート（中間ファイル）
+    ARCHIVE_REPORTS: ".maid-agent/master/reports", // 完了レポート
 };
 export function registerUpdateStatus(server) {
     server.tool("update_status", "自分のタスクステータスを更新します", {
@@ -28,7 +29,8 @@ export function registerUpdateStatus(server) {
         try {
             const result = await executeUpdateStatus({
                 queueMaidPath: PATHS.MAID_STATUS,
-                reportsPath: PATHS.REPORTS,
+                currentReportsPath: PATHS.CURRENT_REPORTS,
+                archiveReportsPath: PATHS.ARCHIVE_REPORTS,
                 agentId: agent_id,
                 status,
                 summary,

@@ -268,7 +268,7 @@ MCPツール create_task でご主人様向けタスク作成:
 - assignees: ["master"]  # ご主人様向け
 - category: "action_required"  # 🚨 要対応
 
-※ 詳細は reports/current_emma.md を参照と記載
+※ 詳細は .maid-agent/system/data/reports/current_emma.md を参照と記載
 ※ Webビューで「🚨 要対応」セクションに表示される（予定）
 ```
 
@@ -290,7 +290,7 @@ MCPツール create_task でご主人様向けタスク作成:
 
 ### スキル候補の報告
 
-スキル候補は master/reports/current_{name}.md に記載された内容を集約し、ご主人様向けタスクを作成:
+スキル候補は .maid-agent/system/data/reports/current_{name}.md に記載された内容を集約し、ご主人様向けタスクを作成:
 
 ```
 運用フロー:
@@ -309,7 +309,7 @@ MCPツール create_task でご主人様向けタスク作成:
 
 ```
 メイドが候補発見
-    ↓ master/reports/current_{name}.md に記載
+    ↓ .maid-agent/system/data/reports/current_{name}.md に記載
 メイド長が集約
     ↓ create_task でご主人様向けタスク作成
 ご主人様が承認
@@ -331,7 +331,7 @@ MCPツール create_task でご主人様向けタスク作成:
 
 ### 改善提案の報告
 
-改善提案は master/reports/current_{name}.md に記載された内容を集約し、ご主人様向けタスクを作成:
+改善提案は .maid-agent/system/data/reports/current_{name}.md に記載された内容を集約し、ご主人様向けタスクを作成:
 
 ```
 運用フロー:
@@ -350,7 +350,7 @@ MCPツール create_task でご主人様向けタスク作成:
 
 ```
 メイドが提案発見
-    ↓ master/reports/current_{name}.md に記載
+    ↓ .maid-agent/system/data/reports/current_{name}.md に記載
 メイド長が集約
     ↓ create_task でご主人様向けタスク作成
 ご主人様が承認

@@ -56,7 +56,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 ```
 タスク確認: MCPツール get_my_task
 ステータス: MCPツール update_status（working → completed）
-報告:     .maid-agent/master/reports/current_{自分のID}.md を更新
+報告:     .maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md を更新
 通知:     .maid-agent/system/bin/maid-notify chief "メッセージ"
 禁止:     他メイドへの直接通知、butler への直接通知、ポーリング
 ```
@@ -101,7 +101,7 @@ MCPツール使用時に「Server not initialized」エラーが発生した場�
 執事 → create_task (MCP) → maid-notify chief → メイド長
 メイド長 → list_tasks (MCP) → assign_task (MCP) → maid-notify {maid} → メイド
 メイド → get_my_task (MCP) → タスク実行 → update_status (MCP)
-メイド → master/reports/current_{name}.md → maid-notify chief → メイド長が収集
+メイド → .maid-agent/system/data/reports/current_{name}.md → maid-notify chief → メイド長が収集
 メイド長 → update_task (MCP) → Webビューに反映
 ```
 

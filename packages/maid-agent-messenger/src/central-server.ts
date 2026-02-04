@@ -68,7 +68,13 @@ function getQueueMaidPath(projectPath: string): string {
   return path.join(projectPath, ".maid-agent", "system", "data", "maid");
 }
 
-function getReportsPath(projectPath: string): string {
+// 作業中レポート: .maid-agent/system/data/reports/ (中間ファイル)
+function getCurrentReportsPath(projectPath: string): string {
+  return path.join(projectPath, ".maid-agent", "system", "data", "reports");
+}
+
+// 完了レポート: .maid-agent/master/reports/ (アーカイブ先)
+function getArchiveReportsPath(projectPath: string): string {
   return path.join(projectPath, ".maid-agent", "master", "reports");
 }
 
@@ -325,7 +331,8 @@ function createMcpServer(projectPath: string): McpServer {
   });
 
   const queueMaidPath = getQueueMaidPath(projectPath);
-  const reportsPath = getReportsPath(projectPath);
+  const currentReportsPath = getCurrentReportsPath(projectPath);
+  const archiveReportsPath = getArchiveReportsPath(projectPath);
 
   // get_my_task ツール
   server.tool(
@@ -377,7 +384,8 @@ function createMcpServer(projectPath: string): McpServer {
       try {
         const result = await executeUpdateStatus({
           queueMaidPath,
-          reportsPath,
+          currentReportsPath,
+          archiveReportsPath,
           agentId: agent_id,
           status,
           summary,
@@ -420,7 +428,8 @@ function createMcpServer(projectPath: string): McpServer {
       try {
         const result = await executeAssignTask({
           queueMaidPath,
-          reportsPath,
+          currentReportsPath,
+          templatePath: currentReportsPath,  // テンプレートは作業中レポートと同じ場所
           taskId: task_id,
           targetAgent: target_agent,
           description,
@@ -935,7 +944,8 @@ app.post("/tools/update_status", async (req: Request, res: Response) => {
 
     const result = await executeUpdateStatus({
       queueMaidPath: getQueueMaidPath(projectPath),
-      reportsPath: getReportsPath(projectPath),
+      currentReportsPath: getCurrentReportsPath(projectPath),
+      archiveReportsPath: getArchiveReportsPath(projectPath),
       agentId: agent_id,
       status,
       summary,
@@ -960,7 +970,8 @@ app.post("/tools/assign_task", async (req: Request, res: Response) => {
 
     const result = await executeAssignTask({
       queueMaidPath: getQueueMaidPath(projectPath),
-      reportsPath: getReportsPath(projectPath),
+      currentReportsPath: getCurrentReportsPath(projectPath),
+      templatePath: getCurrentReportsPath(projectPath),  // テンプレートは作業中レポートと同じ場所
       taskId: task_id,
       targetAgent: target_agent,
       description,

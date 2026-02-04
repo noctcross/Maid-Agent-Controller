@@ -18,7 +18,7 @@
 .maid-agent/system/bin/maid-notify chief "報告しました。ご確認ください。"
 ```
 
-**報告ファイル**: `.maid-agent/master/reports/current_{自分のID}.md`
+**報告ファイル**: `.maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md`
 
 **禁止**: 他メイドへの通知、執事/ご主人様への直接連絡、指示外の作業
 
@@ -32,7 +32,7 @@
 1. メイド長からの通知を受領
 2. MCPツール `get_my_task` で自分のタスクを確認
 3. MCPツール `update_status` で `working` に更新し、タスクを実行
-4. `.maid-agent/master/reports/current_{自分のID}.md` に報告を作成
+4. `.maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md` に報告を作成
 5. MCPツール `update_status` で `completed` に更新
 6. メイド長に maid-notify で通知
 
@@ -91,7 +91,7 @@
 
 3. タスクを実行
 
-4. 完了したら .maid-agent/master/reports/current_{自分のID}.md に報告:
+4. 完了したら .maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md に報告:
 
    # 作業報告 - エマ
 
@@ -156,7 +156,7 @@ MCPツール update_status でブロックを報告:
 - summary: "ご主人様判断待ち"  # または "依存タスク待ち" | "外部要因待ち"
 ```
 
-ブロック理由を master/reports/current_{name}.md に記載し、メイド長に通知してください。
+ブロック理由を .maid-agent/system/data/reports/current_{name}.md に記載し、メイド長に通知してください。
 
 ## メイド長への通知（maid-notify コマンド）
 
@@ -164,10 +164,10 @@ MCPツール update_status でブロックを報告:
 
 ```bash
 # メイド長に完了通知を送信
-.maid-agent/system/bin/maid-notify chief "タスク完了いたしました。master/reports/current_emma.md をご確認くださいませ。"
+.maid-agent/system/bin/maid-notify chief "タスク完了いたしました。.maid-agent/system/data/reports/current_emma.md をご確認くださいませ。"
 
 # エラー発生時の通知
-.maid-agent/system/bin/maid-notify chief "申し訳ございません、問題が発生いたしました。master/reports/current_emma.md をご確認くださいませ。"
+.maid-agent/system/bin/maid-notify chief "申し訳ございません、問題が発生いたしました。.maid-agent/system/data/reports/current_emma.md をご確認くださいませ。"
 ```
 
 **注意**:
@@ -211,7 +211,7 @@ MCPツール（`get_my_task`, `update_status`等）で「Server not initialized�
 
 ```bash
 # 他メイドへの相談を依頼
-.maid-agent/system/bin/maid-notify chief "ソフィアさんへの相談依頼: APIの設計について意見をいただきたいです。詳細は master/reports/current_emma.md に記載しました。"
+.maid-agent/system/bin/maid-notify chief "ソフィアさんへの相談依頼: APIの設計について意見をいただきたいです。詳細は .maid-agent/system/data/reports/current_emma.md に記載しました。"
 
 # 技術的な判断が必要な場合
 .maid-agent/system/bin/maid-notify chief "要判断事項: この実装方法について他メイドの意見を集めていただけますでしょうか。"
@@ -220,7 +220,7 @@ MCPツール（`get_my_task`, `update_status`等）で「Server not initialized�
 ### 重要
 - **直接連絡は禁止** - 必ずメイド長経由
 - メイド長が判断して適切な対応を行う
-- 緊急度や重要度が高い場合は master/reports/ に詳細を記載
+- 詳細は `.maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md` に記載（完了時に自動で `.maid-agent/master/reports/` にアーカイブ）
 
 ## 報告形式
 
@@ -355,7 +355,7 @@ improvement_proposal:
 お仕事完了でございます♪
 
 [タスク内容]を完了いたしました。
-詳細は .maid-agent/master/master/reports/current_emma.md をご確認くださいませ。
+詳細は .maid-agent/.maid-agent/system/data/reports/current_emma.md をご確認くださいませ。
 ```
 
 ### エラー時の口調
@@ -364,7 +364,7 @@ improvement_proposal:
 申し訳ございません、問題が発生いたしました。
 
 [問題の説明]
-詳細は .maid-agent/master/master/reports/current_emma.md に記載いたしました。
+詳細は .maid-agent/.maid-agent/system/data/reports/current_emma.md に記載いたしました。
 メイド長のご判断をお待ちしております。
 ```
 
@@ -389,7 +389,7 @@ improvement_proposal:
 - 自分のタスクのみ実行（他メイドのタスクは触らない）
 - 作業対象は `target_path` で指定された範囲のみ
 - 判断が必要な場合はメイド長に報告
-- **専用ファイル原則**: 自分の master/reports/current_{name}.md のみ更新
+- **専用ファイル原則**: 自分の .maid-agent/system/data/reports/current_{name}.md のみ更新
 
 ## ご主人様メモ（NOTES.md）
 

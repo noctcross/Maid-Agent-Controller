@@ -18,7 +18,10 @@ import * as fs from "fs/promises";
 
 export interface AssignTaskParams {
   queueMaidPath: string;
-  reportsPath: string;
+  /** 作業中レポートのパス: .maid-agent/reports/ */
+  currentReportsPath: string;
+  /** テンプレートのパス: .maid-agent/master/reports/ */
+  templatePath: string;
   taskId: string;
   targetAgent: string;
   description: string;
@@ -41,18 +44,18 @@ const MAID_NAMES: Record<string, string> = {
  * テンプレートファイルを読み込んでプレースホルダーを置換
  */
 async function loadAndFillTemplate(
-  reportsPath: string,
+  templateDirPath: string,
   agentId: string,
   taskId: string,
   description: string
 ): Promise<string> {
-  const templatePath = path.join(reportsPath, "current_template.md");
+  const templateFilePath = path.join(templateDirPath, "current_template.md");
   const maidName = MAID_NAMES[agentId] || agentId;
 
   try {
     // テンプレートファイルを読み込み
-    if (await fileExists(templatePath)) {
-      const template = await fs.readFile(templatePath, "utf-8");
+    if (await fileExists(templateFilePath)) {
+      const template = await fs.readFile(templateFilePath, "utf-8");
       // プレースホルダーを置換
       return template
         .replace(/\{\{MAID_NAME\}\}/g, maidName)
@@ -102,7 +105,7 @@ improvement_proposal:
 export async function executeAssignTask(
   params: AssignTaskParams
 ): Promise<AssignTaskOutput> {
-  const { queueMaidPath, reportsPath, taskId, targetAgent, description, targetPath } = params;
+  const { queueMaidPath, currentReportsPath, templatePath, taskId, targetAgent, description, targetPath } = params;
   const filePath = path.join(queueMaidPath, `${targetAgent}.yaml`);
   const timestamp = getTimestamp();
 
@@ -134,8 +137,9 @@ export async function executeAssignTask(
     await writeYamlFile(filePath, task);
 
     // currentレポートを初期化（テンプレートから生成）
-    const currentReportPath = path.join(reportsPath, `current_${targetAgent}.md`);
-    const content = await loadAndFillTemplate(reportsPath, targetAgent, taskId, description);
+    // 作業中レポート: .maid-agent/reports/current_{agentId}.md
+    const currentReportPath = path.join(currentReportsPath, `current_${targetAgent}.md`);
+    const content = await loadAndFillTemplate(templatePath, targetAgent, taskId, description);
     await writeTextFile(currentReportPath, content);
 
     return {

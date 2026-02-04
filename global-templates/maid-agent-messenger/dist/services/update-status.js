@@ -13,7 +13,7 @@ import { executeUpdateTask } from "./task-manager.js";
  * ステータスを更新
  */
 export async function executeUpdateStatus(params) {
-    const { queueMaidPath, reportsPath, agentId, status, summary } = params;
+    const { queueMaidPath, currentReportsPath, archiveReportsPath, agentId, status, summary } = params;
     const filePath = path.join(queueMaidPath, `${agentId}.yaml`);
     const timestamp = getTimestamp();
     return await withFileLock(filePath, async () => {
@@ -28,13 +28,15 @@ export async function executeUpdateStatus(params) {
             updatedFields.push("started_at");
         }
         // completed に変更時、completed_at を設定 + レポートリネーム + tasks.yaml同期
+        // archivePathはreturnで使うのでwithFileLockスコープ内で宣言
+        let archivePath;
         if (status === "completed") {
             task.completed_at = timestamp;
             updatedFields.push("completed_at");
-            // レポートファイルのアーカイブ（コピーして保存、currentは残す）
-            let archivePath;
+            // レポートファイルのアーカイブ（currentReportsPathからarchiveReportsPathへコピー）
             if (task.task_id) {
-                const currentPath = path.join(reportsPath, `current_${agentId}.md`);
+                // 作業中レポート: .maid-agent/reports/current_{agentId}.md
+                const currentPath = path.join(currentReportsPath, `current_${agentId}.md`);
                 const description = sanitizeDescription(task.description);
                 // task_id を正規化
                 // 1. 先頭の "task-" を全て除去（複数回出現しても対応）
@@ -42,7 +44,8 @@ export async function executeUpdateStatus(params) {
                 const taskIdNormalized = String(task.task_id)
                     .replace(/^(task-)+/i, "")
                     .replace(new RegExp(`-${agentId}$`, "i"), "");
-                archivePath = path.join(reportsPath, `task-${taskIdNormalized}-${agentId}-${description}.md`);
+                // 完了レポート: .maid-agent/master/reports/task-{id}-{agentId}-{description}.md
+                archivePath = path.join(archiveReportsPath, `task-${taskIdNormalized}-${agentId}-${description}.md`);
                 if (await fileExists(currentPath)) {
                     const copied = await copyFile(currentPath, archivePath);
                     if (copied) {
@@ -78,6 +81,7 @@ export async function executeUpdateStatus(params) {
             success: true,
             updated_fields: updatedFields,
             timestamp,
+            ...(archivePath && { archive_path: archivePath }),
         };
     });
 }

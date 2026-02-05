@@ -645,9 +645,13 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
     // 展開状態を記憶するMap（taskId -> expanded）
     const expandedState = new Map();
 
+    // サーバーURLを埋め込み（VSCode Webview対応）
+    const serverBaseUrl = 'http://127.0.0.1:3100';
+
     function connectSSE() {
       const projectPath = encodeURIComponent('${escapeHtml(projectPath)}');
-      eventSource = new EventSource('/dashboard/events?project=' + projectPath);
+      // 絶対URLを使用（VSCode Webviewでも動作するように）
+      eventSource = new EventSource(serverBaseUrl + '/dashboard/events?project=' + projectPath);
 
       eventSource.onmessage = function(event) {
         try {
@@ -693,6 +697,15 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
           el.textContent = stats[key];
           el.classList.add('fade-in');
           setTimeout(() => el.classList.remove('fade-in'), 300);
+        }
+      }
+      // 更新時刻を更新
+      if (stats.timestamp) {
+        const timestampEl = document.querySelector('.timestamp');
+        if (timestampEl) {
+          timestampEl.textContent = '更新: ' + stats.timestamp;
+          timestampEl.classList.add('fade-in');
+          setTimeout(() => timestampEl.classList.remove('fade-in'), 300);
         }
       }
     }
@@ -797,11 +810,17 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
       });
     }
 
-    // SSE接続を試行
-    try {
-      connectSSE();
-    } catch (e) {
-      console.log('SSE not available:', e);
+    // SSE接続を試行（VSCode Webviewでは無効 - セキュリティ制限のため）
+    // VSCode WebviewではacquireVsCodeApiが存在するので、それで判定
+    const isVSCodeWebview = typeof acquireVsCodeApi !== 'undefined';
+    if (!isVSCodeWebview) {
+      try {
+        connectSSE();
+      } catch (e) {
+        console.log('SSE not available:', e);
+      }
+    } else {
+      console.log('VSCode Webview detected - SSE disabled, use manual refresh');
     }
   </script>
 </body>
@@ -1748,6 +1767,7 @@ app.get("/dashboard/events", async (req, res) => {
                     workingCount: working.total,
                     blockedCount: blocked.total,
                     completedTodayCount,
+                    timestamp: getTimestamp(), // 更新時刻を追加
                 };
                 // 統計情報を送信
                 res.write(`data: ${JSON.stringify({ type: "update", stats })}\n\n`);

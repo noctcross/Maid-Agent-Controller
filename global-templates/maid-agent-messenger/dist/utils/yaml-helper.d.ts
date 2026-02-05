@@ -23,6 +23,18 @@ export declare function getFirstLine(text: string | null): string | null;
  */
 export declare function getTimestamp(): string;
 /**
+ * 日本時間のタイムスタンプを YYYY/MM/DD HH:mm:ss 形式で取得
+ */
+export declare function getJstTimestamp(): string;
+/**
+ * 日付を日本時間で YYYY/MM/DD HH:mm:ss 形式にフォーマット
+ */
+export declare function formatDateJst(date: Date): string;
+/**
+ * 日付を日本時間で MM/DD HH:mm 形式にフォーマット（短縮版）
+ */
+export declare function formatDateJstShort(date: Date): string;
+/**
  * descriptionを最大文字数に切り詰め、ファイル名に使えない文字を除去
  */
 export declare function sanitizeDescription(description: string | null, maxLength?: number): string;

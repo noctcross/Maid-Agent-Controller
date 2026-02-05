@@ -4108,6 +4108,7 @@ ${agentList || '  (なし)'}
 
     private webDashboardPanel: vscode.WebviewPanel | undefined;
     private webDashboardPollingInterval: NodeJS.Timeout | undefined;
+    private webDashboardInitialized = false; // 初回HTML設定済みフラグ
     private readonly WEB_DASHBOARD_POLLING_INTERVAL = 10000; // 10秒
 
     showWebDashboard(): void {
@@ -4129,6 +4130,7 @@ ${agentList || '  (なし)'}
 
         this.webDashboardPanel.onDidDispose(() => {
             this.webDashboardPanel = undefined;
+            this.webDashboardInitialized = false;
             this.stopWebDashboardPolling();
         });
 
@@ -4197,85 +4199,19 @@ ${agentList || '  (なし)'}
             return;
         }
 
+        const serverUrl = 'http://localhost:3100';
+        const normalizedPath = CURRENT_ENV === 'windows-native'
+            ? windowsToWslPath(projectPath)
+            : projectPath;
+
         try {
-            // MCPサーバーからHTMLを取得
-            const serverUrl = 'http://localhost:3100';
-            // Windows環境の場合はWSLパスに変換
-            const normalizedPath = CURRENT_ENV === 'windows-native'
-                ? windowsToWslPath(projectPath)
-                : projectPath;
-            const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(normalizedPath)}`;
-
-            const response = await fetch(dashboardUrl);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            // 初回はHTMLを取得、2回目以降はJSON APIで部分更新
+            if (!this.webDashboardInitialized) {
+                await this.initializeWebDashboard(serverUrl, normalizedPath);
+                this.webDashboardInitialized = true;
+            } else {
+                await this.updateWebDashboardData(serverUrl, normalizedPath);
             }
-
-            let html = await response.text();
-
-            // VSCode Webview用に修正
-            // 1. 自動リロードを無効化（Webviewで手動更新）
-            html = html.replace(/<meta http-equiv="refresh"[^>]*>/gi, '');
-            html = html.replace(/setTimeout\(\(\) => location\.reload\(\)[^)]*\);?/g, '');
-
-            // 2. Webview用のスクリプトを追加
-            const webviewScript = `
-                <script>
-                    const vscode = acquireVsCodeApi();
-                    function refreshDashboard() { vscode.postMessage({ command: 'refresh' }); }
-                    function openInBrowser() { vscode.postMessage({ command: 'openInBrowser' }); }
-                    function showController() { vscode.postMessage({ command: 'showController' }); }
-                </script>
-                <style>
-                    .header {
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        flex-wrap: wrap;
-                        gap: 10px;
-                    }
-                    .header-right {
-                        display: flex;
-                        align-items: center;
-                        gap: 15px;
-                    }
-                    .vscode-controls {
-                        display: flex;
-                        gap: 8px;
-                    }
-                    .vscode-btn {
-                        background: var(--accent-color, #569cd6);
-                        color: white;
-                        border: none;
-                        padding: 6px 12px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-size: 0.85rem;
-                    }
-                    .vscode-btn:hover {
-                        opacity: 0.9;
-                    }
-                </style>
-            `;
-
-            // 3. ヘッダー内にコントロールボタンを配置
-            // 元の <div class="timestamp">...</div> を header-right で囲んでボタンを追加
-            html = html.replace(
-                /<div class="timestamp">([^<]*)<\/div>/,
-                `<div class="header-right">
-                    <div class="vscode-controls">
-                        <button class="vscode-btn" onclick="showController()">⚙️ Controller</button>
-                        <button class="vscode-btn" onclick="refreshDashboard()">🔄 更新</button>
-                        <button class="vscode-btn" onclick="openInBrowser()">🌐 ブラウザ</button>
-                    </div>
-                    <div class="timestamp">$1</div>
-                </div>`
-            );
-
-            // HTMLに挿入
-            html = html.replace('</head>', `${webviewScript}</head>`);
-
-            this.webDashboardPanel.webview.html = html;
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             this.webDashboardPanel.webview.html = `
@@ -4347,6 +4283,79 @@ ${agentList || '  (なし)'}
             this.webDashboardPollingInterval = undefined;
             this.log('[WebDashboard] 自動更新ポーリング停止');
         }
+    }
+
+    /**
+     * Webダッシュボードを初期化（初回HTML設定）
+     * postMessageリスナーを追加してJSON更新に対応
+     */
+    private async initializeWebDashboard(serverUrl: string, projectPath: string): Promise<void> {
+        if (!this.webDashboardPanel) return;
+
+        const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(projectPath)}`;
+        const response = await fetch(dashboardUrl);
+
+        if (!response.ok) {
+            throw new Error(`Dashboard fetch failed: ${response.status}`);
+        }
+
+        let html = await response.text();
+
+        // postMessageリスナーを追加（VSCode Webview用）
+        // 拡張機能からpostMessageで送信されたJSON更新を受け取り、
+        // 既存のupdateStats/updateTaskLists関数を呼び出す
+        const messageListenerScript = `
+            <script>
+                // postMessageでJSON更新を受け取るリスナー
+                window.addEventListener('message', event => {
+                    const message = event.data;
+                    if (message.type === 'dashboardUpdate') {
+                        if (message.stats && typeof updateStats === 'function') {
+                            updateStats(message.stats);
+                        }
+                        if (message.tasks && typeof updateTaskLists === 'function') {
+                            updateTaskLists(message.tasks);
+                        }
+                    }
+                });
+            </script>
+        `;
+
+        // </body>の前にスクリプトを挿入
+        html = html.replace('</body>', messageListenerScript + '</body>');
+
+        this.webDashboardPanel.webview.html = html;
+        this.log('[WebDashboard] 初回HTML設定完了（postMessageリスナー追加済み）');
+    }
+
+    /**
+     * WebダッシュボードをJSON APIで部分更新
+     * 展開状態を保持したままデータのみ更新
+     */
+    private async updateWebDashboardData(serverUrl: string, projectPath: string): Promise<void> {
+        if (!this.webDashboardPanel) return;
+
+        const dataUrl = `${serverUrl}/dashboard/data?project=${encodeURIComponent(projectPath)}`;
+        const response = await fetch(dataUrl);
+
+        if (!response.ok) {
+            throw new Error(`Dashboard data fetch failed: ${response.status}`);
+        }
+
+        const data = await response.json() as {
+            stats: { pendingCount: number; workingCount: number; blockedCount: number; completedTodayCount: number; timestamp: string };
+            tasks: { pending: string; working: string; blocked: string; completed: string; actionRequired: string };
+        };
+
+        // postMessageでWebviewにデータを送信
+        // Webview側のリスナーがupdateStats/updateTaskListsを呼び出す
+        this.webDashboardPanel.webview.postMessage({
+            type: 'dashboardUpdate',
+            stats: data.stats,
+            tasks: data.tasks
+        });
+
+        this.log('[WebDashboard] JSON APIで部分更新送信');
     }
 
     /**

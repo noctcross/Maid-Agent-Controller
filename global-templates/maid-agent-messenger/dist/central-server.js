@@ -17,7 +17,7 @@ import { z } from "zod";
 import path from "path";
 import * as fs from "fs/promises";
 import { loadConfig, getServerUrl } from "./utils/config-loader.js";
-import { getTimestamp } from "./utils/yaml-helper.js";
+import { getTimestamp, getJstTimestamp, formatDateJstShort } from "./utils/yaml-helper.js";
 import { MAID_IDS, UPDATABLE_STATUSES, } from "./types/index.js";
 // サービス層からビジネスロジックをインポート
 import { executeGetMyTask, executeUpdateStatus, executeAssignTask, executeGetTeamStatus, 
@@ -87,22 +87,24 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
         const taskDesc = agent.task_description ? escapeHtml(agent.task_description.substring(0, 30)) + (agent.task_description.length > 30 ? "..." : "") : "";
         const substatusInfo = agent.substatus ? `<span class="agent-substatus">⚠️ ${escapeHtml(agent.substatus)}</span>` : "";
         return `<div class="agent-status agent-${agent.status}" data-agent="${agent.id}" title="${taskDesc}">
-        <div class="agent-main">
+        <div class="agent-row-top">
           <span class="agent-icon">${icon}</span>
           <span class="agent-name">${agent.id}</span>
-          <span class="agent-task">${taskInfo}</span>
-          ${elapsedTime ? `<span class="agent-elapsed">⏱️ ${elapsedTime}</span>` : ""}
+          ${elapsedTime ? `<span class="agent-elapsed">${elapsedTime}</span>` : ""}
         </div>
+        ${taskInfo ? `<div class="agent-row-mid">${taskInfo}</div>` : ""}
         ${substatusInfo}
         ${taskDesc ? `<div class="agent-task-desc">${taskDesc}</div>` : ""}
       </div>`;
     })
         .join("\n");
-    // 待機中タスクHTML生成（title/description分離）
-    const pendingHtml = pending.length > 0
-        ? pending.map((task) => {
+    // 待機中タスクHTML生成（特殊カテゴリは専用セクションに表示するため除外）
+    const SPECIAL_CATEGORIES = ["action_required", "skill_candidate", "improvement"];
+    const filteredPending = pending.filter((task) => !task.category || !SPECIAL_CATEGORIES.includes(task.category));
+    const pendingHtml = filteredPending.length > 0
+        ? filteredPending.map((task) => {
             const createdDate = task.createdAt
-                ? new Date(task.createdAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+                ? formatDateJstShort(new Date(task.createdAt))
                 : "";
             // titleがなければdescriptionの先頭を使用（後方互換）
             const title = task.title || task.description.split("\n")[0].substring(0, 50);
@@ -138,7 +140,7 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
     const completedHtml = recentCompleted.length > 0
         ? recentCompleted.map((task) => {
             const completedDate = task.completedAt
-                ? new Date(task.completedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+                ? formatDateJstShort(new Date(task.completedAt))
                 : "";
             const title = task.title || task.description.split("\n")[0].substring(0, 50);
             const assigneeStr = task.assignees.map((a) => a.agentId).join(", ");
@@ -268,6 +270,7 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
       background: var(--bg-color);
       color: var(--text-color);
       padding: 20px;
@@ -277,74 +280,76 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
       border-bottom: 1px solid var(--border-color);
     }
-    .header h1 { font-size: 1.5rem; }
-    .header .timestamp { color: var(--text-muted); font-size: 0.85rem; }
-    .project-path { color: var(--text-muted); font-size: 0.75rem; margin-top: 5px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 500px) { .grid { grid-template-columns: 1fr; gap: 10px; } }
+    .header h1 { font-size: 1.2rem; }
+    .header .timestamp { color: var(--text-muted); font-size: 0.8rem; }
+    .project-path { color: var(--text-muted); font-size: 0.7rem; margin-top: 3px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    @media (max-width: 500px) { .grid { grid-template-columns: 1fr; gap: 6px; } }
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 15px;
+      border-radius: 6px;
+      padding: 10px;
     }
     .card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
-      padding-bottom: 8px;
+      margin-bottom: 6px;
+      padding-bottom: 5px;
       border-bottom: 1px solid var(--border-color);
     }
-    .card-title { font-size: 1.1rem; font-weight: 600; }
-    .card-count { background: var(--accent-color); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; }
+    .card-title { font-size: 0.95rem; font-weight: 600; }
+    .card-count { background: var(--accent-color); color: white; padding: 1px 6px; border-radius: 10px; font-size: 0.75rem; }
     .task-item {
-      padding: 8px 10px;
-      margin: 5px 0;
+      padding: 5px 8px;
+      margin: 3px 0;
       background: rgba(255,255,255,0.03);
       border-radius: 4px;
       display: flex;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
     }
-    .task-id { color: var(--accent-color); font-weight: 500; min-width: 45px; flex-shrink: 0; }
+    .task-id { color: var(--accent-color); font-weight: 500; min-width: 35px; flex-shrink: 0; }
     .task-title { flex: 1; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .task-desc { flex: 1; color: var(--text-muted); font-size: 0.85rem; }
-    .task-priority { color: var(--text-muted); font-size: 0.75rem; flex-shrink: 0; }
-    .task-assignee { color: var(--success-color); font-size: 0.75rem; flex-shrink: 0; }
-    .task-status { color: var(--warning-color); font-size: 0.75rem; }
-    .task-date { color: var(--text-muted); font-size: 0.75rem; flex-shrink: 0; }
+    .task-desc { flex: 1; color: var(--text-muted); font-size: 0.8rem; }
+    .task-priority { color: var(--text-muted); font-size: 0.7rem; flex-shrink: 0; }
+    .task-assignee { color: var(--success-color); font-size: 0.7rem; flex-shrink: 0; }
+    .task-status { color: var(--warning-color); font-size: 0.7rem; }
+    .task-date { color: var(--text-muted); font-size: 0.7rem; flex-shrink: 0; }
     .task-summary-text { color: var(--success-color); }
     .priority-high { border-left: 3px solid var(--error-color); }
     .priority-medium { border-left: 3px solid var(--warning-color); }
     .priority-low { border-left: 3px solid var(--text-muted); }
     .completed { opacity: 0.7; }
-    .empty-message { color: var(--text-muted); font-style: italic; padding: 10px; }
+    .empty-message { color: var(--text-muted); font-style: italic; padding: 6px; }
     .team-section { grid-column: 1 / -1; }
-    .team-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+    .team-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+    @media (max-width: 600px) { .team-grid { grid-template-columns: repeat(2, 1fr); } }
     .agent-status {
       display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
+      flex-direction: column;
+      padding: 4px 7px;
       background: rgba(255,255,255,0.03);
       border-radius: 4px;
-      font-size: 0.9rem;
+      font-size: 0.8rem;
+      overflow: hidden;
     }
-    .agent-icon { font-size: 1.1rem; }
+    .agent-row-top { display: flex; align-items: center; gap: 4px; }
+    .agent-icon { font-size: 0.85rem; flex-shrink: 0; }
     .agent-name { font-weight: 500; }
-    .agent-task { color: var(--text-muted); font-size: 0.8rem; }
+    .agent-row-mid { color: var(--accent-color); font-size: 0.7rem; padding-left: 1px; }
     .agent-working { background: rgba(78, 201, 176, 0.1); border: 1px solid var(--success-color); }
     .agent-completed { background: rgba(86, 156, 214, 0.1); border: 1px solid var(--accent-color); }
     .agent-blocked { background: rgba(241, 76, 76, 0.1); border: 1px solid var(--error-color); }
     /* Phase 1: 特殊カテゴリ・blocked用スタイル */
     .special-section { grid-column: 1 / -1; }
-    .special-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .special-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     @media (max-width: 768px) { .special-grid { grid-template-columns: 1fr; } }
     .card-action-required { border-left: 3px solid var(--error-color); }
     .card-blocked { border-left: 3px solid #ff6b6b; }
@@ -354,11 +359,11 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
     .blocked-item { border-left: 3px solid #ff6b6b; }
     .skill-item { border-left: 3px solid #9b59b6; }
     .improvement-item { border-left: 3px solid #f39c12; }
-    .task-main-row { display: flex; gap: 10px; align-items: center; }
-    .task-summary { color: var(--success-color); font-size: 0.85rem; margin-top: 4px; padding-left: 70px; font-style: italic; }
-    .task-substatus { color: var(--warning-color); font-size: 0.85rem; margin-top: 4px; padding-left: 70px; }
-    .task-substatus-inline { color: var(--warning-color); font-size: 0.8rem; }
-    .count-badge { background: var(--accent-color); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; }
+    .task-main-row { display: flex; gap: 8px; align-items: center; }
+    .task-summary { color: var(--success-color); font-size: 0.8rem; margin-top: 3px; padding-left: 50px; font-style: italic; }
+    .task-substatus { color: var(--warning-color); font-size: 0.8rem; margin-top: 3px; padding-left: 50px; }
+    .task-substatus-inline { color: var(--warning-color); font-size: 0.75rem; }
+    .count-badge { background: var(--accent-color); color: white; padding: 1px 6px; border-radius: 10px; font-size: 0.75rem; }
     .count-badge-alert { background: var(--error-color); }
     .count-badge-warning { background: #ff6b6b; }
     .count-badge-purple { background: #9b59b6; }
@@ -368,72 +373,70 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
     .collapsible-content { max-height: 300px; overflow-y: auto; }
     /* Phase 2: 統計セクション */
     .stats-section { grid-column: 1 / -1; }
-    .stats-grid { display: flex; gap: 15px; flex-wrap: wrap; }
+    .stats-grid { display: flex; gap: 10px; flex-wrap: wrap; }
     .stat-item {
       flex: 1;
-      min-width: 120px;
-      padding: 15px;
+      min-width: 80px;
+      padding: 8px 12px;
       background: rgba(255,255,255,0.03);
       border-radius: 8px;
       text-align: center;
     }
-    .stat-value { font-size: 2rem; font-weight: 700; color: var(--accent-color); }
-    .stat-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 5px; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; color: var(--accent-color); }
+    .stat-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 3px; }
     .stat-pending .stat-value { color: var(--warning-color); }
     .stat-working .stat-value { color: var(--success-color); }
     .stat-blocked .stat-value { color: var(--error-color); }
     .stat-completed .stat-value { color: var(--accent-color); }
     /* Phase 2: チーム詳細化 */
-    .agent-status { flex-direction: column; align-items: flex-start; min-width: 150px; }
-    .agent-main { display: flex; align-items: center; gap: 8px; width: 100%; }
-    .agent-elapsed { color: var(--text-muted); font-size: 0.75rem; margin-left: auto; }
-    .agent-substatus { color: var(--warning-color); font-size: 0.75rem; margin-top: 4px; }
-    .agent-task-desc { color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+    .agent-elapsed { color: var(--text-muted); font-size: 0.65rem; margin-left: auto; flex-shrink: 0; }
+    .agent-substatus { color: var(--warning-color); font-size: 0.65rem; margin-top: 1px; }
+    .agent-task-desc { color: var(--text-muted); font-size: 0.65rem; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Phase 2: ホバー詳細 */
     .task-item { position: relative; cursor: pointer; flex-wrap: wrap; }
     .task-item:hover { background: rgba(255,255,255,0.08); }
-    .task-detail { display: none; width: 100%; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color); font-size: 0.85rem; }
+    .task-detail { display: none; width: 100%; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-color); font-size: 0.8rem; }
     .task-item.expanded .task-detail { display: block; }
-    .task-detail-row { display: flex; gap: 10px; margin: 4px 0; }
-    .task-detail-label { color: var(--text-muted); min-width: 80px; }
+    .task-detail-row { display: flex; gap: 8px; margin: 3px 0; }
+    .task-detail-label { color: var(--text-muted); min-width: 70px; }
     .task-detail-value { color: var(--text-color); }
-    .task-report-links { display: flex; gap: 8px; flex-wrap: wrap; }
-    .report-link { color: var(--accent-color); text-decoration: none; padding: 2px 6px; background: rgba(86, 156, 214, 0.1); border-radius: 3px; font-size: 0.8rem; }
+    .task-report-links { display: flex; gap: 6px; flex-wrap: wrap; }
+    .report-link { color: var(--accent-color); text-decoration: none; padding: 1px 5px; background: rgba(86, 156, 214, 0.1); border-radius: 3px; font-size: 0.75rem; }
     .report-link:hover { background: rgba(86, 156, 214, 0.2); text-decoration: underline; }
     /* Phase 3: フィルタ/検索 */
-    .controls-section { grid-column: 1 / -1; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+    .controls-section { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .search-box {
       flex: 1;
-      min-width: 200px;
-      padding: 8px 12px;
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      color: var(--text-color);
-      font-size: 0.9rem;
-    }
-    .search-box:focus { outline: none; border-color: var(--accent-color); }
-    .filter-group { display: flex; gap: 8px; align-items: center; }
-    .filter-label { color: var(--text-muted); font-size: 0.85rem; }
-    .filter-select {
-      padding: 6px 10px;
+      min-width: 150px;
+      padding: 5px 10px;
       background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: 4px;
       color: var(--text-color);
-      font-size: 0.85rem;
+      font-size: 0.8rem;
+    }
+    .search-box:focus { outline: none; border-color: var(--accent-color); }
+    .filter-group { display: flex; gap: 6px; align-items: center; }
+    .filter-label { color: var(--text-muted); font-size: 0.8rem; }
+    .filter-select {
+      padding: 4px 8px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-color);
+      font-size: 0.8rem;
     }
     .filter-select:focus { outline: none; border-color: var(--accent-color); }
     /* Phase 3: タブ切り替え */
-    .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 10px; }
     .tab-btn {
-      padding: 8px 16px;
+      padding: 5px 12px;
       background: transparent;
       border: 1px solid var(--border-color);
       border-radius: 4px;
       color: var(--text-muted);
       cursor: pointer;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       transition: all 0.2s;
     }
     .tab-btn:hover { background: rgba(255,255,255,0.05); }
@@ -495,6 +498,15 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
       </div>
     </div>
 
+    <div class="card team-section" data-section="team">
+      <div class="card-header">
+        <span class="card-title">👥 チーム状態</span>
+      </div>
+      <div class="team-grid">
+        ${teamStatusHtml}
+      </div>
+    </div>
+
     <!-- Phase 3: フィルタ/検索コントロール -->
     <div class="controls-section">
       <input type="text" class="search-box" id="searchBox" placeholder="🔍 タスクID / 説明で検索..." />
@@ -545,19 +557,10 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
       </div>
     </div>
 
-    <div class="card team-section" data-section="team">
-      <div class="card-header">
-        <span class="card-title">👥 チーム状態</span>
-      </div>
-      <div class="team-grid">
-        ${teamStatusHtml}
-      </div>
-    </div>
-
     <div class="card" data-section="pending">
       <div class="card-header">
         <span class="card-title">⏳ 待機中</span>
-        <span class="card-count">${pending.length}</span>
+        <span class="card-count">${filteredPending.length}</span>
       </div>
       ${pendingHtml}
     </div>
@@ -833,6 +836,123 @@ function escapeHtml(str) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+/**
+ * タスクリストのHTMLを生成するヘルパー関数
+ * SSEエンドポイントとJSON APIエンドポイントの両方で使用
+ */
+function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
+    const priorityClass = {
+        high: "priority-high",
+        medium: "priority-medium",
+        low: "priority-low",
+    };
+    if (tasks.length === 0) {
+        return '<div class="empty-message">なし</div>';
+    }
+    return tasks.map((task) => {
+        const title = task.title || task.description?.split("\n")[0].substring(0, 50) || "";
+        const assigneeStr = task.assignees?.map((a) => a.agentId).join(", ") || "";
+        const createdDate = task.createdAt
+            ? formatDateJstShort(new Date(task.createdAt))
+            : "";
+        const completedDate = task.completedAt
+            ? formatDateJstShort(new Date(task.completedAt))
+            : "";
+        if (type === "pending") {
+            return `<div class="task-item ${priorityClass[task.priority] || ""}" data-priority="${task.priority}" data-id="${task.id}">
+        <span class="task-id">${task.id}</span>
+        <span class="task-title">${escapeHtml(title)}</span>
+        <span class="task-priority">[${task.priority}]</span>
+        <div class="task-detail">
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+          <div class="task-detail-row"><span class="task-detail-label">作成日時:</span><span class="task-detail-value">${createdDate}</span></div>
+        </div>
+      </div>`;
+        }
+        else if (type === "working") {
+            return `<div class="task-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}">
+        <span class="task-id">${task.id}</span>
+        <span class="task-title">${escapeHtml(title)}</span>
+        <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
+        <div class="task-detail">
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+          <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
+          <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
+        </div>
+      </div>`;
+        }
+        else if (type === "completed") {
+            const reportLinksHtml = task.reportPaths?.length > 0
+                ? task.reportPaths.map((p) => {
+                    const fileName = p.split("/").pop() || p;
+                    let absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
+                        ? p
+                        : path.join(projectPath, p);
+                    // WSLパス→Windowsパス変換
+                    let windowsPath = absolutePath;
+                    if (absolutePath.startsWith("/mnt/")) {
+                        const match = absolutePath.match(/^\/mnt\/([a-z])\/(.*)/);
+                        if (match) {
+                            windowsPath = `${match[1].toUpperCase()}:/${match[2]}`;
+                        }
+                    }
+                    windowsPath = windowsPath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
+                    // ブラウザ用: /file?path=... エンドポイント
+                    const fileViewUrl = `/file?path=${encodeURIComponent(windowsPath)}`;
+                    // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
+                    return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(windowsPath)}" onclick="return openFile(this, '${escapeHtml(windowsPath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
+                }).join(", ")
+                : "";
+            return `<div class="task-item completed" data-id="${task.id}">
+        <div class="task-main-row">
+          <span class="task-id">${task.id}</span>
+          <span class="task-title">${escapeHtml(title)}</span>
+          ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
+          <span class="task-date">${completedDate}</span>
+        </div>
+        <div class="task-detail">
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+          ${task.summary ? `<div class="task-detail-row"><span class="task-detail-label">結果:</span><span class="task-detail-value task-summary-text">${escapeHtml(task.summary)}</span></div>` : ""}
+          <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
+          <div class="task-detail-row"><span class="task-detail-label">完了日時:</span><span class="task-detail-value">${completedDate}</span></div>
+          ${reportLinksHtml ? `<div class="task-detail-row"><span class="task-detail-label">報告書:</span><span class="task-detail-value task-report-links">${reportLinksHtml}</span></div>` : ""}
+        </div>
+      </div>`;
+        }
+        else if (type === "blocked") {
+            const substatusHtml = task.substatus
+                ? `<div class="task-substatus">⚠️ ${escapeHtml(task.substatus)}</div>`
+                : "";
+            return `<div class="task-item blocked-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}">
+        <div class="task-main-row">
+          <span class="task-id">${task.id}</span>
+          <span class="task-title">${escapeHtml(title)}</span>
+          <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
+        </div>
+        ${substatusHtml}
+        <div class="task-detail">
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+          <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
+          <div class="task-detail-row"><span class="task-detail-label">ブロック理由:</span><span class="task-detail-value">${task.substatus ? escapeHtml(task.substatus) : "不明"}</span></div>
+        </div>
+      </div>`;
+        }
+        else if (type === "action_required") {
+            const substatusHtml = task.substatus
+                ? `<span class="task-substatus-inline">⚠️ ${escapeHtml(task.substatus)}</span>`
+                : "";
+            return `<div class="task-item action-required-item" data-id="${task.id}">
+        <span class="task-id">${task.id}</span>
+        <span class="task-title">${escapeHtml(title)}</span>
+        ${substatusHtml}
+        <div class="task-detail">
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+        </div>
+      </div>`;
+        }
+        return "";
+    }).join("\n");
 }
 // ========================================
 // MCP Server ファクトリ関数
@@ -1589,7 +1709,7 @@ app.get("/dashboard", async (req, res) => {
         // HTML生成
         const html = generateDashboardHtml({
             projectPath,
-            timestamp: getTimestamp(),
+            timestamp: getJstTimestamp(),
             pending: pending.tasks,
             working: working.tasks,
             blocked: blocked.tasks,
@@ -1599,7 +1719,7 @@ app.get("/dashboard", async (req, res) => {
             improvements: improvements.tasks,
             teamStatus: teamStatus.agents,
             stats: {
-                pendingCount: pending.total,
+                pendingCount: pending.tasks.filter((t) => !t.category || !["action_required", "skill_candidate", "improvement"].includes(t.category)).length,
                 workingCount: working.total,
                 blockedCount: blocked.total,
                 completedTodayCount,
@@ -1611,6 +1731,60 @@ app.get("/dashboard", async (req, res) => {
     catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
         res.status(500).send(`<html><body><h1>Error</h1><p>${message}</p></body></html>`);
+    }
+});
+// GET /dashboard/data - JSON APIエンドポイント（VSCode Webview用）
+// SSEと同じ形式でHTML文字列を返す（updateTaskSection互換）
+app.get("/dashboard/data", async (req, res) => {
+    try {
+        const projectPath = req.query.project
+            ? decodeURIComponent(req.query.project)
+            : getProjectPathFromRequest(req);
+        // エディタスキームを取得
+        const config = await loadConfig();
+        const editorScheme = req.query.editor || config.dashboard.editor;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const [pending, working, blocked, completed, completedAll, actionRequired] = await Promise.all([
+            executeListTasks(projectPath, { status: ["pending"] }),
+            executeListTasks(projectPath, { status: ["working", "assigned"] }),
+            executeListTasks(projectPath, { status: ["blocked"] }),
+            executeListTasks(projectPath, { status: ["completed"], limit: 5, sortField: "createdAt", sortOrder: "desc" }),
+            executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
+            executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
+        ]);
+        const completedTodayCount = completedAll.tasks.filter((task) => {
+            if (!task.completedAt)
+                return false;
+            const completedDate = new Date(task.completedAt);
+            return completedDate >= today;
+        }).length;
+        // 待機中から特殊カテゴリを除外
+        const specialCategories = ["action_required", "skill_candidate", "improvement"];
+        const filteredPendingTasks = pending.tasks.filter((t) => !t.category || !specialCategories.includes(t.category));
+        // SSEと同じ形式でHTML文字列を返す
+        const data = {
+            stats: {
+                pendingCount: filteredPendingTasks.length,
+                workingCount: working.total,
+                blockedCount: blocked.total,
+                completedTodayCount,
+                timestamp: getJstTimestamp(),
+            },
+            tasks: {
+                pending: generateTaskHtml(filteredPendingTasks, "pending", projectPath),
+                working: generateTaskHtml(working.tasks, "working", projectPath),
+                blocked: generateTaskHtml(blocked.tasks, "blocked", projectPath),
+                completed: generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme),
+                actionRequired: generateTaskHtml(actionRequired.tasks, "action_required", projectPath),
+            },
+        };
+        res.setHeader("Content-Type", "application/json");
+        res.json(data);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        res.status(500).json({ error: message });
     }
 });
 // GET /dashboard/events - SSEエンドポイント（Phase 3: タスクリスト全体更新対応）
@@ -1629,120 +1803,6 @@ app.get("/dashboard/events", async (req, res) => {
         res.setHeader("X-Accel-Buffering", "no");
         // 接続確認
         res.write("data: {\"type\":\"connected\"}\n\n");
-        // タスクリストHTMLを生成するヘルパー関数
-        const generateTaskHtml = (tasks, type, scheme = "vscode") => {
-            const priorityClass = {
-                high: "priority-high",
-                medium: "priority-medium",
-                low: "priority-low",
-            };
-            if (tasks.length === 0) {
-                return '<div class="empty-message">なし</div>';
-            }
-            return tasks.map((task) => {
-                const title = task.title || task.description?.split("\n")[0].substring(0, 50) || "";
-                const assigneeStr = task.assignees?.map((a) => a.agentId).join(", ") || "";
-                const createdDate = task.createdAt
-                    ? new Date(task.createdAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
-                    : "";
-                const completedDate = task.completedAt
-                    ? new Date(task.completedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
-                    : "";
-                if (type === "pending") {
-                    return `<div class="task-item ${priorityClass[task.priority] || ""}" data-priority="${task.priority}" data-id="${task.id}">
-            <span class="task-id">${task.id}</span>
-            <span class="task-title">${escapeHtml(title)}</span>
-            <span class="task-priority">[${task.priority}]</span>
-            <div class="task-detail">
-              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
-              <div class="task-detail-row"><span class="task-detail-label">作成日時:</span><span class="task-detail-value">${createdDate}</span></div>
-            </div>
-          </div>`;
-                }
-                else if (type === "working") {
-                    return `<div class="task-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}">
-            <span class="task-id">${task.id}</span>
-            <span class="task-title">${escapeHtml(title)}</span>
-            <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
-            <div class="task-detail">
-              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
-              <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
-              <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
-            </div>
-          </div>`;
-                }
-                else if (type === "completed") {
-                    const reportLinksHtml = task.reportPaths?.length > 0
-                        ? task.reportPaths.map((p) => {
-                            const fileName = p.split("/").pop() || p;
-                            let absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
-                                ? p
-                                : path.join(projectPath, p);
-                            // WSLパス→Windowsパス変換
-                            let windowsPath = absolutePath;
-                            if (absolutePath.startsWith("/mnt/")) {
-                                const match = absolutePath.match(/^\/mnt\/([a-z])\/(.*)/);
-                                if (match) {
-                                    windowsPath = `${match[1].toUpperCase()}:/${match[2]}`;
-                                }
-                            }
-                            windowsPath = windowsPath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
-                            // ブラウザ用: /file?path=... エンドポイント
-                            const fileViewUrl = `/file?path=${encodeURIComponent(windowsPath)}`;
-                            // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
-                            return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(windowsPath)}" onclick="return openFile(this, '${escapeHtml(windowsPath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
-                        }).join(", ")
-                        : "";
-                    return `<div class="task-item completed" data-id="${task.id}">
-            <div class="task-main-row">
-              <span class="task-id">${task.id}</span>
-              <span class="task-title">${escapeHtml(title)}</span>
-              ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
-              <span class="task-date">${completedDate}</span>
-            </div>
-            <div class="task-detail">
-              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
-              ${task.summary ? `<div class="task-detail-row"><span class="task-detail-label">結果:</span><span class="task-detail-value task-summary-text">${escapeHtml(task.summary)}</span></div>` : ""}
-              <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
-              <div class="task-detail-row"><span class="task-detail-label">完了日時:</span><span class="task-detail-value">${completedDate}</span></div>
-              ${reportLinksHtml ? `<div class="task-detail-row"><span class="task-detail-label">報告書:</span><span class="task-detail-value task-report-links">${reportLinksHtml}</span></div>` : ""}
-            </div>
-          </div>`;
-                }
-                else if (type === "blocked") {
-                    const substatusHtml = task.substatus
-                        ? `<div class="task-substatus">⚠️ ${escapeHtml(task.substatus)}</div>`
-                        : "";
-                    return `<div class="task-item blocked-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}">
-            <div class="task-main-row">
-              <span class="task-id">${task.id}</span>
-              <span class="task-title">${escapeHtml(title)}</span>
-              <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
-            </div>
-            ${substatusHtml}
-            <div class="task-detail">
-              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
-              <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
-              <div class="task-detail-row"><span class="task-detail-label">ブロック理由:</span><span class="task-detail-value">${task.substatus ? escapeHtml(task.substatus) : "不明"}</span></div>
-            </div>
-          </div>`;
-                }
-                else if (type === "action_required") {
-                    const substatusHtml = task.substatus
-                        ? `<span class="task-substatus-inline">⚠️ ${escapeHtml(task.substatus)}</span>`
-                        : "";
-                    return `<div class="task-item action-required-item" data-id="${task.id}">
-            <span class="task-id">${task.id}</span>
-            <span class="task-title">${escapeHtml(title)}</span>
-            ${substatusHtml}
-            <div class="task-detail">
-              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
-            </div>
-          </div>`;
-                }
-                return "";
-            }).join("\n");
-        };
         // 定期的にタスク情報を送信（10秒ごと）
         const intervalId = setInterval(async () => {
             try {
@@ -1762,22 +1822,25 @@ app.get("/dashboard/events", async (req, res) => {
                     const completedDate = new Date(task.completedAt);
                     return completedDate >= today;
                 }).length;
+                // 待機中から特殊カテゴリを除外
+                const sseSpecialCategories = ["action_required", "skill_candidate", "improvement"];
+                const sseFilteredPending = pending.tasks.filter((t) => !t.category || !sseSpecialCategories.includes(t.category));
                 const stats = {
-                    pendingCount: pending.total,
+                    pendingCount: sseFilteredPending.length,
                     workingCount: working.total,
                     blockedCount: blocked.total,
                     completedTodayCount,
-                    timestamp: getTimestamp(), // 更新時刻を追加
+                    timestamp: getJstTimestamp(),
                 };
                 // 統計情報を送信
                 res.write(`data: ${JSON.stringify({ type: "update", stats })}\n\n`);
                 // タスクリストHTMLを送信
                 const tasksHtml = {
-                    pending: generateTaskHtml(pending.tasks, "pending"),
-                    working: generateTaskHtml(working.tasks, "working"),
-                    blocked: generateTaskHtml(blocked.tasks, "blocked"),
-                    completed: generateTaskHtml(completed.tasks, "completed", editorScheme),
-                    actionRequired: generateTaskHtml(actionRequired.tasks, "action_required"),
+                    pending: generateTaskHtml(sseFilteredPending, "pending", projectPath),
+                    working: generateTaskHtml(working.tasks, "working", projectPath),
+                    blocked: generateTaskHtml(blocked.tasks, "blocked", projectPath),
+                    completed: generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme),
+                    actionRequired: generateTaskHtml(actionRequired.tasks, "action_required", projectPath),
                 };
                 res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml })}\n\n`);
             }

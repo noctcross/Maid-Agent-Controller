@@ -49,6 +49,40 @@ export function getTimestamp() {
     return new Date().toISOString();
 }
 /**
+ * 日本時間のタイムスタンプを YYYY/MM/DD HH:mm:ss 形式で取得
+ */
+export function getJstTimestamp() {
+    return formatDateJst(new Date());
+}
+/**
+ * 日付を日本時間で YYYY/MM/DD HH:mm:ss 形式にフォーマット
+ */
+export function formatDateJst(date) {
+    return date.toLocaleString("ja-JP", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+    });
+}
+/**
+ * 日付を日本時間で MM/DD HH:mm 形式にフォーマット（短縮版）
+ */
+export function formatDateJstShort(date) {
+    return date.toLocaleString("ja-JP", {
+        timeZone: "Asia/Tokyo",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    });
+}
+/**
  * descriptionを最大文字数に切り詰め、ファイル名に使えない文字を除去
  */
 export function sanitizeDescription(description, maxLength = 15) {

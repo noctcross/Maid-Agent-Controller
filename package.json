@@ -9,7 +9,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -172,6 +174,11 @@
           "minimum": 1,
           "maximum": 100,
           "description": "この数以上のmaid-agentセッションが存在する場合、Call時に警告を表示"
+        },
+        "maidAgent.autoResumeOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "IDE起動時に既存のTmuxセッションがあれば自動的に復帰する"
         }
       }
     }

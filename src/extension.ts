@@ -2555,9 +2555,9 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
                     this.mergeDirectorySync(srcPath, destPath);
                     continue;
                 }
-                // 保持対象かつ既存なら保持（maid/dataは任意の深さで保護、他はルートレベルのみ）
+                // 保持対象かつ既存なら保持（maid/data/configは任意の深さで保護、他はルートレベルのみ）
                 const isPreserveDir = preserveDirs.includes(entry.name);
-                const shouldPreserve = isPreserveDir && fs.existsSync(destPath) && (isRoot || entry.name === 'maid' || entry.name === 'data');
+                const shouldPreserve = isPreserveDir && fs.existsSync(destPath) && (isRoot || entry.name === 'maid' || entry.name === 'data' || entry.name === 'config');
                 if (shouldPreserve) {
                     this.log(`[コピー] 既存を保持: ${entry.name}/`);
                     continue;
@@ -5152,6 +5152,43 @@ export function activate(context: vscode.ExtensionContext) {
 
     // コントローラーにステータスバーを設定（通知用）
     controller.setStatusBarItem(controllerStatusBarItem);
+
+    // IDE起動時の自動復帰機能
+    const autoResumeEnabled = vscode.workspace.getConfiguration('maidAgent').get<boolean>('autoResumeOnStartup', true);
+    if (autoResumeEnabled) {
+        // 少し遅延させてから自動復帰を試行（VSCodeの初期化完了を待つ）
+        setTimeout(async () => {
+            try {
+                // 既存のTmuxセッションがあるかチェック
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+                if (workspaceFolder) {
+                    const workspacePath = workspaceFolder.uri.fsPath;
+                    const sessionName = getSessionNameFromPath(workspacePath);
+
+                    // セッションが存在するかチェック
+                    let sessionExists = false;
+                    try {
+                        if (CURRENT_ENV === 'windows-native') {
+                            execSync(`wsl tmux has-session -t "${sessionName}" 2>/dev/null`, { encoding: 'utf-8', stdio: 'pipe' });
+                        } else {
+                            execSync(`tmux has-session -t "${sessionName}" 2>/dev/null`, { encoding: 'utf-8', stdio: 'pipe' });
+                        }
+                        sessionExists = true;
+                    } catch {
+                        sessionExists = false;
+                    }
+
+                    if (sessionExists) {
+                        // 自動復帰を実行
+                        await controller.resumeSessions();
+                    }
+                }
+            } catch (error) {
+                // 自動復帰に失敗しても致命的ではないのでログのみ
+                console.error('[Maid Agent] 自動復帰に失敗:', error);
+            }
+        }, 2000); // 2秒後に実行
+    }
 }
 
 export function deactivate() {

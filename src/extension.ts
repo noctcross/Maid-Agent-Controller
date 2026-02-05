@@ -4107,6 +4107,8 @@ ${agentList || '  (なし)'}
     // =========================================================================
 
     private webDashboardPanel: vscode.WebviewPanel | undefined;
+    private webDashboardPollingInterval: NodeJS.Timeout | undefined;
+    private readonly WEB_DASHBOARD_POLLING_INTERVAL = 10000; // 10秒
 
     showWebDashboard(): void {
         if (this.webDashboardPanel) {
@@ -4127,7 +4129,11 @@ ${agentList || '  (なし)'}
 
         this.webDashboardPanel.onDidDispose(() => {
             this.webDashboardPanel = undefined;
+            this.stopWebDashboardPolling();
         });
+
+        // 自動更新ポーリングを開始
+        this.startWebDashboardPolling();
 
         this.webDashboardPanel.webview.onDidReceiveMessage(
             message => {
@@ -4312,6 +4318,34 @@ ${agentList || '  (なし)'}
                 </body>
                 </html>
             `;
+        }
+    }
+
+    /**
+     * Webダッシュボードの自動更新ポーリングを開始
+     */
+    private startWebDashboardPolling(): void {
+        if (this.webDashboardPollingInterval) return;
+
+        this.webDashboardPollingInterval = setInterval(() => {
+            if (this.webDashboardPanel) {
+                this.updateWebDashboard();
+            } else {
+                this.stopWebDashboardPolling();
+            }
+        }, this.WEB_DASHBOARD_POLLING_INTERVAL);
+
+        this.log('[WebDashboard] 自動更新ポーリング開始（10秒間隔）');
+    }
+
+    /**
+     * Webダッシュボードの自動更新ポーリングを停止
+     */
+    private stopWebDashboardPolling(): void {
+        if (this.webDashboardPollingInterval) {
+            clearInterval(this.webDashboardPollingInterval);
+            this.webDashboardPollingInterval = undefined;
+            this.log('[WebDashboard] 自動更新ポーリング停止');
         }
     }
 
@@ -4542,7 +4576,11 @@ ${agentList || '  (なし)'}
         // パネル破棄時の処理を再設定
         panel.onDidDispose(() => {
             this.webDashboardPanel = undefined;
+            this.stopWebDashboardPolling();
         });
+
+        // 自動更新ポーリングを開始
+        this.startWebDashboardPolling();
 
         // メッセージハンドラを再設定
         panel.webview.onDidReceiveMessage(

@@ -4141,6 +4141,9 @@ ${agentList || '  (なし)'}
                     case 'showController':
                         this.showDashboard();
                         break;
+                    case 'openFile':
+                        this.openFileWithPreview(message.path);
+                        break;
                 }
             },
             undefined,
@@ -4340,6 +4343,43 @@ ${agentList || '  (なし)'}
         }
     }
 
+    /**
+     * ファイルを開き、マークダウンの場合はプレビューも表示
+     * Webダッシュボードからの報告書リンク用
+     */
+    private async openFileWithPreview(filePath: string): Promise<void> {
+        try {
+            // Windowsパス（C:/...）をそのまま使用
+            // WSL環境では/mnt/c/...に変換が必要
+            let normalizedPath = filePath;
+            if (CURRENT_ENV === 'wsl' && /^[A-Z]:\//i.test(filePath)) {
+                // Windowsパス → WSLパス変換
+                const driveLetter = filePath[0].toLowerCase();
+                normalizedPath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
+            }
+
+            const uri = vscode.Uri.file(normalizedPath);
+
+            // ファイルの存在確認
+            if (!fs.existsSync(normalizedPath)) {
+                vscode.window.showErrorMessage(`ファイルが見つかりません: ${filePath}`);
+                return;
+            }
+
+            // ファイルを開く
+            const doc = await vscode.workspace.openTextDocument(uri);
+            await vscode.window.showTextDocument(doc);
+
+            // マークダウンファイルの場合はプレビューも表示
+            if (/\.(md|markdown)$/i.test(filePath)) {
+                await vscode.commands.executeCommand('markdown.showPreviewToSide', uri);
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`ファイルを開けませんでした: ${message}`);
+        }
+    }
+
     private dashboardMarkdownPanel: vscode.WebviewPanel | undefined;
 
     /**
@@ -4516,6 +4556,9 @@ ${agentList || '  (なし)'}
                         break;
                     case 'showController':
                         this.showDashboard();
+                        break;
+                    case 'openFile':
+                        this.openFileWithPreview(message.path);
                         break;
                 }
             },

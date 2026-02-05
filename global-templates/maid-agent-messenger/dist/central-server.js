@@ -15,6 +15,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import path from "path";
+import * as fs from "fs/promises";
 import { loadConfig, getServerUrl } from "./utils/config-loader.js";
 import { getTimestamp } from "./utils/yaml-helper.js";
 import { MAID_IDS, UPDATABLE_STATUSES, } from "./types/index.js";
@@ -141,7 +142,7 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
                 : "";
             const title = task.title || task.description.split("\n")[0].substring(0, 50);
             const assigneeStr = task.assignees.map((a) => a.agentId).join(", ");
-            // 報告書リンクHTML生成（VSCode URIスキーム対応）
+            // 報告書リンクHTML生成（VSCode Webview + ブラウザ両対応）
             const reportLinksHtml = task.reportPaths.length > 0
                 ? task.reportPaths.map((p) => {
                     const fileName = p.split("/").pop() || p;
@@ -150,19 +151,19 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
                         ? p
                         : path.join(projectPath, p);
                     // WSLパス(/mnt/c/...)をWindowsパス(C:/...)に変換
+                    let windowsPath = absolutePath;
                     if (absolutePath.startsWith("/mnt/")) {
                         const match = absolutePath.match(/^\/mnt\/([a-z])\/(.*)/);
                         if (match) {
-                            absolutePath = `${match[1].toUpperCase()}:/${match[2]}`;
+                            windowsPath = `${match[1].toUpperCase()}:/${match[2]}`;
                         }
                     }
                     // ドライブレターを大文字に正規化
-                    absolutePath = absolutePath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
-                    // パスの各部分をURIエンコード（スラッシュは維持）
-                    const encodedPath = absolutePath.split("/").map((part, i) => i === 0 ? part : encodeURIComponent(part)).join("/");
-                    // VSCode/Windsurf/Cursor両対応（クエリパラメータでスキーム切替可能）
-                    const editorUri = `${editorScheme}://file/${encodedPath}`;
-                    return `<a href="${editorUri}" class="report-link" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
+                    windowsPath = windowsPath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
+                    // ブラウザ用: /file?path=... エンドポイント
+                    const fileViewUrl = `/file?path=${encodeURIComponent(windowsPath)}`;
+                    // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
+                    return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(windowsPath)}" onclick="return openFile(this, '${escapeHtml(windowsPath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
                 }).join(", ")
                 : "";
             return `<div class="task-item completed" data-id="${task.id}">
@@ -443,6 +444,24 @@ function generateDashboardHtml(data, editorScheme = "vscode") {
     .fade-in { animation: fadeIn 0.3s ease-in; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   </style>
+  <script>
+    // VSCode Webview用: ファイルをプレビュー付きで開く
+    // ブラウザでは通常のリンク動作（/file?path=...）にフォールバック
+    function openFile(element, filePath) {
+      // VSCode Webview APIが利用可能かチェック
+      if (typeof acquireVsCodeApi !== 'undefined') {
+        try {
+          const vscode = acquireVsCodeApi();
+          vscode.postMessage({ command: 'openFile', path: filePath });
+          return false; // リンクのデフォルト動作をキャンセル
+        } catch (e) {
+          // Webview APIが利用できない場合はフォールバック
+        }
+      }
+      // ブラウザの場合は通常のリンク動作（/file?path=...）
+      return true;
+    }
+  </script>
 </head>
 <body>
   <div class="header">
@@ -1640,16 +1659,19 @@ app.get("/dashboard/events", async (req, res) => {
                             let absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
                                 ? p
                                 : path.join(projectPath, p);
+                            // WSLパス→Windowsパス変換
+                            let windowsPath = absolutePath;
                             if (absolutePath.startsWith("/mnt/")) {
                                 const match = absolutePath.match(/^\/mnt\/([a-z])\/(.*)/);
                                 if (match) {
-                                    absolutePath = `${match[1].toUpperCase()}:/${match[2]}`;
+                                    windowsPath = `${match[1].toUpperCase()}:/${match[2]}`;
                                 }
                             }
-                            absolutePath = absolutePath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
-                            const encodedPath = absolutePath.split("/").map((part, i) => i === 0 ? part : encodeURIComponent(part)).join("/");
-                            const editorUri = `${scheme}://file/${encodedPath}`;
-                            return `<a href="${editorUri}" class="report-link" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
+                            windowsPath = windowsPath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
+                            // ブラウザ用: /file?path=... エンドポイント
+                            const fileViewUrl = `/file?path=${encodeURIComponent(windowsPath)}`;
+                            // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
+                            return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(windowsPath)}" onclick="return openFile(this, '${escapeHtml(windowsPath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
                         }).join(", ")
                         : "";
                     return `<div class="task-item completed" data-id="${task.id}">
@@ -1755,6 +1777,164 @@ app.get("/dashboard/events", async (req, res) => {
 });
 // ========================================
 // エラーハンドラ
+// ========================================
+// GET /file - ファイル表示エンドポイント（ブラウザでマークダウンを表示）
+// ========================================
+/**
+ * 簡易マークダウン→HTML変換
+ */
+function convertMarkdownToHtml(markdown) {
+    let html = escapeHtml(markdown);
+    // コードブロック（```）
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang, code) => {
+        return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
+    });
+    // インラインコード（`）
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // 見出し（# ～ ######）
+    html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+    html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+    html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+    // 太字と斜体
+    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // リスト（- または *）
+    html = html.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+    // 水平線
+    html = html.replace(/^---+$/gm, '<hr>');
+    // リンク
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    // 段落（空行で区切られたテキスト）
+    html = html.replace(/\n\n+/g, '</p><p>');
+    html = `<p>${html}</p>`;
+    // 空の段落を削除
+    html = html.replace(/<p>\s*<\/p>/g, '');
+    html = html.replace(/<p>(<h[1-6]>)/g, '$1');
+    html = html.replace(/(<\/h[1-6]>)<\/p>/g, '$1');
+    html = html.replace(/<p>(<ul>)/g, '$1');
+    html = html.replace(/(<\/ul>)<\/p>/g, '$1');
+    html = html.replace(/<p>(<pre>)/g, '$1');
+    html = html.replace(/(<\/pre>)<\/p>/g, '$1');
+    html = html.replace(/<p>(<hr>)<\/p>/g, '$1');
+    return html;
+}
+app.get("/file", async (req, res) => {
+    try {
+        let filePath = req.query.path;
+        if (!filePath) {
+            res.status(400).send("Missing path parameter");
+            return;
+        }
+        // URLデコード
+        filePath = decodeURIComponent(filePath);
+        // Windowsパス（C:/...）をWSLパス（/mnt/c/...）に変換
+        if (/^[A-Z]:\//i.test(filePath)) {
+            const driveLetter = filePath[0].toLowerCase();
+            filePath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
+        }
+        // ファイル読み込み
+        const content = await fs.readFile(filePath, "utf-8");
+        const fileName = path.basename(filePath);
+        const isMarkdown = /\.(md|markdown)$/i.test(fileName);
+        // HTML生成
+        const htmlContent = isMarkdown ? convertMarkdownToHtml(content) : `<pre>${escapeHtml(content)}</pre>`;
+        const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(fileName)}</title>
+  <style>
+    :root {
+      --bg-color: #1e1e1e;
+      --text-color: #d4d4d4;
+      --heading-color: #569cd6;
+      --link-color: #4ec9b0;
+      --code-bg: #2d2d2d;
+      --border-color: #3c3c3c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.6;
+      padding: 20px 40px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .file-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .file-name { font-size: 1.2rem; color: var(--heading-color); }
+    .file-path { font-size: 0.8rem; color: #808080; margin-top: 5px; }
+    .back-link { color: var(--link-color); text-decoration: none; }
+    .back-link:hover { text-decoration: underline; }
+    h1, h2, h3, h4, h5, h6 { color: var(--heading-color); margin: 1.5em 0 0.5em; }
+    h1 { font-size: 1.8rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+    h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+    h3 { font-size: 1.3rem; }
+    a { color: var(--link-color); }
+    code {
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: "Consolas", "Monaco", monospace;
+      font-size: 0.9em;
+    }
+    pre {
+      background: var(--code-bg);
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      border: 1px solid var(--border-color);
+    }
+    pre code { background: none; padding: 0; }
+    ul { padding-left: 25px; }
+    li { margin: 5px 0; }
+    hr { border: none; border-top: 1px solid var(--border-color); margin: 20px 0; }
+    p { margin: 1em 0; }
+    strong { color: #dcdcaa; }
+  </style>
+</head>
+<body>
+  <div class="file-header">
+    <div>
+      <div class="file-name">📄 ${escapeHtml(fileName)}</div>
+      <div class="file-path">${escapeHtml(filePath)}</div>
+    </div>
+    <a href="javascript:history.back()" class="back-link">← 戻る</a>
+  </div>
+  <div class="content">
+    ${htmlContent}
+  </div>
+</body>
+</html>`;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.send(html);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        res.status(404).send(`
+      <!DOCTYPE html>
+      <html><head><title>File Not Found</title>
+      <style>body{font-family:sans-serif;background:#1e1e1e;color:#ccc;padding:40px;text-align:center;}
+      .error{color:#f14c4c;font-size:1.5rem;}</style></head>
+      <body><div class="error">⚠️ ファイルが見つかりません</div><p>${escapeHtml(message)}</p>
+      <a href="javascript:history.back()" style="color:#4ec9b0;">← 戻る</a></body></html>
+    `);
+    }
+});
 // ========================================
 app.use((err, _req, res, _next) => {
     console.error("Server error:", err);

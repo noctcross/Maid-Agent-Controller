@@ -2,6 +2,7 @@
 
 ## タスク情報
 - task_id: {{TASK_ID}}
+- title: {{TITLE}}
 - description: {{DESCRIPTION}}
 - status: (作業中)
 - completed_at:

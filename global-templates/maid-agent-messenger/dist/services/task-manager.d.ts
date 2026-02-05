@@ -14,6 +14,7 @@ export type TaskCategory = "task" | "action_required" | "skill_candidate" | "imp
 export interface Task {
     id: string;
     parentId: string | null;
+    title: string;
     description: string;
     priority: "high" | "medium" | "low";
     status: TaskStatus;
@@ -32,7 +33,8 @@ export interface TasksData {
     tasks: Task[];
 }
 export interface CreateTaskParams {
-    description: string;
+    title: string;
+    description?: string;
     priority?: "high" | "medium" | "low";
     parentId?: string;
     assignees?: string[];

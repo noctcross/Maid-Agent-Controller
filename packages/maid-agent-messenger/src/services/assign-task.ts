@@ -14,6 +14,7 @@ import {
   fileExists,
 } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
+import { executeUpdateTask } from "./task-manager.js";
 import * as fs from "fs/promises";
 
 export interface AssignTaskParams {
@@ -24,7 +25,8 @@ export interface AssignTaskParams {
   templatePath: string;
   taskId: string;
   targetAgent: string;
-  description: string;
+  title: string;          // タスクタイトル（短い概要）
+  description?: string;   // タスク説明（詳細、省略可）
   targetPath?: string;
 }
 
@@ -47,6 +49,7 @@ async function loadAndFillTemplate(
   templateDirPath: string,
   agentId: string,
   taskId: string,
+  title: string,
   description: string
 ): Promise<string> {
   const templateFilePath = path.join(templateDirPath, "current_template.md");
@@ -60,6 +63,7 @@ async function loadAndFillTemplate(
       return template
         .replace(/\{\{MAID_NAME\}\}/g, maidName)
         .replace(/\{\{TASK_ID\}\}/g, taskId)
+        .replace(/\{\{TITLE\}\}/g, title)
         .replace(/\{\{DESCRIPTION\}\}/g, description);
     }
   } catch {
@@ -71,6 +75,7 @@ async function loadAndFillTemplate(
 
 ## タスク情報
 - task_id: ${taskId}
+- title: ${title}
 - description: ${description}
 - status: (作業中)
 - completed_at:
@@ -105,7 +110,7 @@ improvement_proposal:
 export async function executeAssignTask(
   params: AssignTaskParams
 ): Promise<AssignTaskOutput> {
-  const { queueMaidPath, currentReportsPath, templatePath, taskId, targetAgent, description, targetPath } = params;
+  const { queueMaidPath, currentReportsPath, templatePath, taskId, targetAgent, title, description, targetPath } = params;
   const filePath = path.join(queueMaidPath, `${targetAgent}.yaml`);
   const timestamp = getTimestamp();
 
@@ -125,7 +130,8 @@ export async function executeAssignTask(
 
     // 新しいタスクを設定
     task.task_id = taskId;
-    task.description = description;
+    task.title = title;
+    task.description = description || "";
     task.target_path = targetPath || null;
     task.status = "assigned";
     task.substatus = null;
@@ -139,8 +145,23 @@ export async function executeAssignTask(
     // currentレポートを初期化（テンプレートから生成）
     // 作業中レポート: .maid-agent/reports/current_{agentId}.md
     const currentReportPath = path.join(currentReportsPath, `current_${targetAgent}.md`);
-    const content = await loadAndFillTemplate(templatePath, targetAgent, taskId, description);
+    const content = await loadAndFillTemplate(templatePath, targetAgent, taskId, title, description || "");
     await writeTextFile(currentReportPath, content);
+
+    // tasks.yaml への同期（assignees と status を更新）
+    // queueMaidPath から projectPath を導出（.maid-agent/system/data/maid の4階層上）
+    const projectPath = path.resolve(queueMaidPath, "..", "..", "..", "..");
+    // taskId を正規化（task- プレフィックスを除去）
+    const taskIdNormalized = String(taskId).replace(/^(task-)+/i, "");
+    try {
+      await executeUpdateTask(projectPath, {
+        taskId: taskIdNormalized,
+        status: "assigned",
+        assignees: [{ agentId: targetAgent, role: null, subTaskId: null }],
+      });
+    } catch {
+      // tasks.yaml が存在しない場合などはスキップ（後方互換性のため）
+    }
 
     return {
       success: true,

@@ -20,6 +20,9 @@ const DEFAULT_CONFIG = {
         enabled: true,
         auto_recover: true,
     },
+    dashboard: {
+        editor: "vscode",
+    },
 };
 let cachedConfig = null;
 /**
@@ -30,8 +33,9 @@ function getConfigPath() {
     if (process.env.MAID_MCP_CONFIG) {
         return process.env.MAID_MCP_CONFIG;
     }
-    // デフォルトパス
-    return ".maid-agent/system/config/mcp-server.yaml";
+    // グローバル設定: ~/.maid-agent/system/config/mcp-server.yaml
+    const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+    return path.join(homeDir, ".maid-agent", "system", "config", "mcp-server.yaml");
 }
 /**
  * 設定ファイルを読み込む
@@ -43,14 +47,15 @@ export async function loadConfig() {
     }
     const configPath = getConfigPath();
     try {
-        const absolutePath = path.resolve(process.cwd(), configPath);
-        const content = await fs.readFile(absolutePath, "utf-8");
+        // configPath はすでに絶対パス
+        const content = await fs.readFile(configPath, "utf-8");
         const parsed = yaml.parse(content);
         // デフォルト値とマージ
         cachedConfig = {
             server: { ...DEFAULT_CONFIG.server, ...parsed.server },
             central: { ...DEFAULT_CONFIG.central, ...parsed.central },
             fallback: { ...DEFAULT_CONFIG.fallback, ...parsed.fallback },
+            dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
         };
         return cachedConfig;
     }

@@ -37,15 +37,16 @@ export async function executeUpdateStatus(params) {
             if (task.task_id) {
                 // 作業中レポート: .maid-agent/reports/current_{agentId}.md
                 const currentPath = path.join(currentReportsPath, `current_${agentId}.md`);
-                const description = sanitizeDescription(task.description);
+                // ファイル名にはtitleを使用（後方互換: titleがなければdescriptionを使用）
+                const titleForFilename = sanitizeDescription(task.title || task.description);
                 // task_id を正規化
                 // 1. 先頭の "task-" を全て除去（複数回出現しても対応）
                 // 2. 末尾の "-{agentId}" を除去（重複防止）
                 const taskIdNormalized = String(task.task_id)
                     .replace(/^(task-)+/i, "")
                     .replace(new RegExp(`-${agentId}$`, "i"), "");
-                // 完了レポート: .maid-agent/master/reports/task-{id}-{agentId}-{description}.md
-                archivePath = path.join(archiveReportsPath, `task-${taskIdNormalized}-${agentId}-${description}.md`);
+                // 完了レポート: .maid-agent/master/reports/task-{id}-{agentId}-{title}.md
+                archivePath = path.join(archiveReportsPath, `task-${taskIdNormalized}-${agentId}-${titleForFilename}.md`);
                 if (await fileExists(currentPath)) {
                     const copied = await copyFile(currentPath, archivePath);
                     if (copied) {

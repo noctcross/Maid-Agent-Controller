@@ -17,18 +17,18 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 
 ## MCPツール早見表（maid-agent-messenger）
 
-| ツール名 | 用途 | 使用者 |
-|---------|------|-------|
-| `create_task` | 新規タスク作成 | 執事・メイド長（※） |
-| `list_tasks` | タスク一覧取得（フィルタ対応） | 執事・メイド長 |
+| ツール名 | 用途 | 主要パラメータ | 使用者 |
+|---------|------|---------------|-------|
+| `create_task` | 新規タスク作成 | title(必須), description(省略可) | 執事・メイド長（※） |
+| `list_tasks` | タスク一覧取得 | status, assignee, limit | 執事・メイド長 |
+| `get_task` | タスク詳細取得 | taskId | 全員 |
+| `update_task` | タスク状態更新 | taskId, status | メイド長 |
+| `get_my_task` | 自分のタスク取得 | agent_id | メイド |
+| `update_status` | ステータス更新 | agent_id, status | メイド |
+| `assign_task` | タスク割り当て | task_id, target_agent, title(必須) | メイド長 |
+| `get_team_status` | チーム状況一覧 | - | メイド長・執事 |
 
-※ メイド長は🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生のみ
-| `get_task` | タスク詳細取得 | 全員 |
-| `update_task` | タスク状態更新 | メイド長 |
-| `get_my_task` | 自分のタスク情報を取得 | メイド |
-| `update_status` | ステータスを更新（working/completed/blocked） | メイド |
-| `assign_task` | メイドにタスクを割り当て | メイド長 |
-| `get_team_status` | 全メイドのステータス一覧を取得 | メイド長・執事 |
+※ メイド長のcreate_task使用は🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生のみ
 
 ## 役割別操作早見表
 

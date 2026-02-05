@@ -24,10 +24,15 @@ export interface FallbackConfig {
   auto_recover: boolean;
 }
 
+export interface DashboardConfig {
+  editor: "vscode" | "windsurf" | "cursor";
+}
+
 export interface McpServerConfig {
   server: ServerConfig;
   central: CentralConfig;
   fallback: FallbackConfig;
+  dashboard: DashboardConfig;
 }
 
 const DEFAULT_CONFIG: McpServerConfig = {
@@ -44,6 +49,9 @@ const DEFAULT_CONFIG: McpServerConfig = {
     enabled: true,
     auto_recover: true,
   },
+  dashboard: {
+    editor: "vscode",
+  },
 };
 
 let cachedConfig: McpServerConfig | null = null;
@@ -56,8 +64,9 @@ function getConfigPath(): string {
   if (process.env.MAID_MCP_CONFIG) {
     return process.env.MAID_MCP_CONFIG;
   }
-  // デフォルトパス
-  return ".maid-agent/system/config/mcp-server.yaml";
+  // グローバル設定: ~/.maid-agent/system/config/mcp-server.yaml
+  const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+  return path.join(homeDir, ".maid-agent", "system", "config", "mcp-server.yaml");
 }
 
 /**
@@ -72,8 +81,8 @@ export async function loadConfig(): Promise<McpServerConfig> {
   const configPath = getConfigPath();
 
   try {
-    const absolutePath = path.resolve(process.cwd(), configPath);
-    const content = await fs.readFile(absolutePath, "utf-8");
+    // configPath はすでに絶対パス
+    const content = await fs.readFile(configPath, "utf-8");
     const parsed = yaml.parse(content) as Partial<McpServerConfig>;
 
     // デフォルト値とマージ
@@ -81,6 +90,7 @@ export async function loadConfig(): Promise<McpServerConfig> {
       server: { ...DEFAULT_CONFIG.server, ...parsed.server },
       central: { ...DEFAULT_CONFIG.central, ...parsed.central },
       fallback: { ...DEFAULT_CONFIG.fallback, ...parsed.fallback },
+      dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
     };
 
     return cachedConfig;

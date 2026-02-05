@@ -25,16 +25,21 @@ export function registerAssignTask(server: McpServer): void {
       target_agent: z
         .enum(MAID_IDS)
         .describe("割り当て先エージェント（例: emma, flora）"),
+      title: z
+        .string()
+        .max(100)
+        .describe("タスクタイトル（短い概要、100文字以内）"),
       description: z
         .string()
         .max(500)
-        .describe("タスク説明（500文字以内）"),
+        .optional()
+        .describe("タスク説明（詳細、500文字以内、省略可）"),
       target_path: z
         .string()
         .optional()
         .describe("作業対象パス（オプション）"),
     },
-    async ({ task_id, target_agent, description, target_path }) => {
+    async ({ task_id, target_agent, title, description, target_path }) => {
       try {
         const result = await executeAssignTask({
           queueMaidPath: PATHS.MAID_STATUS,
@@ -42,6 +47,7 @@ export function registerAssignTask(server: McpServer): void {
           templatePath: PATHS.CURRENT_REPORTS,  // テンプレートは作業中レポートと同じ場所
           taskId: task_id,
           targetAgent: target_agent,
+          title,
           description,
           targetPath: target_path,
         });

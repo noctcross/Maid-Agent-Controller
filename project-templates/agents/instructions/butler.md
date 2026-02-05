@@ -105,7 +105,8 @@
 4. MCPツール create_task でタスク作成:
 
    使用例:
-   - description: "READMEの確認と要約"
+   - title: "READMEの確認と要約"    # 必須: タスクタイトル（短い概要）
+   - description: "詳細な説明..."   # 省略可: タスク説明（詳細）
    - priority: "high"  # "high" | "medium" | "low"
 
    ※ assignees オプションは使用禁止（F002: メイドへ直接指示に該当）
@@ -115,7 +116,7 @@
    {
      "success": true,
      "taskId": "077",
-     "task": { ... }
+     "task": { "id": "077", "title": "READMEの確認と要約", ... }
    }
 
 5. メイド長に maid-notify で通知
@@ -126,7 +127,7 @@
 ```
 フィードバック対応などで親タスクに紐づける場合:
 - parentId: "077"  # 親タスクID
-- description: "フィードバック対応"
+- title: "フィードバック対応"  # 必須: タイトル
 
 → タスクID "077-1" が生成される
 ```

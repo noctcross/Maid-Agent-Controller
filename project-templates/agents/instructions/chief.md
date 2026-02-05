@@ -94,8 +94,8 @@
    返却値:
    {
      "tasks": [
-       { "id": "077", "description": "設計書作成", "priority": "high", ... },
-       { "id": "078", "description": "レビュー", "priority": "medium", ... }
+       { "id": "077", "title": "設計書作成", "description": "詳細な説明...", "priority": "high", ... },
+       { "id": "078", "title": "レビュー", "description": "...", "priority": "medium", ... }
      ],
      "total": 2,
      "hasMore": false
@@ -106,8 +106,9 @@
    使用例:
    - task_id: "task-077"  # 表示ID形式（task-プレフィックス付き）
    - target_agent: "emma"
-   - description: "設計書作成"
-   - target_path: "docs/"  # オプション
+   - title: "設計書作成"          # 必須: タスクタイトル（短い概要）
+   - description: "詳細な説明..."  # 省略可: タスク説明（詳細）
+   - target_path: "docs/"          # 省略可: 作業対象パス
 
    ※ list_tasksで取得したID（"077"）にはtask-プレフィックスを付けて使用
 
@@ -247,7 +248,8 @@ MCPツール（`get_team_status`, `assign_task`等）で「Server not initialize
 
 ```
 MCPツール create_task で新規タスク作成:
-- description: "エマからの相談: APIの設計について意見を提供"
+- title: "APIの設計について意見を提供"    # 必須: タイトル
+- description: "エマからの相談: ..."      # 省略可: 詳細
 - priority: "medium"
 - assignees: ["sophia"]
 
@@ -263,12 +265,12 @@ MCPツール create_task で新規タスク作成:
 
 ```
 MCPツール create_task でご主人様向けタスク作成:
-- description: "API設計のアプローチについて判断が必要"
+- title: "API設計のアプローチについて判断が必要"  # 必須: タイトル
+- description: "詳細は current_emma.md を参照"   # 省略可: 詳細
 - priority: "high"
 - assignees: ["master"]  # ご主人様向け
 - category: "action_required"  # 🚨 要対応
 
-※ 詳細は .maid-agent/system/data/reports/current_emma.md を参照と記載
 ※ Webビューで「🚨 要対応」セクションに表示される（予定）
 ```
 
@@ -296,7 +298,8 @@ MCPツール create_task でご主人様向けタスク作成:
 運用フロー:
 1. メイドからの skill_candidate を確認・集約
 2. MCPツール create_task でご主人様向けタスクを作成:
-   - description: "[候補名] - スキル化候補"
+   - title: "[候補名] - スキル化候補"    # 必須: タイトル
+   - description: "詳細な説明..."        # 省略可: 詳細
    - priority: "low"
    - assignees: ["master"]
    - category: "skill_candidate"  # 📚 スキル化候補
@@ -337,7 +340,8 @@ MCPツール create_task でご主人様向けタスク作成:
 運用フロー:
 1. メイドからの improvement_proposal を確認・集約
 2. MCPツール create_task でご主人様向けタスクを作成:
-   - description: "[提案名] - 改善提案"
+   - title: "[提案名] - 改善提案"   # 必須: タイトル
+   - description: "詳細な説明..."   # 省略可: 詳細
    - priority: "low"
    - assignees: ["master"]
    - category: "improvement"  # 💡 改善提案

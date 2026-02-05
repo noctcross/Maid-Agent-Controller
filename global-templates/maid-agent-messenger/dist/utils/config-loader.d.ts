@@ -16,10 +16,14 @@ export interface FallbackConfig {
     enabled: boolean;
     auto_recover: boolean;
 }
+export interface DashboardConfig {
+    editor: "vscode" | "windsurf" | "cursor";
+}
 export interface McpServerConfig {
     server: ServerConfig;
     central: CentralConfig;
     fallback: FallbackConfig;
+    dashboard: DashboardConfig;
 }
 /**
  * 設定ファイルを読み込む

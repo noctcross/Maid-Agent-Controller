@@ -36,6 +36,10 @@ export async function executeGetTeamStatus(params) {
                 id,
                 status,
                 task_id: task.task_id || null,
+                // Phase 2: チーム状態詳細化用フィールド
+                started_at: task.started_at || null,
+                task_description: task.description || null,
+                substatus: task.substatus || null,
             });
             summary[status] = (summary[status] || 0) + 1;
         }

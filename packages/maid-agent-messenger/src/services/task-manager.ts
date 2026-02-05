@@ -33,7 +33,8 @@ export type TaskCategory = "task" | "action_required" | "skill_candidate" | "imp
 export interface Task {
   id: string;
   parentId: string | null;
-  description: string;
+  title: string;           // タスクタイトル（短い概要）
+  description: string;     // タスク説明（詳細）
   priority: "high" | "medium" | "low";
   status: TaskStatus;
   substatus: string | null;
@@ -150,7 +151,8 @@ async function loadTasksReadOnly(projectPath: string): Promise<TasksData> {
 // === CRUD操作 ===
 
 export interface CreateTaskParams {
-  description: string;
+  title: string;           // タスクタイトル（短い概要）
+  description?: string;    // タスク説明（詳細、省略可）
   priority?: "high" | "medium" | "low";
   parentId?: string;
   assignees?: string[];
@@ -187,7 +189,8 @@ export async function executeCreateTask(
     const newTask: Task = {
       id: taskId,
       parentId: params.parentId || null,
-      description: params.description,
+      title: params.title,
+      description: params.description || "",
       priority: params.priority || "medium",
       status: params.assignees?.length ? "assigned" : "pending",
       substatus: null,
@@ -370,7 +373,15 @@ export async function executeUpdateTask(
       task.summary = params.summary;
     }
     if (params.reportPath) {
-      task.reportPaths.push(params.reportPath);
+      // ファイル名で重複チェック（絶対パス/相対パスの違いを吸収）
+      const newFileName = params.reportPath.split("/").pop() || params.reportPath;
+      const isDuplicate = task.reportPaths.some((existing) => {
+        const existingFileName = existing.split("/").pop() || existing;
+        return existingFileName === newFileName;
+      });
+      if (!isDuplicate) {
+        task.reportPaths.push(params.reportPath);
+      }
     }
 
     const result: UpdateTaskResult = { success: true, task };

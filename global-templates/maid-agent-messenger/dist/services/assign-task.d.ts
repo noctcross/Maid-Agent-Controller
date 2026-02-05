@@ -12,7 +12,8 @@ export interface AssignTaskParams {
     templatePath: string;
     taskId: string;
     targetAgent: string;
-    description: string;
+    title: string;
+    description?: string;
     targetPath?: string;
 }
 /**

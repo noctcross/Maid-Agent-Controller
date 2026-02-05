@@ -13,6 +13,7 @@ export declare const TASK_CATEGORIES: readonly ["task", "action_required", "skil
 export type TaskCategory = (typeof TASK_CATEGORIES)[number];
 export interface TaskYaml {
     task_id: string | null;
+    title: string | null;
     description: string | null;
     target_path: string | null;
     status: TaskStatus;
@@ -47,6 +48,9 @@ export interface AgentStatus {
     id: string;
     status: string;
     task_id: string | null;
+    started_at?: string | null;
+    task_description?: string | null;
+    substatus?: string | null;
 }
 export interface GetTeamStatusOutput {
     timestamp: string;

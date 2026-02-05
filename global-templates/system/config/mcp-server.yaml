@@ -1,0 +1,21 @@
+# MCP Server グローバル設定ファイル
+# ~/.maid-agent/system/config/mcp-server.yaml
+#
+# init Global で既存の設定は保持されます（config は preserveDirs 対象）
+
+server:
+  mode: hybrid
+  port: 3100
+  host: 127.0.0.1
+
+central:
+  connection_timeout: 3000
+  reconnect_interval: 30000
+
+fallback:
+  enabled: true
+  auto_recover: true
+
+dashboard:
+  # エディタのURIスキーム: vscode | windsurf | cursor
+  editor: vscode

@@ -102,7 +102,8 @@ export async function executeCreateTask(projectPath, params) {
         const newTask = {
             id: taskId,
             parentId: params.parentId || null,
-            description: params.description,
+            title: params.title,
+            description: params.description || "",
             priority: params.priority || "medium",
             status: params.assignees?.length ? "assigned" : "pending",
             substatus: null,
@@ -219,7 +220,15 @@ export async function executeUpdateTask(projectPath, params) {
             task.summary = params.summary;
         }
         if (params.reportPath) {
-            task.reportPaths.push(params.reportPath);
+            // ファイル名で重複チェック（絶対パス/相対パスの違いを吸収）
+            const newFileName = params.reportPath.split("/").pop() || params.reportPath;
+            const isDuplicate = task.reportPaths.some((existing) => {
+                const existingFileName = existing.split("/").pop() || existing;
+                return existingFileName === newFileName;
+            });
+            if (!isDuplicate) {
+                task.reportPaths.push(params.reportPath);
+            }
         }
         const result = { success: true, task };
         return { data, result };

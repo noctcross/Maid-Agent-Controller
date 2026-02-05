@@ -52,7 +52,8 @@ export type TaskCategory = (typeof TASK_CATEGORIES)[number];
 // タスクYAML構造
 export interface TaskYaml {
   task_id: string | null;
-  description: string | null;
+  title: string | null;       // タスクタイトル（短い概要）
+  description: string | null; // タスク説明（詳細）
   target_path: string | null;
   status: TaskStatus;
   substatus: string | null;
@@ -91,6 +92,10 @@ export interface AgentStatus {
   id: string;
   status: string;
   task_id: string | null;
+  // Phase 2: チーム状態詳細化用フィールド
+  started_at?: string | null;
+  task_description?: string | null;
+  substatus?: string | null;
 }
 
 export interface GetTeamStatusOutput {

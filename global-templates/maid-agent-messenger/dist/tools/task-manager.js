@@ -23,7 +23,8 @@ const TaskStatusSchema = z.enum([
  */
 export function registerCreateTask(server) {
     server.tool("create_task", "新規タスクまたはサブタスクを作成します", {
-        description: z.string().describe("タスクの説明"),
+        title: z.string().describe("タスクタイトル（短い概要）"),
+        description: z.string().optional().describe("タスク説明（詳細、省略可）"),
         priority: z
             .enum(["high", "medium", "low"])
             .optional()
@@ -36,13 +37,19 @@ export function registerCreateTask(server) {
             .array(z.enum(MAID_IDS))
             .optional()
             .describe("担当者リスト"),
-    }, async ({ description, priority, parentId, assignees }) => {
+        category: z
+            .enum(["task", "action_required", "skill_candidate", "improvement"])
+            .optional()
+            .describe("カテゴリ（デフォルト: task）"),
+    }, async ({ title, description, priority, parentId, assignees, category }) => {
         try {
             const result = await executeCreateTask(getProjectPath(), {
+                title,
                 description,
                 priority,
                 parentId,
                 assignees,
+                category,
             });
             return {
                 content: [

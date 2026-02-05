@@ -4306,7 +4306,7 @@ ${agentList || '  (なし)'}
         // 既存のupdateStats/updateTaskLists関数を呼び出す
         const messageListenerScript = `
             <script>
-                // postMessageでJSON更新を受け取るリスナー
+                // postMessageでJSON更新・レポート表示を受け取るリスナー
                 window.addEventListener('message', event => {
                     const message = event.data;
                     if (message.type === 'dashboardUpdate') {
@@ -4315,6 +4315,10 @@ ${agentList || '  (なし)'}
                         }
                         if (message.tasks && typeof updateTaskLists === 'function') {
                             updateTaskLists(message.tasks);
+                        }
+                    } else if (message.type === 'showReport') {
+                        if (typeof showReportOverlay === 'function') {
+                            showReportOverlay(message.html, message.fileName);
                         }
                     }
                 });
@@ -4390,6 +4394,8 @@ ${agentList || '  (なし)'}
      * ファイルを開き、マークダウンの場合はプレビューも表示
      * Webダッシュボードからの報告書リンク用
      */
+    private reportViewerPanel: vscode.WebviewPanel | undefined;
+
     private async openFileWithPreview(filePath: string): Promise<void> {
         try {
             // Windowsパス（C:/...）をそのまま使用
@@ -4401,26 +4407,107 @@ ${agentList || '  (なし)'}
                 normalizedPath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
             }
 
-            const uri = vscode.Uri.file(normalizedPath);
-
             // ファイルの存在確認
             if (!fs.existsSync(normalizedPath)) {
                 vscode.window.showErrorMessage(`ファイルが見つかりません: ${filePath}`);
                 return;
             }
 
-            // ファイルを開く
-            const doc = await vscode.workspace.openTextDocument(uri);
-            await vscode.window.showTextDocument(doc);
+            // ファイル内容を読み込み、HTMLに変換
+            const content = fs.readFileSync(normalizedPath, 'utf-8');
+            const fileName = path.basename(normalizedPath);
+            const isMarkdown = /\.(md|markdown)$/i.test(filePath);
 
-            // マークダウンファイルの場合はプレビューも表示
-            if (/\.(md|markdown)$/i.test(filePath)) {
-                await vscode.commands.executeCommand('markdown.showPreviewToSide', uri);
+            const contentHtml = isMarkdown
+                ? simpleMarkdownToHtml(content)
+                : `<pre class="md-code-block"><code>${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+
+            // 既存パネルがあれば内容を更新して表示
+            if (this.reportViewerPanel) {
+                this.reportViewerPanel.title = `📄 ${fileName}`;
+                this.setReportViewerHtml(contentHtml, fileName);
+                this.reportViewerPanel.reveal(vscode.ViewColumn.Active);
+                return;
             }
+
+            // Controller/Dashboardと同じ ViewColumn.Active で開く
+            this.reportViewerPanel = vscode.window.createWebviewPanel(
+                'maidAgentReportViewer',
+                `📄 ${fileName}`,
+                vscode.ViewColumn.Active,
+                { enableScripts: false, retainContextWhenHidden: false }
+            );
+
+            this.reportViewerPanel.onDidDispose(() => {
+                this.reportViewerPanel = undefined;
+            });
+
+            this.setReportViewerHtml(contentHtml, fileName);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`ファイルを開けませんでした: ${message}`);
         }
+    }
+
+    private setReportViewerHtml(contentHtml: string, fileName: string): void {
+        if (!this.reportViewerPanel) return;
+        this.reportViewerPanel.webview.html = `<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+            padding: 16px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            min-height: 100vh;
+            margin: 0;
+            line-height: 1.6;
+            font-size: 13px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e94560;
+        }
+        h1 { color: #e94560; margin: 0; font-size: 1.2em; }
+        .content {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .md-h1 { font-size: 1.4em; color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 6px; margin: 16px 0 12px 0; }
+        .md-h2 { font-size: 1.15em; color: #ffc107; border-bottom: 1px solid #444; padding-bottom: 4px; margin: 14px 0 10px 0; }
+        .md-h3 { font-size: 1.05em; color: #81c784; margin: 12px 0 6px 0; }
+        .md-p { margin: 8px 0; }
+        .md-ul { margin: 6px 0; padding-left: 25px; }
+        .md-li { margin: 4px 0; list-style-type: disc; }
+        .md-checkbox { padding: 4px 0; }
+        .md-checkbox.checked { color: #81c784; }
+        .md-table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+        .md-table th, .md-table td { border: 1px solid #444; padding: 6px 10px; text-align: left; }
+        .md-table th { background: rgba(255,255,255,0.1); color: #ffc107; }
+        .md-code-block { background: #0a0a0a; padding: 12px; border-radius: 6px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.9em; margin: 8px 0; }
+        .md-inline-code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', monospace; }
+        .md-hr { border: none; border-top: 1px solid #444; margin: 16px 0; }
+        .md-link { color: #4fc3f7; }
+        strong { color: #ffc107; }
+        em { font-style: italic; color: #aaa; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📄 ${fileName}</h1>
+    </div>
+    <div class="content">
+        ${contentHtml}
+    </div>
+</body>
+</html>`;
     }
 
     private dashboardMarkdownPanel: vscode.WebviewPanel | undefined;

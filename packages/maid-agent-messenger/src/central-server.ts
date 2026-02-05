@@ -355,7 +355,7 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     .header h1 { font-size: 1.2rem; }
     .header .timestamp { color: var(--text-muted); font-size: 0.8rem; }
     .project-path { color: var(--text-muted); font-size: 0.7rem; margin-top: 3px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
     @media (max-width: 500px) { .grid { grid-template-columns: 1fr; gap: 6px; } }
     .card {
       background: var(--card-bg);
@@ -438,7 +438,7 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     .count-badge-orange { background: #f39c12; }
     .collapsible-header { cursor: pointer; user-select: none; }
     .collapsible-header:hover { opacity: 0.8; }
-    .collapsible-content { max-height: 300px; overflow-y: auto; }
+    .collapsible-content { }
     /* Phase 2: 統計セクション */
     .stats-section { grid-column: 1 / -1; }
     .stats-grid { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -514,20 +514,70 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     /* アニメーション */
     .fade-in { animation: fadeIn 0.3s ease-in; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    /* レポートオーバーレイ */
+    .report-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      z-index: 1000;
+      overflow-y: auto;
+      padding: 16px;
+    }
+    .report-overlay.visible { display: block; }
+    .report-overlay-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--accent-color);
+    }
+    .report-overlay-header h2 { color: var(--accent-color); margin: 0; font-size: 1.1em; }
+    .report-close-btn {
+      background: rgba(255,255,255,0.1);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 4px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85em;
+    }
+    .report-close-btn:hover { background: rgba(255,255,255,0.2); }
+    .report-overlay-content {
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 16px;
+      line-height: 1.6;
+    }
+    .report-overlay-content .md-h1 { font-size: 1.4em; color: var(--accent-color); border-bottom: 2px solid var(--accent-color); padding-bottom: 6px; margin: 16px 0 12px 0; }
+    .report-overlay-content .md-h2 { font-size: 1.15em; color: #ffc107; border-bottom: 1px solid #444; padding-bottom: 4px; margin: 14px 0 10px 0; }
+    .report-overlay-content .md-h3 { font-size: 1.05em; color: #81c784; margin: 12px 0 6px 0; }
+    .report-overlay-content .md-p { margin: 8px 0; }
+    .report-overlay-content .md-ul { margin: 6px 0; padding-left: 25px; }
+    .report-overlay-content .md-li { margin: 4px 0; list-style-type: disc; }
+    .report-overlay-content .md-table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    .report-overlay-content .md-table th, .report-overlay-content .md-table td { border: 1px solid #444; padding: 6px 10px; text-align: left; }
+    .report-overlay-content .md-table th { background: rgba(255,255,255,0.1); color: #ffc107; }
+    .report-overlay-content .md-code-block { background: #0a0a0a; padding: 12px; border-radius: 6px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.9em; margin: 8px 0; }
+    .report-overlay-content .md-inline-code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', monospace; }
+    .report-overlay-content strong { color: #ffc107; }
   </style>
   <script>
+    // VSCode Webview APIは1回しか呼べないため、初回に取得してキャッシュ
+    var _vscodeApi = null;
+    try {
+      if (typeof acquireVsCodeApi !== 'undefined') {
+        _vscodeApi = acquireVsCodeApi();
+      }
+    } catch (e) {}
+
     // VSCode Webview用: ファイルをプレビュー付きで開く
     // ブラウザでは通常のリンク動作（/file?path=...）にフォールバック
     function openFile(element, filePath) {
-      // VSCode Webview APIが利用可能かチェック
-      if (typeof acquireVsCodeApi !== 'undefined') {
-        try {
-          const vscode = acquireVsCodeApi();
-          vscode.postMessage({ command: 'openFile', path: filePath });
-          return false; // リンクのデフォルト動作をキャンセル
-        } catch (e) {
-          // Webview APIが利用できない場合はフォールバック
-        }
+      if (_vscodeApi) {
+        _vscodeApi.postMessage({ command: 'openFile', path: filePath });
+        return false; // リンクのデフォルト動作をキャンセル
       }
       // ブラウザの場合は通常のリンク動作（/file?path=...）
       return true;
@@ -781,12 +831,15 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       }
     }
 
-    // 展開状態を保存
+    // 展開状態を保存（閉じたタスクはMapから削除）
     function saveExpandedStates() {
-      document.querySelectorAll('.task-item.expanded').forEach(item => {
+      document.querySelectorAll('.task-item').forEach(item => {
         const taskId = item.dataset.id;
-        if (taskId) {
+        if (!taskId) return;
+        if (item.classList.contains('expanded')) {
           expandedState.set(taskId, true);
+        } else {
+          expandedState.delete(taskId);
         }
       });
     }
@@ -875,7 +928,9 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
         item.parentNode.replaceChild(newItem, item);
 
         newItem.addEventListener('click', function(e) {
+          // フォーム要素やリンクのクリックでは展開/折りたたみしない
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+          if (e.target.closest('a')) return;
           this.classList.toggle('expanded');
         });
       });
@@ -892,6 +947,24 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       }
     } else {
       console.log('VSCode Webview detected - SSE disabled, use manual refresh');
+    }
+  </script>
+  <!-- レポートオーバーレイ（VSCode Webview内でレポートを表示） -->
+  <div id="reportOverlay" class="report-overlay">
+    <div class="report-overlay-header">
+      <h2 id="reportTitle">📄 Report</h2>
+      <button class="report-close-btn" onclick="closeReportOverlay()">✕ 閉じる</button>
+    </div>
+    <div id="reportContent" class="report-overlay-content"></div>
+  </div>
+  <script>
+    function showReportOverlay(html, fileName) {
+      document.getElementById('reportTitle').textContent = '📄 ' + fileName;
+      document.getElementById('reportContent').innerHTML = html;
+      document.getElementById('reportOverlay').classList.add('visible');
+    }
+    function closeReportOverlay() {
+      document.getElementById('reportOverlay').classList.remove('visible');
     }
   </script>
 </body>

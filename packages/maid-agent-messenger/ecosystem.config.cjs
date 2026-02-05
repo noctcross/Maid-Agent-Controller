@@ -30,8 +30,8 @@ module.exports = {
       max_memory_restart: "200M",
       env: {
         NODE_ENV: "production",
-        // 設定ファイルのパス（プロジェクトルートからの相対パス）
-        MAID_MCP_CONFIG: "../config/mcp-server.yaml",
+        // 設定ファイルのパス: 環境変数を削除し、config-loader.ts のデフォルト動作に任せる
+        // デフォルト: ~/.maid-agent/system/config/mcp-server.yaml
       },
       // ログ設定
       log_date_format: "YYYY-MM-DD HH:mm:ss",

@@ -1581,6 +1581,9 @@ app.get("/dashboard/events", async (req, res) => {
         const projectPath = req.query.project
             ? decodeURIComponent(req.query.project)
             : getProjectPathFromRequest(req);
+        // エディタスキームを取得（?editor=vscode|windsurf|cursor、設定ファイルのデフォルト値を使用）
+        const config = await loadConfig();
+        const editorScheme = req.query.editor || config.dashboard.editor;
         // SSEヘッダー設定
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
@@ -1589,7 +1592,7 @@ app.get("/dashboard/events", async (req, res) => {
         // 接続確認
         res.write("data: {\"type\":\"connected\"}\n\n");
         // タスクリストHTMLを生成するヘルパー関数
-        const generateTaskHtml = (tasks, type) => {
+        const generateTaskHtml = (tasks, type, scheme = "vscode") => {
             const priorityClass = {
                 high: "priority-high",
                 medium: "priority-medium",
@@ -1645,7 +1648,7 @@ app.get("/dashboard/events", async (req, res) => {
                             }
                             absolutePath = absolutePath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
                             const encodedPath = absolutePath.split("/").map((part, i) => i === 0 ? part : encodeURIComponent(part)).join("/");
-                            const editorUri = `vscode://file/${encodedPath}`;
+                            const editorUri = `${scheme}://file/${encodedPath}`;
                             return `<a href="${editorUri}" class="report-link" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
                         }).join(", ")
                         : "";
@@ -1731,7 +1734,7 @@ app.get("/dashboard/events", async (req, res) => {
                     pending: generateTaskHtml(pending.tasks, "pending"),
                     working: generateTaskHtml(working.tasks, "working"),
                     blocked: generateTaskHtml(blocked.tasks, "blocked"),
-                    completed: generateTaskHtml(completed.tasks, "completed"),
+                    completed: generateTaskHtml(completed.tasks, "completed", editorScheme),
                     actionRequired: generateTaskHtml(actionRequired.tasks, "action_required"),
                 };
                 res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml })}\n\n`);

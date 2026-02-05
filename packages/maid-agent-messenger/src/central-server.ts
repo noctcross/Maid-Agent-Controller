@@ -1774,6 +1774,10 @@ app.get("/dashboard/events", async (req: Request, res: Response) => {
       ? decodeURIComponent(req.query.project as string)
       : getProjectPathFromRequest(req);
 
+    // エディタスキームを取得（?editor=vscode|windsurf|cursor、設定ファイルのデフォルト値を使用）
+    const config = await loadConfig();
+    const editorScheme = (req.query.editor as string) || config.dashboard.editor;
+
     // SSEヘッダー設定
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -1784,7 +1788,7 @@ app.get("/dashboard/events", async (req: Request, res: Response) => {
     res.write("data: {\"type\":\"connected\"}\n\n");
 
     // タスクリストHTMLを生成するヘルパー関数
-    const generateTaskHtml = (tasks: any[], type: string) => {
+    const generateTaskHtml = (tasks: any[], type: string, scheme: string = "vscode") => {
       const priorityClass: Record<string, string> = {
         high: "priority-high",
         medium: "priority-medium",
@@ -1841,7 +1845,7 @@ app.get("/dashboard/events", async (req: Request, res: Response) => {
                 }
                 absolutePath = absolutePath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
                 const encodedPath = absolutePath.split("/").map((part: string, i: number) => i === 0 ? part : encodeURIComponent(part)).join("/");
-                const editorUri = `vscode://file/${encodedPath}`;
+                const editorUri = `${scheme}://file/${encodedPath}`;
                 return `<a href="${editorUri}" class="report-link" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
               }).join(", ")
             : "";
@@ -1931,7 +1935,7 @@ app.get("/dashboard/events", async (req: Request, res: Response) => {
           pending: generateTaskHtml(pending.tasks, "pending"),
           working: generateTaskHtml(working.tasks, "working"),
           blocked: generateTaskHtml(blocked.tasks, "blocked"),
-          completed: generateTaskHtml(completed.tasks, "completed"),
+          completed: generateTaskHtml(completed.tasks, "completed", editorScheme),
           actionRequired: generateTaskHtml(actionRequired.tasks, "action_required"),
         };
 

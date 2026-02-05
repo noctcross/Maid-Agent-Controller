@@ -4065,7 +4065,10 @@ ${agentList || '  (なし)'}
             'multiAgentDashboard',
             '🎩 Controller',
             vscode.ViewColumn.Active,
-            { enableScripts: true }
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true  // 非表示時も状態を保持
+            }
         );
 
         this.dashboardPanel.onDidDispose(() => {
@@ -4448,6 +4451,80 @@ ${agentList || '  (なし)'}
         this.dashboardMarkdownPanel = panel;
         this.setupDashboardPanelHandlers(panel);
         this.updateDashboardMarkdownPanel();
+    }
+
+    /**
+     * Serializerからコントローラパネルを復元する
+     */
+    restoreControllerPanel(panel: vscode.WebviewPanel): void {
+        this.dashboardPanel = panel;
+
+        // パネル破棄時の処理を再設定
+        panel.onDidDispose(() => {
+            this.dashboardPanel = undefined;
+        });
+
+        // メッセージハンドラを再設定
+        panel.webview.onDidReceiveMessage(
+            message => {
+                switch (message.command) {
+                    case 'refresh':
+                        this.updateDashboard();
+                        break;
+                    case 'sendTask':
+                        this.promptAndSendToButler();
+                        break;
+                    case 'openFile':
+                        this.openMaidAgentFile(message.file);
+                        break;
+                    case 'showDashboardPanel':
+                        this.showDashboardMarkdownPanel();
+                        break;
+                    case 'showTaskDashboard':
+                        this.showWebDashboard();
+                        break;
+                }
+            },
+            undefined,
+            this.context?.subscriptions
+        );
+
+        // パネル内容を更新
+        this.updateDashboard();
+    }
+
+    /**
+     * SerializerからWebダッシュボードパネルを復元する
+     */
+    restoreWebDashboardPanel(panel: vscode.WebviewPanel): void {
+        this.webDashboardPanel = panel;
+
+        // パネル破棄時の処理を再設定
+        panel.onDidDispose(() => {
+            this.webDashboardPanel = undefined;
+        });
+
+        // メッセージハンドラを再設定
+        panel.webview.onDidReceiveMessage(
+            message => {
+                switch (message.command) {
+                    case 'refresh':
+                        this.updateWebDashboard();
+                        break;
+                    case 'openInBrowser':
+                        this.openDashboardInBrowser();
+                        break;
+                    case 'showController':
+                        this.showDashboard();
+                        break;
+                }
+            },
+            undefined,
+            this.context?.subscriptions
+        );
+
+        // パネル内容を更新
+        this.updateWebDashboard();
     }
 
     /**
@@ -4929,6 +5006,28 @@ export function activate(context: vscode.ExtensionContext) {
                 // パネルのオプションを再設定
                 panel.webview.options = { enableScripts: true };
                 controller.restoreDashboardPanel(panel);
+            }
+        })
+    );
+
+    // コントローラパネルの永続化（VSCode再起動時に復元）
+    context.subscriptions.push(
+        vscode.window.registerWebviewPanelSerializer('multiAgentDashboard', {
+            async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown) {
+                // パネルのオプションを再設定
+                panel.webview.options = { enableScripts: true };
+                controller.restoreControllerPanel(panel);
+            }
+        })
+    );
+
+    // Webダッシュボードパネルの永続化（VSCode再起動時に復元）
+    context.subscriptions.push(
+        vscode.window.registerWebviewPanelSerializer('maidAgentWebDashboard', {
+            async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown) {
+                // パネルのオプションを再設定
+                panel.webview.options = { enableScripts: true };
+                controller.restoreWebDashboardPanel(panel);
             }
         })
     );

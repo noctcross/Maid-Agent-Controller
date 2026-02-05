@@ -319,7 +319,6 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="30">
   <title>Maid Agent Dashboard</title>
   <style>
     :root {
@@ -574,7 +573,7 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     </div>
 
     <!-- P1: 特殊カテゴリセクション（最上部に固定表示） -->
-    <div class="card special-section card-action-required">
+    <div class="card special-section card-action-required" data-section="action-required">
       <div class="card-header">
         <span class="card-title">🚨 要対応</span>
         <span class="count-badge count-badge-alert">${actionRequired.length}</span>
@@ -585,7 +584,7 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     </div>
 
     <!-- P2: blockedタスクセクション -->
-    <div class="card special-section card-blocked">
+    <div class="card special-section card-blocked" data-section="blocked">
       <div class="card-header">
         <span class="card-title">🚫 ブロック中</span>
         <span class="count-badge count-badge-warning">${blocked.length}</span>
@@ -595,7 +594,7 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       </div>
     </div>
 
-    <div class="card team-section">
+    <div class="card team-section" data-section="team">
       <div class="card-header">
         <span class="card-title">👥 チーム状態</span>
       </div>
@@ -604,7 +603,7 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-section="pending">
       <div class="card-header">
         <span class="card-title">⏳ 待機中</span>
         <span class="card-count">${pending.length}</span>
@@ -612,7 +611,7 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       ${pendingHtml}
     </div>
 
-    <div class="card">
+    <div class="card" data-section="working">
       <div class="card-header">
         <span class="card-title">⚡ 進行中</span>
         <span class="card-count">${working.length}</span>
@@ -620,7 +619,7 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       ${workingHtml}
     </div>
 
-    <div class="card" style="grid-column: 1 / -1;">
+    <div class="card" style="grid-column: 1 / -1;" data-section="completed">
       <div class="card-header">
         <span class="card-title">✅ 直近完了</span>
         <span class="card-count">${recentCompleted.length}</span>
@@ -687,10 +686,13 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     priorityFilter?.addEventListener('change', filterTasks);
     assigneeFilter?.addEventListener('change', filterTasks);
 
-    // Phase 3: SSEによるリアルタイム更新（フォールバック付き）
+    // Phase 3: SSEによるリアルタイム更新（タスクリスト全体対応）
     let eventSource = null;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
+
+    // 展開状態を記憶するMap（taskId -> expanded）
+    const expandedState = new Map();
 
     function connectSSE() {
       const projectPath = encodeURIComponent('${escapeHtml(projectPath)}');
@@ -700,8 +702,11 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'update') {
-            // 部分更新: 統計のみ更新
+            // 統計のみ更新
             updateStats(data.stats);
+          } else if (data.type === 'tasks') {
+            // タスクリスト全体を更新
+            updateTaskLists(data.tasks);
           } else if (data.type === 'refresh') {
             location.reload();
           }
@@ -715,9 +720,6 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
         if (reconnectAttempts < maxReconnectAttempts) {
           reconnectAttempts++;
           setTimeout(connectSSE, 5000 * reconnectAttempts);
-        } else {
-          // フォールバック: 30秒リロード
-          setTimeout(() => location.reload(), 30000);
         }
       };
 
@@ -744,12 +746,111 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       }
     }
 
-    // SSE接続を試行、失敗時は30秒リロードにフォールバック
+    // 展開状態を保存
+    function saveExpandedStates() {
+      document.querySelectorAll('.task-item.expanded').forEach(item => {
+        const taskId = item.dataset.id;
+        if (taskId) {
+          expandedState.set(taskId, true);
+        }
+      });
+    }
+
+    // 展開状態を復元
+    function restoreExpandedStates() {
+      document.querySelectorAll('.task-item').forEach(item => {
+        const taskId = item.dataset.id;
+        if (taskId && expandedState.has(taskId)) {
+          item.classList.add('expanded');
+        }
+      });
+    }
+
+    // タスクリストを更新（DOMを再構築しつつ展開状態を保持）
+    function updateTaskLists(tasks) {
+      if (!tasks) return;
+
+      // 現在の展開状態を保存
+      saveExpandedStates();
+
+      // 各セクションを更新（data-section属性で識別）
+      if (tasks.pending) {
+        updateTaskSection('[data-section="pending"]', tasks.pending);
+      }
+      if (tasks.working) {
+        updateTaskSection('[data-section="working"]', tasks.working);
+      }
+      if (tasks.blocked) {
+        updateTaskSection('[data-section="blocked"]', tasks.blocked);
+      }
+      if (tasks.completed) {
+        updateTaskSection('[data-section="completed"]', tasks.completed);
+      }
+      if (tasks.actionRequired) {
+        updateTaskSection('[data-section="action-required"]', tasks.actionRequired);
+      }
+
+      // 展開状態を復元
+      restoreExpandedStates();
+
+      // イベントリスナーを再設定
+      attachTaskItemListeners();
+
+      // フィルタを再適用
+      filterTasks();
+    }
+
+    function updateTaskSection(selector, taskHtml) {
+      const section = document.querySelector(selector);
+      if (!section) {
+        console.warn('Section not found:', selector);
+        return;
+      }
+
+      // .collapsible-contentがある場合はそれを更新、なければカードヘッダー以降を更新
+      const contentArea = section.querySelector('.collapsible-content');
+
+      if (contentArea) {
+        contentArea.innerHTML = taskHtml;
+      } else {
+        // カードヘッダー以降を更新
+        const header = section.querySelector('.card-header');
+        if (header) {
+          // ヘッダー以降のコンテンツを削除
+          let sibling = header.nextSibling;
+          while (sibling) {
+            const next = sibling.nextSibling;
+            section.removeChild(sibling);
+            sibling = next;
+          }
+          // 新しいコンテンツを追加
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = taskHtml;
+          while (wrapper.firstChild) {
+            section.appendChild(wrapper.firstChild);
+          }
+        }
+      }
+    }
+
+    function attachTaskItemListeners() {
+      document.querySelectorAll('.task-item').forEach(item => {
+        // 既存のリスナーを削除して重複を防ぐ
+        const newItem = item.cloneNode(true);
+        item.parentNode.replaceChild(newItem, item);
+
+        newItem.addEventListener('click', function(e) {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+          this.classList.toggle('expanded');
+        });
+      });
+    }
+
+    // SSE接続を試行
     try {
       connectSSE();
     } catch (e) {
-      console.log('SSE not available, using refresh fallback');
-      setTimeout(() => location.reload(), 30000);
+      console.log('SSE not available:', e);
     }
   </script>
 </body>
@@ -1666,7 +1767,7 @@ app.get("/dashboard", async (req: Request, res: Response) => {
   }
 });
 
-// GET /dashboard/events - SSEエンドポイント（Phase 3: リアルタイム更新）
+// GET /dashboard/events - SSEエンドポイント（Phase 3: タスクリスト全体更新対応）
 app.get("/dashboard/events", async (req: Request, res: Response) => {
   try {
     const projectPath = req.query.project
@@ -1682,17 +1783,131 @@ app.get("/dashboard/events", async (req: Request, res: Response) => {
     // 接続確認
     res.write("data: {\"type\":\"connected\"}\n\n");
 
-    // 定期的に統計情報を送信（10秒ごと）
+    // タスクリストHTMLを生成するヘルパー関数
+    const generateTaskHtml = (tasks: any[], type: string) => {
+      const priorityClass: Record<string, string> = {
+        high: "priority-high",
+        medium: "priority-medium",
+        low: "priority-low",
+      };
+
+      if (tasks.length === 0) {
+        return '<div class="empty-message">なし</div>';
+      }
+
+      return tasks.map((task) => {
+        const title = task.title || task.description?.split("\n")[0].substring(0, 50) || "";
+        const assigneeStr = task.assignees?.map((a: any) => a.agentId).join(", ") || "";
+        const createdDate = task.createdAt
+          ? new Date(task.createdAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+          : "";
+        const completedDate = task.completedAt
+          ? new Date(task.completedAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+          : "";
+
+        if (type === "pending") {
+          return `<div class="task-item ${priorityClass[task.priority] || ""}" data-priority="${task.priority}" data-id="${task.id}">
+            <span class="task-id">${task.id}</span>
+            <span class="task-title">${escapeHtml(title)}</span>
+            <span class="task-priority">[${task.priority}]</span>
+            <div class="task-detail">
+              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+              <div class="task-detail-row"><span class="task-detail-label">作成日時:</span><span class="task-detail-value">${createdDate}</span></div>
+            </div>
+          </div>`;
+        } else if (type === "working") {
+          return `<div class="task-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}">
+            <span class="task-id">${task.id}</span>
+            <span class="task-title">${escapeHtml(title)}</span>
+            <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
+            <div class="task-detail">
+              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+              <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
+              <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
+            </div>
+          </div>`;
+        } else if (type === "completed") {
+          const reportLinksHtml = task.reportPaths?.length > 0
+            ? task.reportPaths.map((p: string) => {
+                const fileName = p.split("/").pop() || p;
+                let absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
+                  ? p
+                  : path.join(projectPath, p);
+                if (absolutePath.startsWith("/mnt/")) {
+                  const match = absolutePath.match(/^\/mnt\/([a-z])\/(.*)/);
+                  if (match) {
+                    absolutePath = `${match[1].toUpperCase()}:/${match[2]}`;
+                  }
+                }
+                absolutePath = absolutePath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
+                const encodedPath = absolutePath.split("/").map((part: string, i: number) => i === 0 ? part : encodeURIComponent(part)).join("/");
+                const editorUri = `vscode://file/${encodedPath}`;
+                return `<a href="${editorUri}" class="report-link" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
+              }).join(", ")
+            : "";
+          return `<div class="task-item completed" data-id="${task.id}">
+            <div class="task-main-row">
+              <span class="task-id">${task.id}</span>
+              <span class="task-title">${escapeHtml(title)}</span>
+              ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
+              <span class="task-date">${completedDate}</span>
+            </div>
+            <div class="task-detail">
+              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+              ${task.summary ? `<div class="task-detail-row"><span class="task-detail-label">結果:</span><span class="task-detail-value task-summary-text">${escapeHtml(task.summary)}</span></div>` : ""}
+              <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
+              <div class="task-detail-row"><span class="task-detail-label">完了日時:</span><span class="task-detail-value">${completedDate}</span></div>
+              ${reportLinksHtml ? `<div class="task-detail-row"><span class="task-detail-label">報告書:</span><span class="task-detail-value task-report-links">${reportLinksHtml}</span></div>` : ""}
+            </div>
+          </div>`;
+        } else if (type === "blocked") {
+          const substatusHtml = task.substatus
+            ? `<div class="task-substatus">⚠️ ${escapeHtml(task.substatus)}</div>`
+            : "";
+          return `<div class="task-item blocked-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}">
+            <div class="task-main-row">
+              <span class="task-id">${task.id}</span>
+              <span class="task-title">${escapeHtml(title)}</span>
+              <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
+            </div>
+            ${substatusHtml}
+            <div class="task-detail">
+              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+              <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
+              <div class="task-detail-row"><span class="task-detail-label">ブロック理由:</span><span class="task-detail-value">${task.substatus ? escapeHtml(task.substatus) : "不明"}</span></div>
+            </div>
+          </div>`;
+        } else if (type === "action_required") {
+          const substatusHtml = task.substatus
+            ? `<span class="task-substatus-inline">⚠️ ${escapeHtml(task.substatus)}</span>`
+            : "";
+          return `<div class="task-item action-required-item" data-id="${task.id}">
+            <span class="task-id">${task.id}</span>
+            <span class="task-title">${escapeHtml(title)}</span>
+            ${substatusHtml}
+            <div class="task-detail">
+              ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
+            </div>
+          </div>`;
+        }
+
+        return "";
+      }).join("\n");
+    };
+
+    // 定期的にタスク情報を送信（10秒ごと）
     const intervalId = setInterval(async () => {
       try {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const [pending, working, blocked, completedAll] = await Promise.all([
+        const [pending, working, blocked, completed, completedAll, actionRequired] = await Promise.all([
           executeListTasks(projectPath, { status: ["pending"] }),
           executeListTasks(projectPath, { status: ["working", "assigned"] }),
           executeListTasks(projectPath, { status: ["blocked"] }),
+          executeListTasks(projectPath, { status: ["completed"], limit: 5, sortField: "createdAt", sortOrder: "desc" }),
           executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
+          executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
         ]);
 
         const completedTodayCount = completedAll.tasks.filter((task) => {
@@ -1708,7 +1923,19 @@ app.get("/dashboard/events", async (req: Request, res: Response) => {
           completedTodayCount,
         };
 
+        // 統計情報を送信
         res.write(`data: ${JSON.stringify({ type: "update", stats })}\n\n`);
+
+        // タスクリストHTMLを送信
+        const tasksHtml = {
+          pending: generateTaskHtml(pending.tasks, "pending"),
+          working: generateTaskHtml(working.tasks, "working"),
+          blocked: generateTaskHtml(blocked.tasks, "blocked"),
+          completed: generateTaskHtml(completed.tasks, "completed"),
+          actionRequired: generateTaskHtml(actionRequired.tasks, "action_required"),
+        };
+
+        res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml })}\n\n`);
       } catch (e) {
         console.error("SSE update error:", e);
       }

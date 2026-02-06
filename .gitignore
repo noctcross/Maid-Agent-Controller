@@ -11,3 +11,6 @@ packages/maid-agent-messenger/dist/
 
 # Local deploy script (not for repository - each developer creates locally)
 packages/maid-agent-messenger/scripts/deploy-local.js
+
+# Test logs
+ts-jest.log

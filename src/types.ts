@@ -111,3 +111,55 @@ export interface AgentContext {
     captureAgentOutput(agentId: string, lines?: number): string;
     resumeSessions(): Promise<void>;
 }
+
+/**
+ * Webダッシュボードの完了セクション表示設定
+ */
+export interface CompletedViewState {
+    limit: number;
+    offset: number;
+    reviewed: string | undefined;
+    starred: string | undefined;
+    hash: string;
+}
+
+/**
+ * Dashboard系関数で使用する共通コンテキスト
+ * UI関連メソッドをスタンドアロン関数に渡すためのインターフェース
+ */
+export interface DashboardContext {
+    // ─── State ───
+    agents: Map<string, Agent>;
+    workspaceRoot: string | undefined;
+    maidAgentPath: string | undefined;
+    logs: string[];
+    context: vscode.ExtensionContext | undefined;
+
+    // ─── Panel State (mutable via getter/setter) ───
+    dashboardPanel: vscode.WebviewPanel | undefined;
+    webDashboardPanel: vscode.WebviewPanel | undefined;
+    webDashboardInitialized: boolean;
+    webDashboardPollingInterval: NodeJS.Timeout | undefined;
+    completedViewState: CompletedViewState;
+    reportViewerPanel: vscode.WebviewPanel | undefined;
+    statusBarItem: vscode.StatusBarItem | undefined;
+    statusBarResetTimeout: NodeJS.Timeout | undefined;
+
+    // ─── Logger ───
+    log(message: string): void;
+
+    // ─── Controller methods (NOT in E5) ───
+    promptAndSendToButler(): Promise<void>;
+
+    // ─── Cross-module E5 methods (delegated through controller) ───
+    showDashboard(): void;
+    showWebDashboard(): void;
+    updateDashboard(): void;
+    updateWebDashboard(): Promise<void>;
+    openMaidAgentFile(filename: string): Promise<void>;
+    openFileWithPreview(filePath: string): Promise<void>;
+    openDashboardInBrowser(): void;
+    showStatusBarNotification(icon: string, message: string): void;
+    startWebDashboardPolling(): void;
+    stopWebDashboardPolling(): void;
+}

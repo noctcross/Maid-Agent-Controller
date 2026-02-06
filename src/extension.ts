@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { execSync, exec } from 'child_process';
-import { ExecutionEnvironment, Agent, MaidConfig, RuleModuleMeta, SkillMeta, SetupContext, AgentContext } from './types';
+import { ExecutionEnvironment, Agent, MaidConfig, RuleModuleMeta, SkillMeta, SetupContext, AgentContext, DashboardContext, CompletedViewState } from './types';
 import { MAID_AGENT_DIR, GLOBAL_MAID_AGENT_DIR, TMUX_SESSION_PREFIX, MAIDS_MAP, DEFAULT_MAID_ORDER, MAIDS, AGENT_COLORS } from './constants';
 import { CURRENT_ENV, detectEnvironment, windowsToWslPath, isTmuxAvailable, getTmuxVersion, isWslAvailable } from './utils/environment';
 import { simpleMarkdownToHtml } from './utils/markdown';
@@ -17,6 +17,9 @@ import * as RulesSkills from './setup/rules-skills';
 import * as AgentLifecycle from './agents/agent-lifecycle';
 import * as AgentComm from './agents/agent-communication';
 import * as AgentStartup from './agents/agent-startup';
+import * as ControllerDashboard from './ui/controller-dashboard';
+import * as WebDashboard from './ui/web-dashboard';
+import * as StatusBar from './ui/status-bar';
 
 // =============================================================================
 // メインコントローラー
@@ -39,6 +42,11 @@ class MultiAgentController {
     private lastDetectedAgentId: string | null = null;  // 前回検出したエージェントID
     private statusBarItem: vscode.StatusBarItem | undefined;  // ステータスバー通知用
     private statusBarResetTimeout: NodeJS.Timeout | undefined;  // ステータスバー表示リセット用
+    private webDashboardPanel: vscode.WebviewPanel | undefined;
+    private webDashboardPollingInterval: NodeJS.Timeout | undefined;
+    private webDashboardInitialized = false;
+    private completedViewState: CompletedViewState = { limit: 10, offset: 0, reviewed: undefined, starred: undefined, hash: '' };
+    private reportViewerPanel: vscode.WebviewPanel | undefined;
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Maid Agent');
@@ -72,28 +80,56 @@ class MultiAgentController {
         this.statusBarItem = item;
     }
 
-    /**
-     * ステータスバーに一時的なメッセージを表示（5秒後に元に戻る）
-     */
+    // =========================================================================
+    // UI（ui/ モジュールへの委譲）
+    // =========================================================================
+
     private showStatusBarNotification(icon: string, message: string): void {
-        if (!this.statusBarItem) return;
+        StatusBar.showStatusBarNotification(this.createDashboardContext(), icon, message);
+    }
 
-        // 既存のリセットタイマーをクリア
-        if (this.statusBarResetTimeout) {
-            clearTimeout(this.statusBarResetTimeout);
-        }
+    showDashboard(): void {
+        ControllerDashboard.showDashboard(this.createDashboardContext());
+    }
 
-        // ステータスバーを更新
-        this.statusBarItem.text = `${icon} ${message}`;
-        this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+    restoreControllerPanel(panel: vscode.WebviewPanel): void {
+        ControllerDashboard.restoreControllerPanel(this.createDashboardContext(), panel);
+    }
 
-        // 5秒後に元に戻す
-        this.statusBarResetTimeout = setTimeout(() => {
-            if (this.statusBarItem) {
-                this.statusBarItem.text = '🎩 Controller';
-                this.statusBarItem.backgroundColor = undefined;
-            }
-        }, 5000);
+    private updateDashboard(): void {
+        ControllerDashboard.updateDashboard(this.createDashboardContext());
+    }
+
+    showWebDashboard(): void {
+        WebDashboard.showWebDashboard(this.createDashboardContext());
+    }
+
+    private async updateWebDashboard(): Promise<void> {
+        return WebDashboard.updateWebDashboard(this.createDashboardContext());
+    }
+
+    private startWebDashboardPolling(): void {
+        WebDashboard.startWebDashboardPolling(this.createDashboardContext());
+    }
+
+    private stopWebDashboardPolling(): void {
+        WebDashboard.stopWebDashboardPolling(this.createDashboardContext());
+    }
+
+    public openDashboardInBrowser(): void {
+        WebDashboard.openDashboardInBrowser(this.createDashboardContext());
+    }
+
+    private async openMaidAgentFile(filename: string): Promise<void> {
+        return WebDashboard.openMaidAgentFile(this.createDashboardContext(), filename);
+    }
+
+    private async openFileWithPreview(filePath: string): Promise<void> {
+        return WebDashboard.openFileWithPreview(this.createDashboardContext(), filePath);
+    }
+
+    restoreWebDashboardPanel(panel: vscode.WebviewPanel): void {
+        WebDashboard.restoreWebDashboardPanel(this.createDashboardContext(), panel);
     }
 
     // エージェントパネルを更新
@@ -276,6 +312,53 @@ class MultiAgentController {
             ensureTmuxAvailable: () => this.ensureTmuxAvailable(),
             captureAgentOutput: (agentId, lines?) => this.captureAgentOutput(agentId, lines),
             resumeSessions: () => this.resumeSessions(),
+        };
+    }
+
+    private createDashboardContext(): DashboardContext {
+        const controller = this;
+        return {
+            // ─── State ───
+            agents: this.agents,
+            get workspaceRoot() { return controller.workspaceRoot; },
+            get maidAgentPath() { return controller.maidAgentPath; },
+            logs: this.logs,
+            get context() { return controller.context; },
+
+            // ─── Panel State (mutable via getter/setter) ───
+            get dashboardPanel() { return controller.dashboardPanel; },
+            set dashboardPanel(v) { controller.dashboardPanel = v; },
+            get webDashboardPanel() { return controller.webDashboardPanel; },
+            set webDashboardPanel(v) { controller.webDashboardPanel = v; },
+            get webDashboardInitialized() { return controller.webDashboardInitialized; },
+            set webDashboardInitialized(v) { controller.webDashboardInitialized = v; },
+            get webDashboardPollingInterval() { return controller.webDashboardPollingInterval; },
+            set webDashboardPollingInterval(v) { controller.webDashboardPollingInterval = v; },
+            get completedViewState() { return controller.completedViewState; },
+            set completedViewState(v) { controller.completedViewState = v; },
+            get reportViewerPanel() { return controller.reportViewerPanel; },
+            set reportViewerPanel(v) { controller.reportViewerPanel = v; },
+            get statusBarItem() { return controller.statusBarItem; },
+            get statusBarResetTimeout() { return controller.statusBarResetTimeout; },
+            set statusBarResetTimeout(v) { controller.statusBarResetTimeout = v; },
+
+            // ─── Logger ───
+            log: (msg: string) => this.log(msg),
+
+            // ─── Controller methods (NOT in E5) ───
+            promptAndSendToButler: () => this.promptAndSendToButler(),
+
+            // ─── Cross-module E5 methods ───
+            showDashboard: () => this.showDashboard(),
+            showWebDashboard: () => this.showWebDashboard(),
+            updateDashboard: () => this.updateDashboard(),
+            updateWebDashboard: () => this.updateWebDashboard(),
+            openMaidAgentFile: (filename: string) => this.openMaidAgentFile(filename),
+            openFileWithPreview: (filePath: string) => this.openFileWithPreview(filePath),
+            openDashboardInBrowser: () => this.openDashboardInBrowser(),
+            showStatusBarNotification: (icon: string, message: string) => this.showStatusBarNotification(icon, message),
+            startWebDashboardPolling: () => this.startWebDashboardPolling(),
+            stopWebDashboardPolling: () => this.stopWebDashboardPolling(),
         };
     }
 
@@ -720,871 +803,6 @@ ${agentList || '  (なし)'}
     }
 
     // =========================================================================
-    // ダッシュボード
-    // =========================================================================
-
-    showDashboard(): void {
-        if (this.dashboardPanel) {
-            this.dashboardPanel.reveal();
-            this.updateDashboard();
-            return;
-        }
-
-        this.dashboardPanel = vscode.window.createWebviewPanel(
-            'multiAgentDashboard',
-            '🎩 Controller',
-            vscode.ViewColumn.Active,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true  // 非表示時も状態を保持
-            }
-        );
-
-        this.dashboardPanel.onDidDispose(() => {
-            this.dashboardPanel = undefined;
-        });
-
-        this.dashboardPanel.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'refresh':
-                        this.updateDashboard();
-                        break;
-                    case 'sendTask':
-                        this.promptAndSendToButler();
-                        break;
-                    case 'openFile':
-                        this.openMaidAgentFile(message.file);
-                        break;
-                    case 'showTaskDashboard':
-                        this.showWebDashboard();
-                        break;
-                }
-            },
-            undefined,
-            this.context?.subscriptions
-        );
-
-        this.updateDashboard();
-    }
-
-    // =========================================================================
-    // Webダッシュボード（MCPサーバー版）
-    // =========================================================================
-
-    private webDashboardPanel: vscode.WebviewPanel | undefined;
-    private webDashboardPollingInterval: NodeJS.Timeout | undefined;
-    private webDashboardInitialized = false; // 初回HTML設定済みフラグ
-    private readonly WEB_DASHBOARD_POLLING_INTERVAL = 10000; // 10秒
-
-    // Webview側の完了セクション表示設定（ポーリング時に使用）
-    private completedViewState = {
-        limit: 10,
-        offset: 0,
-        reviewed: undefined as string | undefined,
-        starred: undefined as string | undefined,
-        hash: ''
-    };
-
-    showWebDashboard(): void {
-        if (this.webDashboardPanel) {
-            this.webDashboardPanel.reveal();
-            this.updateWebDashboard();
-            return;
-        }
-
-        this.webDashboardPanel = vscode.window.createWebviewPanel(
-            'maidAgentWebDashboard',
-            '📋 Dashboard',
-            vscode.ViewColumn.Active,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true
-            }
-        );
-
-        this.webDashboardPanel.onDidDispose(() => {
-            this.webDashboardPanel = undefined;
-            this.webDashboardInitialized = false;
-            this.stopWebDashboardPolling();
-        });
-
-        // 自動更新ポーリングを開始
-        this.startWebDashboardPolling();
-
-        this.webDashboardPanel.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'refresh':
-                        this.updateWebDashboard();
-                        break;
-                    case 'openInBrowser':
-                        this.openDashboardInBrowser();
-                        break;
-                    case 'showController':
-                        this.showDashboard();
-                        break;
-                    case 'openFile':
-                        this.openFileWithPreview(message.path);
-                        break;
-                    case 'toggleReview':
-                        this.toggleTaskReview(message.taskId, message.reviewed);
-                        break;
-                    case 'toggleStar':
-                        this.toggleTaskStar(message.taskId, message.starred);
-                        break;
-                    case 'completedPage':
-                        this.fetchCompletedPage(message.offset, message.limit, message.reviewed, message.starred);
-                        break;
-                    case 'updateCompletedViewState':
-                        // Webviewから表示設定を受け取り保持（ポーリング時に使用）
-                        this.completedViewState = {
-                            limit: message.limit ?? 10,
-                            offset: message.offset ?? 0,
-                            reviewed: message.reviewed,
-                            starred: message.starred,
-                            hash: message.hash ?? ''
-                        };
-                        break;
-                }
-            },
-            undefined,
-            this.context?.subscriptions
-        );
-
-        this.updateWebDashboard();
-    }
-
-    private async updateWebDashboard(): Promise<void> {
-        if (!this.webDashboardPanel) return;
-
-        // workspaceRootがない場合は再取得を試みる
-        let projectPath = this.workspaceRoot;
-        if (!projectPath) {
-            projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        }
-
-        if (!projectPath) {
-            // ワークスペースが開かれていない場合のエラー表示
-            this.webDashboardPanel.webview.html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <style>
-                        body {
-                            font-family: -apple-system, sans-serif;
-                            background: #1e1e1e;
-                            color: #cccccc;
-                            padding: 40px;
-                            text-align: center;
-                        }
-                        .error-icon { font-size: 4rem; margin-bottom: 20px; }
-                        .error-title { font-size: 1.5rem; color: #f14c4c; margin-bottom: 10px; }
-                        .error-message { color: #808080; }
-                    </style>
-                </head>
-                <body>
-                    <div class="error-icon">📁</div>
-                    <div class="error-title">ワークスペースが開かれていません</div>
-                    <div class="error-message">フォルダを開いてから再度お試しください</div>
-                </body>
-                </html>
-            `;
-            return;
-        }
-
-        const serverUrl = 'http://localhost:3100';
-        const normalizedPath = CURRENT_ENV === 'windows-native'
-            ? windowsToWslPath(projectPath)
-            : projectPath;
-
-        try {
-            // 初回はHTMLを取得、2回目以降はJSON APIで部分更新
-            if (!this.webDashboardInitialized) {
-                await this.initializeWebDashboard(serverUrl, normalizedPath);
-                this.webDashboardInitialized = true;
-            } else {
-                await this.updateWebDashboardData(serverUrl, normalizedPath);
-            }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.webDashboardPanel.webview.html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <style>
-                        body {
-                            font-family: -apple-system, sans-serif;
-                            background: #1e1e1e;
-                            color: #cccccc;
-                            padding: 40px;
-                            text-align: center;
-                        }
-                        .error-icon { font-size: 4rem; margin-bottom: 20px; }
-                        .error-title { font-size: 1.5rem; color: #f14c4c; margin-bottom: 10px; }
-                        .error-message { color: #808080; margin-bottom: 20px; }
-                        .btn {
-                            background: #569cd6;
-                            color: white;
-                            border: none;
-                            padding: 10px 20px;
-                            border-radius: 4px;
-                            cursor: pointer;
-                            font-size: 1rem;
-                        }
-                        .hint { margin-top: 30px; font-size: 0.9rem; color: #808080; }
-                        code { background: #333; padding: 2px 6px; border-radius: 3px; }
-                    </style>
-                </head>
-                <body>
-                    <div class="error-icon">⚠️</div>
-                    <div class="error-title">MCPサーバーに接続できません</div>
-                    <div class="error-message">${message}</div>
-                    <button class="btn" onclick="location.reload()">🔄 再試行</button>
-                    <div class="hint">
-                        <p>MCPサーバーが起動していることを確認してください:</p>
-                        <code>pm2 status maid-agent-messenger</code>
-                    </div>
-                </body>
-                </html>
-            `;
-        }
-    }
-
-    /**
-     * Webダッシュボードの自動更新ポーリングを開始
-     */
-    private startWebDashboardPolling(): void {
-        if (this.webDashboardPollingInterval) return;
-
-        this.webDashboardPollingInterval = setInterval(() => {
-            if (this.webDashboardPanel) {
-                this.updateWebDashboard();
-            } else {
-                this.stopWebDashboardPolling();
-            }
-        }, this.WEB_DASHBOARD_POLLING_INTERVAL);
-
-        this.log('[WebDashboard] 自動更新ポーリング開始（10秒間隔）');
-    }
-
-    /**
-     * Webダッシュボードの自動更新ポーリングを停止
-     */
-    private stopWebDashboardPolling(): void {
-        if (this.webDashboardPollingInterval) {
-            clearInterval(this.webDashboardPollingInterval);
-            this.webDashboardPollingInterval = undefined;
-            this.log('[WebDashboard] 自動更新ポーリング停止');
-        }
-    }
-
-    /**
-     * Webダッシュボードを初期化（初回HTML設定）
-     * postMessageリスナーを追加してJSON更新に対応
-     */
-    private async initializeWebDashboard(serverUrl: string, projectPath: string): Promise<void> {
-        if (!this.webDashboardPanel) return;
-
-        const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(projectPath)}`;
-        const response = await fetch(dashboardUrl);
-
-        if (!response.ok) {
-            throw new Error(`Dashboard fetch failed: ${response.status}`);
-        }
-
-        let html = await response.text();
-
-        // postMessageリスナーを追加（VSCode Webview用）
-        // 拡張機能からpostMessageで送信されたJSON更新を受け取り、
-        // 既存のupdateStats/updateTaskListsWithMeta関数を呼び出す
-        const messageListenerScript = `
-            <script>
-                // postMessageでJSON更新・レポート表示を受け取るリスナー
-                window.addEventListener('message', event => {
-                    const message = event.data;
-                    if (message.type === 'dashboardUpdate') {
-                        if (message.stats && typeof updateStats === 'function') {
-                            updateStats(message.stats);
-                        }
-                        // completedMeta付きの場合はupdateTaskListsWithMetaを使用
-                        if (message.tasks && typeof updateTaskListsWithMeta === 'function') {
-                            updateTaskListsWithMeta(message.tasks, message.completedMeta);
-                        } else if (message.tasks && typeof updateTaskLists === 'function') {
-                            updateTaskLists(message.tasks);
-                        }
-                    } else if (message.type === 'showReport') {
-                        if (typeof showReportOverlay === 'function') {
-                            showReportOverlay(message.html, message.fileName);
-                        }
-                    } else if (message.type === 'completedPageUpdate') {
-                        if (typeof updateCompletedSection === 'function') {
-                            updateCompletedSection(message.html, message.total, message.offset, message.limit);
-                        }
-                    } else if (message.type === 'refreshCompletedPage') {
-                        if (typeof requestCompletedPage === 'function') {
-                            requestCompletedPage();
-                        }
-                    }
-                });
-            </script>
-        `;
-
-        // </body>の前にスクリプトを挿入
-        html = html.replace('</body>', messageListenerScript + '</body>');
-
-        this.webDashboardPanel.webview.html = html;
-        this.log('[WebDashboard] 初回HTML設定完了（postMessageリスナー追加済み）');
-    }
-
-    /**
-     * WebダッシュボードをJSON APIで部分更新
-     * 展開状態を保持したままデータのみ更新
-     * Webviewの完了セクション表示設定を送信し、ハッシュ比較で差分検知
-     */
-    private async updateWebDashboardData(serverUrl: string, projectPath: string): Promise<void> {
-        if (!this.webDashboardPanel) return;
-
-        // Webviewの表示設定をクエリパラメータに含める
-        const state = this.completedViewState;
-        let dataUrl = `${serverUrl}/dashboard/data?project=${encodeURIComponent(projectPath)}`;
-        dataUrl += `&completedLimit=${state.limit}`;
-        dataUrl += `&completedOffset=${state.offset}`;
-        if (state.reviewed) dataUrl += `&completedReviewed=${state.reviewed}`;
-        if (state.starred) dataUrl += `&completedStarred=${state.starred}`;
-        if (state.hash) dataUrl += `&completedHash=${state.hash}`;
-
-        const response = await fetch(dataUrl);
-
-        if (!response.ok) {
-            throw new Error(`Dashboard data fetch failed: ${response.status}`);
-        }
-
-        const data = await response.json() as {
-            stats: { pendingCount: number; workingCount: number; blockedCount: number; completedTodayCount: number; timestamp: string };
-            tasks: { pending: string; working: string; blocked: string; completed?: string; actionRequired: string };
-            completedMeta?: { changed: boolean; hash: string; total: number };
-        };
-
-        // ハッシュを更新
-        if (data.completedMeta?.hash) {
-            this.completedViewState.hash = data.completedMeta.hash;
-        }
-
-        // postMessageでWebviewにデータを送信
-        // Webview側のリスナーがupdateStats/updateTaskListsWithMetaを呼び出す
-        this.webDashboardPanel.webview.postMessage({
-            type: 'dashboardUpdate',
-            stats: data.stats,
-            tasks: data.tasks,
-            completedMeta: data.completedMeta
-        });
-
-        this.log('[WebDashboard] JSON APIで部分更新送信');
-    }
-
-    /**
-     * 完了タスクのレビュー済みフラグをトグル
-     */
-    private async toggleTaskReview(taskId: string, reviewed: boolean): Promise<void> {
-        const serverUrl = 'http://localhost:3100';
-        let projectPath = this.workspaceRoot;
-        if (!projectPath) return;
-        const normalizedPath = CURRENT_ENV === 'windows-native'
-            ? windowsToWslPath(projectPath)
-            : projectPath;
-        try {
-            await fetch(`${serverUrl}/api/tasks/${taskId}/review`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': normalizedPath },
-                body: JSON.stringify({ reviewed }),
-            });
-            // PATCH成功後、webviewに完了ページ再取得シグナルを送信
-            this.webDashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
-        } catch (error) {
-            this.log(`[WebDashboard] Review toggle failed: ${error}`);
-        }
-    }
-
-    /**
-     * 完了タスクのスターフラグをトグル
-     */
-    private async toggleTaskStar(taskId: string, starred: boolean): Promise<void> {
-        const serverUrl = 'http://localhost:3100';
-        let projectPath = this.workspaceRoot;
-        if (!projectPath) return;
-        const normalizedPath = CURRENT_ENV === 'windows-native'
-            ? windowsToWslPath(projectPath)
-            : projectPath;
-        try {
-            await fetch(`${serverUrl}/api/tasks/${taskId}/star`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': normalizedPath },
-                body: JSON.stringify({ starred }),
-            });
-            // PATCH成功後、webviewに完了ページ再取得シグナルを送信
-            this.webDashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
-        } catch (error) {
-            this.log(`[WebDashboard] Star toggle failed: ${error}`);
-        }
-    }
-
-    /**
-     * 完了タスクのページネーションデータを取得してWebviewに送信
-     */
-    private async fetchCompletedPage(offset: number, limit: number, reviewed?: string, starred?: string): Promise<void> {
-        const serverUrl = 'http://localhost:3100';
-        let projectPath = this.workspaceRoot;
-        if (!projectPath || !this.webDashboardPanel) return;
-        const normalizedPath = CURRENT_ENV === 'windows-native'
-            ? windowsToWslPath(projectPath)
-            : projectPath;
-        try {
-            let url = `${serverUrl}/dashboard/completed?project=${encodeURIComponent(normalizedPath)}&offset=${offset}&limit=${limit}`;
-            if (reviewed === 'yes') url += '&reviewed=yes';
-            else if (reviewed === 'no') url += '&reviewed=no';
-            if (starred === 'yes') url += '&starred=yes';
-            else if (starred === 'no') url += '&starred=no';
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-            const data = await response.json() as { html: string; total: number; offset: number; limit: number; hasMore: boolean };
-            this.webDashboardPanel.webview.postMessage({
-                type: 'completedPageUpdate',
-                html: data.html,
-                total: data.total,
-                offset: data.offset,
-                limit: data.limit,
-            });
-        } catch (error) {
-            this.log(`[WebDashboard] Completed page fetch failed: ${error}`);
-        }
-    }
-
-    /**
-     * ブラウザでWebダッシュボードを開く
-     */
-    public openDashboardInBrowser(): void {
-        if (!this.workspaceRoot) return;
-        const serverUrl = 'http://localhost:3100';
-        // Windows環境の場合はWSLパスに変換
-        const normalizedPath = CURRENT_ENV === 'windows-native'
-            ? windowsToWslPath(this.workspaceRoot)
-            : this.workspaceRoot;
-        const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(normalizedPath)}`;
-        vscode.env.openExternal(vscode.Uri.parse(dashboardUrl));
-    }
-
-    private async openMaidAgentFile(filename: string): Promise<void> {
-        if (!this.maidAgentPath) return;
-        const filePath = path.join(this.maidAgentPath, filename);
-        if (fs.existsSync(filePath)) {
-            const doc = await vscode.workspace.openTextDocument(filePath);
-            await vscode.window.showTextDocument(doc);
-
-            // Markdownファイルの場合はプレビューも表示
-            if (filename.endsWith('.md')) {
-                await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(filePath));
-            }
-        }
-    }
-
-    /**
-     * ファイルを開き、マークダウンの場合はプレビューも表示
-     * Webダッシュボードからの報告書リンク用
-     */
-    private reportViewerPanel: vscode.WebviewPanel | undefined;
-
-    private async openFileWithPreview(filePath: string): Promise<void> {
-        try {
-            // Windowsパス（C:/...）をそのまま使用
-            // WSL環境では/mnt/c/...に変換が必要
-            let normalizedPath = filePath;
-            if (CURRENT_ENV === 'wsl' && /^[A-Z]:\//i.test(filePath)) {
-                // Windowsパス → WSLパス変換
-                const driveLetter = filePath[0].toLowerCase();
-                normalizedPath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
-            }
-
-            // ファイルの存在確認
-            if (!fs.existsSync(normalizedPath)) {
-                vscode.window.showErrorMessage(`ファイルが見つかりません: ${filePath}`);
-                return;
-            }
-
-            // ファイル内容を読み込み、HTMLに変換
-            const content = fs.readFileSync(normalizedPath, 'utf-8');
-            const fileName = path.basename(normalizedPath);
-            const isMarkdown = /\.(md|markdown)$/i.test(filePath);
-
-            const contentHtml = isMarkdown
-                ? simpleMarkdownToHtml(content)
-                : `<pre class="md-code-block"><code>${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
-
-            // 既存パネルがあれば内容を更新して表示
-            if (this.reportViewerPanel) {
-                this.reportViewerPanel.title = `📄 ${fileName}`;
-                this.setReportViewerHtml(contentHtml, fileName);
-                this.reportViewerPanel.reveal(vscode.ViewColumn.Active);
-                return;
-            }
-
-            // Controller/Dashboardと同じ ViewColumn.Active で開く
-            this.reportViewerPanel = vscode.window.createWebviewPanel(
-                'maidAgentReportViewer',
-                `📄 ${fileName}`,
-                vscode.ViewColumn.Active,
-                { enableScripts: false, retainContextWhenHidden: false }
-            );
-
-            this.reportViewerPanel.onDidDispose(() => {
-                this.reportViewerPanel = undefined;
-            });
-
-            this.setReportViewerHtml(contentHtml, fileName);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            vscode.window.showErrorMessage(`ファイルを開けませんでした: ${message}`);
-        }
-    }
-
-    private setReportViewerHtml(contentHtml: string, fileName: string): void {
-        if (!this.reportViewerPanel) return;
-        this.reportViewerPanel.webview.html = `<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
-            padding: 16px;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #eee;
-            min-height: 100vh;
-            margin: 0;
-            line-height: 1.6;
-            font-size: 13px;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #e94560;
-        }
-        h1 { color: #e94560; margin: 0; font-size: 1.2em; }
-        .content {
-            background: rgba(0,0,0,0.3);
-            border-radius: 8px;
-            padding: 16px;
-        }
-        .md-h1 { font-size: 1.4em; color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 6px; margin: 16px 0 12px 0; }
-        .md-h2 { font-size: 1.15em; color: #ffc107; border-bottom: 1px solid #444; padding-bottom: 4px; margin: 14px 0 10px 0; }
-        .md-h3 { font-size: 1.05em; color: #81c784; margin: 12px 0 6px 0; }
-        .md-p { margin: 8px 0; }
-        .md-ul { margin: 6px 0; padding-left: 25px; }
-        .md-li { margin: 4px 0; list-style-type: disc; }
-        .md-checkbox { padding: 4px 0; }
-        .md-checkbox.checked { color: #81c784; }
-        .md-table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-        .md-table th, .md-table td { border: 1px solid #444; padding: 6px 10px; text-align: left; }
-        .md-table th { background: rgba(255,255,255,0.1); color: #ffc107; }
-        .md-code-block { background: #0a0a0a; padding: 12px; border-radius: 6px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.9em; margin: 8px 0; }
-        .md-inline-code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', monospace; }
-        .md-hr { border: none; border-top: 1px solid #444; margin: 16px 0; }
-        .md-link { color: #4fc3f7; }
-        strong { color: #ffc107; }
-        em { font-style: italic; color: #aaa; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>📄 ${fileName}</h1>
-    </div>
-    <div class="content">
-        ${contentHtml}
-    </div>
-</body>
-</html>`;
-    }
-
-
-
-
-
-
-
-
-    /**
-     * Serializerからコントローラパネルを復元する
-     */
-    restoreControllerPanel(panel: vscode.WebviewPanel): void {
-        this.dashboardPanel = panel;
-
-        // パネル破棄時の処理を再設定
-        panel.onDidDispose(() => {
-            this.dashboardPanel = undefined;
-        });
-
-        // メッセージハンドラを再設定
-        panel.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'refresh':
-                        this.updateDashboard();
-                        break;
-                    case 'sendTask':
-                        this.promptAndSendToButler();
-                        break;
-                    case 'openFile':
-                        this.openMaidAgentFile(message.file);
-                        break;
-                    case 'showTaskDashboard':
-                        this.showWebDashboard();
-                        break;
-                }
-            },
-            undefined,
-            this.context?.subscriptions
-        );
-
-        // パネル内容を更新
-        this.updateDashboard();
-    }
-
-    /**
-     * SerializerからWebダッシュボードパネルを復元する
-     */
-    restoreWebDashboardPanel(panel: vscode.WebviewPanel): void {
-        this.webDashboardPanel = panel;
-
-        // パネル破棄時の処理を再設定
-        panel.onDidDispose(() => {
-            this.webDashboardPanel = undefined;
-            this.stopWebDashboardPolling();
-        });
-
-        // 自動更新ポーリングを開始
-        this.startWebDashboardPolling();
-
-        // メッセージハンドラを再設定
-        panel.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'refresh':
-                        this.updateWebDashboard();
-                        break;
-                    case 'openInBrowser':
-                        this.openDashboardInBrowser();
-                        break;
-                    case 'showController':
-                        this.showDashboard();
-                        break;
-                    case 'openFile':
-                        this.openFileWithPreview(message.path);
-                        break;
-                }
-            },
-            undefined,
-            this.context?.subscriptions
-        );
-
-        // パネル内容を更新
-        this.updateWebDashboard();
-    }
-
-
-    private updateDashboard(): void {
-        if (!this.dashboardPanel) return;
-
-        const butler = this.agents.get('butler');
-        const chief = this.agents.get('chief');
-        const maids = MAIDS.map(m => this.agents.get(m.id)).filter(Boolean) as Agent[];
-
-
-        // 会話ログ（history.log）を読み込む
-        let conversationLogs = '';
-        if (this.maidAgentPath) {
-            const historyPath = path.join(this.maidAgentPath, 'notifications', 'history.log');
-            if (fs.existsSync(historyPath)) {
-                const content = fs.readFileSync(historyPath, 'utf-8');
-                const lines = content.trim().split('\n').filter(l => l.length > 0);
-                // 最新20件を逆順で表示
-                conversationLogs = lines.slice(-20).reverse().map(line => {
-                    // [2024-01-01 12:34:56] sender → target: message の形式をパース
-                    const match = line.match(/^\[([^\]]+)\] (\w+) → (\w+): (.+)$/);
-                    if (match) {
-                        const [, timestamp, sender, target, message] = match;
-                        return `<div class="conv-entry"><span class="conv-time">${timestamp.split(' ')[1]}</span> <span class="conv-sender">${sender}</span> → <span class="conv-target">${target}</span>: ${message}</div>`;
-                    }
-                    return `<div class="conv-entry">${line}</div>`;
-                }).join('');
-            }
-        }
-
-        const renderAgent = (a: Agent, emoji: string, role: string) => {
-            const statusEmoji = a.status === 'working' ? '⚡' : a.status === 'done' ? '✅' : '💤';
-            const statusClass = a.status === 'working' ? 'working' : 'idle';
-            return `
-                <div class="agent-card ${statusClass}">
-                    <div class="agent-header">
-                        <span class="agent-name">${emoji} ${a.name}</span>
-                        <span class="agent-role">${role}</span>
-                    </div>
-                    <div class="agent-status">
-                        <span class="status-badge">${statusEmoji} ${a.status}</span>
-                    </div>
-                </div>`;
-        };
-
-        const butlerHtml = butler ? renderAgent(butler, '🎩', '統括') : '<div class="empty-agent">執事がおりません</div>';
-        const chiefHtml = chief ? renderAgent(chief, '👑', '配分担当') : '<div class="empty-agent">メイド長がおりません</div>';
-        const maidsHtml = maids.length > 0
-            ? maids.map(m => renderAgent(m, '🎀', '実行担当')).join('')
-            : '<div class="empty-agent">メイドがおりません</div>';
-
-        const recentLogs = this.logs.slice(-10).reverse().map(log =>
-            `<div class="log-entry">${log}</div>`
-        ).join('');
-
-        this.dashboardPanel.webview.html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
-            padding: 20px;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #eee;
-            min-height: 100vh;
-            margin: 0;
-        }
-        h1 { color: #e94560; margin-bottom: 5px; }
-        h2 { color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 5px; margin-top: 0; font-size: 1.1em; }
-        .subtitle { color: #888; margin-bottom: 20px; }
-
-        .action-bar { display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap; }
-        .action-btn {
-            background: #e94560; color: white; border: none;
-            padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.85em;
-        }
-        .action-btn:hover { background: #d63050; }
-        .action-btn.secondary { background: rgba(255,255,255,0.2); }
-
-        .hierarchy { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 20px 0; }
-        .hierarchy-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-        .hierarchy-arrow { color: #e94560; font-size: 1.2em; }
-
-        .agent-card {
-            background: rgba(255,255,255,0.1); border-radius: 8px;
-            padding: 10px; min-width: 120px; border: 1px solid rgba(255,255,255,0.2);
-            font-size: 0.9em;
-        }
-        .agent-card.working { border-color: #ffc107; background: rgba(255,193,7,0.1); }
-        .agent-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-        .agent-name { font-weight: bold; }
-        .agent-role { font-size: 0.7em; color: #888; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 5px; }
-        .status-badge { font-size: 0.75em; padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,0.15); }
-        .empty-agent { color: #666; font-style: italic; padding: 15px; }
-
-        .section { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; margin: 15px 0; }
-        .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-
-        .file-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-        .file-link {
-            background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 5px;
-            cursor: pointer; font-size: 0.8em;
-        }
-        .file-link:hover { background: rgba(255,255,255,0.2); }
-
-
-        .log-container {
-            background: #0a0a0a; border-radius: 8px; padding: 10px;
-            max-height: 300px; overflow-y: auto;
-        }
-        .log-entry {
-            font-family: 'Consolas', monospace; font-size: 0.75em;
-            color: #0f0; padding: 2px 5px; border-bottom: 1px solid #222;
-        }
-
-        .conv-container {
-            background: #0a0a0a; border-radius: 8px; padding: 10px;
-            max-height: 300px; overflow-y: auto;
-        }
-        .conv-entry {
-            font-family: 'Consolas', monospace; font-size: 0.75em;
-            color: #ddd; padding: 4px 5px; border-bottom: 1px solid #222;
-        }
-        .conv-time { color: #666; }
-        .conv-sender { color: #4fc3f7; font-weight: bold; }
-        .conv-target { color: #81c784; font-weight: bold; }
-
-
-        @media (max-width: 600px) { .two-column { grid-template-columns: 1fr; } }
-    </style>
-</head>
-<body>
-    <h1>🎩 Maid Agent Controller</h1>
-    <p class="subtitle">執事 → メイド長 → メイド の階層構造</p>
-
-    <div class="action-bar">
-        <button class="action-btn" onclick="sendTask()">📝 執事に指令</button>
-        <button class="action-btn secondary" onclick="refresh()">🔄 更新</button>
-        <button class="action-btn secondary" onclick="showTaskDashboard()">📋 Tasks</button>
-        <button class="action-btn secondary" onclick="openFile('queue/butler_to_chief.yaml')">📂 Queue</button>
-    </div>
-
-    <div class="two-column">
-        <div class="section">
-            <h2>💬 会話ログ</h2>
-            <div class="conv-container">
-                ${conversationLogs || '<div class="conv-entry">会話ログはございません</div>'}
-            </div>
-        </div>
-        <div class="section">
-            <h2>📜 システムログ</h2>
-            <div class="log-container">
-                ${recentLogs || '<div class="log-entry">ログはございません</div>'}
-            </div>
-        </div>
-    </div>
-
-    <div class="section">
-        <h2>📊 階層構造</h2>
-        <div class="hierarchy">
-            <div class="hierarchy-row">${butlerHtml}</div>
-            <div class="hierarchy-arrow">↓</div>
-            <div class="hierarchy-row">${chiefHtml}</div>
-            <div class="hierarchy-arrow">↓</div>
-            <div class="hierarchy-row">${maidsHtml}</div>
-        </div>
-    </div>
-
-    <div class="section">
-        <h2>📁 設定ファイル</h2>
-        <div class="file-links">
-            <span class="file-link" onclick="openFile('CLAUDE.md')">CLAUDE.md</span>
-            <span class="file-link" onclick="openFile('instructions/butler.md')">butler.md</span>
-            <span class="file-link" onclick="openFile('instructions/chief.md')">chief.md</span>
-            <span class="file-link" onclick="openFile('instructions/maid.md')">maid.md</span>
-            <span class="file-link" onclick="openFile('config/settings.yaml')">settings.yaml</span>
-        </div>
-    </div>
-
-    <script>
-        const vscode = acquireVsCodeApi();
-        function refresh() { vscode.postMessage({ command: 'refresh' }); }
-        function sendTask() { vscode.postMessage({ command: 'sendTask' }); }
-        function openFile(file) { vscode.postMessage({ command: 'openFile', file: file }); }
-        function showTaskDashboard() { vscode.postMessage({ command: 'showTaskDashboard' }); }
-    </script>
-</body>
-</html>`;
-    }
-
-    // =========================================================================
     // ログ
     // =========================================================================
 
@@ -1668,6 +886,7 @@ ${agentList || '  (なし)'}
 
         // ポーリングを停止
         this.stopTmuxWindowPolling();
+        this.stopWebDashboardPolling();
 
         // ステータスバー通知タイマーを停止
         if (this.statusBarResetTimeout) {
@@ -1680,6 +899,7 @@ ${agentList || '  (なし)'}
         // その他のリソースをクリーンアップ
         this.outputChannel.dispose();
         this.dashboardPanel?.dispose();
+        this.webDashboardPanel?.dispose();
         this.fileWatcher?.dispose();
     }
 

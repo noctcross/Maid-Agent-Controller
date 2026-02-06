@@ -7,6 +7,7 @@ import { MaidConfig } from './types';
 export const MAID_AGENT_DIR = '.maid-agent';
 export const GLOBAL_MAID_AGENT_DIR = '.maid-agent';  // ~/.maid-agent/
 export const TMUX_SESSION_PREFIX = 'maid-agent';  // tmuxセッション名のプレフィックス
+export const WEB_DASHBOARD_POLLING_INTERVAL = 10000;  // Webダッシュボード自動更新間隔（10秒）
 
 export const MAIDS_MAP: { [key: string]: MaidConfig } = {
     emma: { name: 'エマ', id: 'emma', emoji: '🌸' },

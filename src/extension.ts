@@ -1277,6 +1277,9 @@ class MultiAgentController {
             // .mcp.json を生成（MCPサーバー接続設定）
             await this.generateMcpJson();
 
+            // .claude/settings.json を生成（SessionStart hook設定）
+            await this.setupClaudeSettings();
+
             this.log('[初期化] .maid-agent ディレクトリを作成しました');
             vscode.window.showInformationMessage('🎩 Maid Agent の初期化が完了しました');
 
@@ -2236,6 +2239,88 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
     }
 
     /**
+     * .claude/settings.json をプロジェクトに生成
+     * SessionStart hook設定（コンパクション後のコンテキスト注入）
+     */
+    private async setupClaudeSettings(): Promise<void> {
+        if (!this.workspaceRoot) return;
+
+        const claudeDir = path.join(this.workspaceRoot, '.claude');
+        const settingsPath = path.join(claudeDir, 'settings.json');
+
+        // SessionStart hook 設定
+        const hooksConfig = {
+            hooks: {
+                SessionStart: [
+                    {
+                        matcher: "startup|compact|resume",
+                        hooks: [
+                            {
+                                type: "command",
+                                command: '"$CLAUDE_PROJECT_DIR"/.maid-agent/system/bin/session-start-hook.sh',
+                                timeout: 10
+                            }
+                        ]
+                    }
+                ]
+            }
+        };
+
+        // .claude ディレクトリがなければ作成
+        if (!fs.existsSync(claudeDir)) {
+            fs.mkdirSync(claudeDir, { recursive: true });
+            this.log('[Claude] .claude ディレクトリを作成');
+        }
+
+        // 既存ファイルがある場合
+        if (fs.existsSync(settingsPath)) {
+            try {
+                const existingContent = fs.readFileSync(settingsPath, 'utf-8');
+                const existingConfig = JSON.parse(existingContent) as {
+                    hooks?: { SessionStart?: unknown[] };
+                };
+
+                // 既に SessionStart hooks が存在する場合はスキップ
+                if (existingConfig.hooks?.SessionStart) {
+                    this.log('[Claude] SessionStart hooks は既に設定済みのためスキップ');
+                    return;
+                }
+
+                // ユーザーに確認
+                const choice = await vscode.window.showInformationMessage(
+                    '.claude/settings.json に SessionStart hooks を追加しますか？',
+                    '追加する',
+                    'スキップ'
+                );
+
+                if (choice !== '追加する') {
+                    this.log('[Claude] ユーザーがキャンセルしました');
+                    return;
+                }
+
+                // hooks を追加（既存設定を維持）
+                existingConfig.hooks = {
+                    ...existingConfig.hooks,
+                    SessionStart: hooksConfig.hooks.SessionStart
+                };
+                fs.writeFileSync(settingsPath, JSON.stringify(existingConfig, null, 2));
+                this.log('[Claude] SessionStart hooks を .claude/settings.json に追加しました');
+
+            } catch (error) {
+                this.log(`[Claude] .claude/settings.json の読み込みに失敗: ${error}`);
+                vscode.window.showWarningMessage(
+                    '.claude/settings.json の読み込みに失敗しました。手動で hooks を追加してください。'
+                );
+            }
+            return;
+        }
+
+        // 新規作成
+        fs.writeFileSync(settingsPath, JSON.stringify(hooksConfig, null, 2));
+        this.log(`[Claude] .claude/settings.json を生成: ${settingsPath}`);
+    }
+
+    /**
      * ルール選択UIを表示
      */
     private async showRuleSelectionUI(rules: RuleModuleMeta[]): Promise<RuleModuleMeta[]> {
@@ -2788,8 +2873,9 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
                     '[Maid Agent System] 役割: 執事シルヴィア(butler)',
                     'MCPツール: create_task, list_tasks, get_task, get_team_status',
                     '通知: .maid-agent/system/bin/maid-notify chief "msg"',
-                    '禁止: 自分でファイル操作(F001), メイドへ直接指示(F002)',
+                    '禁止: 自分でファイル操作(BF001), メイドへ直接指示(BF002)',
                     '指示書: .maid-agent/agents/instructions/butler.md',
+                    'ペルソナ: .maid-agent/agents/personas/butler.md',
                 ].join('\n');
 
             case 'chiefMaid':
@@ -2797,8 +2883,9 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
                     '[Maid Agent System] 役割: メイド長ビオラ(chief)',
                     'MCPツール: list_tasks, get_task, create_task, assign_task, update_task, get_team_status',
                     '通知: .maid-agent/system/bin/maid-notify {maid_id} "msg"',
-                    '禁止: 自分でタスク実行(F001), 執事への通知(F002)',
+                    '禁止: 自分でタスク実行(CF001), 執事への通知(CF002)',
                     '指示書: .maid-agent/agents/instructions/chief.md',
+                    'ペルソナ: .maid-agent/agents/personas/chief.md',
                 ].join('\n');
 
             case 'maid':
@@ -2806,7 +2893,7 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
                     `[Maid Agent System] 役割: メイド${maidName || 'メイド'}(${agentId})`,
                     'MCPツール: get_my_task, update_status',
                     '通知: .maid-agent/system/bin/maid-notify chief "msg"',
-                    '禁止: 執事に直接報告(F001), ご主人様に直接連絡(F002)',
+                    '禁止: 執事に直接報告(MF001), ご主人様に直接連絡(MF002)',
                     '指示書: .maid-agent/agents/instructions/maid.md',
                     `ペルソナ: .maid-agent/agents/personas/${agentId}.md`,
                 ].join('\n');

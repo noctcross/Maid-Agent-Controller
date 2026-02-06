@@ -80,3 +80,7 @@ for (const item of itemsToCopy) {
 }
 
 console.log('✅ Sync complete!');
+
+// Optional: run local deploy script if it exists (.gitignored)
+const deployLocalPath = path.join(__dirname, 'deploy-local.js');
+if (fs.existsSync(deployLocalPath)) { await import(deployLocalPath); }

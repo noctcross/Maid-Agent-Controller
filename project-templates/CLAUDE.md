@@ -174,7 +174,7 @@ tmux send-keys -t "${SESSION}:${TARGET}" C-m
 │   ├── data/            # データ（maid/, reports/, tasks.yaml）
 │   └── resources/       # リソース（images/）
 ├── CLAUDE.md            # 本ファイル（詳細リファレンス）
-├── dashboard.md         # （廃止予定）Webビューに移行中
+├── dashboard.md         # 【廃止】Webビューに移行済み
 └── tasks.yaml           # タスク管理データ（MCPツール経由）
 ```
 

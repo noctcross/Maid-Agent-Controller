@@ -117,8 +117,11 @@ Maid Agent: Init Global
 
 #### ダッシュボード
 
-- ステータスバーの「🎩 Maid Agent」をクリック
-- または `Dashboard` コマンド
+- ステータスバーの「📋 Dashboard」をクリック
+- または `Web Dashboard` コマンド
+- コントローラーパネルは `Dashboard` コマンド
+
+**注**: 旧来の `dashboard.md` ファイルは廃止され、Webビューに完全移行しました。
 
 ## ファイル構成
 
@@ -127,7 +130,6 @@ Maid Agent: Init Global
 ```
 .maid-agent/
 ├── CLAUDE.md              # 詳細設計書
-├── dashboard.md           # 進捗ダッシュボード
 ├── config/
 │   └── settings.yaml      # 設定ファイル
 ├── context/               # プロジェクト固有コンテキスト
@@ -251,7 +253,7 @@ VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
 繰り返し使える作業パターンを「スキル」として保存できます。
 
 1. メイドがスキル化候補を発見 → reports/ に記載
-2. メイド長が集約 → dashboard.md に記載
+2. メイド長が集約 → Webダッシュボードに表示
 3. 執事が確認 → ユーザーに報告
 4. ユーザーが承認 → skills/ に作成
 
@@ -264,7 +266,7 @@ VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
 ### フロー
 
 1. メイドが改善点を発見 → reports/ に `improvement_proposal` を記載
-2. メイド長が集約 → dashboard.md の「💡 改善提案」に記載
+2. メイド長が集約 → Webダッシュボードの「💡 改善提案」に表示
 3. 執事が確認 → ユーザーに報告
 4. ユーザーが承認 → 該当ルールを更新
 

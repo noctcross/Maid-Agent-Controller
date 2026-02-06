@@ -8,3 +8,6 @@ global-templates/maid-agent-messenger/logs/
 
 # Development build artifacts (packages/ is source, global-templates/ is distribution)
 packages/maid-agent-messenger/dist/
+
+# Local deploy script (not for repository - each developer creates locally)
+packages/maid-agent-messenger/scripts/deploy-local.js

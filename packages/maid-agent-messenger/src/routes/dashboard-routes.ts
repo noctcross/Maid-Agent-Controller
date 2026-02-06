@@ -7,12 +7,15 @@ import { Router, Request, Response } from "express";
 import { createHash } from "crypto";
 import { loadConfig } from "../utils/config-loader.js";
 import { getJstTimestamp } from "../utils/yaml-helper.js";
-import type { AgentStatus } from "../types/index.js";
 import {
   executeListTasks,
   executeGetTeamStatus,
 } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
+import type { DashboardData } from "../views/dashboard-html.js";
+
+// DashboardData型を再エクスポート
+export type { DashboardData };
 
 // プロジェクトパスを取得するヘルパー
 function getProjectPathFromRequest(req: Request): string {
@@ -21,27 +24,6 @@ function getProjectPathFromRequest(req: Request): string {
     throw new Error("X-Maid-Project-Path header is required");
   }
   return projectPath;
-}
-
-// DashboardData型（C2でviews/に移動予定）
-export interface DashboardData {
-  projectPath: string;
-  timestamp: string;
-  pending: Array<{ id: string; title: string; description: string; priority: string; createdAt: string; category?: string }>;
-  working: Array<{ id: string; title: string; description: string; status: string; assignees: Array<{ agentId: string }>; priority: string }>;
-  blocked: Array<{ id: string; title: string; description: string; substatus: string | null; assignees: Array<{ agentId: string }>; priority: string }>;
-  recentCompleted: Array<{ id: string; title: string; description: string; completedAt: string | null; summary: string | null; assignees: Array<{ agentId: string }>; reportPaths: string[]; reviewed?: boolean; starred?: boolean }>;
-  completedTotal: number;
-  actionRequired: Array<{ id: string; title: string; description: string; substatus: string | null }>;
-  skillCandidates: Array<{ id: string; title: string; description: string }>;
-  improvements: Array<{ id: string; title: string; description: string }>;
-  teamStatus: AgentStatus[];
-  stats: {
-    pendingCount: number;
-    workingCount: number;
-    blockedCount: number;
-    completedTodayCount: number;
-  };
 }
 
 export interface DashboardRoutesDeps {

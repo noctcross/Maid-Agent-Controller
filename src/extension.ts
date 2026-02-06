@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { execSync, exec } from 'child_process';
-import { ExecutionEnvironment, Agent, MaidConfig, RuleModuleMeta, SkillMeta, SetupContext } from './types';
+import { ExecutionEnvironment, Agent, MaidConfig, RuleModuleMeta, SkillMeta, SetupContext, AgentContext } from './types';
 import { MAID_AGENT_DIR, GLOBAL_MAID_AGENT_DIR, TMUX_SESSION_PREFIX, MAIDS_MAP, DEFAULT_MAID_ORDER, MAIDS, AGENT_COLORS } from './constants';
 import { CURRENT_ENV, detectEnvironment, windowsToWslPath, isTmuxAvailable, getTmuxVersion, isWslAvailable } from './utils/environment';
 import { simpleMarkdownToHtml } from './utils/markdown';
@@ -14,6 +14,9 @@ import * as WorkspaceInit from './setup/workspace-initializer';
 import * as WslSetup from './setup/wsl-setup';
 import * as Pm2Setup from './setup/pm2-setup';
 import * as RulesSkills from './setup/rules-skills';
+import * as AgentLifecycle from './agents/agent-lifecycle';
+import * as AgentComm from './agents/agent-communication';
+import * as AgentStartup from './agents/agent-startup';
 
 // =============================================================================
 // メインコントローラー
@@ -222,6 +225,60 @@ class MultiAgentController {
         };
     }
 
+    private createAgentContext(): AgentContext {
+        const controller = this;
+        return {
+            // ─── State (getter/setter proxies for mutable properties) ───
+            agents: this.agents,
+            get workspaceRoot() { return controller.workspaceRoot; },
+            get maidAgentPath() { return controller.maidAgentPath; },
+            set maidAgentPath(v) { controller.maidAgentPath = v; },
+            outputChannel: this.outputChannel,
+            get context() { return controller.context; },
+            get tmuxManager() { return controller.tmuxManager; },
+            set tmuxManager(v) { controller.tmuxManager = v; },
+            tmuxSessionName: this.tmuxSessionName,
+            get tmuxViewerTerminal() { return controller.tmuxViewerTerminal; },
+            set tmuxViewerTerminal(v) { controller.tmuxViewerTerminal = v; },
+            get agentPanelProvider() { return controller.agentPanelProvider; },
+            get statusBarItem() { return controller.statusBarItem; },
+            get statusBarResetTimeout() { return controller.statusBarResetTimeout; },
+            set statusBarResetTimeout(v) { controller.statusBarResetTimeout = v; },
+
+            // ─── Logger ───
+            log: (msg: string) => this.log(msg),
+
+            // ─── Controller methods (NOT in E4, stay in controller) ───
+            updateDashboard: () => this.updateDashboard(),
+            updateAgentPanel: () => this.updateAgentPanel(),
+            delay: (ms: number) => this.delay(ms),
+            startWatchingFiles: (silent?: boolean) => this.startWatchingFiles(silent),
+            initializeWorkspace: () => this.initializeWorkspace(),
+            installTmux: () => this.installTmux(),
+            showTmuxInstallInstructions: () => this.showTmuxInstallInstructions(),
+            createSetupContext: () => this.createSetupContext(),
+            ensureWslAvailable: () => this.ensureWslAvailable(),
+
+            // ─── Cross-module E4 methods (delegated through controller) ───
+            createAgent: (name, id, role, emoji) => this.createAgent(name, id, role, emoji),
+            sendToAgent: (agentId, command) => this.sendToAgent(agentId, command),
+            sendMessageToAgent: (agentId, message) => this.sendMessageToAgent(agentId, message),
+            deliverPendingMessages: (agentId) => this.deliverPendingMessages(agentId),
+            initializeTmuxSession: () => this.initializeTmuxSession(),
+            saveSessionNameToFile: () => this.saveSessionNameToFile(),
+            openTmuxViewer: () => this.openTmuxViewer(),
+            getRolePrompt: (agentId, role, maidName?) => this.getRolePrompt(agentId, role, maidName),
+            launchClaudeWithRole: (agentId, role, maidName?) => this.launchClaudeWithRole(agentId, role, maidName),
+            ensureInitialized: () => this.ensureInitialized(),
+            checkExistingSessionAndPrompt: (agentId, agentName) => this.checkExistingSessionAndPrompt(agentId, agentName),
+            checkSessionCountWarning: () => this.checkSessionCountWarning(),
+            ensureMcpServerRunning: () => this.ensureMcpServerRunning(),
+            ensureTmuxAvailable: () => this.ensureTmuxAvailable(),
+            captureAgentOutput: (agentId, lines?) => this.captureAgentOutput(agentId, lines),
+            resumeSessions: () => this.resumeSessions(),
+        };
+    }
+
     async initializeWorkspace(): Promise<boolean> {
         return WorkspaceInit.initializeWorkspace(this.createSetupContext());
     }
@@ -238,300 +295,47 @@ class MultiAgentController {
     }
 
     // =========================================================================
-    // エージェント管理
+    // エージェント管理（agents/ モジュールへの委譲）
     // =========================================================================
 
-    /**
-     * tmuxセッションを初期化
-     */
     private initializeTmuxSession(): void {
-        if (!this.tmuxManager) return;
-
-        try {
-            this.tmuxManager.createSession();
-            this.log(`[tmux] セッション '${this.tmuxSessionName}' を作成しました`);
-
-            // セッション名をファイルに保存（maid-notify用）
-            this.saveSessionNameToFile();
-
-            // 通知システムを自動開始（ファイル監視含む）- サイレントモード
-            this.startWatchingFiles(true);
-        } catch (error) {
-            this.log(`[tmux] セッション作成エラー: ${error}`);
-        }
+        AgentStartup.initializeTmuxSession(this.createAgentContext());
     }
 
-    /**
-     * セッション名をファイルに保存（maid-notify用）
-     */
     private saveSessionNameToFile(): void {
-        if (!this.maidAgentPath || !this.tmuxSessionName) return;
-
-        try {
-            const configDir = path.join(this.maidAgentPath, 'system', 'config');
-            if (!fs.existsSync(configDir)) {
-                fs.mkdirSync(configDir, { recursive: true });
-            }
-            const sessionFile = path.join(configDir, '.session-name');
-            fs.writeFileSync(sessionFile, this.tmuxSessionName);
-            this.log(`[tmux] セッション名を保存: ${sessionFile}`);
-        } catch (error) {
-            this.log(`[tmux] セッション名保存エラー: ${error}`);
-        }
+        AgentStartup.saveSessionNameToFile(this.createAgentContext());
     }
 
-    /**
-     * VSCodeターミナルでtmuxセッションにアタッチ（表示用）
-     */
     openTmuxViewer(): void {
-        if (!this.tmuxManager) return;
-
-        // 既存のビューアがあれば表示
-        if (this.tmuxViewerTerminal) {
-            this.tmuxViewerTerminal.show();
-            return;
-        }
-
-        // tmuxセッションがなければ作成
-        this.initializeTmuxSession();
-
-        // VSCodeターミナルでtmuxにアタッチ
-        if (CURRENT_ENV === 'windows-native') {
-            // Windows環境: WSLシェルを使用してtmuxにアタッチ
-            const wslPath = this.tmuxManager?.getWslWorkingDirectory() || '/home';
-            this.tmuxViewerTerminal = vscode.window.createTerminal({
-                name: '🎩 Maid Agent (tmux)',
-                shellPath: 'wsl.exe',
-                shellArgs: ['-e', 'bash', '-c', `cd "${wslPath}" && tmux attach-session -t ${this.tmuxSessionName}`]
-            });
-        } else {
-            // WSL/Linux/macOS環境: 直接tmuxにアタッチ
-            this.tmuxViewerTerminal = vscode.window.createTerminal({
-                name: '🎩 Maid Agent (tmux)',
-                cwd: this.workspaceRoot
-            });
-            this.tmuxViewerTerminal.sendText(`tmux attach-session -t ${this.tmuxSessionName}`);
-        }
-        this.tmuxViewerTerminal.show();
-
-        this.log('[tmux] ビューアターミナルを開きました');
+        AgentStartup.openTmuxViewer(this.createAgentContext());
     }
 
     createAgent(name: string, id: string, role: Agent['role'], emoji: string): Agent {
-        if (!this.workspaceRoot || !this.tmuxManager) {
-            throw new Error('ワークスペースが初期化されていません');
-        }
-
-        // tmuxセッションがなければ作成
-        this.initializeTmuxSession();
-
-        // tmuxウィンドウを作成
-        const windowName = id;
-        if (!this.tmuxManager.windowExists(windowName)) {
-            this.tmuxManager.createWindow(windowName);
-        }
-
-        const agent: Agent = {
-            name,
-            id,
-            tmuxWindow: windowName,
-            role,
-            status: 'idle'
-        };
-        this.agents.set(id, agent);
-
-        this.log(`[${name}] 準備完了 (tmux window: ${windowName})`);
-        this.updateAgentPanel();
-        return agent;
+        return AgentLifecycle.createAgent(this.createAgentContext(), name, id, role, emoji);
     }
 
-    /**
-     * エージェントにコマンドを送信（tmux send-keys経由）
-     */
     sendToAgent(agentId: string, command: string): boolean {
-        const agent = this.agents.get(agentId);
-        if (!agent || !this.tmuxManager) {
-            this.log(`[ERROR] ${agentId} が見つかりません`);
-            return false;
-        }
-
-        try {
-            this.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
-            agent.status = 'working';
-            this.log(`[${agent.name}] → ${command.substring(0, 60)}...`);
-            this.updateDashboard();
-            return true;
-        } catch (error) {
-            this.log(`[ERROR] send-keys失敗: ${error}`);
-            return false;
-        }
+        return AgentComm.sendToAgent(this.createAgentContext(), agentId, command);
     }
 
-    /**
-     * エージェントにメッセージを送信（2段階送信 - Claude Code通知用）
-     * メッセージとEnterを別々に送信
-     */
     async sendMessageToAgent(agentId: string, message: string): Promise<boolean> {
-        const agent = this.agents.get(agentId);
-        if (!agent || !this.tmuxManager) {
-            this.log(`[ERROR] ${agentId} が見つかりません`);
-            return false;
-        }
-
-        try {
-            // ステップ0: copy mode（スクロールモード）を解除
-            // ユーザーがマウススクロールした場合、入力を受け付けない状態になっている可能性がある
-            this.tmuxManager.cancelCopyMode(agent.tmuxWindow);
-            await this.delay(50);
-
-            // ステップ1: メッセージ送信（Enterなし）
-            this.tmuxManager.sendKeys(agent.tmuxWindow, message, false);
-
-            // 少し待つ（バッファリング対策）
-            await this.delay(100);
-
-            // ステップ2: Enter送信
-            this.tmuxManager.sendKeys(agent.tmuxWindow, '', true);
-
-            this.log(`[${agent.name}] 📨 ${message.substring(0, 60)}...`);
-            return true;
-        } catch (error) {
-            this.log(`[ERROR] send-keys失敗: ${error}`);
-            return false;
-        }
+        return AgentComm.sendMessageToAgent(this.createAgentContext(), agentId, message);
     }
 
-    /**
-     * エージェントの出力をキャプチャ（tmux capture-pane経由）
-     */
     captureAgentOutput(agentId: string, lines: number = 100): string {
-        const agent = this.agents.get(agentId);
-        if (!agent || !this.tmuxManager) {
-            return '';
-        }
-
-        return this.tmuxManager.capturePane(agent.tmuxWindow, lines);
+        return AgentComm.captureAgentOutput(this.createAgentContext(), agentId, lines);
     }
 
-    /**
-     * 役割別の--append-system-prompt用テキストを生成
-     * コンパクション後もシステムプロンプトの一部として維持される静的な役割情報
-     */
     private getRolePrompt(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string {
-        switch (role) {
-            case 'butler':
-                return [
-                    '[Maid Agent System] 役割: 執事シルヴィア(butler)',
-                    'MCPツール: create_task, list_tasks, get_task, get_team_status',
-                    '通知: .maid-agent/system/bin/maid-notify chief "msg"',
-                    '禁止: 自分でファイル操作(BF001), メイドへ直接指示(BF002)',
-                    '指示書: .maid-agent/agents/instructions/butler.md',
-                    'ペルソナ: .maid-agent/agents/personas/butler.md',
-                ].join('\n');
-
-            case 'chiefMaid':
-                return [
-                    '[Maid Agent System] 役割: メイド長ビオラ(chief)',
-                    'MCPツール: list_tasks, get_task, create_task, assign_task, update_task, get_team_status',
-                    '通知: .maid-agent/system/bin/maid-notify {maid_id} "msg"',
-                    '禁止: 自分でタスク実行(CF001), 執事への通知(CF002)',
-                    '指示書: .maid-agent/agents/instructions/chief.md',
-                    'ペルソナ: .maid-agent/agents/personas/chief.md',
-                ].join('\n');
-
-            case 'maid':
-                return [
-                    `[Maid Agent System] 役割: メイド${maidName || 'メイド'}(${agentId})`,
-                    'MCPツール: get_my_task, update_status',
-                    '通知: .maid-agent/system/bin/maid-notify chief "msg"',
-                    '禁止: 執事に直接報告(MF001), ご主人様に直接連絡(MF002)',
-                    '指示書: .maid-agent/agents/instructions/maid.md',
-                    `ペルソナ: .maid-agent/agents/personas/${agentId}.md`,
-                ].join('\n');
-        }
+        return AgentStartup.getRolePrompt(this.createAgentContext(), agentId, role, maidName);
     }
 
-    /**
-     * エージェントでClaude Codeを起動し、役割を認識させる
-     * --append-system-promptで役割情報をシステムプロンプトに注入（コンパクション耐性あり）
-     * 初期プロンプトを引数として渡すことで、起動と指示を1コマンドで実行
-     */
     async launchClaudeWithRole(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {
-        const agent = this.agents.get(agentId);
-        if (!agent || !this.tmuxManager) return;
-
-        // 役割に応じた指示を作成
-        // 重要: コンパクション後も通信方法を忘れないよう、QUICK_REFERENCE.md への言及を含める
-        let instruction: string;
-        switch (role) {
-            case 'butler':
-                instruction = 'あなたは執事のシルヴィアです。.maid-agent/agents/instructions/butler.md を読んで役割を把握してください。通信方法は .maid-agent/agents/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/agents/personas/butler.md を読んで口調・話し方を把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
-                break;
-            case 'chiefMaid':
-                instruction = 'あなたはメイド長のビオラです。.maid-agent/agents/instructions/chief.md を読んで役割を把握してください。通信方法は .maid-agent/agents/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/agents/personas/chief.md を読んで口調・話し方を把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
-                break;
-            case 'maid':
-                const maidId = agentId;
-                instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/agents/instructions/maid.md を読んで役割を把握してください。通信方法は .maid-agent/agents/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/agents/personas/${maidId}.md を読んで口調・話し方を把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
-                break;
-        }
-
-        // シェルエスケープ（シングルクォートをエスケープ）
-        const escapedInstruction = instruction.replace(/'/g, "'\\''");
-
-        // 役割別プロンプト生成（--append-system-prompt用、コンパクション耐性あり）
-        const rolePrompt = this.getRolePrompt(agentId, role, maidName);
-        const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-
-        // tmuxウィンドウが準備できるまで待つ
-        await this.delay(500);
-
-        // Claude Code を初期プロンプト付きで起動（tmux send-keys経由）
-        // --append-system-prompt: コンパクション後も維持される静的な役割情報
-        const command = `claude --dangerously-skip-permissions --append-system-prompt '${escapedRolePrompt}' '${escapedInstruction}'`;
-        this.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
-
-        const roleLabel = agent.role === 'butler' ? '執事' :
-                         agent.role === 'chiefMaid' ? 'メイド長' : 'メイド';
-        this.log(`[${agent.name}] ${roleLabel}をお呼びしました`);
-
-        agent.status = 'idle';
-        this.updateAgentPanel();
-
-        // 保留中のメッセージがあれば配信
-        await this.deliverPendingMessages(agentId);
+        return AgentStartup.launchClaudeWithRole(this.createAgentContext(), agentId, role, maidName);
     }
 
-    /**
-     * エージェント起動時に保留中のメッセージを配信
-     */
     private async deliverPendingMessages(agentId: string): Promise<void> {
-        if (!this.maidAgentPath) return;
-
-        const pendingFile = path.join(this.maidAgentPath, 'notifications', 'pending', `${agentId}.txt`);
-
-        if (!fs.existsSync(pendingFile)) return;
-
-        try {
-            const content = fs.readFileSync(pendingFile, 'utf-8').trim();
-            if (!content) return;
-
-            const messages = content.split('\n');
-            this.log(`[${agentId}] ${messages.length}件の保留メッセージを配信します`);
-
-            // 少し待ってから配信（Claude起動を待つ）
-            await this.delay(3000);
-
-            // 保留メッセージをまとめて通知
-            const summary = `【保留メッセージ ${messages.length}件】\n` + messages.join('\n');
-            await this.sendMessageToAgent(agentId, summary);
-
-            // 配信完了後、保留ファイルを削除
-            fs.unlinkSync(pendingFile);
-            this.log(`[${agentId}] 保留メッセージを配信し、キューをクリアしました`);
-        } catch (error) {
-            this.log(`[${agentId}] 保留メッセージ配信エラー: ${error}`);
-        }
+        return AgentComm.deliverPendingMessages(this.createAgentContext(), agentId);
     }
 
     private delay(ms: number): Promise<void> {
@@ -539,498 +343,65 @@ class MultiAgentController {
     }
 
     // =========================================================================
-    // 階層構造の起動
+    // 階層構造の起動（agents/ モジュールへの委譲）
     // =========================================================================
 
-    /**
-     * 既存のtmuxセッションからエージェントを復帰
-     */
     async resumeSessions(): Promise<void> {
-        if (!await this.ensureTmuxAvailable()) {
-            return;
-        }
-
-        // tmuxManagerがない場合は初期化
-        if (!this.tmuxManager) {
-            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-            if (!workspaceFolder) {
-                vscode.window.showErrorMessage('ワークスペースが開かれていません');
-                return;
-            }
-
-            const workspacePath = workspaceFolder.uri.fsPath;
-            const sessionName = getSessionNameFromPath(workspacePath);
-            this.tmuxManager = new TmuxManager(sessionName, workspacePath);
-        }
-
-        // セッションが存在するかチェック
-        if (!this.tmuxManager.sessionExists()) {
-            vscode.window.showInformationMessage('復帰可能なセッションがありません。Call コマンドで新規に呼び出してください。');
-            return;
-        }
-
-        // 既存のウィンドウを取得
-        const windows = this.tmuxManager.listWindows();
-        if (windows.length === 0) {
-            vscode.window.showInformationMessage('復帰可能なエージェントがありません。');
-            return;
-        }
-
-        // エージェント名とウィンドウ名のマッピング
-        const agentMapping: { [key: string]: { name: string; role: 'butler' | 'chiefMaid' | 'maid'; emoji: string } } = {
-            'butler': { name: 'シルヴィア', role: 'butler', emoji: '🎩' },
-            'chief': { name: 'ビオラ', role: 'chiefMaid', emoji: '👑' },
-            'emma': { name: 'エマ', role: 'maid', emoji: '🌸' },
-            'sophia': { name: 'ソフィア', role: 'maid', emoji: '📚' },
-            'lily': { name: 'リリー', role: 'maid', emoji: '🎨' },
-            'rose': { name: 'ローズ', role: 'maid', emoji: '🌹' },
-            'alice': { name: 'アリス', role: 'maid', emoji: '🔧' },
-            'may': { name: 'メイ', role: 'maid', emoji: '🍰' },
-            'flora': { name: 'フローラ', role: 'maid', emoji: '🌷' },
-            'luna': { name: 'ルナ', role: 'maid', emoji: '🌙' }
-        };
-
-        let resumedCount = 0;
-        const resumedNames: string[] = [];
-
-        for (const windowName of windows) {
-            // 既に登録済みならスキップ
-            if (this.agents.has(windowName)) {
-                continue;
-            }
-
-            const mapping = agentMapping[windowName];
-            if (mapping) {
-                // エージェントを登録（Claudeコマンドは送信しない）
-                this.createAgent(mapping.name, windowName, mapping.role, mapping.emoji);
-                // statusをidleに設定（既に稼働中の想定）
-                const agent = this.agents.get(windowName);
-                if (agent) {
-                    agent.status = 'idle';
-                }
-                resumedCount++;
-                resumedNames.push(`${mapping.emoji} ${mapping.name}`);
-                this.log(`[復帰] ${mapping.name}（${windowName}）を復帰しました`);
-            }
-        }
-
-        if (resumedCount > 0) {
-            // maidAgentPathを設定
-            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-            if (workspaceFolder) {
-                this.maidAgentPath = path.join(workspaceFolder.uri.fsPath, '.maid-agent');
-
-                // 監視システムを開始（サイレントモード）
-                this.startWatchingFiles(true);
-            }
-
-            // tmuxビューアを開く
-            this.openTmuxViewer();
-
-            vscode.window.showInformationMessage(`${resumedNames.join('、')} が復帰しました！`);
-            this.updateDashboard();
-            this.updateAgentPanel();
-        } else {
-            vscode.window.showInformationMessage('新たに復帰可能なエージェントはありませんでした。');
-        }
+        return AgentStartup.resumeSessions(this.createAgentContext());
     }
 
-    /**
-     * 既存セッションが存在するかチェックし、存在する場合は復帰を提案
-     * @returns true: 続行OK, false: キャンセル
-     */
     private async checkExistingSessionAndPrompt(agentId: string, agentName: string): Promise<'new' | 'resume' | 'cancel'> {
-        if (!this.tmuxManager) return 'new';
-
-        // ウィンドウが既に存在するかチェック
-        if (this.tmuxManager.windowExists(agentId)) {
-            const choice = await vscode.window.showWarningMessage(
-                `${agentName}のセッションが既に存在します。`,
-                '復帰する', '新規起動（上書き）', 'キャンセル'
-            );
-
-            if (choice === '復帰する') {
-                return 'resume';
-            } else if (choice === '新規起動（上書き）') {
-                // 既存ウィンドウを終了
-                this.tmuxManager.killWindow(agentId);
-                await this.delay(100);
-                return 'new';
-            } else {
-                return 'cancel';
-            }
-        }
-
-        return 'new';
+        return AgentStartup.checkExistingSessionAndPrompt(this.createAgentContext(), agentId, agentName);
     }
 
     async startButler(): Promise<void> {
-        if (!await this.ensureInitialized()) return;
-
-        if (this.agents.has('butler')) {
-            vscode.window.showWarningMessage('執事は既にお仕えしております');
-            return;
-        }
-
-        // 既存セッションのチェック
-        const action = await this.checkExistingSessionAndPrompt('butler', 'シルヴィア（執事）');
-        if (action === 'cancel') return;
-
-        this.createAgent('シルヴィア', 'butler', 'butler', '🎩');
-
-        // tmuxビューアを開く
-        this.openTmuxViewer();
-
-        if (action === 'new') {
-            // 新規起動: Claude Code を起動し、役割を認識させる
-            await this.launchClaudeWithRole('butler', 'butler');
-            vscode.window.showInformationMessage('🎩 シルヴィアがお仕えする準備ができました！');
-        } else {
-            // 復帰: Claudeコマンドは送信しない
-            const agent = this.agents.get('butler');
-            if (agent) agent.status = 'idle';
-            vscode.window.showInformationMessage('🎩 シルヴィアが復帰しました！');
-        }
-
-        this.updateDashboard();
+        return AgentLifecycle.startButler(this.createAgentContext());
     }
 
     async startChiefMaid(): Promise<void> {
-        if (!await this.ensureInitialized()) return;
-
-        if (this.agents.has('chief')) {
-            vscode.window.showWarningMessage('メイド長は既にお仕えしております');
-            return;
-        }
-
-        // 既存セッションのチェック
-        const action = await this.checkExistingSessionAndPrompt('chief', 'ビオラ（メイド長）');
-        if (action === 'cancel') return;
-
-        this.createAgent('ビオラ', 'chief', 'chiefMaid', '👑');
-
-        // tmuxビューアを開く（まだ開いていなければ）
-        this.openTmuxViewer();
-
-        if (action === 'new') {
-            // 新規起動: Claude Code を起動し、役割を認識させる
-            await this.launchClaudeWithRole('chief', 'chiefMaid');
-            vscode.window.showInformationMessage('👑 ビオラがお仕えする準備ができました！');
-        } else {
-            // 復帰: Claudeコマンドは送信しない
-            const agent = this.agents.get('chief');
-            if (agent) agent.status = 'idle';
-            vscode.window.showInformationMessage('👑 ビオラが復帰しました！');
-        }
-
-        this.updateDashboard();
+        return AgentLifecycle.startChiefMaid(this.createAgentContext());
     }
 
     async startSelectedMaids(): Promise<void> {
-        if (!await this.ensureInitialized()) return;
-
-        // 未起動のメイドのみ選択肢に（設定順）
-        const orderedMaids = getOrderedMaids();
-        const availableMaids = orderedMaids.filter(m => !this.agents.has(m.id));
-
-        if (availableMaids.length === 0) {
-            vscode.window.showWarningMessage('メイドは既に全員お仕えしております');
-            return;
-        }
-
-        const items = availableMaids.map(m => ({
-            label: `${m.emoji} ${m.name}`,
-            id: m.id,
-            picked: false
-        }));
-
-        const selected = await vscode.window.showQuickPick(items, {
-            canPickMany: true,
-            placeHolder: '起動するメイドを選択してください（複数選択可）'
-        });
-
-        if (!selected || selected.length === 0) {
-            return;
-        }
-
-        for (const item of selected) {
-            const maid = MAIDS.find(m => m.id === item.id);
-            if (maid) {
-                this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-                // Claude Code を起動し、役割を認識させる
-                await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
-            }
-        }
-
-        vscode.window.showInformationMessage(`🎀 メイド${selected.length}人がお仕えする準備ができました！`);
-        this.updateDashboard();
+        return AgentLifecycle.startSelectedMaids(this.createAgentContext());
     }
 
-    /**
-     * Call Maids xN - メイドN人を順番に起動
-     */
     async startMaidsByCount(): Promise<void> {
-        await this._startMaidsByCountInternal(false);
+        return AgentLifecycle.startMaidsByCount(this.createAgentContext());
     }
 
-    /**
-     * Call Maids xN -r - メイドN人をランダムに起動
-     */
     async startMaidsByCountRandom(): Promise<void> {
-        await this._startMaidsByCountInternal(true);
+        return AgentLifecycle.startMaidsByCountRandom(this.createAgentContext());
     }
 
-    private async _startMaidsByCountInternal(random: boolean): Promise<void> {
-        if (!await this.ensureInitialized()) return;
-
-        const orderedMaids = getOrderedMaids();
-        const availableMaids = orderedMaids.filter(m => !this.agents.has(m.id));
-
-        if (availableMaids.length === 0) {
-            vscode.window.showWarningMessage('メイドは既に全員お仕えしております');
-            return;
-        }
-
-        const countStr = await vscode.window.showInputBox({
-            prompt: `何人のメイドをお呼びしますか？（1〜${availableMaids.length}人）${random ? '【ランダム】' : '【順番】'}`,
-            placeHolder: '例: 3',
-            validateInput: (value) => {
-                const num = parseInt(value);
-                if (isNaN(num) || num < 1) {
-                    return '1以上の数値を入力してください';
-                }
-                if (num > availableMaids.length) {
-                    return `最大${availableMaids.length}人まで指定できます`;
-                }
-                return null;
-            }
-        });
-
-        if (!countStr) return;
-
-        const count = parseInt(countStr);
-
-        let maidsToStart: typeof availableMaids;
-        if (random) {
-            const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
-            maidsToStart = shuffled.slice(0, count);
-        } else {
-            maidsToStart = availableMaids.slice(0, count);
-        }
-
-        // 進捗表示付きでお呼び出し
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: '🎀 メイドお仕えの準備中...',
-            cancellable: false
-        }, async (progress) => {
-            for (let i = 0; i < maidsToStart.length; i++) {
-                const maid = maidsToStart[i];
-                progress.report({
-                    message: `${maid.name}お仕えの準備中...`,
-                    increment: (100 / maidsToStart.length)
-                });
-                this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-                await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
-            }
-        });
-
-        const maidNames = maidsToStart.map(m => m.name).join('、');
-        vscode.window.showInformationMessage(`🎀 ${maidNames} がお仕えの準備を整えました！`);
-        this.updateDashboard();
-    }
-
-    /**
-     * Call All xN - 執事 + メイド長 + メイドN人を順番に起動
-     */
     async startAllByCount(): Promise<void> {
-        await this._startAllByCountInternal(false);
+        return AgentLifecycle.startAllByCount(this.createAgentContext());
     }
 
-    /**
-     * Call All xN -r - 執事 + メイド長 + メイドN人をランダムに起動
-     */
     async startAllByCountRandom(): Promise<void> {
-        await this._startAllByCountInternal(true);
-    }
-
-    private async _startAllByCountInternal(random: boolean): Promise<void> {
-        if (!await this.ensureInitialized()) return;
-
-        const orderedMaids = getOrderedMaids();
-        const availableMaids = orderedMaids.filter(m => !this.agents.has(m.id));
-
-        if (availableMaids.length === 0) {
-            vscode.window.showWarningMessage('メイドは既に全員お仕えしております。Call All をお使いください。');
-            return;
-        }
-
-        const countStr = await vscode.window.showInputBox({
-            prompt: `メイドを何人お呼びしますか？（1〜${availableMaids.length}人）執事+メイド長もお呼び ${random ? '【ランダム】' : '【順番】'}`,
-            placeHolder: '例: 3',
-            validateInput: (value) => {
-                const num = parseInt(value);
-                if (isNaN(num) || num < 1) {
-                    return '1以上の数値を入力してください';
-                }
-                if (num > availableMaids.length) {
-                    return `最大${availableMaids.length}人まで指定できます`;
-                }
-                return null;
-            }
-        });
-
-        if (!countStr) return;
-
-        const count = parseInt(countStr);
-
-        // 進捗表示付きでお呼び出し
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: '🎩 スタッフお仕えの準備中...',
-            cancellable: false
-        }, async (progress) => {
-            const totalAgents = (this.agents.has('butler') ? 0 : 1) +
-                               (this.agents.has('chief') ? 0 : 1) + count;
-            let currentAgent = 0;
-
-            // tmuxビューアを開く
-            this.openTmuxViewer();
-
-            // 執事・メイド長を先にお呼び
-            if (!this.agents.has('butler')) {
-                progress.report({ message: 'シルヴィア（執事）お仕えの準備中...', increment: 0 });
-                this.createAgent('シルヴィア', 'butler', 'butler', '🎩');
-                await this.launchClaudeWithRole('butler', 'butler');
-                currentAgent++;
-                progress.report({ increment: (100 / totalAgents) });
-            }
-
-            if (!this.agents.has('chief')) {
-                progress.report({ message: 'ビオラ（メイド長）お仕えの準備中...' });
-                this.createAgent('ビオラ', 'chief', 'chiefMaid', '👑');
-                await this.launchClaudeWithRole('chief', 'chiefMaid');
-                currentAgent++;
-                progress.report({ increment: (100 / totalAgents) });
-            }
-
-            let maidsToStart: typeof availableMaids;
-            if (random) {
-                const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
-                maidsToStart = shuffled.slice(0, count);
-            } else {
-                maidsToStart = availableMaids.slice(0, count);
-            }
-
-            for (const maid of maidsToStart) {
-                progress.report({ message: `${maid.name}（メイド）お仕えの準備中...` });
-                this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-                await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
-                currentAgent++;
-                progress.report({ increment: (100 / totalAgents) });
-            }
-
-            const maidNames = maidsToStart.map(m => m.name).join('、');
-            vscode.window.showInformationMessage(`🎩 執事 + 👑 メイド長 + 🎀 ${maidNames} がお仕えの準備を整えました！`);
-            this.updateDashboard();
-        });
+        return AgentLifecycle.startAllByCountRandom(this.createAgentContext());
     }
 
     async startAllAgents(): Promise<void> {
-        await this.startButler();
-        await this.startChiefMaid();
-        // 全メイドを設定順に起動
-        const orderedMaids = getOrderedMaids();
-        for (const maid of orderedMaids) {
-            if (!this.agents.has(maid.id)) {
-                this.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-                await this.launchClaudeWithRole(maid.id, 'maid', maid.name);
-            }
-        }
-        this.updateDashboard();
+        return AgentLifecycle.startAllAgents(this.createAgentContext());
     }
 
     private async ensureInitialized(): Promise<boolean> {
-        // tmuxが利用可能かチェック
-        if (!await this.ensureTmuxAvailable()) {
-            return false;
-        }
-
-        if (!this.maidAgentPath || !fs.existsSync(this.maidAgentPath)) {
-            const choice = await vscode.window.showWarningMessage(
-                'Maid Agent が初期化されていません。初期化しますか？',
-                '初期化する', 'キャンセル'
-            );
-            if (choice === '初期化する') {
-                return await this.initializeWorkspace();
-            }
-            return false;
-        }
-
-        // MCPサーバーのヘルスチェック（Windows環境のみ）
-        if (CURRENT_ENV === 'windows-native') {
-            await this.ensureMcpServerRunning();
-        }
-
-        // セッション数の警告チェック
-        await this.checkSessionCountWarning();
-
-        return true;
+        return AgentStartup.ensureInitialized(this.createAgentContext());
     }
 
-    /**
-     * MCPサーバーが起動しているか確認し、起動していなければ起動する
-     */
     private async ensureMcpServerRunning(): Promise<void> {
-        return Pm2Setup.ensureMcpServerRunning(this.createSetupContext());
+        return AgentStartup.ensureMcpServerRunning(this.createAgentContext());
     }
 
-    /**
-     * tmuxが利用可能かチェックし、なければインストールを提案
-     */
     private async ensureTmuxAvailable(): Promise<boolean> {
-        // Windows環境ではまずWSLをチェック
-        if (CURRENT_ENV === 'windows-native') {
-            if (!await this.ensureWslAvailable()) {
-                return false;
-            }
-        }
-
-        if (isTmuxAvailable()) {
-            return true;
-        }
-
-        const envInfo = CURRENT_ENV === 'windows-native'
-            ? 'Windows環境でWSL経由でtmuxを使用します。'
-            : `現在の環境: ${CURRENT_ENV}`;
-
-        const choice = await vscode.window.showErrorMessage(
-            `tmuxがインストールされていません。\n${envInfo}\n\ntmuxをインストールしますか？`,
-            'インストールする',
-            'インストール方法を表示',
-            'キャンセル'
-        );
-
-        if (choice === 'インストールする') {
-            return await this.installTmux();
-        } else if (choice === 'インストール方法を表示') {
-            this.showTmuxInstallInstructions();
-            return false;
-        }
-
-        return false;
+        return AgentStartup.ensureTmuxAvailable(this.createAgentContext());
     }
 
-    /**
-     * WSLが利用可能かチェックし、なければインストールを提案
-     */
     private async ensureWslAvailable(): Promise<boolean> {
         return WslSetup.ensureWslAvailable(this.createSetupContext());
     }
 
-    /**
-     * tmuxをインストール
-     */
     private async installTmux(): Promise<boolean> {
         const terminal = vscode.window.createTerminal({
             name: '📦 tmux インストール',
@@ -1038,11 +409,9 @@ class MultiAgentController {
         });
         terminal.show();
 
-        // インストールコマンドを送信
         const installCmd = 'sudo apt-get update && sudo apt-get install -y tmux';
         terminal.sendText(installCmd);
 
-        // ユーザーにインストール完了を確認させる
         const result = await vscode.window.showInformationMessage(
             'tmuxのインストールを開始しました。\n' +
             'インストールが完了したら「完了」を押してください。\n' +
@@ -1052,7 +421,6 @@ class MultiAgentController {
         );
 
         if (result === '完了') {
-            // インストールが成功したか確認
             if (isTmuxAvailable()) {
                 const version = getTmuxVersion();
                 vscode.window.showInformationMessage(`✅ tmuxのインストールが完了しました: ${version}`);
@@ -1066,9 +434,6 @@ class MultiAgentController {
         return false;
     }
 
-    /**
-     * tmuxインストール方法を表示
-     */
     private showTmuxInstallInstructions(): void {
         this.log('=== tmux インストール方法 ===');
         this.log('');
@@ -1101,180 +466,36 @@ class MultiAgentController {
         this.outputChannel.show();
     }
 
-    /**
-     * maid-agentセッション数をチェックし、しきい値を超えていたら警告
-     */
     private async checkSessionCountWarning(): Promise<void> {
-        const config = vscode.workspace.getConfiguration('maidAgent');
-        const threshold = config.get<number>('sessionWarningThreshold', 10);
-
-        const { count, sessions } = TmuxManager.countMaidAgentSessions();
-
-        if (count >= threshold) {
-            const sessionList = sessions.slice(0, 5).join('\n  • ');
-            const moreText = count > 5 ? `\n  ...他 ${count - 5} セッション` : '';
-
-            const choice = await vscode.window.showWarningMessage(
-                `⚠️ maid-agentセッションが ${count} 個存在します（しきい値: ${threshold}）\n` +
-                `古いセッションのクリーンアップを検討してください。`,
-                'セッション一覧を表示',
-                '全てクリーンアップ',
-                '続行'
-            );
-
-            if (choice === 'セッション一覧を表示') {
-                // チェックボックス形式でセッション選択
-                const items = sessions.map(sessionName => {
-                    const isCurrent = sessionName === this.tmuxSessionName;
-                    return {
-                        label: isCurrent ? `$(star) ${sessionName}` : sessionName,
-                        description: isCurrent ? '(現在のセッション)' : '',
-                        sessionName: sessionName,
-                        picked: false
-                    };
-                });
-
-                const selected = await vscode.window.showQuickPick(items, {
-                    canPickMany: true,
-                    placeHolder: '終了するセッションを選択してください（複数選択可）',
-                    title: `maid-agent セッション一覧 (${count}個)`
-                });
-
-                if (selected && selected.length > 0) {
-                    const confirmMsg = selected.some(s => s.sessionName === this.tmuxSessionName)
-                        ? `${selected.length} 個のセッションを終了しますか？\n⚠️ 現在のセッションも含まれています！`
-                        : `${selected.length} 個のセッションを終了しますか？`;
-
-                    const confirm = await vscode.window.showWarningMessage(
-                        confirmMsg,
-                        '終了する',
-                        'キャンセル'
-                    );
-
-                    if (confirm === '終了する') {
-                        let killedCount = 0;
-                        for (const item of selected) {
-                            try {
-                                const cmd = CURRENT_ENV === 'windows-native'
-                                    ? `wsl tmux kill-session -t ${item.sessionName}`
-                                    : `tmux kill-session -t ${item.sessionName}`;
-                                execSync(cmd, { stdio: 'pipe' });
-                                killedCount++;
-                                this.log(`[クリーンアップ] セッション終了: ${item.sessionName}`);
-                            } catch {
-                                this.log(`[クリーンアップ] 終了失敗（既に終了済み?）: ${item.sessionName}`);
-                            }
-                        }
-                        vscode.window.showInformationMessage(`${killedCount} 個のセッションを終了しました`);
-                    }
-                }
-            } else if (choice === '全てクリーンアップ') {
-                const confirm = await vscode.window.showWarningMessage(
-                    `本当に ${count} 個の maid-agent セッションを全て終了しますか？\n` +
-                    `（現在のセッションも含まれます）`,
-                    '全て終了',
-                    'キャンセル'
-                );
-                if (confirm === '全て終了') {
-                    sessions.forEach(sessionName => {
-                        try {
-                            const cmd = CURRENT_ENV === 'windows-native'
-                                ? `wsl tmux kill-session -t ${sessionName}`
-                                : `tmux kill-session -t ${sessionName}`;
-                            execSync(cmd, { stdio: 'pipe' });
-                        } catch {
-                            // 既に終了している場合は無視
-                        }
-                    });
-                    vscode.window.showInformationMessage(`${count} 個のセッションをクリーンアップしました`);
-                    this.log(`[クリーンアップ] ${count} 個のセッションを終了しました`);
-                }
-            }
-            // '続行' または閉じた場合は何もせず続行
-        }
+        return AgentStartup.checkSessionCountWarning(this.createAgentContext());
     }
 
     // =========================================================================
-    // タスク送信（YAMLキュー経由）
+    // タスク送信・通知（agents/ モジュールへの委譲）
     // =========================================================================
 
     async sendTaskToButler(taskDescription: string): Promise<void> {
-        const butler = this.agents.get('butler');
-        if (!butler) {
-            vscode.window.showWarningMessage('執事がおりません。先に起動してください。');
-            return;
-        }
-
-        if (!this.maidAgentPath) return;
-
-        this.log(`[タスク] ご主人様からの指令: ${taskDescription}`);
-
-        // 執事にタスクを直接送信（2段階送信）
-        // 執事がタスクを分解し、butler_to_chief.yaml に書き込む
-        const instruction = `ご主人様からの指令です: ${taskDescription}\n\nこのタスクを分析し、必要に応じてサブタスクに分解して .maid-agent/system/data/queue/butler_to_chief.yaml に記載し、メイド長に通知してください。`;
-        await this.sendMessageToAgent('butler', instruction);
-
-        vscode.window.showInformationMessage('🎩 執事にタスクを送信しました');
-        this.updateDashboard();
+        return AgentComm.sendTaskToButler(this.createAgentContext(), taskDescription);
     }
 
-    /**
-     * 執事からメイド長への通知（butler.md の指示に従って実行される）
-     * 執事のClaudeが内部的に使用するためのヘルパー
-     */
     async notifyChief(message: string): Promise<void> {
-        const chief = this.agents.get('chief');
-        if (!chief) {
-            this.log('[WARN] メイド長がおりません');
-            return;
-        }
-        await this.sendMessageToAgent('chief', message);
+        return AgentComm.notifyChief(this.createAgentContext(), message);
     }
 
-    /**
-     * メイド長からメイドへの通知（chief.md の指示に従って実行される）
-     * メイド長のClaudeが内部的に使用するためのヘルパー
-     */
     async notifyMaid(maidId: string, message: string): Promise<void> {
-        const maid = this.agents.get(maidId);
-        if (!maid) {
-            this.log(`[WARN] メイド ${maidId} がおりません`);
-            return;
-        }
-        await this.sendMessageToAgent(maidId, message);
+        return AgentComm.notifyMaid(this.createAgentContext(), maidId, message);
     }
 
     // =========================================================================
-    // Claude Code 起動（手動用 - 通常は自動起動）
+    // Claude Code 起動（agents/ モジュールへの委譲）
     // =========================================================================
 
     startClaudeOnAgent(agentId: string): void {
-        const agent = this.agents.get(agentId);
-        if (!agent) return;
-
-        // 役割別プロンプト生成（--append-system-prompt用、コンパクション耐性あり）
-        const rolePrompt = this.getRolePrompt(agentId, agent.role, agent.name);
-        const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-
-        // Claude Code を権限スキップモードで起動（役割情報付き）
-        this.sendToAgent(agentId, `claude --dangerously-skip-permissions --append-system-prompt '${escapedRolePrompt}'`);
+        AgentStartup.startClaudeOnAgent(this.createAgentContext(), agentId);
     }
 
     async startClaudeOnAllAgents(): Promise<void> {
-        let count = 0;
-        for (const [id, agent] of this.agents) {
-            // 役割別プロンプト生成（--append-system-prompt用、コンパクション耐性あり）
-            const rolePrompt = this.getRolePrompt(id, agent.role, agent.name);
-            const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-
-            this.sendToAgent(id, `claude --dangerously-skip-permissions --append-system-prompt '${escapedRolePrompt}'`);
-            await this.delay(500); // 各エージェント間で少し待つ
-            count++;
-        }
-
-        if (count > 0) {
-            vscode.window.showInformationMessage(`🤖 ${count}人のエージェントがClaude Codeを起動しました`);
-        }
+        return AgentStartup.startClaudeOnAllAgents(this.createAgentContext());
     }
 
     // =========================================================================
@@ -2437,19 +1658,8 @@ ${agentList || '  (なし)'}
         }
     }
 
-    /**
-     * 特定のエージェントを終了
-     */
     killAgent(agentId: string): void {
-        const agent = this.agents.get(agentId);
-        if (!agent || !this.tmuxManager) return;
-
-        // tmuxウィンドウを終了
-        this.tmuxManager.killWindow(agent.tmuxWindow);
-        this.agents.delete(agentId);
-        this.updateAgentPanel();
-        this.updateDashboard();
-        this.log(`[${agent.name}] を終了しました`);
+        AgentLifecycle.killAgent(this.createAgentContext(), agentId);
     }
 
     dispose(): void {

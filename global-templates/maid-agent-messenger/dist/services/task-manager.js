@@ -137,6 +137,22 @@ export async function executeGetTask(projectPath, params) {
     return { task, subtasks };
 }
 /**
+ * タスクIDを数値的に比較する
+ * 例: "048" < "048-1" < "048-2" < "048-10" (文字列比較だと "048-10" < "048-2" になる)
+ */
+export function compareTaskIds(a, b) {
+    const partsA = a.split("-").map(Number);
+    const partsB = b.split("-").map(Number);
+    const maxLen = Math.max(partsA.length, partsB.length);
+    for (let i = 0; i < maxLen; i++) {
+        const numA = partsA[i] ?? -1;
+        const numB = partsB[i] ?? -1;
+        if (numA !== numB)
+            return numA - numB;
+    }
+    return 0;
+}
+/**
  * タスク一覧取得
  */
 export async function executeListTasks(projectPath, params = {}) {
@@ -155,21 +171,36 @@ export async function executeListTasks(projectPath, params = {}) {
     if (params.category?.length) {
         tasks = tasks.filter((t) => params.category.includes(t.category || "task"));
     }
+    if (params.reviewed !== undefined) {
+        tasks = tasks.filter((t) => params.reviewed ? t.reviewed === true : !t.reviewed);
+    }
+    if (params.starred !== undefined) {
+        tasks = tasks.filter((t) => params.starred ? t.starred === true : !t.starred);
+    }
     // ソート
     if (params.sortField) {
         const order = params.sortOrder || "desc";
-        tasks.sort((a, b) => {
-            const aVal = a[params.sortField];
-            const bVal = b[params.sortField];
-            if (aVal === null && bVal === null)
-                return 0;
-            if (aVal === null)
-                return order === "asc" ? -1 : 1;
-            if (bVal === null)
-                return order === "asc" ? 1 : -1;
-            const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-            return order === "asc" ? cmp : -cmp;
-        });
+        if (params.sortField === "id") {
+            tasks.sort((a, b) => {
+                const cmp = compareTaskIds(a.id, b.id);
+                return order === "asc" ? cmp : -cmp;
+            });
+        }
+        else {
+            const field = params.sortField;
+            tasks.sort((a, b) => {
+                const aVal = a[field];
+                const bVal = b[field];
+                if (aVal === null && bVal === null)
+                    return 0;
+                if (aVal === null)
+                    return order === "asc" ? -1 : 1;
+                if (bVal === null)
+                    return order === "asc" ? 1 : -1;
+                const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+                return order === "asc" ? cmp : -cmp;
+            });
+        }
     }
     const total = tasks.length;
     // ページネーション
@@ -229,6 +260,14 @@ export async function executeUpdateTask(projectPath, params) {
             if (!isDuplicate) {
                 task.reportPaths.push(params.reportPath);
             }
+        }
+        if (params.reviewed !== undefined) {
+            task.reviewed = params.reviewed;
+            task.reviewedAt = params.reviewed ? now : null;
+        }
+        if (params.starred !== undefined) {
+            task.starred = params.starred;
+            task.starredAt = params.starred ? now : null;
         }
         const result = { success: true, task };
         return { data, result };

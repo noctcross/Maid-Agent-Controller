@@ -2565,7 +2565,7 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
                 this.copyDirectorySync(srcPath, destPath, false, options);
             } else {
                 // ユーザーデータを含むファイルは既存があれば保持
-                const preserveFiles = ['dashboard.md', 'tasks.yaml'];
+                const preserveFiles = ['tasks.yaml'];
                 if (preserveFiles.includes(entry.name) && fs.existsSync(destPath)) {
                     this.log(`[初期化] ${entry.name} は既存のため保持`);
                     continue;
@@ -2778,7 +2778,44 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
     }
 
     /**
+     * 役割別の--append-system-prompt用テキストを生成
+     * コンパクション後もシステムプロンプトの一部として維持される静的な役割情報
+     */
+    private getRolePrompt(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string {
+        switch (role) {
+            case 'butler':
+                return [
+                    '[Maid Agent System] 役割: 執事シルヴィア(butler)',
+                    'MCPツール: create_task, list_tasks, get_task, get_team_status',
+                    '通知: .maid-agent/system/bin/maid-notify chief "msg"',
+                    '禁止: 自分でファイル操作(F001), メイドへ直接指示(F002)',
+                    '指示書: .maid-agent/agents/instructions/butler.md',
+                ].join('\n');
+
+            case 'chiefMaid':
+                return [
+                    '[Maid Agent System] 役割: メイド長ビオラ(chief)',
+                    'MCPツール: list_tasks, get_task, create_task, assign_task, update_task, get_team_status',
+                    '通知: .maid-agent/system/bin/maid-notify {maid_id} "msg"',
+                    '禁止: 自分でタスク実行(F001), 執事への通知(F002)',
+                    '指示書: .maid-agent/agents/instructions/chief.md',
+                ].join('\n');
+
+            case 'maid':
+                return [
+                    `[Maid Agent System] 役割: メイド${maidName || 'メイド'}(${agentId})`,
+                    'MCPツール: get_my_task, update_status',
+                    '通知: .maid-agent/system/bin/maid-notify chief "msg"',
+                    '禁止: 執事に直接報告(F001), ご主人様に直接連絡(F002)',
+                    '指示書: .maid-agent/agents/instructions/maid.md',
+                    `ペルソナ: .maid-agent/agents/personas/${agentId}.md`,
+                ].join('\n');
+        }
+    }
+
+    /**
      * エージェントでClaude Codeを起動し、役割を認識させる
+     * --append-system-promptで役割情報をシステムプロンプトに注入（コンパクション耐性あり）
      * 初期プロンプトを引数として渡すことで、起動と指示を1コマンドで実行
      */
     async launchClaudeWithRole(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {
@@ -2804,11 +2841,16 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
         // シェルエスケープ（シングルクォートをエスケープ）
         const escapedInstruction = instruction.replace(/'/g, "'\\''");
 
+        // 役割別プロンプト生成（--append-system-prompt用、コンパクション耐性あり）
+        const rolePrompt = this.getRolePrompt(agentId, role, maidName);
+        const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
+
         // tmuxウィンドウが準備できるまで待つ
         await this.delay(500);
 
         // Claude Code を初期プロンプト付きで起動（tmux send-keys経由）
-        const command = `claude --dangerously-skip-permissions '${escapedInstruction}'`;
+        // --append-system-prompt: コンパクション後も維持される静的な役割情報
+        const command = `claude --dangerously-skip-permissions --append-system-prompt '${escapedRolePrompt}' '${escapedInstruction}'`;
         this.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
 
         const roleLabel = agent.role === 'butler' ? '執事' :
@@ -3724,14 +3766,22 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
         const agent = this.agents.get(agentId);
         if (!agent) return;
 
-        // Claude Code を権限スキップモードで起動
-        this.sendToAgent(agentId, 'claude --dangerously-skip-permissions');
+        // 役割別プロンプト生成（--append-system-prompt用、コンパクション耐性あり）
+        const rolePrompt = this.getRolePrompt(agentId, agent.role, agent.name);
+        const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
+
+        // Claude Code を権限スキップモードで起動（役割情報付き）
+        this.sendToAgent(agentId, `claude --dangerously-skip-permissions --append-system-prompt '${escapedRolePrompt}'`);
     }
 
     async startClaudeOnAllAgents(): Promise<void> {
         let count = 0;
         for (const [id, agent] of this.agents) {
-            this.sendToAgent(id, 'claude --dangerously-skip-permissions');
+            // 役割別プロンプト生成（--append-system-prompt用、コンパクション耐性あり）
+            const rolePrompt = this.getRolePrompt(id, agent.role, agent.name);
+            const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
+
+            this.sendToAgent(id, `claude --dangerously-skip-permissions --append-system-prompt '${escapedRolePrompt}'`);
             await this.delay(500); // 各エージェント間で少し待つ
             count++;
         }
@@ -3756,10 +3806,10 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
             return;
         }
 
-        // dashboard.md を監視
+        // queue/*.yaml と reports/*.md を監視
         const pattern = new vscode.RelativePattern(
             this.maidAgentPath,
-            '{dashboard.md,queue/*.yaml,reports/*.md}'
+            '{queue/*.yaml,reports/*.md}'
         );
 
         this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
@@ -3769,11 +3819,6 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
             this.log(`[ファイル変更] ${fileName}`);
             this.updateDashboard();
 
-            // dashboard.md が更新されたらユーザーに通知 + プレビュー更新
-            if (fileName === 'dashboard.md') {
-                this.notifyDashboardUpdate(uri.fsPath);
-                this.updateDashboardMarkdownPanel();
-            }
 
             // reports/*.md が更新されたらメイド長への報告チェック
             if (uri.fsPath.includes('/reports/') && fileName.endsWith('.md') && fileName !== '.gitkeep') {
@@ -3793,89 +3838,6 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
         }
     }
 
-    /**
-     * dashboard.md 更新時にユーザーに通知
-     */
-    private async notifyDashboardUpdate(dashboardPath: string): Promise<void> {
-        try {
-            const content = fs.readFileSync(dashboardPath, 'utf-8');
-
-            // 完了タスクがあるかチェック
-            const hasCompleted = content.includes('✅ 本日の成果') &&
-                                 content.match(/\| \d{2}:\d{2} \|/); // 時刻パターンがあれば完了あり
-
-            // 要対応事項があるかチェック（セクション内の内容のみ確認）
-            let hasIssues = false;
-            if (content.includes('🚨 要対応')) {
-                // 🚨 要対応 と次の ## セクションの間の内容を抽出
-                const afterYoutaiou = content.split('🚨 要対応')[1];
-                if (afterYoutaiou) {
-                    // 次の ## までの内容を取得
-                    const sectionContent = afterYoutaiou.split(/\n## /)[0].trim();
-                    // プレースホルダーテキストでなければ要対応ありと判断
-                    const placeholders = [
-                        'ご主人様のご判断が必要な事項はございません',
-                        '（なし）',
-                        'なし',
-                        ''
-                    ];
-                    hasIssues = !placeholders.some(p => sectionContent === p || sectionContent.endsWith(p));
-                }
-            }
-
-            // 進行中タスクがあるかチェック
-            const hasInProgress = content.includes('⚡ 進行中') &&
-                                  content.includes('- [ ]');
-
-            let message: string;
-            let icon: string;
-
-            if (hasIssues) {
-                icon = '🚨';
-                message = '要対応事項があります';
-            } else if (hasCompleted) {
-                icon = '✅';
-                message = 'タスクが完了しました';
-            } else if (hasInProgress) {
-                icon = '⚡';
-                message = 'タスクが進行中です';
-            } else {
-                // 大きな変更がなければ通知しない
-                return;
-            }
-
-            // 🚨 要対応のみモーダルダイアログ、それ以外はステータスバー通知（ターミナル入力を中断しない）
-            // 注: プレビュー自動リフレッシュは削除（フォーカスが奪われるため）
-            //     ユーザーはステータスバーをクリックしてダッシュボードを開ける
-            if (hasIssues) {
-                const choice = await vscode.window.showWarningMessage(
-                    `${icon} Dashboard更新: ${message}`,
-                    'Dashboardを開く',
-                    '執事に確認を依頼'
-                );
-
-                if (choice === 'Dashboardを開く') {
-                    // マークダウンプレビューで開く
-                    const uri = vscode.Uri.file(dashboardPath);
-                    await vscode.commands.executeCommand('markdown.showPreview', uri);
-                } else if (choice === '執事に確認を依頼') {
-                    const butler = this.agents.get('butler');
-                    if (butler) {
-                        await this.sendMessageToAgent('butler', 'dashboard.md を確認して、現在の状況を報告してください。');
-                        vscode.window.showInformationMessage('🎩 執事に確認を依頼しました');
-                    } else {
-                        vscode.window.showWarningMessage('執事がまだ起動していません');
-                    }
-                }
-            } else {
-                // 非クリティカルな更新はステータスバーに表示（入力を中断しない）
-                this.showStatusBarNotification(icon, message);
-                this.log(`[Dashboard] ${icon} ${message}`);
-            }
-        } catch (error) {
-            this.log(`[Dashboard通知] エラー: ${error}`);
-        }
-    }
 
     // 報告チェック用のタイマーを管理
     private pendingReportChecks: Map<string, NodeJS.Timeout> = new Map();
@@ -4087,9 +4049,6 @@ ${agentList || '  (なし)'}
                     case 'openFile':
                         this.openMaidAgentFile(message.file);
                         break;
-                    case 'showDashboardPanel':
-                        this.showDashboardMarkdownPanel();
-                        break;
                     case 'showTaskDashboard':
                         this.showWebDashboard();
                         break;
@@ -4110,6 +4069,15 @@ ${agentList || '  (なし)'}
     private webDashboardPollingInterval: NodeJS.Timeout | undefined;
     private webDashboardInitialized = false; // 初回HTML設定済みフラグ
     private readonly WEB_DASHBOARD_POLLING_INTERVAL = 10000; // 10秒
+
+    // Webview側の完了セクション表示設定（ポーリング時に使用）
+    private completedViewState = {
+        limit: 10,
+        offset: 0,
+        reviewed: undefined as string | undefined,
+        starred: undefined as string | undefined,
+        hash: ''
+    };
 
     showWebDashboard(): void {
         if (this.webDashboardPanel) {
@@ -4151,6 +4119,25 @@ ${agentList || '  (なし)'}
                         break;
                     case 'openFile':
                         this.openFileWithPreview(message.path);
+                        break;
+                    case 'toggleReview':
+                        this.toggleTaskReview(message.taskId, message.reviewed);
+                        break;
+                    case 'toggleStar':
+                        this.toggleTaskStar(message.taskId, message.starred);
+                        break;
+                    case 'completedPage':
+                        this.fetchCompletedPage(message.offset, message.limit, message.reviewed, message.starred);
+                        break;
+                    case 'updateCompletedViewState':
+                        // Webviewから表示設定を受け取り保持（ポーリング時に使用）
+                        this.completedViewState = {
+                            limit: message.limit ?? 10,
+                            offset: message.offset ?? 0,
+                            reviewed: message.reviewed,
+                            starred: message.starred,
+                            hash: message.hash ?? ''
+                        };
                         break;
                 }
             },
@@ -4303,7 +4290,7 @@ ${agentList || '  (なし)'}
 
         // postMessageリスナーを追加（VSCode Webview用）
         // 拡張機能からpostMessageで送信されたJSON更新を受け取り、
-        // 既存のupdateStats/updateTaskLists関数を呼び出す
+        // 既存のupdateStats/updateTaskListsWithMeta関数を呼び出す
         const messageListenerScript = `
             <script>
                 // postMessageでJSON更新・レポート表示を受け取るリスナー
@@ -4313,12 +4300,23 @@ ${agentList || '  (なし)'}
                         if (message.stats && typeof updateStats === 'function') {
                             updateStats(message.stats);
                         }
-                        if (message.tasks && typeof updateTaskLists === 'function') {
+                        // completedMeta付きの場合はupdateTaskListsWithMetaを使用
+                        if (message.tasks && typeof updateTaskListsWithMeta === 'function') {
+                            updateTaskListsWithMeta(message.tasks, message.completedMeta);
+                        } else if (message.tasks && typeof updateTaskLists === 'function') {
                             updateTaskLists(message.tasks);
                         }
                     } else if (message.type === 'showReport') {
                         if (typeof showReportOverlay === 'function') {
                             showReportOverlay(message.html, message.fileName);
+                        }
+                    } else if (message.type === 'completedPageUpdate') {
+                        if (typeof updateCompletedSection === 'function') {
+                            updateCompletedSection(message.html, message.total, message.offset, message.limit);
+                        }
+                    } else if (message.type === 'refreshCompletedPage') {
+                        if (typeof requestCompletedPage === 'function') {
+                            requestCompletedPage();
                         }
                     }
                 });
@@ -4335,11 +4333,20 @@ ${agentList || '  (なし)'}
     /**
      * WebダッシュボードをJSON APIで部分更新
      * 展開状態を保持したままデータのみ更新
+     * Webviewの完了セクション表示設定を送信し、ハッシュ比較で差分検知
      */
     private async updateWebDashboardData(serverUrl: string, projectPath: string): Promise<void> {
         if (!this.webDashboardPanel) return;
 
-        const dataUrl = `${serverUrl}/dashboard/data?project=${encodeURIComponent(projectPath)}`;
+        // Webviewの表示設定をクエリパラメータに含める
+        const state = this.completedViewState;
+        let dataUrl = `${serverUrl}/dashboard/data?project=${encodeURIComponent(projectPath)}`;
+        dataUrl += `&completedLimit=${state.limit}`;
+        dataUrl += `&completedOffset=${state.offset}`;
+        if (state.reviewed) dataUrl += `&completedReviewed=${state.reviewed}`;
+        if (state.starred) dataUrl += `&completedStarred=${state.starred}`;
+        if (state.hash) dataUrl += `&completedHash=${state.hash}`;
+
         const response = await fetch(dataUrl);
 
         if (!response.ok) {
@@ -4348,18 +4355,102 @@ ${agentList || '  (なし)'}
 
         const data = await response.json() as {
             stats: { pendingCount: number; workingCount: number; blockedCount: number; completedTodayCount: number; timestamp: string };
-            tasks: { pending: string; working: string; blocked: string; completed: string; actionRequired: string };
+            tasks: { pending: string; working: string; blocked: string; completed?: string; actionRequired: string };
+            completedMeta?: { changed: boolean; hash: string; total: number };
         };
 
+        // ハッシュを更新
+        if (data.completedMeta?.hash) {
+            this.completedViewState.hash = data.completedMeta.hash;
+        }
+
         // postMessageでWebviewにデータを送信
-        // Webview側のリスナーがupdateStats/updateTaskListsを呼び出す
+        // Webview側のリスナーがupdateStats/updateTaskListsWithMetaを呼び出す
         this.webDashboardPanel.webview.postMessage({
             type: 'dashboardUpdate',
             stats: data.stats,
-            tasks: data.tasks
+            tasks: data.tasks,
+            completedMeta: data.completedMeta
         });
 
         this.log('[WebDashboard] JSON APIで部分更新送信');
+    }
+
+    /**
+     * 完了タスクのレビュー済みフラグをトグル
+     */
+    private async toggleTaskReview(taskId: string, reviewed: boolean): Promise<void> {
+        const serverUrl = 'http://localhost:3100';
+        let projectPath = this.workspaceRoot;
+        if (!projectPath) return;
+        const normalizedPath = CURRENT_ENV === 'windows-native'
+            ? windowsToWslPath(projectPath)
+            : projectPath;
+        try {
+            await fetch(`${serverUrl}/api/tasks/${taskId}/review`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': normalizedPath },
+                body: JSON.stringify({ reviewed }),
+            });
+            // PATCH成功後、webviewに完了ページ再取得シグナルを送信
+            this.webDashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
+        } catch (error) {
+            this.log(`[WebDashboard] Review toggle failed: ${error}`);
+        }
+    }
+
+    /**
+     * 完了タスクのスターフラグをトグル
+     */
+    private async toggleTaskStar(taskId: string, starred: boolean): Promise<void> {
+        const serverUrl = 'http://localhost:3100';
+        let projectPath = this.workspaceRoot;
+        if (!projectPath) return;
+        const normalizedPath = CURRENT_ENV === 'windows-native'
+            ? windowsToWslPath(projectPath)
+            : projectPath;
+        try {
+            await fetch(`${serverUrl}/api/tasks/${taskId}/star`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': normalizedPath },
+                body: JSON.stringify({ starred }),
+            });
+            // PATCH成功後、webviewに完了ページ再取得シグナルを送信
+            this.webDashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
+        } catch (error) {
+            this.log(`[WebDashboard] Star toggle failed: ${error}`);
+        }
+    }
+
+    /**
+     * 完了タスクのページネーションデータを取得してWebviewに送信
+     */
+    private async fetchCompletedPage(offset: number, limit: number, reviewed?: string, starred?: string): Promise<void> {
+        const serverUrl = 'http://localhost:3100';
+        let projectPath = this.workspaceRoot;
+        if (!projectPath || !this.webDashboardPanel) return;
+        const normalizedPath = CURRENT_ENV === 'windows-native'
+            ? windowsToWslPath(projectPath)
+            : projectPath;
+        try {
+            let url = `${serverUrl}/dashboard/completed?project=${encodeURIComponent(normalizedPath)}&offset=${offset}&limit=${limit}`;
+            if (reviewed === 'yes') url += '&reviewed=yes';
+            else if (reviewed === 'no') url += '&reviewed=no';
+            if (starred === 'yes') url += '&starred=yes';
+            else if (starred === 'no') url += '&starred=no';
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+            const data = await response.json() as { html: string; total: number; offset: number; limit: number; hasMore: boolean };
+            this.webDashboardPanel.webview.postMessage({
+                type: 'completedPageUpdate',
+                html: data.html,
+                total: data.total,
+                offset: data.offset,
+                limit: data.limit,
+            });
+        } catch (error) {
+            this.log(`[WebDashboard] Completed page fetch failed: ${error}`);
+        }
     }
 
     /**
@@ -4510,118 +4601,12 @@ ${agentList || '  (なし)'}
 </html>`;
     }
 
-    private dashboardMarkdownPanel: vscode.WebviewPanel | undefined;
 
-    /**
-     * dashboard.md を専用のWebviewパネルでレンダリング表示
-     * （VSCodeのMarkdownプレビュータブを占有しない）
-     */
-    private showDashboardMarkdownPanel(): void {
-        if (!this.maidAgentPath) {
-            vscode.window.showWarningMessage('ワークスペースが初期化されていません');
-            return;
-        }
 
-        const dashboardPath = path.join(this.maidAgentPath, 'dashboard.md');
-        if (!fs.existsSync(dashboardPath)) {
-            vscode.window.showWarningMessage('dashboard.md が見つかりません');
-            return;
-        }
 
-        // 既存パネルがあれば更新して表示
-        if (this.dashboardMarkdownPanel) {
-            this.updateDashboardMarkdownPanel();
-            this.dashboardMarkdownPanel.reveal(vscode.ViewColumn.Active);
-            return;
-        }
 
-        // 新規パネルを作成
-        this.dashboardMarkdownPanel = vscode.window.createWebviewPanel(
-            'dashboardMarkdown',
-            '📊 Dashboard.md',
-            vscode.ViewColumn.Active,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true  // 非表示時も状態を保持
-            }
-        );
-        this.setupDashboardPanelHandlers(this.dashboardMarkdownPanel);
-        this.updateDashboardMarkdownPanel();
-    }
 
-    private dashboardFileWatcher: vscode.FileSystemWatcher | undefined;
 
-    /**
-     * ダッシュボードパネルのイベントハンドラーをセットアップ
-     * （新規作成時とSerializer復元時の両方で使用）
-     */
-    private setupDashboardPanelHandlers(panel: vscode.WebviewPanel): void {
-        // ファイル変更監視を開始
-        this.startDashboardFileWatcher();
-
-        panel.onDidDispose(() => {
-            this.dashboardMarkdownPanel = undefined;
-            // パネルが閉じられたらファイル監視を停止
-            this.stopDashboardFileWatcher();
-        });
-
-        // 更新ボタン用のメッセージハンドラ
-        panel.webview.onDidReceiveMessage(
-            message => {
-                if (message.command === 'refresh') {
-                    this.updateDashboardMarkdownPanel();
-                } else if (message.command === 'edit') {
-                    this.openMaidAgentFile('dashboard.md');
-                }
-            },
-            undefined,
-            this.context?.subscriptions
-        );
-    }
-
-    /**
-     * dashboard.md のファイル変更監視を開始
-     */
-    private startDashboardFileWatcher(): void {
-        if (this.dashboardFileWatcher || !this.maidAgentPath) return;
-
-        const dashboardPath = path.join(this.maidAgentPath, 'dashboard.md');
-        const pattern = new vscode.RelativePattern(
-            vscode.Uri.file(this.maidAgentPath),
-            'dashboard.md'
-        );
-
-        this.dashboardFileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
-
-        // ファイル変更時に自動更新
-        this.dashboardFileWatcher.onDidChange(() => {
-            this.updateDashboardMarkdownPanel();
-        });
-
-        // ファイル作成時も更新
-        this.dashboardFileWatcher.onDidCreate(() => {
-            this.updateDashboardMarkdownPanel();
-        });
-    }
-
-    /**
-     * dashboard.md のファイル変更監視を停止
-     */
-    private stopDashboardFileWatcher(): void {
-        if (this.dashboardFileWatcher) {
-            this.dashboardFileWatcher.dispose();
-            this.dashboardFileWatcher = undefined;
-        }
-    }
-
-    /**
-     * Serializerからパネルを復元する
-     */
-    restoreDashboardPanel(panel: vscode.WebviewPanel): void {
-        this.dashboardMarkdownPanel = panel;
-        this.setupDashboardPanelHandlers(panel);
-        this.updateDashboardMarkdownPanel();
-    }
 
     /**
      * Serializerからコントローラパネルを復元する
@@ -4646,9 +4631,6 @@ ${agentList || '  (なし)'}
                         break;
                     case 'openFile':
                         this.openMaidAgentFile(message.file);
-                        break;
-                    case 'showDashboardPanel':
-                        this.showDashboardMarkdownPanel();
                         break;
                     case 'showTaskDashboard':
                         this.showWebDashboard();
@@ -4704,101 +4686,6 @@ ${agentList || '  (なし)'}
         this.updateWebDashboard();
     }
 
-    /**
-     * dashboard.md 専用パネルの内容を更新
-     */
-    private updateDashboardMarkdownPanel(): void {
-        if (!this.dashboardMarkdownPanel || !this.maidAgentPath) return;
-
-        const dashboardPath = path.join(this.maidAgentPath, 'dashboard.md');
-        let contentHtml = '<p>dashboard.md が見つかりません</p>';
-
-        if (fs.existsSync(dashboardPath)) {
-            const rawContent = fs.readFileSync(dashboardPath, 'utf-8');
-            contentHtml = simpleMarkdownToHtml(rawContent);
-        }
-
-        this.dashboardMarkdownPanel.webview.html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
-            padding: 20px;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #eee;
-            min-height: 100vh;
-            margin: 0;
-            line-height: 1.6;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e94560;
-        }
-        h1 { color: #e94560; margin: 0; font-size: 1.4em; }
-        .actions { display: flex; gap: 10px; }
-        .btn {
-            background: rgba(255,255,255,0.1);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.2);
-            padding: 6px 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.85em;
-        }
-        .btn:hover { background: rgba(255,255,255,0.2); }
-        .btn.primary { background: #e94560; border-color: #e94560; }
-        .btn.primary:hover { background: #d63050; }
-        .content {
-            background: rgba(0,0,0,0.3);
-            border-radius: 10px;
-            padding: 20px;
-        }
-        /* Markdown スタイル */
-        .md-h1 { font-size: 1.5em; color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 8px; margin: 20px 0 15px 0; }
-        .md-h2 { font-size: 1.25em; color: #ffc107; border-bottom: 1px solid #444; padding-bottom: 5px; margin: 18px 0 12px 0; }
-        .md-h3 { font-size: 1.1em; color: #81c784; margin: 15px 0 8px 0; }
-        .md-p { margin: 10px 0; }
-        .md-ul { margin: 8px 0; padding-left: 25px; }
-        .md-li { margin: 5px 0; list-style-type: disc; }
-        .md-checkbox { padding: 5px 0; }
-        .md-checkbox.checked { color: #81c784; }
-        .md-table { border-collapse: collapse; width: 100%; margin: 15px 0; }
-        .md-table th, .md-table td { border: 1px solid #444; padding: 8px 12px; text-align: left; }
-        .md-table th { background: rgba(255,255,255,0.1); color: #ffc107; }
-        .md-code-block { background: #0a0a0a; padding: 15px; border-radius: 8px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.9em; margin: 10px 0; }
-        .md-inline-code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', monospace; }
-        .md-hr { border: none; border-top: 1px solid #444; margin: 20px 0; }
-        .md-link { color: #4fc3f7; }
-        strong { color: #ffc107; }
-        em { font-style: italic; color: #aaa; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>📊 Dashboard.md</h1>
-        <div class="actions">
-            <button class="btn" onclick="refresh()">🔄 更新</button>
-            <button class="btn primary" onclick="edit()">✏️ 編集</button>
-        </div>
-    </div>
-    <div class="content">
-        ${contentHtml}
-    </div>
-    <script>
-        const vscode = acquireVsCodeApi();
-        function refresh() { vscode.postMessage({ command: 'refresh' }); }
-        function edit() { vscode.postMessage({ command: 'edit' }); }
-    </script>
-</body>
-</html>`;
-    }
 
     private updateDashboard(): void {
         if (!this.dashboardPanel) return;
@@ -4807,15 +4694,6 @@ ${agentList || '  (なし)'}
         const chief = this.agents.get('chief');
         const maids = MAIDS.map(m => this.agents.get(m.id)).filter(Boolean) as Agent[];
 
-        // dashboard.md の内容を読み込んでHTMLに変換
-        let dashboardContentHtml = '';
-        if (this.maidAgentPath) {
-            const dashboardPath = path.join(this.maidAgentPath, 'dashboard.md');
-            if (fs.existsSync(dashboardPath)) {
-                const rawContent = fs.readFileSync(dashboardPath, 'utf-8');
-                dashboardContentHtml = simpleMarkdownToHtml(rawContent);
-            }
-        }
 
         // 会話ログ（history.log）を読み込む
         let conversationLogs = '';
@@ -4914,29 +4792,6 @@ ${agentList || '  (なし)'}
         }
         .file-link:hover { background: rgba(255,255,255,0.2); }
 
-        .dashboard-content {
-            background: #0a0a0a; border-radius: 8px; padding: 15px;
-            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif; font-size: 0.85em;
-            max-height: 400px; overflow-y: auto; line-height: 1.5;
-        }
-        /* Markdown スタイル */
-        .dashboard-content .md-h1 { font-size: 1.3em; color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 5px; margin: 15px 0 10px 0; }
-        .dashboard-content .md-h2 { font-size: 1.1em; color: #ffc107; border-bottom: 1px solid #444; padding-bottom: 3px; margin: 12px 0 8px 0; }
-        .dashboard-content .md-h3 { font-size: 1em; color: #81c784; margin: 10px 0 5px 0; }
-        .dashboard-content .md-p { margin: 8px 0; }
-        .dashboard-content .md-ul { margin: 5px 0; padding-left: 20px; }
-        .dashboard-content .md-li { margin: 3px 0; list-style-type: disc; }
-        .dashboard-content .md-checkbox { padding: 3px 0; }
-        .dashboard-content .md-checkbox.checked { color: #81c784; }
-        .dashboard-content .md-table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 0.9em; }
-        .dashboard-content .md-table th, .dashboard-content .md-table td { border: 1px solid #444; padding: 5px 8px; text-align: left; }
-        .dashboard-content .md-table th { background: rgba(255,255,255,0.1); }
-        .dashboard-content .md-code-block { background: #1a1a1a; padding: 10px; border-radius: 5px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.9em; }
-        .dashboard-content .md-inline-code { background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 3px; font-family: 'Consolas', monospace; }
-        .dashboard-content .md-hr { border: none; border-top: 1px solid #444; margin: 15px 0; }
-        .dashboard-content .md-link { color: #4fc3f7; }
-        .dashboard-content strong { color: #ffc107; }
-        .dashboard-content em { font-style: italic; color: #aaa; }
 
         .log-container {
             background: #0a0a0a; border-radius: 8px; padding: 10px;
@@ -4959,8 +4814,6 @@ ${agentList || '  (なし)'}
         .conv-sender { color: #4fc3f7; font-weight: bold; }
         .conv-target { color: #81c784; font-weight: bold; }
 
-        .three-column { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
-        @media (max-width: 900px) { .three-column { grid-template-columns: 1fr; } }
 
         @media (max-width: 600px) { .two-column { grid-template-columns: 1fr; } }
     </style>
@@ -4973,15 +4826,10 @@ ${agentList || '  (なし)'}
         <button class="action-btn" onclick="sendTask()">📝 執事に指令</button>
         <button class="action-btn secondary" onclick="refresh()">🔄 更新</button>
         <button class="action-btn secondary" onclick="showTaskDashboard()">📋 Tasks</button>
-        <button class="action-btn secondary" onclick="showDashboardPanel()">📊 dashboard.md</button>
         <button class="action-btn secondary" onclick="openFile('queue/butler_to_chief.yaml')">📂 Queue</button>
     </div>
 
-    <div class="three-column">
-        <div class="section">
-            <h2>📊 Dashboard.md</h2>
-            <div class="dashboard-content">${dashboardContentHtml || '<p class="md-p">(未読み込み)</p>'}</div>
-        </div>
+    <div class="two-column">
         <div class="section">
             <h2>💬 会話ログ</h2>
             <div class="conv-container">
@@ -5023,7 +4871,6 @@ ${agentList || '  (なし)'}
         function refresh() { vscode.postMessage({ command: 'refresh' }); }
         function sendTask() { vscode.postMessage({ command: 'sendTask' }); }
         function openFile(file) { vscode.postMessage({ command: 'openFile', file: file }); }
-        function showDashboardPanel() { vscode.postMessage({ command: 'showDashboardPanel' }); }
         function showTaskDashboard() { vscode.postMessage({ command: 'showTaskDashboard' }); }
     </script>
 </body>
@@ -5176,16 +5023,6 @@ export function activate(context: vscode.ExtensionContext) {
         )
     );
 
-    // Dashboard パネルの永続化（VSCode再起動時に復元）
-    context.subscriptions.push(
-        vscode.window.registerWebviewPanelSerializer('dashboardMarkdown', {
-            async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown) {
-                // パネルのオプションを再設定
-                panel.webview.options = { enableScripts: true };
-                controller.restoreDashboardPanel(panel);
-            }
-        })
-    );
 
     // コントローラパネルの永続化（VSCode再起動時に復元）
     context.subscriptions.push(

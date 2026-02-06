@@ -11,13 +11,14 @@
  */
 
 import express, { Request, Response, NextFunction } from "express";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import path from "path";
 import * as fs from "fs/promises";
 import { loadConfig, getServerUrl } from "./utils/config-loader.js";
+import { convertMarkdownToHtml, escapeHtml } from "./markdown-utils.js";
 import { getTimestamp, getJstTimestamp, formatDateJst, formatDateJstShort } from "./utils/yaml-helper.js";
 import {
   MAID_IDS,
@@ -36,6 +37,7 @@ import {
   executeGetTask,
   executeListTasks,
   executeUpdateTask,
+  executeGetReport,
   type TaskStatus,
 } from "./services/index.js";
 
@@ -89,7 +91,8 @@ interface DashboardData {
   pending: Array<{ id: string; title: string; description: string; priority: string; createdAt: string; category?: string }>;
   working: Array<{ id: string; title: string; description: string; status: string; assignees: Array<{ agentId: string }>; priority: string }>;
   blocked: Array<{ id: string; title: string; description: string; substatus: string | null; assignees: Array<{ agentId: string }>; priority: string }>;
-  recentCompleted: Array<{ id: string; title: string; description: string; completedAt: string | null; summary: string | null; assignees: Array<{ agentId: string }>; reportPaths: string[] }>;
+  recentCompleted: Array<{ id: string; title: string; description: string; completedAt: string | null; summary: string | null; assignees: Array<{ agentId: string }>; reportPaths: string[]; reviewed?: boolean; starred?: boolean }>;
+  completedTotal: number;
   actionRequired: Array<{ id: string; title: string; description: string; substatus: string | null }>;
   skillCandidates: Array<{ id: string; title: string; description: string }>;
   improvements: Array<{ id: string; title: string; description: string }>;
@@ -104,7 +107,7 @@ interface DashboardData {
 }
 
 function generateDashboardHtml(data: DashboardData, editorScheme: string = "vscode"): string {
-  const { projectPath, timestamp, pending, working, blocked, recentCompleted, actionRequired, skillCandidates, improvements, teamStatus, stats } = data;
+  const { projectPath, timestamp, pending, working, blocked, recentCompleted, completedTotal, actionRequired, skillCandidates, improvements, teamStatus, stats } = data;
 
   // ステータスアイコンマップ
   const statusIcon: Record<string, string> = {
@@ -231,12 +234,19 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
               return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(windowsPath)}" onclick="return openFile(this, '${escapeHtml(windowsPath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
             }).join(", ")
           : "";
-        return `<div class="task-item completed" data-id="${task.id}">
+        const reviewedClass = task.reviewed ? " reviewed" : "";
+        const reviewedActive = task.reviewed ? " active" : "";
+        const starredActive = task.starred ? " active" : "";
+        return `<div class="task-item completed${reviewedClass}" data-id="${task.id}">
           <div class="task-main-row">
             <span class="task-id">${task.id}</span>
             <span class="task-title">${escapeHtml(title)}</span>
-            ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
-            <span class="task-date">${completedDate}</span>
+            <span class="task-right-group">
+              ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
+              <span class="task-date">${completedDate}</span>
+              <button class="task-action-btn review-btn${reviewedActive}" onclick="toggleReview(event, '${task.id}', ${!task.reviewed})" title="確認済み">✔</button>
+              <button class="task-action-btn star-btn${starredActive}" onclick="toggleStar(event, '${task.id}', ${!task.starred})" title="スター">★</button>
+            </span>
           </div>
           <div class="task-detail">
             ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
@@ -362,6 +372,8 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 10px;
+      overflow: hidden;
+      min-width: 0;
     }
     .card-header {
       display: flex;
@@ -395,6 +407,33 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     .priority-medium { border-left: 3px solid var(--warning-color); }
     .priority-low { border-left: 3px solid var(--text-muted); }
     .completed { opacity: 0.7; }
+    .completed.reviewed { opacity: 0.5; }
+    .task-actions { display: flex; gap: 4px; margin-left: auto; flex-shrink: 0; }
+    .task-action-btn { background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 0.85rem; opacity: 0.5; transition: opacity 0.2s; line-height: 1; }
+    .task-action-btn:hover { opacity: 1; }
+    .task-action-btn.active { opacity: 1; }
+    .task-action-btn.review-btn.active { color: var(--success-color); }
+    .task-action-btn.star-btn.active { color: #f5c542; }
+    .completed-count-toggle { cursor: pointer; user-select: none; transition: background 0.2s; }
+    .completed-count-toggle:hover { background: rgba(86, 156, 214, 0.3); }
+    .pagination-controls { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px 0; font-size: 0.75rem; color: var(--text-muted); }
+    .pagination-controls:empty { display: none; }
+    .pagination-btn { background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); color: var(--text-color); cursor: pointer; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; }
+    .pagination-btn:hover { background: rgba(255,255,255,0.15); }
+    .pagination-btn:disabled { opacity: 0.3; cursor: default; }
+    .pagination-info { color: var(--text-muted); }
+    /* 完了セクション: ヘッダーインライン配置（左:タイトル+件数、中央:ページネーション、右:フィルタ） */
+    .completed-header-row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; width: 100%; }
+    .completed-header-left { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .completed-header-center { flex: 1; display: flex; justify-content: center; }
+    .completed-header-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .completed-filter-group { display: flex; align-items: center; gap: 4px; }
+    .filter-toggle-btn { background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; padding: 2px 7px; border-radius: 4px; font-size: 0.7rem; transition: all 0.15s; user-select: none; }
+    .filter-toggle-btn:hover { background: rgba(255,255,255,0.12); }
+    .filter-toggle-btn.filter-yes { background: rgba(76,175,80,0.2); border-color: var(--success-color); color: var(--success-color); }
+    .filter-toggle-btn.filter-no { background: rgba(244,67,54,0.15); border-color: #f44336; color: #f44336; }
+    .inline-pagination { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--text-muted); }
+    .inline-pagination .pagination-btn { padding: 1px 6px; font-size: 0.7rem; }
     .empty-message { color: var(--text-muted); font-style: italic; padding: 6px; }
     .team-section { grid-column: 1 / -1; }
     .team-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
@@ -427,7 +466,8 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     .blocked-item { border-left: 3px solid #ff6b6b; }
     .skill-item { border-left: 3px solid #9b59b6; }
     .improvement-item { border-left: 3px solid #f39c12; }
-    .task-main-row { display: flex; gap: 8px; align-items: center; }
+    .task-main-row { display: flex; gap: 8px; align-items: center; width: 100%; }
+    .task-right-group { display: flex; gap: 6px; align-items: center; margin-left: auto; flex-shrink: 0; }
     .task-summary { color: var(--success-color); font-size: 0.8rem; margin-top: 3px; padding-left: 50px; font-style: italic; }
     .task-substatus { color: var(--warning-color); font-size: 0.8rem; margin-top: 3px; padding-left: 50px; }
     .task-substatus-inline { color: var(--warning-color); font-size: 0.75rem; }
@@ -461,13 +501,13 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     .agent-substatus { color: var(--warning-color); font-size: 0.65rem; margin-top: 1px; }
     .agent-task-desc { color: var(--text-muted); font-size: 0.65rem; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Phase 2: ホバー詳細 */
-    .task-item { position: relative; cursor: pointer; flex-wrap: wrap; }
+    .task-item { position: relative; cursor: pointer; flex-wrap: wrap; min-width: 0; }
     .task-item:hover { background: rgba(255,255,255,0.08); }
     .task-detail { display: none; width: 100%; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-color); font-size: 0.8rem; }
     .task-item.expanded .task-detail { display: block; }
     .task-detail-row { display: flex; gap: 8px; margin: 3px 0; }
     .task-detail-label { color: var(--text-muted); min-width: 70px; }
-    .task-detail-value { color: var(--text-color); }
+    .task-detail-value { color: var(--text-color); word-break: break-word; overflow-wrap: break-word; }
     .task-report-links { display: flex; gap: 6px; flex-wrap: wrap; }
     .report-link { color: var(--accent-color); text-decoration: none; padding: 1px 5px; background: rgba(86, 156, 214, 0.1); border-radius: 3px; font-size: 0.75rem; }
     .report-link:hover { background: rgba(86, 156, 214, 0.2); text-decoration: underline; }
@@ -582,6 +622,221 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       // ブラウザの場合は通常のリンク動作（/file?path=...）
       return true;
     }
+
+    function toggleReview(event, taskId, newValue) {
+      event.stopPropagation();
+      if (_vscodeApi) {
+        _vscodeApi.postMessage({ command: 'toggleReview', taskId: taskId, reviewed: newValue });
+      } else {
+        fetch('/api/tasks/' + taskId + '/review', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}' },
+          body: JSON.stringify({ reviewed: newValue })
+        }).then(function() {
+          // サーバーサイドフィルタで現在ページを再取得
+          requestCompletedPage();
+        });
+      }
+    }
+
+    function toggleStar(event, taskId, newValue) {
+      event.stopPropagation();
+      if (_vscodeApi) {
+        _vscodeApi.postMessage({ command: 'toggleStar', taskId: taskId, starred: newValue });
+      } else {
+        fetch('/api/tasks/' + taskId + '/star', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}' },
+          body: JSON.stringify({ starred: newValue })
+        }).then(function() {
+          // サーバーサイドフィルタで現在ページを再取得
+          requestCompletedPage();
+        });
+      }
+    }
+
+    // Part 2: 表示件数トグル（セッション中のみ保持）
+    var COMPLETED_LIMIT_OPTIONS = [5, 10, 20, 100];
+    var COMPLETED_LIMIT_DEFAULT_INDEX = 1; // 初期値: 10
+    var completedLimitIndex = COMPLETED_LIMIT_DEFAULT_INDEX;
+    var completedCurrentPage = 0;
+
+    function getCompletedLimit() {
+      return COMPLETED_LIMIT_OPTIONS[completedLimitIndex];
+    }
+
+    function toggleCompletedLimit() {
+      completedLimitIndex = (completedLimitIndex + 1) % COMPLETED_LIMIT_OPTIONS.length;
+      completedCurrentPage = 0;
+      // カウントバッジにリミット表示（totalは requestCompletedPage で更新される）
+      var badge = document.querySelector('.completed-count-toggle');
+      if (badge) {
+        badge.textContent = getCompletedLimit() + '件表示 (' + completedTotalForPagination + ')';
+      }
+      requestCompletedPage();
+    }
+
+    // Part 2.5: チェック・スターフィルター（3状態トグル: all → yes → no → all）
+    // 状態: 'all' | 'yes' | 'no'
+    var completedFilterReview = 'all';
+    var completedFilterStar = 'all';
+    var FILTER_CYCLE = ['all', 'yes', 'no'];
+
+    function cycleFilter(type) {
+      if (type === 'review') {
+        var idx = FILTER_CYCLE.indexOf(completedFilterReview);
+        completedFilterReview = FILTER_CYCLE[(idx + 1) % FILTER_CYCLE.length];
+      } else {
+        var idx = FILTER_CYCLE.indexOf(completedFilterStar);
+        completedFilterStar = FILTER_CYCLE[(idx + 1) % FILTER_CYCLE.length];
+      }
+      completedCurrentPage = 0;
+      updateFilterButtons();
+      hideCompletedNewBadge();
+      requestCompletedPage();
+    }
+
+    function updateFilterButtons() {
+      var reviewBtn = document.getElementById('filterReviewBtn');
+      var starBtn = document.getElementById('filterStarBtn');
+      if (reviewBtn) {
+        reviewBtn.className = 'filter-toggle-btn' + (completedFilterReview === 'yes' ? ' filter-yes' : completedFilterReview === 'no' ? ' filter-no' : '');
+        reviewBtn.textContent = completedFilterReview === 'yes' ? '✔あり' : completedFilterReview === 'no' ? '✔なし' : '✔すべて';
+      }
+      if (starBtn) {
+        starBtn.className = 'filter-toggle-btn' + (completedFilterStar === 'yes' ? ' filter-yes' : completedFilterStar === 'no' ? ' filter-no' : '');
+        starBtn.textContent = completedFilterStar === 'yes' ? '★あり' : completedFilterStar === 'no' ? '★なし' : '★すべて';
+      }
+    }
+
+    function isCompletedDefaultView() {
+      return completedCurrentPage === 0
+        && completedFilterReview === 'all'
+        && completedFilterStar === 'all'
+        && completedLimitIndex === COMPLETED_LIMIT_DEFAULT_INDEX;
+    }
+
+    function showCompletedNewBadge() {
+      var badge = document.querySelector('.completed-new-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'completed-new-badge';
+        badge.textContent = '新着あり';
+        badge.style.cssText = 'background:#ff9800;color:#fff;padding:2px 8px;border-radius:10px;font-size:12px;margin-left:8px;cursor:pointer;';
+        badge.onclick = function() {
+          completedCurrentPage = 0;
+          completedFilterReview = 'all';
+          completedFilterStar = 'all';
+          updateFilterButtons();
+          requestCompletedPage();
+          badge.remove();
+        };
+        var header = document.querySelector('.completed-header-row');
+        if (header) header.appendChild(badge);
+      }
+    }
+
+    function hideCompletedNewBadge() {
+      var badge = document.querySelector('.completed-new-badge');
+      if (badge) badge.remove();
+    }
+
+    // Part 3: ページネーション
+    var completedTotalForPagination = 0;
+
+    function requestCompletedPage() {
+      var limit = getCompletedLimit();
+      var offset = completedCurrentPage * limit;
+      // フィルタパラメータを構築
+      var filterParams = '';
+      if (completedFilterReview === 'yes') filterParams += '&reviewed=yes';
+      else if (completedFilterReview === 'no') filterParams += '&reviewed=no';
+      if (completedFilterStar === 'yes') filterParams += '&starred=yes';
+      else if (completedFilterStar === 'no') filterParams += '&starred=no';
+
+      if (_vscodeApi) {
+        _vscodeApi.postMessage({
+          command: 'completedPage',
+          offset: offset,
+          limit: limit,
+          reviewed: completedFilterReview !== 'all' ? completedFilterReview : undefined,
+          starred: completedFilterStar !== 'all' ? completedFilterStar : undefined,
+        });
+        // 表示設定をextensionに送信（ポーリング時に使用）
+        syncCompletedViewState();
+      } else {
+        // ブラウザ用: 直接APIを呼び出す
+        var url = '/dashboard/completed?project=${encodeURIComponent(projectPath)}&offset=' + offset + '&limit=' + limit + filterParams;
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            updateCompletedSection(data.html, data.total, offset, limit);
+          });
+      }
+    }
+
+    // VSCode Webview用: 表示設定をextensionに送信
+    function syncCompletedViewState() {
+      if (_vscodeApi) {
+        _vscodeApi.postMessage({
+          command: 'updateCompletedViewState',
+          limit: getCompletedLimit(),
+          offset: completedCurrentPage * getCompletedLimit(),
+          reviewed: completedFilterReview !== 'all' ? completedFilterReview : undefined,
+          starred: completedFilterStar !== 'all' ? completedFilterStar : undefined,
+          hash: completedHash
+        });
+      }
+    }
+
+    function updateCompletedSection(html, total, offset, limit) {
+      var container = document.querySelector('.completed-tasks-container');
+      if (container) {
+        container.innerHTML = html;
+        attachTaskItemListeners();
+        restoreExpandedStates();
+      }
+      completedTotalForPagination = total;
+      // インラインページネーションUI更新
+      updateInlinePagination(total, offset, limit);
+      // 明示的なページ取得なので新着バッジを非表示
+      hideCompletedNewBadge();
+      // カウントバッジ更新
+      var badge = document.querySelector('.completed-count-toggle');
+      if (badge) {
+        badge.textContent = limit + '件表示 (' + total + ')';
+      }
+    }
+
+    function updateInlinePagination(total, offset, limit) {
+      var paginationEl = document.getElementById('completedPagination');
+      if (!paginationEl) return;
+      var totalPages = Math.ceil(total / limit);
+      var currentPage = Math.floor(offset / limit);
+      if (totalPages <= 1) {
+        paginationEl.innerHTML = '<span class="pagination-info">' + total + '件</span>';
+      } else {
+        paginationEl.innerHTML =
+          '<button class="pagination-btn" onclick="goCompletedPage(' + (currentPage - 1) + ')" ' + (currentPage === 0 ? 'disabled' : '') + '>◀</button>' +
+          '<span class="pagination-info">' + (currentPage + 1) + '/' + totalPages + '</span>' +
+          '<button class="pagination-btn" onclick="goCompletedPage(' + (currentPage + 1) + ')" ' + (currentPage >= totalPages - 1 ? 'disabled' : '') + '>▶</button>';
+      }
+    }
+
+    function goCompletedPage(page) {
+      if (page < 0) return;
+      completedCurrentPage = page;
+      requestCompletedPage();
+    }
+
+    // 初期表示時にページネーションを表示（件数がページサイズを超える場合）
+    function initCompletedPagination() {
+      // サーバーから埋め込まれた実際の総件数を使用
+      var total = ${completedTotal};
+      completedTotalForPagination = total;
+      var limit = getCompletedLimit();
+      updateInlinePagination(total, 0, limit);
+    }
   </script>
 </head>
 <body>
@@ -693,10 +948,27 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
 
     <div class="card" style="grid-column: 1 / -1;" data-section="completed">
       <div class="card-header">
-        <span class="card-title">✅ 直近完了</span>
-        <span class="card-count">${recentCompleted.length}</span>
+        <div class="completed-header-row">
+          <div class="completed-header-left">
+            <span class="card-title">✅ 直近完了</span>
+            <span class="card-count completed-count-toggle" onclick="toggleCompletedLimit()" title="クリックで表示件数を切替">
+              10件表示 (${completedTotal})
+            </span>
+          </div>
+          <div class="completed-header-center">
+            <div class="inline-pagination" id="completedPagination"></div>
+          </div>
+          <div class="completed-header-right">
+            <div class="completed-filter-group">
+              <button id="filterReviewBtn" class="filter-toggle-btn" onclick="cycleFilter('review')" title="チェックフィルター（クリックで切替）">✔すべて</button>
+              <button id="filterStarBtn" class="filter-toggle-btn" onclick="cycleFilter('star')" title="スターフィルター（クリックで切替）">★すべて</button>
+            </div>
+          </div>
+        </div>
       </div>
-      ${completedHtml}
+      <div class="completed-tasks-container">
+        ${completedHtml}
+      </div>
     </div>
 
     <!-- P1: スキル候補・改善提案セクション -->
@@ -741,6 +1013,8 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
       const assignee = assigneeFilter.value;
 
       document.querySelectorAll('.task-item').forEach(item => {
+        // 完了タスクはサーバーサイドフィルタで管理するためスキップ
+        if (item.closest('.completed-tasks-container')) return;
         const id = item.querySelector('.task-id')?.textContent?.toLowerCase() || '';
         const desc = item.querySelector('.task-desc')?.textContent?.toLowerCase() || '';
         const itemPriority = item.dataset.priority || '';
@@ -758,50 +1032,109 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
     priorityFilter?.addEventListener('change', filterTasks);
     assigneeFilter?.addEventListener('change', filterTasks);
 
-    // Phase 3: SSEによるリアルタイム更新（タスクリスト全体対応）
-    let eventSource = null;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 5;
+    // Phase 3: ポーリングによるリアルタイム更新（表示設定を送信可能）
+    let pollingIntervalId = null;
+    const POLLING_INTERVAL = 10000; // 10秒
 
     // 展開状態を記憶するMap（taskId -> expanded）
     const expandedState = new Map();
 
+    // 完了セクションのハッシュ（差分検知用）
+    var completedHash = '';
+
     // サーバーURLを埋め込み（VSCode Webview対応）
     const serverBaseUrl = 'http://127.0.0.1:3100';
 
-    function connectSSE() {
-      const projectPath = encodeURIComponent('${escapeHtml(projectPath)}');
-      // 絶対URLを使用（VSCode Webviewでも動作するように）
-      eventSource = new EventSource(serverBaseUrl + '/dashboard/events?project=' + projectPath);
+    function startPolling() {
+      if (pollingIntervalId) return; // 既に開始済み
+      pollingIntervalId = setInterval(fetchDashboardData, POLLING_INTERVAL);
+    }
 
-      eventSource.onmessage = function(event) {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'update') {
-            // 統計のみ更新
-            updateStats(data.stats);
-          } else if (data.type === 'tasks') {
-            // タスクリスト全体を更新
-            updateTaskLists(data.tasks);
-          } else if (data.type === 'refresh') {
-            location.reload();
+    function stopPolling() {
+      if (pollingIntervalId) {
+        clearInterval(pollingIntervalId);
+        pollingIntervalId = null;
+      }
+    }
+
+    function fetchDashboardData() {
+      var projectPath = encodeURIComponent('${escapeHtml(projectPath)}');
+      var limit = getCompletedLimit();
+      var offset = completedCurrentPage * limit;
+
+      // フィルタパラメータを構築
+      var completedParams = '&completedLimit=' + limit + '&completedOffset=' + offset;
+      if (completedFilterReview !== 'all') completedParams += '&completedReviewed=' + completedFilterReview;
+      if (completedFilterStar !== 'all') completedParams += '&completedStarred=' + completedFilterStar;
+      if (completedHash) completedParams += '&completedHash=' + completedHash;
+
+      var url = serverBaseUrl + '/dashboard/data?project=' + projectPath + completedParams;
+      fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          // 統計を更新
+          updateStats(data.stats);
+          // タスクリストを更新（completedMeta付き）
+          updateTaskListsWithMeta(data.tasks, data.completedMeta);
+        })
+        .catch(function(e) {
+          console.error('Polling error:', e);
+        });
+    }
+
+    function updateTaskListsWithMeta(tasks, completedMeta) {
+      if (!tasks) return;
+
+      // 現在の展開状態を保存
+      saveExpandedStates();
+
+      // 完了以外のセクションを更新
+      if (tasks.pending) {
+        updateTaskSection('[data-section="pending"]', tasks.pending);
+      }
+      if (tasks.working) {
+        updateTaskSection('[data-section="working"]', tasks.working);
+      }
+      if (tasks.blocked) {
+        updateTaskSection('[data-section="blocked"]', tasks.blocked);
+      }
+      if (tasks.actionRequired) {
+        updateTaskSection('[data-section="action-required"]', tasks.actionRequired);
+      }
+
+      // 完了セクション: ハッシュ比較で変更があった場合のみ更新
+      if (completedMeta) {
+        if (completedMeta.changed && tasks.completed) {
+          // 変更あり: HTMLを更新
+          var completedContainer = document.querySelector('.completed-tasks-container');
+          if (completedContainer) {
+            completedContainer.innerHTML = tasks.completed;
+            attachTaskItemListeners();
+            restoreExpandedStates();
           }
-        } catch (e) {
-          console.error('SSE parse error:', e);
+          completedTotalForPagination = completedMeta.total;
+          updateInlinePagination(completedMeta.total, completedCurrentPage * getCompletedLimit(), getCompletedLimit());
+          // カウントバッジ更新
+          var badge = document.querySelector('.completed-count-toggle');
+          if (badge) {
+            badge.textContent = getCompletedLimit() + '件表示 (' + completedMeta.total + ')';
+          }
+          hideCompletedNewBadge();
         }
-      };
+        // ハッシュを更新
+        completedHash = completedMeta.hash;
+        // VSCode Webview: ハッシュをextensionに同期
+        syncCompletedViewState();
+      }
 
-      eventSource.onerror = function() {
-        eventSource.close();
-        if (reconnectAttempts < maxReconnectAttempts) {
-          reconnectAttempts++;
-          setTimeout(connectSSE, 5000 * reconnectAttempts);
-        }
-      };
+      // 展開状態を復元
+      restoreExpandedStates();
 
-      eventSource.onopen = function() {
-        reconnectAttempts = 0;
-      };
+      // イベントリスナーを再設定
+      attachTaskItemListeners();
+
+      // フィルタを再適用
+      filterTasks();
     }
 
     function updateStats(stats) {
@@ -872,7 +1205,19 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
         updateTaskSection('[data-section="blocked"]', tasks.blocked);
       }
       if (tasks.completed) {
-        updateTaskSection('[data-section="completed"]', tasks.completed);
+        if (isCompletedDefaultView()) {
+          // デフォルト表示: 通常通り完了セクションを更新
+          var completedContainer = document.querySelector('.completed-tasks-container');
+          if (completedContainer) {
+            completedContainer.innerHTML = tasks.completed;
+          } else {
+            updateTaskSection('[data-section="completed"]', tasks.completed);
+          }
+          initCompletedPagination();
+        } else {
+          // カスタム表示: 更新スキップ、「新着あり」バッジを表示
+          showCompletedNewBadge();
+        }
       }
       if (tasks.actionRequired) {
         updateTaskSection('[data-section="action-required"]', tasks.actionRequired);
@@ -929,25 +1274,28 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
 
         newItem.addEventListener('click', function(e) {
           // フォーム要素やリンクのクリックでは展開/折りたたみしない
-          if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-          if (e.target.closest('a')) return;
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
+          if (e.target.closest('a') || e.target.closest('button')) return;
           this.classList.toggle('expanded');
         });
       });
     }
 
-    // SSE接続を試行（VSCode Webviewでは無効 - セキュリティ制限のため）
+    // ポーリング開始（VSCode Webviewでは無効 - extension.tsがポーリング担当）
     // VSCode WebviewではacquireVsCodeApiが存在するので、それで判定
     const isVSCodeWebview = typeof acquireVsCodeApi !== 'undefined';
     if (!isVSCodeWebview) {
       try {
-        connectSSE();
+        startPolling();
       } catch (e) {
-        console.log('SSE not available:', e);
+        console.log('Polling not available:', e);
       }
     } else {
-      console.log('VSCode Webview detected - SSE disabled, use manual refresh');
+      console.log('VSCode Webview detected - polling disabled, extension handles updates');
     }
+
+    // 初期表示: ページネーションとフィルターを初期化
+    initCompletedPagination();
   </script>
   <!-- レポートオーバーレイ（VSCode Webview内でレポートを表示） -->
   <div id="reportOverlay" class="report-overlay">
@@ -969,15 +1317,6 @@ function generateDashboardHtml(data: DashboardData, editorScheme: string = "vsco
   </script>
 </body>
 </html>`;
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 }
 
 /**
@@ -1048,12 +1387,19 @@ function generateTaskHtml(tasks: any[], type: string, projectPath: string, schem
             return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(windowsPath)}" onclick="return openFile(this, '${escapeHtml(windowsPath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
           }).join(", ")
         : "";
-      return `<div class="task-item completed" data-id="${task.id}">
+      const reviewedClass = task.reviewed ? " reviewed" : "";
+      const reviewedActive = task.reviewed ? " active" : "";
+      const starredActive = task.starred ? " active" : "";
+      return `<div class="task-item completed${reviewedClass}" data-id="${task.id}">
         <div class="task-main-row">
           <span class="task-id">${task.id}</span>
           <span class="task-title">${escapeHtml(title)}</span>
-          ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
-          <span class="task-date">${completedDate}</span>
+          <span class="task-right-group">
+            ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
+            <span class="task-date">${completedDate}</span>
+            <button class="task-action-btn review-btn${reviewedActive}" onclick="toggleReview(event, '${task.id}', ${!task.reviewed})" title="確認済み">✔</button>
+            <button class="task-action-btn star-btn${starredActive}" onclick="toggleStar(event, '${task.id}', ${!task.starred})" title="スター">★</button>
+          </span>
         </div>
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${escapeHtml(task.description)}</span></div>` : ""}
@@ -1403,7 +1749,7 @@ function createMcpServer(projectPath: string): McpServer {
       category: z.array(z.enum(["task", "action_required", "skill_candidate", "improvement"])).optional().describe("カテゴリでフィルタ"),
       limit: z.number().optional().describe("取得件数上限（デフォルト: 50）"),
       offset: z.number().optional().describe("スキップ件数（ページネーション用）"),
-      sortField: z.enum(["createdAt", "priority", "status"]).optional().describe("ソートフィールド"),
+      sortField: z.enum(["createdAt", "priority", "status", "id"]).optional().describe("ソートフィールド"),
       sortOrder: z.enum(["asc", "desc"]).optional().describe("ソート順序（デフォルト: desc）"),
     },
     async ({ status, assignee, parentId, category, limit, offset, sortField, sortOrder }) => {
@@ -1490,6 +1836,40 @@ function createMcpServer(projectPath: string): McpServer {
             type: "text" as const,
             text: JSON.stringify({
               error: "タスク更新に失敗しました",
+              details: message,
+            }),
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // get_report ツール
+  server.tool(
+    "get_report",
+    "タスクのレポートファイル内容を取得します（執事・メイド長用）",
+    {
+      taskId: z.string().describe("タスクID（例: 040, 040-1）"),
+      limit: z.number().optional().describe("行数制限（省略時は全行返却）"),
+    },
+    async ({ taskId, limit }) => {
+      try {
+        const result = await executeGetReport(projectPath, { taskId, limit });
+
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "不明なエラー";
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              error: "レポート取得に失敗しました",
               details: message,
             }),
           }],
@@ -1824,7 +2204,7 @@ app.get("/api/tasks", async (req: Request, res: Response) => {
       parentId?: string | null;
       limit?: number;
       offset?: number;
-      sortField?: "createdAt" | "priority" | "status";
+      sortField?: "createdAt" | "priority" | "status" | "id";
       sortOrder?: "asc" | "desc";
     } = {};
 
@@ -1844,7 +2224,7 @@ app.get("/api/tasks", async (req: Request, res: Response) => {
       filter.offset = parseInt(req.query.offset as string, 10);
     }
     if (req.query.sortField) {
-      filter.sortField = req.query.sortField as "createdAt" | "priority" | "status";
+      filter.sortField = req.query.sortField as "createdAt" | "priority" | "status" | "id";
     }
     if (req.query.sortOrder) {
       filter.sortOrder = req.query.sortOrder as "asc" | "desc";
@@ -1907,6 +2287,75 @@ app.patch("/api/tasks/:id", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/tasks/:id/report - レポート内容取得
+app.get("/api/tasks/:id/report", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+
+    const result = await executeGetReport(projectPath, {
+      taskId: req.params.id,
+      limit,
+    });
+
+    if (!result.success) {
+      res.status(404).json({ error: result.message, taskId: req.params.id });
+      return;
+    }
+
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Report retrieval failed", details: message });
+  }
+});
+
+// PATCH /api/tasks/:id/review - レビュー済みトグル
+app.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const { reviewed } = req.body;
+
+    const result = await executeUpdateTask(projectPath, {
+      taskId: req.params.id,
+      reviewed: reviewed !== undefined ? reviewed : true,
+    });
+
+    if (!result.success) {
+      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      return;
+    }
+
+    res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Review toggle failed", details: message });
+  }
+});
+
+// PATCH /api/tasks/:id/star - スタートグル
+app.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const { starred } = req.body;
+
+    const result = await executeUpdateTask(projectPath, {
+      taskId: req.params.id,
+      starred: starred !== undefined ? starred : true,
+    });
+
+    if (!result.success) {
+      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      return;
+    }
+
+    res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Star toggle failed", details: message });
+  }
+});
+
 // GET /api/dashboard - ダッシュボードJSON
 app.get("/api/dashboard", async (req: Request, res: Response) => {
   try {
@@ -1916,7 +2365,7 @@ app.get("/api/dashboard", async (req: Request, res: Response) => {
     const [pending, working, completed] = await Promise.all([
       executeListTasks(projectPath, { status: ["pending"] }),
       executeListTasks(projectPath, { status: ["working", "assigned"] }),
-      executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "createdAt", sortOrder: "desc" }),
+      executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
     ]);
 
     res.json({
@@ -1956,11 +2405,11 @@ app.get("/dashboard", async (req: Request, res: Response) => {
       executeListTasks(projectPath, { status: ["pending"] }),
       executeListTasks(projectPath, { status: ["working", "assigned"] }),
       executeListTasks(projectPath, { status: ["blocked"] }),
-      executeListTasks(projectPath, { status: ["completed"], limit: 5, sortField: "createdAt", sortOrder: "desc" }),
+      executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
       executeListTasks(projectPath, { status: ["completed"], limit: 100 }),  // 本日完了カウント用
       executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
-      executeListTasks(projectPath, { category: ["skill_candidate"] }),
-      executeListTasks(projectPath, { category: ["improvement"] }),
+      executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
+      executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
       executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),
     ]);
 
@@ -1979,6 +2428,7 @@ app.get("/dashboard", async (req: Request, res: Response) => {
       working: working.tasks,
       blocked: blocked.tasks,
       recentCompleted: completed.tasks,
+      completedTotal: completed.total,
       actionRequired: actionRequired.tasks,
       skillCandidates: skillCandidates.tasks,
       improvements: improvements.tasks,
@@ -1999,8 +2449,51 @@ app.get("/dashboard", async (req: Request, res: Response) => {
   }
 });
 
+// GET /dashboard/completed - 完了タスクページネーション用
+app.get("/dashboard/completed", async (req: Request, res: Response) => {
+  try {
+    const projectPath = req.query.project
+      ? decodeURIComponent(req.query.project as string)
+      : getProjectPathFromRequest(req);
+
+    const config = await loadConfig();
+    const editorScheme = (req.query.editor as string) || config.dashboard.editor;
+
+    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    // reviewed/starredフィルタ: "yes" → true, "no" → false, 未指定 → undefined
+    const reviewedParam = req.query.reviewed as string | undefined;
+    const starredParam = req.query.starred as string | undefined;
+    const reviewed = reviewedParam === "yes" ? true : reviewedParam === "no" ? false : undefined;
+    const starred = starredParam === "yes" ? true : starredParam === "no" ? false : undefined;
+
+    const completed = await executeListTasks(projectPath, {
+      status: ["completed"],
+      limit,
+      offset,
+      reviewed,
+      starred,
+      sortField: "id",
+      sortOrder: "desc",
+    });
+
+    res.json({
+      html: generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme),
+      total: completed.total,
+      offset,
+      limit,
+      hasMore: completed.hasMore,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: message });
+  }
+});
+
 // GET /dashboard/data - JSON APIエンドポイント（VSCode Webview用）
 // SSEと同じ形式でHTML文字列を返す（updateTaskSection互換）
+// クライアントの表示設定を受け取り、ハッシュ比較で差分検知
 app.get("/dashboard/data", async (req: Request, res: Response) => {
   try {
     const projectPath = req.query.project
@@ -2011,6 +2504,15 @@ app.get("/dashboard/data", async (req: Request, res: Response) => {
     const config = await loadConfig();
     const editorScheme = (req.query.editor as string) || config.dashboard.editor;
 
+    // クライアントの完了セクション表示設定を取得
+    const completedLimit = parseInt(req.query.completedLimit as string) || 10;
+    const completedOffset = parseInt(req.query.completedOffset as string) || 0;
+    const completedReviewedParam = req.query.completedReviewed as string | undefined;
+    const completedStarredParam = req.query.completedStarred as string | undefined;
+    const completedReviewed = completedReviewedParam === "yes" ? true : completedReviewedParam === "no" ? false : undefined;
+    const completedStarred = completedStarredParam === "yes" ? true : completedStarredParam === "no" ? false : undefined;
+    const clientCompletedHash = req.query.completedHash as string | undefined;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -2018,7 +2520,15 @@ app.get("/dashboard/data", async (req: Request, res: Response) => {
       executeListTasks(projectPath, { status: ["pending"] }),
       executeListTasks(projectPath, { status: ["working", "assigned"] }),
       executeListTasks(projectPath, { status: ["blocked"] }),
-      executeListTasks(projectPath, { status: ["completed"], limit: 5, sortField: "createdAt", sortOrder: "desc" }),
+      executeListTasks(projectPath, {
+        status: ["completed"],
+        limit: completedLimit,
+        offset: completedOffset,
+        reviewed: completedReviewed,
+        starred: completedStarred,
+        sortField: "id",
+        sortOrder: "desc",
+      }),
       executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
       executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
     ]);
@@ -2033,6 +2543,11 @@ app.get("/dashboard/data", async (req: Request, res: Response) => {
     const specialCategories = ["action_required", "skill_candidate", "improvement"];
     const filteredPendingTasks = pending.tasks.filter((t: any) => !t.category || !specialCategories.includes(t.category));
 
+    // 完了セクションのHTML生成とハッシュ計算
+    const completedHtml = generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme);
+    const completedHash = createHash("md5").update(completedHtml).digest("hex").substring(0, 16);
+    const completedChanged = clientCompletedHash !== completedHash;
+
     // SSEと同じ形式でHTML文字列を返す
     const data = {
       stats: {
@@ -2046,8 +2561,15 @@ app.get("/dashboard/data", async (req: Request, res: Response) => {
         pending: generateTaskHtml(filteredPendingTasks, "pending", projectPath),
         working: generateTaskHtml(working.tasks, "working", projectPath),
         blocked: generateTaskHtml(blocked.tasks, "blocked", projectPath),
-        completed: generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme),
+        // completedは変更があった場合のみHTMLを含める（ハッシュ比較）
+        completed: completedChanged ? completedHtml : undefined,
         actionRequired: generateTaskHtml(actionRequired.tasks, "action_required", projectPath),
+      },
+      // 完了セクション用の追加情報
+      completedMeta: {
+        changed: completedChanged,
+        hash: completedHash,
+        total: completed.total,
       },
     };
 
@@ -2089,7 +2611,7 @@ app.get("/dashboard/events", async (req: Request, res: Response) => {
           executeListTasks(projectPath, { status: ["pending"] }),
           executeListTasks(projectPath, { status: ["working", "assigned"] }),
           executeListTasks(projectPath, { status: ["blocked"] }),
-          executeListTasks(projectPath, { status: ["completed"], limit: 5, sortField: "createdAt", sortOrder: "desc" }),
+          executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
           executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
           executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
         ]);
@@ -2145,60 +2667,6 @@ app.get("/dashboard/events", async (req: Request, res: Response) => {
 // ========================================
 // GET /file - ファイル表示エンドポイント（ブラウザでマークダウンを表示）
 // ========================================
-
-/**
- * 簡易マークダウン→HTML変換
- */
-function convertMarkdownToHtml(markdown: string): string {
-  let html = escapeHtml(markdown);
-
-  // コードブロック（```）
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang, code) => {
-    return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
-  });
-
-  // インラインコード（`）
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-  // 見出し（# ～ ######）
-  html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
-  html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
-  html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
-  html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
-  html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
-
-  // 太字と斜体
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-
-  // リスト（- または *）
-  html = html.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-
-  // 水平線
-  html = html.replace(/^---+$/gm, '<hr>');
-
-  // リンク
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-
-  // 段落（空行で区切られたテキスト）
-  html = html.replace(/\n\n+/g, '</p><p>');
-  html = `<p>${html}</p>`;
-
-  // 空の段落を削除
-  html = html.replace(/<p>\s*<\/p>/g, '');
-  html = html.replace(/<p>(<h[1-6]>)/g, '$1');
-  html = html.replace(/(<\/h[1-6]>)<\/p>/g, '$1');
-  html = html.replace(/<p>(<ul>)/g, '$1');
-  html = html.replace(/(<\/ul>)<\/p>/g, '$1');
-  html = html.replace(/<p>(<pre>)/g, '$1');
-  html = html.replace(/(<\/pre>)<\/p>/g, '$1');
-  html = html.replace(/<p>(<hr>)<\/p>/g, '$1');
-
-  return html;
-}
 
 app.get("/file", async (req: Request, res: Response) => {
   try {

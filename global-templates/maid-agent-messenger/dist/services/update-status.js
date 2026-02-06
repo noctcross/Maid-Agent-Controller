@@ -27,6 +27,24 @@ export async function executeUpdateStatus(params) {
             task.started_at = timestamp;
             updatedFields.push("started_at");
         }
+        // blocked/working 時の tasks.yaml 同期
+        if ((status === "blocked" || status === "working") && task.task_id) {
+            const taskIdNormalized = String(task.task_id)
+                .replace(/^(task-)+/i, "")
+                .replace(new RegExp(`-${agentId}$`, "i"), "");
+            const projectPath = path.resolve(queueMaidPath, "..", "..", "..", "..");
+            try {
+                await executeUpdateTask(projectPath, {
+                    taskId: taskIdNormalized,
+                    status: status,
+                    summary: summary,
+                });
+                updatedFields.push("tasks_yaml_synced");
+            }
+            catch {
+                // tasks.yaml 未導入環境への後方互換
+            }
+        }
         // completed に変更時、completed_at を設定 + レポートリネーム + tasks.yaml同期
         // archivePathはreturnで使うのでwithFileLockスコープ内で宣言
         let archivePath;

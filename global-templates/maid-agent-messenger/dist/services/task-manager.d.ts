@@ -27,6 +27,10 @@ export interface Task {
     completedAt: string | null;
     reportPaths: string[];
     summary: string | null;
+    reviewed?: boolean;
+    starred?: boolean;
+    reviewedAt?: string | null;
+    starredAt?: string | null;
 }
 export interface TasksData {
     lastTaskNumber: number;
@@ -65,9 +69,11 @@ export interface ListTasksParams {
     assignee?: string;
     parentId?: string | null;
     category?: TaskCategory[];
+    reviewed?: boolean;
+    starred?: boolean;
     limit?: number;
     offset?: number;
-    sortField?: "createdAt" | "priority" | "status";
+    sortField?: "createdAt" | "priority" | "status" | "id";
     sortOrder?: "asc" | "desc";
 }
 export interface ListTasksResult {
@@ -75,6 +81,11 @@ export interface ListTasksResult {
     total: number;
     hasMore: boolean;
 }
+/**
+ * タスクIDを数値的に比較する
+ * 例: "048" < "048-1" < "048-2" < "048-10" (文字列比較だと "048-10" < "048-2" になる)
+ */
+export declare function compareTaskIds(a: string, b: string): number;
 /**
  * タスク一覧取得
  */
@@ -87,6 +98,8 @@ export interface UpdateTaskParams {
     assignees?: Assignee[];
     summary?: string;
     reportPath?: string;
+    reviewed?: boolean;
+    starred?: boolean;
 }
 export interface UpdateTaskResult {
     success: boolean;

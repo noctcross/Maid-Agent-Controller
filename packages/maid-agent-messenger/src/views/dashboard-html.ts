@@ -896,7 +896,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
     </div>
 
     <!-- P1: スキル候補・改善提案セクション -->
-    <div class="card card-skill">
+    <div class="card card-skill" data-section="skill-candidates">
       <div class="card-header collapsible-header">
         <span class="card-title">📚 スキル候補</span>
         <span class="count-badge count-badge-purple">${skillCandidates.length}</span>
@@ -906,7 +906,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       </div>
     </div>
 
-    <div class="card card-improvement">
+    <div class="card card-improvement" data-section="improvements">
       <div class="card-header collapsible-header">
         <span class="card-title">💡 改善提案</span>
         <span class="count-badge count-badge-orange">${improvements.length}</span>
@@ -1024,6 +1024,12 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       }
       if (tasks.actionRequired) {
         updateTaskSection('[data-section="action-required"]', tasks.actionRequired);
+      }
+      if (tasks.skillCandidates) {
+        updateTaskSection('[data-section="skill-candidates"]', tasks.skillCandidates);
+      }
+      if (tasks.improvements) {
+        updateTaskSection('[data-section="improvements"]', tasks.improvements);
       }
 
       // 完了セクション: ハッシュ比較で変更があった場合のみ更新
@@ -1145,6 +1151,12 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       }
       if (tasks.actionRequired) {
         updateTaskSection('[data-section="action-required"]', tasks.actionRequired);
+      }
+      if (tasks.skillCandidates) {
+        updateTaskSection('[data-section="skill-candidates"]', tasks.skillCandidates);
+      }
+      if (tasks.improvements) {
+        updateTaskSection('[data-section="improvements"]', tasks.improvements);
       }
 
       // 展開状態を復元

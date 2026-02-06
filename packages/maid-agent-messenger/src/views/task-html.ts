@@ -126,6 +126,22 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
         </div>
       </div>`;
+    } else if (type === "skill_candidate") {
+      return `<div class="task-item skill-item" data-id="${task.id}">
+        <span class="task-id">${task.id}</span>
+        <span class="task-title">${escapeHtml(title)}</span>
+        <div class="task-detail">
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+        </div>
+      </div>`;
+    } else if (type === "improvement") {
+      return `<div class="task-item improvement-item" data-id="${task.id}">
+        <span class="task-id">${task.id}</span>
+        <span class="task-title">${escapeHtml(title)}</span>
+        <div class="task-detail">
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+        </div>
+      </div>`;
     }
 
     return "";

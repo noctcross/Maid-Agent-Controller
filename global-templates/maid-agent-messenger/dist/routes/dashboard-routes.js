@@ -128,7 +128,8 @@ export function createDashboardRoutes(deps) {
             const clientCompletedHash = req.query.completedHash;
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const [pending, working, blocked, completed, completedAll, actionRequired] = await Promise.all([
+            const ACTIVE_STATUSES = ["pending", "assigned", "working", "blocked"];
+            const [pending, working, blocked, completed, completedAll, actionRequired, skillCandidates, improvements] = await Promise.all([
                 executeListTasks(projectPath, { status: ["pending"] }),
                 executeListTasks(projectPath, { status: ["working", "assigned"] }),
                 executeListTasks(projectPath, { status: ["blocked"] }),
@@ -142,7 +143,9 @@ export function createDashboardRoutes(deps) {
                     sortOrder: "desc",
                 }),
                 executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
-                executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
+                executeListTasks(projectPath, { category: ["action_required"], status: ACTIVE_STATUSES }),
+                executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
+                executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
             ]);
             const completedTodayCount = completedAll.tasks.filter((task) => {
                 if (!task.completedAt)
@@ -172,6 +175,8 @@ export function createDashboardRoutes(deps) {
                     blocked: generateTaskHtml(blocked.tasks, "blocked", projectPath),
                     completed: completedChanged ? completedHtml : undefined,
                     actionRequired: generateTaskHtml(actionRequired.tasks, "action_required", projectPath),
+                    skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
+                    improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
                 },
                 completedMeta: {
                     changed: completedChanged,
@@ -208,13 +213,16 @@ export function createDashboardRoutes(deps) {
                 try {
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
-                    const [pending, working, blocked, completed, completedAll, actionRequired] = await Promise.all([
+                    const sseActiveStatuses = ["pending", "assigned", "working", "blocked"];
+                    const [pending, working, blocked, completed, completedAll, actionRequired, skillCandidates, improvements] = await Promise.all([
                         executeListTasks(projectPath, { status: ["pending"] }),
                         executeListTasks(projectPath, { status: ["working", "assigned"] }),
                         executeListTasks(projectPath, { status: ["blocked"] }),
                         executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
                         executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
-                        executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
+                        executeListTasks(projectPath, { category: ["action_required"], status: sseActiveStatuses }),
+                        executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),
+                        executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
                     ]);
                     const completedTodayCount = completedAll.tasks.filter((task) => {
                         if (!task.completedAt)
@@ -241,6 +249,8 @@ export function createDashboardRoutes(deps) {
                         blocked: generateTaskHtml(blocked.tasks, "blocked", projectPath),
                         completed: generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme),
                         actionRequired: generateTaskHtml(actionRequired.tasks, "action_required", projectPath),
+                        skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
+                        improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
                     };
                     res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml })}\n\n`);
                 }

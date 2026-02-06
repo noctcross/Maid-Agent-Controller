@@ -44,3 +44,16 @@ export interface SkillMeta {
     auto_select: boolean;
     filePath: string;
 }
+
+/**
+ * Setup系関数で使用する共通コンテキスト
+ * MultiAgentControllerのインスタンスデータをスタンドアロン関数に渡すためのインターフェース
+ */
+export interface SetupContext {
+    workspaceRoot: string;
+    maidAgentPath: string;
+    globalMaidAgentPath: string;
+    extensionPath: string;
+    outputChannel: vscode.OutputChannel;
+    log: (message: string) => void;
+}

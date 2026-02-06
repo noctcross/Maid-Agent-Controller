@@ -109,7 +109,7 @@ export function getRolePrompt(ctx: AgentContext, agentId: string, role: 'butler'
                 '禁止: 自分でファイル操作(BF001), メイドへ直接指示(BF002)',
                 '指示書: .maid-agent/agents/instructions/butler.md',
                 'ペルソナ: .maid-agent/agents/personas/butler.md',
-            ].join('\n');
+            ].join(' / ');
 
         case 'chiefMaid':
             return [
@@ -119,7 +119,7 @@ export function getRolePrompt(ctx: AgentContext, agentId: string, role: 'butler'
                 '禁止: 自分でタスク実行(CF001), 執事への通知(CF002)',
                 '指示書: .maid-agent/agents/instructions/chief.md',
                 'ペルソナ: .maid-agent/agents/personas/chief.md',
-            ].join('\n');
+            ].join(' / ');
 
         case 'maid':
             return [
@@ -129,7 +129,7 @@ export function getRolePrompt(ctx: AgentContext, agentId: string, role: 'butler'
                 '禁止: 執事に直接報告(MF001), ご主人様に直接連絡(MF002)',
                 '指示書: .maid-agent/agents/instructions/maid.md',
                 `ペルソナ: .maid-agent/agents/personas/${agentId}.md`,
-            ].join('\n');
+            ].join(' / ');
     }
 }
 

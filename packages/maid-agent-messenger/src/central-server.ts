@@ -14,8 +14,11 @@ import express, { Request, Response, NextFunction } from "express";
 import { loadConfig, getServerUrl } from "./utils/config-loader.js";
 import { getTimestamp } from "./utils/yaml-helper.js";
 
+// セッション管理
+import { sessions } from "./middleware/session-manager.js";
+
 // ルーター
-import { createMcpRoutes, type SessionInfo } from "./routes/mcp-routes.js";
+import { createMcpRoutes } from "./routes/mcp-routes.js";
 import legacyRoutes from "./routes/legacy-routes.js";
 import taskApiRoutes from "./routes/task-api-routes.js";
 import { createDashboardRoutes } from "./routes/dashboard-routes.js";
@@ -36,13 +39,6 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
-
-// ========================================
-// セッション管理
-// ========================================
-
-// セッションID -> SessionInfo のマップ
-const sessions = new Map<string, SessionInfo>();
 
 // ========================================
 // HTTP エンドポイント

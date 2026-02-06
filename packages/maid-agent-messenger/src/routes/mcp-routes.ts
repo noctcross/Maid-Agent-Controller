@@ -7,12 +7,10 @@ import { Router, Request, Response } from "express";
 import { randomUUID } from "crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { SessionInfo } from "../middleware/session-manager.js";
 
-export interface SessionInfo {
-  transport: StreamableHTTPServerTransport;
-  server: McpServer;
-  projectPath: string;
-}
+// SessionInfo型を再エクスポート
+export type { SessionInfo };
 
 export interface McpRoutesDeps {
   sessions: Map<string, SessionInfo>;

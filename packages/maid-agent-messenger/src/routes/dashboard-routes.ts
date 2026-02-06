@@ -13,18 +13,10 @@ import {
 } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import type { DashboardData } from "../views/dashboard-html.js";
+import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 
 // DashboardData型を再エクスポート
 export type { DashboardData };
-
-// プロジェクトパスを取得するヘルパー
-function getProjectPathFromRequest(req: Request): string {
-  const projectPath = req.headers["x-maid-project-path"] as string;
-  if (!projectPath) {
-    throw new Error("X-Maid-Project-Path header is required");
-  }
-  return projectPath;
-}
 
 export interface DashboardRoutesDeps {
   generateDashboardHtml: (data: DashboardData, editorScheme?: string) => string;

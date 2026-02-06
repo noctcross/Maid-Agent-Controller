@@ -12,15 +12,7 @@ import {
   type TaskStatus,
 } from "../services/index.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
-
-// プロジェクトパスを取得するヘルパー
-function getProjectPathFromRequest(req: Request): string {
-  const projectPath = req.headers["x-maid-project-path"] as string;
-  if (!projectPath) {
-    throw new Error("X-Maid-Project-Path header is required");
-  }
-  return projectPath;
-}
+import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 
 const router = Router();
 

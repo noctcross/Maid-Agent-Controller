@@ -164,8 +164,10 @@ export function updateDashboard(ctx: DashboardContext): void {
 
     const butlerHtml = butler ? renderAgent(butler, '🎩', '統括') : '<div class="empty-agent">執事がおりません</div>';
     const chiefHtml = chief ? renderAgent(chief, '👑', '配分担当') : '<div class="empty-agent">メイド長がおりません</div>';
+    const maidsRow1 = maids.slice(0, 4).map(m => renderAgent(m, '🎀', '実行担当')).join('');
+    const maidsRow2 = maids.slice(4).map(m => renderAgent(m, '🎀', '実行担当')).join('');
     const maidsHtml = maids.length > 0
-        ? maids.map(m => renderAgent(m, '🎀', '実行担当')).join('')
+        ? `<div class="maids-grid">${maidsRow1}</div><div class="maids-grid">${maidsRow2}</div>`
         : '<div class="empty-agent">メイドがおりません</div>';
 
     const recentLogs = ctx.logs.slice(-10).reverse().map(log =>
@@ -201,10 +203,11 @@ export function updateDashboard(ctx: DashboardContext): void {
         .hierarchy { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 20px 0; }
         .hierarchy-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
         .hierarchy-arrow { color: #e94560; font-size: 1.2em; }
+        .maids-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; margin-bottom: 6px; }
 
         .agent-card {
             background: rgba(255,255,255,0.1); border-radius: 8px;
-            padding: 10px; min-width: 120px; border: 1px solid rgba(255,255,255,0.2);
+            padding: 10px; min-width: 0; width: 100%; border: 1px solid rgba(255,255,255,0.2);
             font-size: 0.9em;
         }
         .agent-card.working { border-color: #ffc107; background: rgba(255,193,7,0.1); }
@@ -284,7 +287,7 @@ export function updateDashboard(ctx: DashboardContext): void {
             <div class="hierarchy-arrow">↓</div>
             <div class="hierarchy-row">${chiefHtml}</div>
             <div class="hierarchy-arrow">↓</div>
-            <div class="hierarchy-row">${maidsHtml}</div>
+            ${maidsHtml}
         </div>
     </div>
 

@@ -4,7 +4,7 @@
  */
 
 import path from "path";
-import { convertMarkdownToHtml, escapeHtml } from "../markdown-utils.js";
+import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { formatDateJstShort } from "../utils/yaml-helper.js";
 
 /**
@@ -38,7 +38,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         <span class="task-title">${escapeHtml(title)}</span>
         <span class="task-priority">[${task.priority}]</span>
         <div class="task-detail">
-          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           <div class="task-detail-row"><span class="task-detail-label">作成日時:</span><span class="task-detail-value">${createdDate}</span></div>
         </div>
       </div>`;
@@ -48,7 +48,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         <span class="task-title">${escapeHtml(title)}</span>
         <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
         <div class="task-detail">
-          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
           <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
         </div>
@@ -90,7 +90,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
           </span>
         </div>
         <div class="task-detail">
-          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           ${task.summary ? `<div class="task-detail-row"><span class="task-detail-label">結果:</span><span class="task-detail-value task-summary-text">${escapeHtml(task.summary)}</span></div>` : ""}
           <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
           <div class="task-detail-row"><span class="task-detail-label">完了日時:</span><span class="task-detail-value">${completedDate}</span></div>
@@ -109,7 +109,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         </div>
         ${substatusHtml}
         <div class="task-detail">
-          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
           <div class="task-detail-row"><span class="task-detail-label">ブロック理由:</span><span class="task-detail-value">${task.substatus ? escapeHtml(task.substatus) : "不明"}</span></div>
         </div>
@@ -123,7 +123,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         <span class="task-title">${escapeHtml(title)}</span>
         ${substatusHtml}
         <div class="task-detail">
-          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
         </div>
       </div>`;
     } else if (type === "skill_candidate") {
@@ -131,7 +131,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <div class="task-detail">
-          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
         </div>
       </div>`;
     } else if (type === "improvement") {
@@ -139,7 +139,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <div class="task-detail">
-          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
         </div>
       </div>`;
     }

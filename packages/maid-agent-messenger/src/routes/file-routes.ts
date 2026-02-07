@@ -6,13 +6,15 @@
 import { Router, Request, Response } from "express";
 import path from "path";
 import * as fs from "fs/promises";
-import { convertMarkdownToHtml, escapeHtml } from "../markdown-utils.js";
+import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 
 const router = Router();
 
 router.get("/file", async (req: Request, res: Response) => {
   try {
     let filePath = req.query.path as string;
+    // projectPathがあればパスリンク化を適用（ダッシュボードからの遷移時に自動付加）
+    const projectPath = req.query.project as string | undefined;
     if (!filePath) {
       res.status(400).send("Missing path parameter");
       return;
@@ -33,7 +35,10 @@ router.get("/file", async (req: Request, res: Response) => {
     const isMarkdown = /\.(md|markdown)$/i.test(fileName);
 
     // HTML生成
-    const htmlContent = isMarkdown ? convertMarkdownToHtml(content) : `<pre>${escapeHtml(content)}</pre>`;
+    const markdownHtml = convertMarkdownToHtml(content);
+    const htmlContent = isMarkdown
+      ? (projectPath ? linkifyProjectPaths(markdownHtml, projectPath) : markdownHtml)
+      : `<pre>${escapeHtml(content)}</pre>`;
 
     const html = `<!DOCTYPE html>
 <html lang="ja">

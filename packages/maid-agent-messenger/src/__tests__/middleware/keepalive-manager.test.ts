@@ -87,7 +87,7 @@ describe("KeepAliveManager", () => {
     expect(session.missedPings).toBe(1);
   });
 
-  it("max_missed_pings超過でセッションが切断される", async () => {
+  it("max_missed_pings超過でPingは停止されるがセッションは保全される", async () => {
     const manager = new KeepAliveManager(defaultConfig);
     const mockRequest = jest.fn<() => Promise<object>>().mockRejectedValue(new Error("timeout"));
     const mockClose = jest.fn();
@@ -98,6 +98,7 @@ describe("KeepAliveManager", () => {
       createdAt: new Date(),
       lastActivity: new Date(),
       missedPings: 1, // 既に1回失敗済み→次の失敗で max_missed_pings(2) に到達
+      pingTimer: undefined as ReturnType<typeof setInterval> | undefined,
     };
     sessions.set("stale-session", session as unknown);
 
@@ -106,8 +107,11 @@ describe("KeepAliveManager", () => {
     await Promise.resolve();
 
     expect(session.missedPings).toBe(2);
-    expect(mockClose).toHaveBeenCalled();
-    expect(sessions.has("stale-session")).toBe(false);
+    // セッションは保全される（transport.close()は呼ばれない、sessionsから削除されない）
+    expect(mockClose).not.toHaveBeenCalled();
+    expect(sessions.has("stale-session")).toBe(true);
+    // Pingタイマーは停止される
+    expect(session.pingTimer).toBeUndefined();
   });
 
   it("stopPing でタイマーが停止される", () => {

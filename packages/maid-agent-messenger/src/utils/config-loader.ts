@@ -17,6 +17,9 @@ export interface ServerConfig {
 export interface CentralConfig {
   connection_timeout: number;
   reconnect_interval: number;
+  max_reconnect_attempts: number;    // デフォルト: 10
+  reconnect_backoff_factor: number;  // デフォルト: 1.5
+  max_reconnect_interval: number;    // ms。デフォルト: 120000（2分）
 }
 
 export interface FallbackConfig {
@@ -44,6 +47,9 @@ const DEFAULT_CONFIG: McpServerConfig = {
   central: {
     connection_timeout: 3000,
     reconnect_interval: 30000,
+    max_reconnect_attempts: 10,
+    reconnect_backoff_factor: 1.5,
+    max_reconnect_interval: 120000,
   },
   fallback: {
     enabled: true,

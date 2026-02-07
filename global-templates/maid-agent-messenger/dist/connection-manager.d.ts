@@ -19,6 +19,8 @@ export declare class ConnectionManager {
     private baseUrl;
     private localServer;
     private reconnectTimer;
+    private reconnectAttempts;
+    private currentReconnectInterval;
     /**
      * 初期化と接続
      */

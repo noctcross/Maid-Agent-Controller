@@ -11,6 +11,9 @@ export interface ServerConfig {
 export interface CentralConfig {
     connection_timeout: number;
     reconnect_interval: number;
+    max_reconnect_attempts: number;
+    reconnect_backoff_factor: number;
+    max_reconnect_interval: number;
 }
 export interface FallbackConfig {
     enabled: boolean;

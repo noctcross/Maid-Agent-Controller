@@ -75,6 +75,8 @@ export class ConnectionManager {
   private baseUrl: string = "";
   private localServer: ChildProcess | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectAttempts: number = 0;
+  private currentReconnectInterval: number = 0;
 
   /**
    * 初期化と接続
@@ -189,17 +191,39 @@ export class ConnectionManager {
    */
   private scheduleReconnect(): void {
     if (this.reconnectTimer) {
-      clearInterval(this.reconnectTimer);
+      clearTimeout(this.reconnectTimer);
     }
 
-    const interval = this.config!.central.reconnect_interval;
+    // 初期値を設定
+    this.reconnectAttempts = 0;
+    this.currentReconnectInterval = this.config!.central.reconnect_interval;
 
-    this.reconnectTimer = setInterval(async () => {
+    const attemptReconnect = async (): Promise<void> => {
       if (this.mode !== "local") {
         return;
       }
 
-      console.log("Attempting to reconnect to central server...");
+      this.reconnectAttempts++;
+      const { max_reconnect_attempts, reconnect_backoff_factor, max_reconnect_interval } = this.config!.central;
+
+      // 最大試行回数を超えたら停止
+      if (this.reconnectAttempts > max_reconnect_attempts) {
+        console.log(
+          `Reconnect failed after ${max_reconnect_attempts} attempts. ` +
+          `Staying in local mode.`
+        );
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
+        return;
+      }
+
+      console.log(
+        `Attempting to reconnect to central server... ` +
+        `(attempt ${this.reconnectAttempts}/${max_reconnect_attempts}, ` +
+        `next in ${Math.round(this.currentReconnectInterval / 1000)}s)`
+      );
 
       const isHealthy = await checkHealth(
         this.baseUrl,
@@ -208,21 +232,33 @@ export class ConnectionManager {
 
       if (isHealthy) {
         this.mode = "central";
+        this.reconnectAttempts = 0;
+        this.currentReconnectInterval = this.config!.central.reconnect_interval;
         console.log("Reconnected to central server");
 
-        // ローカルサーバーを停止
         if (this.localServer) {
           this.localServer.kill();
           this.localServer = null;
         }
 
-        // 再接続タイマーを停止
         if (this.reconnectTimer) {
-          clearInterval(this.reconnectTimer);
+          clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;
         }
+        return;
       }
-    }, interval);
+
+      // 指数バックオフで次の試行をスケジュール
+      this.currentReconnectInterval = Math.min(
+        this.currentReconnectInterval * reconnect_backoff_factor,
+        max_reconnect_interval
+      );
+
+      this.reconnectTimer = setTimeout(attemptReconnect, this.currentReconnectInterval);
+    };
+
+    // 初回の再接続試行をスケジュール
+    this.reconnectTimer = setTimeout(attemptReconnect, this.currentReconnectInterval);
   }
 
   /**
@@ -273,7 +309,7 @@ export class ConnectionManager {
    */
   disconnect(): void {
     if (this.reconnectTimer) {
-      clearInterval(this.reconnectTimer);
+      clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
 
@@ -282,6 +318,8 @@ export class ConnectionManager {
       this.localServer = null;
     }
 
+    this.reconnectAttempts = 0;
+    this.currentReconnectInterval = 0;
     this.mode = "disconnected";
   }
 }

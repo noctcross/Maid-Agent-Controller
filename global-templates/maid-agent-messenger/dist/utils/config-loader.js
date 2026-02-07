@@ -15,6 +15,9 @@ const DEFAULT_CONFIG = {
     central: {
         connection_timeout: 3000,
         reconnect_interval: 30000,
+        max_reconnect_attempts: 10,
+        reconnect_backoff_factor: 1.5,
+        max_reconnect_interval: 120000,
     },
     fallback: {
         enabled: true,

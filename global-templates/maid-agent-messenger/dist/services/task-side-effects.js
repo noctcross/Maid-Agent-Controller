@@ -174,10 +174,15 @@ async function initReportTemplate(projectPath, task, params, agentId) {
  */
 export async function executeSideEffects(projectPath, task, params, prevStatus, prevAssignees) {
     const result = {};
-    // 副作用1: syncMaidYaml（assignees または status が変更された場合）
+    // 副作用1: syncMaidYaml
+    // - assignees が変更された場合
+    // - status が変更された場合
+    // - update_status 経由の場合（agentId が設定されている場合は常に同期）
+    //   ※ tasks.yaml のステータスと maid YAML のステータスが乖離している可能性があるため
     const assigneesChanged = params.assignees !== undefined;
     const statusChanged = params.status !== undefined && params.status !== prevStatus;
-    if (assigneesChanged || statusChanged) {
+    const forceSync = params.agentId !== undefined && params.status !== undefined;
+    if (assigneesChanged || statusChanged || forceSync) {
         try {
             const synced = await syncMaidYaml(projectPath, task, params, prevAssignees);
             if (synced) {

@@ -14,21 +14,16 @@ jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
     copyFile: jest.fn(),
     sanitizeDescription: jest.fn((s) => s),
 }));
-jest.unstable_mockModule("../../utils/file-lock.js", () => ({
-    withFileLock: jest.fn(),
-}));
 jest.unstable_mockModule("../../services/task-manager.js", () => ({
     executeUpdateTask: jest.fn(),
 }));
 // dynamic import
 const { executeUpdateStatus } = await import("../../services/update-status.js");
 const { readYamlFile, getTimestamp } = await import("../../utils/yaml-helper.js");
-const { withFileLock } = await import("../../utils/file-lock.js");
 const { executeUpdateTask } = await import("../../services/task-manager.js");
 // 型付きモック
 const mockedReadYamlFile = readYamlFile;
 const mockedGetTimestamp = getTimestamp;
-const mockedWithFileLock = withFileLock;
 const mockedExecuteUpdateTask = executeUpdateTask;
 const FIXED_TIMESTAMP = "2026-02-06T20:00:00+09:00";
 beforeEach(() => {
@@ -41,10 +36,6 @@ beforeEach(() => {
             maidYamlSynced: true,
         },
     });
-    // withFileLock: コールバックをそのまま実行
-    mockedWithFileLock.mockImplementation((async (_path, callback) => {
-        return await callback();
-    }));
 });
 const baseParams = {
     queueMaidPath: "/project/.maid-agent/system/data/maid",

@@ -17,10 +17,6 @@ jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   sanitizeDescription: jest.fn((s: string) => s),
 }));
 
-jest.unstable_mockModule("../../utils/file-lock.js", () => ({
-  withFileLock: jest.fn(),
-}));
-
 jest.unstable_mockModule("../../services/task-manager.js", () => ({
   executeUpdateTask: jest.fn(),
 }));
@@ -28,13 +24,11 @@ jest.unstable_mockModule("../../services/task-manager.js", () => ({
 // dynamic import
 const { executeUpdateStatus } = await import("../../services/update-status.js");
 const { readYamlFile, getTimestamp } = await import("../../utils/yaml-helper.js");
-const { withFileLock } = await import("../../utils/file-lock.js");
 const { executeUpdateTask } = await import("../../services/task-manager.js");
 
 // 型付きモック
 const mockedReadYamlFile = readYamlFile as jest.MockedFunction<typeof readYamlFile>;
 const mockedGetTimestamp = getTimestamp as jest.MockedFunction<typeof getTimestamp>;
-const mockedWithFileLock = withFileLock as jest.MockedFunction<typeof withFileLock>;
 const mockedExecuteUpdateTask = executeUpdateTask as jest.MockedFunction<typeof executeUpdateTask>;
 
 const FIXED_TIMESTAMP = "2026-02-06T20:00:00+09:00";
@@ -51,13 +45,6 @@ beforeEach(() => {
       maidYamlSynced: true,
     },
   });
-
-  // withFileLock: コールバックをそのまま実行
-  mockedWithFileLock.mockImplementation(
-    (async (_path: string, callback: () => Promise<unknown>) => {
-      return await callback();
-    }) as typeof withFileLock
-  );
 });
 
 const baseParams = {

@@ -21,6 +21,7 @@ export interface Task {
     substatus: string | null;
     category: TaskCategory;
     assignees: Assignee[];
+    targetPath?: string | null;
     createdAt: string;
     assignedAt: string | null;
     startedAt: string | null;
@@ -100,12 +101,25 @@ export interface UpdateTaskParams {
     reportPath?: string;
     reviewed?: boolean;
     starred?: boolean;
+    description?: string;
+    targetPath?: string;
+    agentId?: string;
+}
+export interface SideEffectResults {
+    maidYamlSynced?: boolean;
+    reportArchived?: boolean;
+    reportTemplatized?: boolean;
+    archivePath?: string;
 }
 export interface UpdateTaskResult {
     success: boolean;
     task: Task | null;
+    sideEffects?: SideEffectResults;
 }
 /**
  * タスク更新
+ *
+ * unified-task-state-gateway: 唯一の書き込みゲートウェイ。
+ * tasks.yaml 更新後、副作用（maid yaml同期・レポートアーカイブ・テンプレート初期化）を実行。
  */
 export declare function executeUpdateTask(projectPath: string, params: UpdateTaskParams): Promise<UpdateTaskResult>;

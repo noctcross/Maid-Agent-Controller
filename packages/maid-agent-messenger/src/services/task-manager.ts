@@ -40,6 +40,7 @@ export interface Task {
   substatus: string | null;
   category: TaskCategory;
   assignees: Assignee[];
+  targetPath?: string | null;     // 作業対象パス（optional for backward compat）
   createdAt: string;
   assignedAt: string | null;
   startedAt: string | null;
@@ -204,6 +205,7 @@ export async function executeCreateTask(
         role: null,
         subTaskId: null,
       })),
+      targetPath: null,
       createdAt: now,
       assignedAt: params.assignees?.length ? now : null,
       startedAt: null,
@@ -356,6 +358,7 @@ export async function executeListTasks(
 
 export interface UpdateTaskParams {
   taskId: string;
+  // --- 既存 ---
   status?: TaskStatus;
   substatus?: string;
   category?: TaskCategory;
@@ -364,30 +367,54 @@ export interface UpdateTaskParams {
   reportPath?: string;
   reviewed?: boolean;
   starred?: boolean;
+  // --- 追加: unified-task-state-gateway ---
+  description?: string;        // タスク説明（assign_task が独自の詳細説明を渡す場合に使用）
+  targetPath?: string;         // 作業対象パス（assign_task からの伝達用）
+  agentId?: string;            // 操作元メイドID（update_status からの伝達用）
+}
+
+export interface SideEffectResults {
+  maidYamlSynced?: boolean;
+  reportArchived?: boolean;
+  reportTemplatized?: boolean;
+  archivePath?: string;
 }
 
 export interface UpdateTaskResult {
   success: boolean;
   task: Task | null;
+  sideEffects?: SideEffectResults;
 }
 
 /**
  * タスク更新
+ *
+ * unified-task-state-gateway: 唯一の書き込みゲートウェイ。
+ * tasks.yaml 更新後、副作用（maid yaml同期・レポートアーカイブ・テンプレート初期化）を実行。
  */
 export async function executeUpdateTask(
   projectPath: string,
   params: UpdateTaskParams
 ): Promise<UpdateTaskResult> {
-  return withTasksLock<UpdateTaskResult>(projectPath, async (data) => {
+  // Phase 1: tasks.yaml 更新（ロック内）
+  const lockResult = await withTasksLock<{
+    result: UpdateTaskResult;
+    prevStatus: string;
+    prevAssignees: Assignee[];
+  }>(projectPath, async (data) => {
     const taskIndex = data.tasks.findIndex((t) => t.id === params.taskId);
 
     if (taskIndex === -1) {
       const result: UpdateTaskResult = { success: false, task: null };
-      return { data, result };
+      return { data, result: { result, prevStatus: "", prevAssignees: [] } };
     }
 
     const task = data.tasks[taskIndex];
     const now = getTimestamp();
+
+    // 更新前の状態を保持（副作用判定用）
+    const prevStatus = task.status;
+    const prevAssignees = [...task.assignees];
 
     // 更新適用
     if (params.status !== undefined) {
@@ -410,6 +437,12 @@ export async function executeUpdateTask(
       if (!task.assignedAt) {
         task.assignedAt = now;
       }
+    }
+    if (params.description !== undefined) {
+      task.description = params.description;
+    }
+    if (params.targetPath !== undefined) {
+      task.targetPath = params.targetPath;
     }
     if (params.summary !== undefined) {
       task.summary = params.summary;
@@ -435,6 +468,45 @@ export async function executeUpdateTask(
     }
 
     const result: UpdateTaskResult = { success: true, task };
-    return { data, result };
+    return { data, result: { result, prevStatus, prevAssignees } };
   });
+
+  const { result, prevStatus, prevAssignees } = lockResult;
+
+  // Phase 2: 副作用実行（tasks.yaml ロック外）
+  if (result.success && result.task) {
+    try {
+      const { executeSideEffects } = await import("./task-side-effects.js");
+      const sideEffects = await executeSideEffects(
+        projectPath, result.task, params, prevStatus, prevAssignees
+      );
+      result.sideEffects = sideEffects;
+
+      // archivePath を tasks.yaml の reportPaths に追加（再ロック）
+      if (sideEffects.archivePath) {
+        try {
+          await withTasksLock(projectPath, async (data) => {
+            const task = data.tasks.find((t) => t.id === params.taskId);
+            if (task) {
+              const newFileName = sideEffects.archivePath!.split("/").pop() || sideEffects.archivePath!;
+              const isDuplicate = task.reportPaths.some((existing) => {
+                const existingFileName = existing.split("/").pop() || existing;
+                return existingFileName === newFileName;
+              });
+              if (!isDuplicate) {
+                task.reportPaths.push(sideEffects.archivePath!);
+              }
+            }
+            return { data, result: null };
+          });
+        } catch {
+          // reportPaths 追加失敗は握りつぶす
+        }
+      }
+    } catch {
+      // 副作用全体の失敗は握りつぶす
+    }
+  }
+
+  return result;
 }

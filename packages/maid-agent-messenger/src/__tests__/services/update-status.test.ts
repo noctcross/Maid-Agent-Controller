@@ -54,7 +54,7 @@ beforeEach(() => {
   mockedWriteYamlFile.mockResolvedValue(undefined);
   mockedFileExists.mockResolvedValue(false);
   mockedCopyFile.mockResolvedValue(true);
-  mockedExecuteUpdateTask.mockResolvedValue({ success: true, task: null });
+  mockedExecuteUpdateTask.mockResolvedValue({ success: true, task: null, sideEffects: { maidYamlSynced: true } });
 
   // withFileLock: コールバックをそのまま実行
   mockedWithFileLock.mockImplementation(

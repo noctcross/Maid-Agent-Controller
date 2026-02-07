@@ -7,6 +7,7 @@ import { Router, Request, Response } from "express";
 import { randomUUID } from "crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { InMemoryEventStore } from "../middleware/event-store.js";
 import type { SessionInfo } from "../middleware/session-manager.js";
 import { validateProjectPath } from "../middleware/session-manager.js";
 import type { KeepAliveManager } from "../middleware/keepalive-manager.js";
@@ -102,12 +103,16 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
     try {
       const newSessionId = randomUUID();
 
+      // EventStore: SSEストリーム再開可能性を提供
+      const eventStore = new InMemoryEventStore();
+
       // StreamableHTTPServerTransport を作成
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         onsessioninitialized: (sid: string) => {
           console.log(`Session initialized: ${sid} (project: ${projectPath})`);
         },
+        eventStore,
       });
 
       // McpServer インスタンスを作成
@@ -184,6 +189,13 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
     const session = sessions.get(sessionId)!;
     session.lastActivity = new Date();
     console.log(`SSE stream requested for session: ${sessionId}`);
+
+    // SSE再接続時: Pingタイマーが停止していれば再開（Phase 2-2）
+    if (keepAliveManager && !session.pingTimer) {
+      console.log(`[KeepAlive] Restarting ping for reconnected session: ${sessionId}`);
+      session.missedPings = 0;
+      keepAliveManager.startPing(sessionId, session);
+    }
 
     try {
       await session.transport.handleRequest(req, res);

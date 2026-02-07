@@ -72,6 +72,7 @@ afterEach(async () => {
 describe("executeCreateTask", () => {
   it("should create a new task with incremented ID", async () => {
     const result = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "テストタスク",
       description: "テストタスク",
       priority: "high",
     });
@@ -85,12 +86,15 @@ describe("executeCreateTask", () => {
 
   it("should create sequential task IDs", async () => {
     const result1 = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "タスク1",
       description: "タスク1",
     });
     const result2 = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "タスク2",
       description: "タスク2",
     });
     const result3 = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "タスク3",
       description: "タスク3",
     });
 
@@ -101,10 +105,11 @@ describe("executeCreateTask", () => {
 
   it("should create a subtask with parent ID prefix", async () => {
     // 親タスク作成
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "親タスク" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "親タスク", description: "親タスク" });
 
     // サブタスク作成
     const result = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "サブタスク",
       description: "サブタスク",
       parentId: "001",
     });
@@ -115,14 +120,16 @@ describe("executeCreateTask", () => {
 
   it("should create multiple subtasks with sequential IDs", async () => {
     // 親タスク作成
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "親タスク" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "親タスク", description: "親タスク" });
 
     // サブタスク作成
     const sub1 = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "サブタスク1",
       description: "サブタスク1",
       parentId: "001",
     });
     const sub2 = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "サブタスク2",
       description: "サブタスク2",
       parentId: "001",
     });
@@ -133,6 +140,7 @@ describe("executeCreateTask", () => {
 
   it("should set assignees and status when provided", async () => {
     const result = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "割り当て済みタスク",
       description: "割り当て済みタスク",
       assignees: ["alice", "luna"],
     });
@@ -146,6 +154,7 @@ describe("executeCreateTask", () => {
 
   it("should use default priority when not specified", async () => {
     const result = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "デフォルト優先度タスク",
       description: "デフォルト優先度タスク",
     });
 
@@ -166,7 +175,7 @@ describe("executeGetTask", () => {
   });
 
   it("should return the task by ID", async () => {
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "テストタスク" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "テストタスク", description: "テストタスク" });
 
     const result = await executeGetTask(TEST_PROJECT_PATH, { taskId: "001" });
 
@@ -177,13 +186,15 @@ describe("executeGetTask", () => {
 
   it("should include subtasks when requested", async () => {
     // 親タスク作成
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "親タスク" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "親タスク", description: "親タスク" });
     // サブタスク作成
     await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "サブタスク1",
       description: "サブタスク1",
       parentId: "001",
     });
     await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "サブタスク2",
       description: "サブタスク2",
       parentId: "001",
     });
@@ -201,9 +212,10 @@ describe("executeGetTask", () => {
 
   it("should not include subtasks when not requested", async () => {
     // 親タスク作成
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "親タスク" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "親タスク", description: "親タスク" });
     // サブタスク作成
     await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "サブタスク1",
       description: "サブタスク1",
       parentId: "001",
     });
@@ -231,8 +243,8 @@ describe("executeListTasks", () => {
   });
 
   it("should return all tasks", async () => {
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク1" });
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク2" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク1", description: "タスク1" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク2", description: "タスク2" });
 
     const { tasks, total } = await executeListTasks(TEST_PROJECT_PATH);
 
@@ -242,9 +254,10 @@ describe("executeListTasks", () => {
 
   it("should filter by status (pending vs assigned)", async () => {
     // pending タスク
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "未割当タスク" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "未割当タスク", description: "未割当タスク" });
     // assigned タスク（assigneesを指定するとassignedになる）
     await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "割当済タスク",
       description: "割当済タスク",
       assignees: ["alice"],
     });
@@ -263,8 +276,9 @@ describe("executeListTasks", () => {
   });
 
   it("should filter by multiple statuses", async () => {
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "未割当タスク" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "未割当タスク", description: "未割当タスク" });
     await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "割当済タスク",
       description: "割当済タスク",
       assignees: ["alice"],
     });
@@ -278,10 +292,12 @@ describe("executeListTasks", () => {
 
   it("should filter by assignee", async () => {
     await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "アリスのタスク",
       description: "アリスのタスク",
       assignees: ["alice"],
     });
     await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "ルナのタスク",
       description: "ルナのタスク",
       assignees: ["luna"],
     });
@@ -296,9 +312,10 @@ describe("executeListTasks", () => {
 
   it("should filter by parentId (top-level tasks only)", async () => {
     // 親タスク作成
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "親タスク" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "親タスク", description: "親タスク" });
     // サブタスク作成
     await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "サブタスク",
       description: "サブタスク",
       parentId: "001",
     });
@@ -315,6 +332,7 @@ describe("executeListTasks", () => {
     // 5件作成
     for (let i = 0; i < 5; i++) {
       await executeCreateTask(TEST_PROJECT_PATH, {
+        title: `タスク${i + 1}`,
         description: `タスク${i + 1}`,
       });
     }
@@ -341,9 +359,9 @@ describe("executeListTasks", () => {
   });
 
   it("should sort by createdAt descending", async () => {
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク1" });
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク2" });
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク3" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク1", description: "タスク1" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク2", description: "タスク2" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク3", description: "タスク3" });
 
     const { tasks } = await executeListTasks(TEST_PROJECT_PATH, {
       sortField: "createdAt",
@@ -356,9 +374,9 @@ describe("executeListTasks", () => {
   });
 
   it("should sort by createdAt ascending", async () => {
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク1" });
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク2" });
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク3" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク1", description: "タスク1" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク2", description: "タスク2" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク3", description: "タスク3" });
 
     const { tasks } = await executeListTasks(TEST_PROJECT_PATH, {
       sortField: "createdAt",
@@ -380,6 +398,7 @@ describe("tasks.yaml ファイル管理", () => {
     await fs.rm(TEST_PROJECT_PATH, { recursive: true, force: true });
 
     const result = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "新規プロジェクトのタスク",
       description: "新規プロジェクトのタスク",
     });
 
@@ -393,9 +412,9 @@ describe("tasks.yaml ファイル管理", () => {
   });
 
   it("should persist lastTaskNumber correctly", async () => {
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク1" });
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク2" });
-    await executeCreateTask(TEST_PROJECT_PATH, { description: "タスク3" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク1", description: "タスク1" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク2", description: "タスク2" });
+    await executeCreateTask(TEST_PROJECT_PATH, { title: "タスク3", description: "タスク3" });
 
     const data = await readTasksYaml();
     expect(data!.lastTaskNumber).toBe(3);
@@ -419,7 +438,7 @@ describe("ファイルロック（エッジケース）", () => {
     const promises = Array(5)
       .fill(null)
       .map((_, i) =>
-        executeCreateTask(TEST_PROJECT_PATH, { description: `タスク${i}` })
+        executeCreateTask(TEST_PROJECT_PATH, { title: `タスク${i}`, description: `タスク${i}` })
       );
     const results = await Promise.all(promises);
 
@@ -442,6 +461,7 @@ describe("ファイルロック（エッジケース）", () => {
       .fill(null)
       .map((_, i) =>
         executeCreateTask(TEST_PROJECT_PATH, {
+          title: `高負荷タスク${i}`,
           description: `高負荷タスク${i}`,
         })
       );

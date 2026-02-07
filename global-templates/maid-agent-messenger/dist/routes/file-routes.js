@@ -94,6 +94,8 @@ router.get("/file", async (req, res) => {
     hr { border: none; border-top: 1px solid var(--border-color); margin: 20px 0; }
     p { margin: 1em 0; }
     strong { color: #dcdcaa; }
+    .path-link { color: #4ec9b0; text-decoration: none; border-bottom: 1px dotted #4ec9b0; cursor: pointer; }
+    .path-link:hover { text-decoration: underline; background: rgba(86, 156, 214, 0.1); }
   </style>
 </head>
 <body>
@@ -107,6 +109,11 @@ router.get("/file", async (req, res) => {
   <div class="content">
     ${htmlContent}
   </div>
+  <script>
+    // linkifyProjectPaths() が生成するonclickハンドラ用フォールバック
+    // ファイルビューアではVSCode APIが使えないため、デフォルトリンク動作に委譲
+    if (typeof openFile === "undefined") { window.openFile = function() { return false; }; }
+  </script>
 </body>
 </html>`;
         res.setHeader("Content-Type", "text/html; charset=utf-8");

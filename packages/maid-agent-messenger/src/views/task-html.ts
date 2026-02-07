@@ -69,8 +69,8 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
               }
             }
             windowsPath = windowsPath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
-            // ブラウザ用: /file?path=... エンドポイント
-            const fileViewUrl = `/file?path=${encodeURIComponent(windowsPath)}`;
+            // ブラウザ用: /file?path=... エンドポイント（&project= で報告書内パスリンク化を有効化）
+            const fileViewUrl = `/file?path=${encodeURIComponent(windowsPath)}&project=${encodeURIComponent(projectPath)}`;
             // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
             return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(windowsPath)}" onclick="return openFile(this, '${escapeHtml(windowsPath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
           }).join(", ")

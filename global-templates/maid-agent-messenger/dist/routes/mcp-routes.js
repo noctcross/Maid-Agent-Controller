@@ -6,7 +6,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 export function createMcpRoutes(deps) {
-    const { sessions, createMcpServer } = deps;
+    const { sessions, createMcpServer, keepAliveManager } = deps;
     const router = Router();
     // POST /mcp
     router.post("/mcp", async (req, res) => {
@@ -29,6 +29,7 @@ export function createMcpRoutes(deps) {
         // 既存セッションがある場合はそれを使用
         if (sessionId && sessions.has(sessionId)) {
             const session = sessions.get(sessionId);
+            session.lastActivity = new Date();
             console.log(`Reusing session: ${sessionId}`);
             try {
                 await session.transport.handleRequest(req, res, req.body);
@@ -66,14 +67,29 @@ export function createMcpRoutes(deps) {
             // McpServer インスタンスを作成
             const server = createMcpServer(projectPath);
             // セッション情報を保存
-            sessions.set(newSessionId, { transport, server, projectPath });
+            const now = new Date();
+            sessions.set(newSessionId, {
+                transport,
+                server,
+                projectPath,
+                createdAt: now,
+                lastActivity: now,
+                missedPings: 0,
+            });
             // サーバーに接続
             await server.connect(transport);
+            // Phase 3: Pingタイマー開始
+            if (keepAliveManager) {
+                keepAliveManager.startPing(newSessionId, sessions.get(newSessionId));
+            }
             // リクエストを処理
             await transport.handleRequest(req, res, req.body);
             // セッション終了時のクリーンアップ（transportのcloseイベント）
             transport.onclose = () => {
                 console.log(`Session closed: ${newSessionId}`);
+                if (keepAliveManager) {
+                    keepAliveManager.stopPing(newSessionId, sessions.get(newSessionId));
+                }
                 sessions.delete(newSessionId);
             };
         }
@@ -103,6 +119,7 @@ export function createMcpRoutes(deps) {
             return;
         }
         const session = sessions.get(sessionId);
+        session.lastActivity = new Date();
         console.log(`SSE stream requested for session: ${sessionId}`);
         try {
             await session.transport.handleRequest(req, res);
@@ -132,6 +149,9 @@ export function createMcpRoutes(deps) {
         const session = sessions.get(sessionId);
         if (session) {
             console.log(`Session terminated: ${sessionId}`);
+            if (keepAliveManager) {
+                keepAliveManager.stopPing(sessionId, session);
+            }
             await session.transport.close();
             sessions.delete(sessionId);
         }

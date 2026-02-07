@@ -8,6 +8,20 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as yaml from "yaml";
 
+export interface KeepAliveConfig {
+  // Phase 1
+  session_idle_timeout: number;      // ms。デフォルト: 300000（5分）
+  gc_interval: number;               // ms。デフォルト: 60000（1分）
+  // Phase 2
+  http_keepalive_timeout: number;    // ms。デフォルト: 65000（65秒）
+  http_headers_timeout: number;      // ms。デフォルト: 66000（66秒）
+  // Phase 3
+  ping_enabled: boolean;             // デフォルト: true
+  ping_interval: number;             // ms。デフォルト: 30000（30秒）
+  ping_timeout: number;              // ms。デフォルト: 5000（5秒）
+  max_missed_pings: number;          // デフォルト: 2
+}
+
 export interface ServerConfig {
   mode: "central" | "local" | "hybrid";
   port: number;
@@ -36,6 +50,7 @@ export interface McpServerConfig {
   central: CentralConfig;
   fallback: FallbackConfig;
   dashboard: DashboardConfig;
+  keepalive: KeepAliveConfig;
 }
 
 const DEFAULT_CONFIG: McpServerConfig = {
@@ -57,6 +72,16 @@ const DEFAULT_CONFIG: McpServerConfig = {
   },
   dashboard: {
     editor: "vscode",
+  },
+  keepalive: {
+    session_idle_timeout: 300000,
+    gc_interval: 60000,
+    http_keepalive_timeout: 65000,
+    http_headers_timeout: 66000,
+    ping_enabled: true,
+    ping_interval: 30000,
+    ping_timeout: 5000,
+    max_missed_pings: 2,
   },
 };
 
@@ -97,6 +122,7 @@ export async function loadConfig(): Promise<McpServerConfig> {
       central: { ...DEFAULT_CONFIG.central, ...parsed.central },
       fallback: { ...DEFAULT_CONFIG.fallback, ...parsed.fallback },
       dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
+      keepalive: { ...DEFAULT_CONFIG.keepalive, ...(parsed as Record<string, unknown>).keepalive as Partial<KeepAliveConfig> },
     };
 
     return cachedConfig;

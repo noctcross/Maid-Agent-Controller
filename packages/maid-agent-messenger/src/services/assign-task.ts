@@ -35,44 +35,46 @@ export async function executeAssignTask(
   const { queueMaidPath, taskId, targetAgent, title, description, targetPath } = params;
   const filePath = path.join(queueMaidPath, `${targetAgent}.yaml`);
 
-  return await withFileLock(filePath, async () => {
-    // ガード条件: maid yaml を読んで作業中かチェック
-    const task = await readYamlFile(filePath);
+  // ガード条件: maid yaml を読んで作業中かチェック
+  // ※ ロックはガードチェックのみで解放する。executeUpdateTask の副作用
+  //    (syncMaidYaml) が同じ maid yaml をロックするため、ネストするとデッドロックになる。
+  const maidTask = await withFileLock(filePath, async () => {
+    return await readYamlFile(filePath);
+  });
 
-    if (task.status === "working") {
-      return {
-        success: false,
-        assigned_to: targetAgent,
-        task_id: task.task_id || "",
-        error: `${targetAgent} は現在作業中です（${task.task_id}）`,
-      };
-    }
-
-    // executeUpdateTask に全処理を委譲
-    const projectPath = path.resolve(queueMaidPath, "..", "..", "..", "..");
-    const taskIdNormalized = normalizeTaskId(taskId);
-
-    const result = await executeUpdateTask(projectPath, {
-      taskId: taskIdNormalized,
-      status: "assigned",
-      assignees: [{ agentId: targetAgent, role: null, subTaskId: null }],
-      description: description,
-      targetPath: targetPath,
-    });
-
-    if (!result.success) {
-      return {
-        success: false,
-        assigned_to: targetAgent,
-        task_id: taskId,
-        error: "tasks.yaml更新失敗",
-      };
-    }
-
+  if (maidTask.status === "working") {
     return {
-      success: true,
+      success: false,
+      assigned_to: targetAgent,
+      task_id: maidTask.task_id || "",
+      error: `${targetAgent} は現在作業中です（${maidTask.task_id}）`,
+    };
+  }
+
+  // executeUpdateTask に全処理を委譲（maid yaml ロック解放済み）
+  const projectPath = path.resolve(queueMaidPath, "..", "..", "..", "..");
+  const taskIdNormalized = normalizeTaskId(taskId);
+
+  const result = await executeUpdateTask(projectPath, {
+    taskId: taskIdNormalized,
+    status: "assigned",
+    assignees: [{ agentId: targetAgent, role: null, subTaskId: null }],
+    description: description,
+    targetPath: targetPath,
+  });
+
+  if (!result.success) {
+    return {
+      success: false,
       assigned_to: targetAgent,
       task_id: taskId,
+      error: "tasks.yaml更新失敗",
     };
-  });
+  }
+
+  return {
+    success: true,
+    assigned_to: targetAgent,
+    task_id: taskId,
+  };
 }

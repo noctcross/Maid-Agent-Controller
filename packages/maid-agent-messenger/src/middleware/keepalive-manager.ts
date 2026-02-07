@@ -46,12 +46,13 @@ export class KeepAliveManager {
           `(missed: ${session.missedPings}/${this.config.max_missed_pings})`
         );
 
-        // 上限超過: セッション切断
+        // 上限超過: Pingを停止するがセッションは保全（GCのidle timeoutに委ねる）
         if (session.missedPings >= this.config.max_missed_pings) {
-          console.log(`[KeepAlive] Session ${sessionId} is stale, closing`);
+          console.warn(
+            `[KeepAlive] Session ${sessionId} has ${session.missedPings} missed pings ` +
+            `(SSE likely disconnected). Stopping ping, session preserved for GC.`
+          );
           this.stopPing(sessionId, session);
-          session.transport.close();
-          sessions.delete(sessionId);
         }
       }
     }, this.config.ping_interval);

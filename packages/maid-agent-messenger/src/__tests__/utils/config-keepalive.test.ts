@@ -28,7 +28,7 @@ describe("loadConfig - keepalive settings", () => {
     const config = await loadConfig();
 
     expect(config.keepalive).toBeDefined();
-    expect(config.keepalive.session_idle_timeout).toBe(300000);
+    expect(config.keepalive.session_idle_timeout).toBe(1800000);
     expect(config.keepalive.gc_interval).toBe(60000);
   });
 

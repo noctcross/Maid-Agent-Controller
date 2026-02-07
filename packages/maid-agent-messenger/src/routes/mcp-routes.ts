@@ -66,13 +66,34 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
       return;
     }
 
-    // セッションIDなしのリクエスト: 自動的に新しいセッションを作成
+    // セッションIDがあるが見つからない → 404（MCP仕様: クライアントに再初期化を促す）
+    if (sessionId) {
+      console.log(`[MCP] Session expired or unknown: ${sessionId}`);
+      res.status(404).json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "Session not found. Client should create a new session by sending an initialize request.",
+        },
+        id: null,
+      });
+      return;
+    }
+
+    // セッションIDなし + initialize以外 → 400
     const body = req.body;
     const isInitializeRequest = body && body.method === "initialize";
-
     if (!isInitializeRequest) {
-      // 自動セッション作成モード: initializeなしでもセッションを作成して処理
-      console.log(`Auto-creating session for method=${body?.method} (no session ID)`);
+      console.log(`[MCP] Non-initialize request without session ID: method=${body?.method}`);
+      res.status(400).json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32600,
+          message: "Mcp-Session-Id header is required for non-initialize requests",
+        },
+        id: null,
+      });
+      return;
     }
 
     // 新規セッションを作成
@@ -139,12 +160,21 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
   router.get("/mcp", async (req: Request, res: Response) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
-    if (!sessionId || !sessions.has(sessionId)) {
+    if (!sessionId) {
       res.status(400).json({
+        jsonrpc: "2.0",
+        error: { code: -32600, message: "Mcp-Session-Id header is required" },
+        id: null,
+      });
+      return;
+    }
+
+    if (!sessions.has(sessionId)) {
+      res.status(404).json({
         jsonrpc: "2.0",
         error: {
           code: -32000,
-          message: "Invalid or missing session ID",
+          message: "Session not found. Client should create a new session by sending an initialize request.",
         },
         id: null,
       });
@@ -183,14 +213,21 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
     }
 
     const session = sessions.get(sessionId);
-    if (session) {
-      console.log(`Session terminated: ${sessionId}`);
-      if (keepAliveManager) {
-        keepAliveManager.stopPing(sessionId, session);
-      }
-      await session.transport.close();
-      sessions.delete(sessionId);
+    if (!session) {
+      res.status(404).json({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Session not found" },
+        id: null,
+      });
+      return;
     }
+
+    console.log(`Session terminated: ${sessionId}`);
+    if (keepAliveManager) {
+      keepAliveManager.stopPing(sessionId, session);
+    }
+    await session.transport.close();
+    sessions.delete(sessionId);
 
     res.status(204).end();
   });

@@ -1,33 +1,35 @@
 # Maid Agent Controller
 
 VSCode拡張として動作するマルチエージェントClaude Code管理システム。
-**multi-agent-shogun** の階層構造をVSCode上で再現します。
+英国メイド制度をモチーフにした階層構造で、複数タスクを並行処理します。
 
 ## 特徴
 
-- **階層型マルチエージェント**: 執事→メイド長→メイド8人の階層構造
-- **MCPサーバー連携**: エージェント間通信をMCP経由で効率化（トークン消費削減）
+- **階層型マルチエージェント**: 執事 → メイド長 → メイド8人の3層構造
+- **MCPサーバー連携**: タスク管理・エージェント間通信をMCP経由で効率化（トークン消費削減）
+- **タスク管理システム**: tasks.yaml による一元管理、ステータス追跡、レポートアーカイブ
+- **Webダッシュボード**: リアルタイムでタスク進捗を確認、ブラウザからもアクセス可能
 - **WSL + tmux**: Windows環境でもWSL経由で安定動作
-- **ビジュアル管理**: サイドバーの立ち絵表示、ダッシュボードで進捗確認
+- **ビジュアル管理**: サイドバーの立ち絵表示、tmuxビューア
 
 ## 階層構造
 
 ```
 ┌─────────────────┐
 │  🎩 執事        │ ← ユーザーからタスクを受け取り、分解
-│  (Butler)       │
+│  シルヴィア     │    create_task でタスク作成
 └────────┬────────┘
-         │ サブタスクを指示
+         │ maid-notify で指示
          ▼
 ┌─────────────────┐
 │  👑 メイド長    │ ← サブタスクを各メイドに配分
-│  (Chief Maid)   │
+│  ビオラ         │    assign_task で割り当て
 └────────┬────────┘
-         │ 個別タスクを指示
+         │ maid-notify で指示
          ▼
 ┌──┬──┬──┬──┬──┬──┬──┬──┐
 │🎀│🎀│🎀│🎀│🎀│🎀│🎀│🎀│ ← 並列実行
-│エ│ソ│リ│ロ│ア│メ│フ│ル│
+│エ│ソ│リ│ロ│ア│メ│フ│ル│    update_status で報告
 │マ│フ│リ│｜│リ│イ│ロ│ナ│
 │  │ィ│｜│ズ│ス│  │ラ│  │
 │  │ア│  │  │  │  │  │  │
@@ -37,7 +39,7 @@ VSCode拡張として動作するマルチエージェントClaude Code管理シ
 ## インストール
 
 ```bash
-cd vscode-multi-agent
+cd "VSCode拡張/AgentMaid"
 npm install
 npm run compile
 ```
@@ -60,7 +62,7 @@ Maid Agent: Init Global
 
 以下がセットアップされます：
 - `~/.maid-agent/` グローバル設定ディレクトリ
-- **maid-agent-messenger** MCPサーバー（エージェント間通信用）
+- **maid-agent-messenger** MCPサーバー（タスク管理・エージェント間通信用）
 - pm2による自動起動設定（WSL起動時に自動でサーバー起動）
 
 > **Note**: MCPサーバーのセットアップ時にWSLのパスワード入力が必要です。
@@ -75,6 +77,13 @@ Maid Agent: Init Global
 
 プロジェクト初期化時に `.mcp.json` が自動生成され、MCPサーバーとの連携が設定されます。
 
+初期化時の処理:
+1. テンプレートからプロジェクトファイルをコピー
+2. グローバルルール選択UI表示（`auto_select: true` のものは事前選択）
+3. グローバルスキル選択UI表示
+4. 選択されたルール・スキルをプロジェクトにコピー
+5. `.mcp.json` を生成（MCPサーバー連携設定）
+
 > **Note**: コマンドパレットではファジー検索が使えます。
 > 例: `call all`, `xn -r`, `butler` など部分入力でOK
 
@@ -84,14 +93,15 @@ Maid Agent: Init Global
 |---------|--------------|------|
 | `Call All` | all | 全員起動（執事+メイド長+メイド8人 = 10人） |
 | `Call All xN` | all xn | 執事+メイド長+メイドN人（順番） |
-| `Call All xN -r` | all xn -r | 執事+メイド長+メイドN人（ランダム） |
+| `Call All xN Random` | all xn random | 執事+メイド長+メイドN人（ランダム） |
 | `Call Butler` | butler | 執事のみ起動 |
 | `Call Chief` | chief | メイド長のみ起動 |
+| `Call Butler & Chief` | agents | 執事とメイド長を起動 |
 | `Call Maids xN` | maids xn | メイドN人のみ（順番） |
-| `Call Maids xN -r` | maids xn -r | メイドN人のみ（ランダム） |
+| `Call Maids xN Random` | maids xn random | メイドN人のみ（ランダム） |
 | `Call Maids Pick` | pick | チェックボックスでメイドを選択 |
 
-> **-r オプション**: ランダム選択。なしの場合は設定の `maidAgent.maidOrder` 順
+> **-r / Random**: ランダム選択。なしの場合は設定の `maidAgent.maidOrder` 順
 
 > ⚠️ **初回起動時の注意**: `claude --dangerously-skip-permissions` を初めて実行する環境では、
 > 確認プロンプトが表示されます（デフォルトNo）。
@@ -103,25 +113,77 @@ Maid Agent: Init Global
 **執事のターミナルに直接入力してください。**
 
 執事のターミナル（🎩 執事）を選択し、Claude Code に直接タスクを入力します。
-執事がタスクを分析し、メイド長→メイドへと階層的に処理されます。
+執事がタスクを分析し、メイド長 → メイドへと階層的に処理されます。
 
 ### 6. 進捗確認
+
+#### Webダッシュボード（推奨）
+
+- ステータスバーの「📋 Dashboard」をクリック
+- または `Web Dashboard` コマンド
+- ブラウザで開く場合は `Open Dashboard in Browser` コマンド
+- 10秒間隔で自動更新
+
+#### コントローラーパネル
+
+- `Dashboard` コマンドで表示（VSCode内WebView）
 
 #### サイドバー（エージェントパネル）
 
 1. **Activity Bar（左端のアイコン列）の ♥ アイコン**をクリック
-2. サイドバーに「Current Agent」パネルが表示される
+2. サイドバーに「Maid Agent」パネルが表示される
 3. **ターミナルタブを切り替える**と、該当エージェントの立ち絵が表示される
 
 > パネルが表示されない場合は、設定で `maidAgent.showAgentPanel` が `true` になっているか確認してください。
 
-#### ダッシュボード
+### 7. セッション管理
 
-- ステータスバーの「📋 Dashboard」をクリック
-- または `Web Dashboard` コマンド
-- コントローラーパネルは `Dashboard` コマンド
+| コマンド | 説明 |
+|---------|------|
+| `Resume` | 既存のtmuxセッションに復帰 |
+| `Kill Session` | tmuxセッションを終了 |
+| `Tmux Viewer` | tmuxビューアを開く |
+| `Claude Start` | 全ターミナルでClaude Code起動 |
 
-**注**: 旧来の `dashboard.md` ファイルは廃止され、Webビューに完全移行しました。
+> IDE起動時に既存セッションがあれば自動復帰します（`maidAgent.autoResumeOnStartup`）
+
+## タスク管理システム
+
+### 概要
+
+tasks.yaml を Single Source of Truth（正データ）として、全タスクを一元管理します。
+
+```
+執事 ──→ create_task ──→ tasks.yaml（正）
+メイド長 → assign_task ──→ executeUpdateTask ──→ tasks.yaml + maid yaml 自動同期
+メイド ──→ update_status → executeUpdateTask ──→ tasks.yaml + maid yaml + レポートアーカイブ
+```
+
+### タスクステータス
+
+```
+pending → assigned → working → completed
+                  ↘ blocked（問題発生時）
+                  ↘ cancelled（キャンセル時）
+```
+
+| ステータス | 説明 | 設定者 |
+|-----------|------|--------|
+| `pending` | 未着手（作成直後） | 執事 |
+| `assigned` | メイドに割り当て済み | メイド長 |
+| `working` | 作業中 | メイド |
+| `completed` | 完了 | メイド |
+| `blocked` | 外部要因で停止中（判断待ち等） | メイド |
+| `cancelled` | キャンセル | メイド長 |
+
+### タスクカテゴリ
+
+| カテゴリ | 用途 | 表示 |
+|---------|------|------|
+| `task` | 通常タスク（デフォルト） | - |
+| `action_required` | ご主人様の判断が必要 | 🚨 要対応 |
+| `skill_candidate` | スキル化候補 | 📚 スキル候補 |
+| `improvement` | 改善提案 | 💡 改善提案 |
 
 ## ファイル構成
 
@@ -129,201 +191,40 @@ Maid Agent: Init Global
 
 ```
 .maid-agent/
-├── CLAUDE.md              # 詳細設計書
-├── config/
-│   └── settings.yaml      # 設定ファイル
-├── context/               # プロジェクト固有コンテキスト
-├── instructions/          # 各役割の指示書
-│   ├── butler.md
-│   ├── chief.md
-│   ├── maid.md
-│   └── QUICK_REFERENCE.md # コンパクション対策クイックリファレンス
-├── queue/                 # タスクキュー
-│   ├── butler_to_chief.yaml
-│   └── maid/                  # メイド別ステータス（MCPツール経由で更新）
-│       ├── emma.yaml
-│       └── ...
-├── reports/               # メイドからの報告
-├── rules/                 # ルールモジュール（グローバルからコピー）
-├── skills/                # 承認済みスキル
-│   └── skill-creator/     # スキル作成ガイド
-├── status/
-│   └── master_status.yaml
-├── personas/              # キャラクター別口調設定
-│   ├── butler.md          # シルヴィア
-│   ├── chief.md           # ビオラ
-│   ├── emma.md            # エマ
-│   └── ...                # 他メイド
-└── images/                # カスタム立ち絵（オプション）
-```
-
-## カスタム立ち絵
-
-`.maid-agent/images/` にキャラクター画像を配置すると、
-サイドバーのエージェントパネルに表示されます。
-
-### 推奨サイズ
-
-| 項目 | 推奨値 |
-|-----|-------|
-| サイズ | 幅200〜300px × 高さ300〜500px |
-| 縦横比 | 縦長（立ち絵スタイル） |
-| 形式 | PNG（透過推奨）/ JPG / WebP |
-
-### ファイル命名
-
-```
-基本:     emma.png
-バージョン違い: emma_1.png, emma_2.png  (ランダム選択、最大10)
-ステータス別:  emma_wait.png, emma_work.png  (自動切替)
-```
-
-詳細は `.maid-agent/images/README.md` を参照。
-
-## ペルソナ（口調設定）
-
-各キャラクターには個別の口調・話し方が設定されています。
-`.maid-agent/personas/` 内のファイルで確認・カスタマイズできます。
-
-| キャラクター | 性格 | 口調の特徴 |
-|------------|------|----------|
-| シルヴィア（執事） | 冷静沈着 | 「〜でございます」「かしこまりました」 |
-| ビオラ（メイド長） | 厳格 | 「〜ですよ」「〜なさい」 |
-| エマ | 真面目 | 「〜ですね」「〜しましょう」 |
-| ソフィア | クール寡黙 | 短文「〜です」「〜ます」 |
-| リリー | 元気 | 「〜ですっ」「〜しますね♪」 |
-| ローズ | 姉御肌 | 「〜ですわ」「〜してあげます」 |
-| アリス | 天然 | 「〜ですね〜」「〜かもです」 |
-| メイ | 控えめ | 「〜させていただきます」 |
-| フローラ | 穏やか | 「〜ですよ」「〜してくださいね」 |
-| ルナ | マイペース眠そう | 「〜です...」「〜zzz」 |
-
-ペルソナはあくまで口調のガイドであり、エージェントとしての動作は `instructions/` 内の指示書に従います。
-
-## 拡張機能設定
-
-VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
-
-| 設定 | 説明 | デフォルト |
-|-----|------|-----------|
-| `maidAgent.maidOrder` | メイドの起動順序（順番起動時に使用） | `["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"]` |
-| `maidAgent.showAgentPanel` | サイドバーにエージェントパネルを表示 | `true` |
-
-### メイドの順番をカスタマイズ
-
-`settings.json` で直接編集：
-
-```json
-{
-  "maidAgent.maidOrder": ["luna", "flora", "may", "alice", "rose", "lily", "sophia", "emma"]
-}
-```
-
-### エージェントパネルを非表示
-
-```json
-{
-  "maidAgent.showAgentPanel": false
-}
-```
-
-## 全コマンド一覧
-
-| コマンド | 検索キーワード | 説明 |
-|---------|--------------|------|
-| `Init` | init | ワークスペース初期化 |
-| `Init Global` | init global | グローバル設定初期化（~/.maid-agent/） |
-| `Call All` | all | 全員起動（10人） |
-| `Call All xN` | all xn | 執事+メイド長+メイドN人（順番） |
-| `Call All xN -r` | all xn -r | 執事+メイド長+メイドN人（ランダム） |
-| `Call Butler` | butler | 執事起動 |
-| `Call Chief` | chief | メイド長起動 |
-| `Call Maids xN` | maids xn | メイドN人のみ（順番） |
-| `Call Maids xN -r` | maids xn -r | メイドN人のみ（ランダム） |
-| `Call Maids Pick` | pick | 選択して起動 |
-| `Claude Start` | claude | 全ターミナルでClaude起動 |
-| `Task to Butler` | task butler | 執事にタスク送信 |
-| `Task to Maid` | task maid | 特定メイドに送信 |
-| `Dashboard` | dashboard | ダッシュボード表示 |
-| `Watch Start` | watch start | YAMLファイル監視開始 |
-| `Watch Stop` | watch stop | YAMLファイル監視停止 |
-
-## スキルシステム
-
-繰り返し使える作業パターンを「スキル」として保存できます。
-
-1. メイドがスキル化候補を発見 → reports/ に記載
-2. メイド長が集約 → Webダッシュボードに表示
-3. 執事が確認 → ユーザーに報告
-4. ユーザーが承認 → skills/ に作成
-
-詳細は `.maid-agent/skills/skill-creator/SKILL.md` を参照。
-
-## 改善提案システム
-
-メイドからルールやフローの改善提案を受け付ける仕組みがあります。
-
-### フロー
-
-1. メイドが改善点を発見 → reports/ に `improvement_proposal` を記載
-2. メイド長が集約 → Webダッシュボードの「💡 改善提案」に表示
-3. 執事が確認 → ユーザーに報告
-4. ユーザーが承認 → 該当ルールを更新
-
-### 提案の形式
-
-```yaml
-improvement_proposal:
-  found: true
-  category: rule     # process | rule | tool | other
-  target: maid       # common | butler | chief | maid
-  title: "タスク完了条件の明確化"
-  problem: "完了の判断基準が曖昧"
-  proposal: "チェックリスト化"
-  benefit: "報告漏れの削減"
-```
-
-## グローバル設定
-
-プロジェクト間で共有するルールとスキルを `~/.maid-agent/` に保存できます。
-
-### フォルダ構造
-
-```
-~/.maid-agent/
-├── rules/              # ルールモジュール
-│   ├── common/         # 全員に適用
-│   ├── butler/         # 執事のみ
-│   ├── chief/          # メイド長のみ
-│   └── maid/           # メイドのみ
-└── skills/             # 共有スキル
-```
-
-### グローバル設定の初期化
-
-コマンドパレットから `Init Global` を実行すると、`~/.maid-agent/` フォルダが作成されます。
-
-### init時の動作
-
-新しいプロジェクトで `Init` を実行すると:
-
-1. テンプレートからコピー
-2. グローバルルール選択UI表示（auto_select: true のものは事前選択）
-3. グローバルスキル選択UI表示
-4. 選択されたルール・スキルをプロジェクトにコピー
-5. `.mcp.json` を生成（MCPサーバー連携設定）
-
-### ルールモジュールの形式
-
-```markdown
----
-name: compaction-recovery
-description: コンパクション対策ルール
-auto_select: true
-target_roles: [common]
----
-
-（ルール内容）
+├── CLAUDE.md                    # 詳細設計書（エージェント用リファレンス）
+├── master/                      # ご主人様エリア
+│   ├── NOTES.md                 # ご主人様メモ
+│   └── reports/                 # 完了レポートアーカイブ（task-*.md）
+├── agents/                      # エージェントエリア
+│   ├── context/                 # プロジェクト固有コンテキスト
+│   ├── instructions/            # 各役割の指示書
+│   │   ├── butler.md            # 執事
+│   │   ├── chief.md             # メイド長
+│   │   ├── maid.md              # メイド
+│   │   └── QUICK_REFERENCE.md   # コンパクション対策クイックリファレンス
+│   ├── personas/                # キャラクター別口調設定
+│   │   ├── butler.md            # シルヴィア
+│   │   ├── chief.md             # ビオラ
+│   │   ├── emma.md              # エマ
+│   │   └── ...                  # 他メイド
+│   ├── rules/                   # ルールモジュール（グローバルからコピー）
+│   │   ├── common/              # 全員に適用
+│   │   ├── butler/              # 執事のみ
+│   │   ├── chief/               # メイド長のみ
+│   │   └── maid/                # メイドのみ
+│   └── skills/                  # 承認済みスキル
+│       └── skill-creator/       # スキル作成ガイド
+└── system/                      # システムエリア
+    ├── bin/                     # 実行スクリプト（maid-notify）
+    ├── config/                  # 設定ファイル（settings.yaml）
+    ├── data/
+    │   ├── maid/                # メイド別ステータス（MCPツール経由で更新）
+    │   │   ├── emma.yaml
+    │   │   └── ...
+    │   ├── reports/             # 作業中レポート（current_{name}.md）
+    │   └── tasks.yaml           # タスク管理データ（SSOT）
+    └── resources/
+        └── images/              # カスタム立ち絵（オプション）
 ```
 
 ## MCPサーバー（maid-agent-messenger）
@@ -334,16 +235,22 @@ target_roles: [common]
 
 | ツール名 | 用途 | 使用者 |
 |---------|------|-------|
+| `create_task` | 新規タスク/サブタスク作成 | 執事・メイド長 |
+| `list_tasks` | タスク一覧取得（フィルタ・ソート対応） | 執事・メイド長 |
+| `get_task` | タスク詳細取得（サブタスク含む） | 全員 |
+| `get_report` | タスクのレポート内容取得 | 執事・メイド長 |
+| `update_task` | タスク更新（ステータス・カテゴリ等） | メイド長 |
+| `assign_task` | メイドにタスクを割り当て | メイド長 |
 | `get_my_task` | 自分のタスク情報を取得 | メイド |
 | `update_status` | ステータスを更新（working/completed/blocked） | メイド |
-| `assign_task` | メイドにタスクを割り当て | メイド長 |
 | `get_team_status` | 全メイドのステータス一覧を取得 | メイド長・執事 |
 
 ### メリット
 
 - **トークン消費削減**: YAMLファイル全体を読み書きする代わりに、必要な情報のみを取得・更新
-- **タイムスタンプ自動設定**: `assigned_at`, `started_at`, `completed_at` が自動で設定される
+- **タイムスタンプ自動設定**: `assignedAt`, `startedAt`, `completedAt` が自動で設定される
 - **ファイルロック**: 複数エージェントからの同時アクセスでも安全
+- **自動同期**: tasks.yaml 更新時に maid yaml への同期、レポートアーカイブが自動実行
 
 ### セットアップ
 
@@ -378,29 +285,167 @@ pm2 stop maid-agent-messenger     # 停止
 }
 ```
 
-## タスクステータス
+## カスタム立ち絵
 
-メイドのタスクステータスは以下の値を取ります：
+`.maid-agent/system/resources/images/` にキャラクター画像を配置すると、
+サイドバーのエージェントパネルに表示されます。
 
-| ステータス | 説明 |
-|-----------|-----|
-| `idle` | 待機中 |
-| `assigned` | タスク割り当て済み |
-| `working` | 作業中 |
-| `blocked` | 外部要因で停止中（依存待ち、判断待ち等） |
-| `completed` | 完了 |
-| `failed` | 失敗 |
+### 推奨サイズ
 
-### blocked ステータス
+| 項目 | 推奨値 |
+|-----|-------|
+| サイズ | 幅200〜300px × 高さ300〜500px |
+| 縦横比 | 縦長（立ち絵スタイル） |
+| 形式 | PNG（透過推奨）/ JPG / WebP |
 
-外部要因で進められない場合に使用します。`substatus` で理由を明示できます。
+### ファイル命名
 
-```yaml
-emma:
-  task_id: "task-001"
-  status: blocked
-  substatus: "ご主人様判断待ち"
 ```
+基本:     emma.png
+バージョン違い: emma_1.png, emma_2.png  (ランダム選択、最大10)
+ステータス別:  emma_wait.png, emma_work.png  (自動切替)
+```
+
+## ペルソナ（口調設定）
+
+各キャラクターには個別の口調・話し方が設定されています。
+`.maid-agent/agents/personas/` 内のファイルで確認・カスタマイズできます。
+
+| キャラクター | 性格 | 口調の特徴 |
+|------------|------|----------|
+| シルヴィア（執事） | 冷静沈着 | 「〜でございます」「かしこまりました」 |
+| ビオラ（メイド長） | 厳格 | 「〜ですよ」「〜なさい」 |
+| エマ | 真面目 | 「〜ですね」「〜しましょう」 |
+| ソフィア | クール寡黙 | 短文「〜です」「〜ます」 |
+| リリー | 元気 | 「〜ですっ」「〜しますね♪」 |
+| ローズ | 姉御肌 | 「〜ですわ」「〜してあげます」 |
+| アリス | 天然 | 「〜ですね〜」「〜かもです」 |
+| メイ | 控えめ | 「〜させていただきます」 |
+| フローラ | 穏やか | 「〜ですよ」「〜してくださいね」 |
+| ルナ | マイペース眠そう | 「〜です...」「〜zzz」 |
+
+ペルソナはあくまで口調のガイドであり、エージェントとしての動作は `agents/instructions/` 内の指示書に従います。
+
+## 拡張機能設定
+
+VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
+
+| 設定 | 説明 | デフォルト |
+|-----|------|-----------|
+| `maidAgent.maidOrder` | メイドの起動順序（順番起動時に使用） | `["emma", "sophia", ...]` |
+| `maidAgent.showAgentPanel` | サイドバーにエージェントパネルを表示 | `true` |
+| `maidAgent.sessionWarningThreshold` | セッション数警告の閾値 | `10` |
+| `maidAgent.autoResumeOnStartup` | IDE起動時にセッション自動復帰 | `true` |
+
+### メイドの順番をカスタマイズ
+
+`settings.json` で直接編集：
+
+```json
+{
+  "maidAgent.maidOrder": ["luna", "flora", "may", "alice", "rose", "lily", "sophia", "emma"]
+}
+```
+
+## 全コマンド一覧
+
+| コマンド | 検索キーワード | 説明 |
+|---------|--------------|------|
+| `Init` | init | ワークスペース初期化 |
+| `Init Global` | init global | グローバル設定初期化（~/.maid-agent/） |
+| `Resume` | resume | 既存セッションに復帰 |
+| `Call All` | all | 全員起動（10人） |
+| `Call All xN` | all xn | 執事+メイド長+メイドN人（順番） |
+| `Call All xN Random` | all xn random | 執事+メイド長+メイドN人（ランダム） |
+| `Call Butler` | butler | 執事起動 |
+| `Call Chief` | chief | メイド長起動 |
+| `Call Butler & Chief` | agents | 執事とメイド長を起動 |
+| `Call Maids xN` | maids xn | メイドN人のみ（順番） |
+| `Call Maids xN Random` | maids xn random | メイドN人のみ（ランダム） |
+| `Call Maids Pick` | pick | 選択して起動 |
+| `Claude Start` | claude | 全ターミナルでClaude起動 |
+| `Task to Butler` | task butler | 執事にタスク送信 |
+| `Task to Maid` | task maid | 特定メイドに送信 |
+| `Dashboard` | dashboard | コントローラーパネル表示 |
+| `Web Dashboard` | web dashboard | タスクダッシュボード表示 |
+| `Open Dashboard in Browser` | browser | ブラウザでダッシュボードを開く |
+| `Tmux Viewer` | tmux viewer | tmuxビューアを開く |
+| `Kill Session` | kill session | セッションを終了 |
+| `Watch Start` | watch start | YAMLファイル監視開始 |
+| `Watch Stop` | watch stop | YAMLファイル監視停止 |
+| `Promote Rule` | promote rule | ルールをグローバルに昇格 |
+
+## スキルシステム
+
+繰り返し使える作業パターンを「スキル」として保存できます。
+
+1. メイドがスキル化候補を発見 → reports/ に記載
+2. メイド長が集約 → `create_task(category: "skill_candidate")` でタスク作成
+3. Webダッシュボードの「📚 スキル候補」に表示
+4. ユーザーが承認 → skills/ に作成
+
+詳細は `.maid-agent/agents/skills/skill-creator/SKILL.md` を参照。
+
+## 改善提案システム
+
+メイドからルールやフローの改善提案を受け付ける仕組みがあります。
+
+1. メイドが改善点を発見 → reports/ に `improvement_proposal` を記載
+2. メイド長が集約 → `create_task(category: "improvement")` でタスク作成
+3. Webダッシュボードの「💡 改善提案」に表示
+4. ユーザーが承認 → 該当ルールを更新
+
+## グローバル設定
+
+プロジェクト間で共有するルールとスキルを `~/.maid-agent/` に保存できます。
+
+```
+~/.maid-agent/
+├── rules/              # ルールモジュール
+│   ├── common/         # 全員に適用
+│   ├── butler/         # 執事のみ
+│   ├── chief/          # メイド長のみ
+│   └── maid/           # メイドのみ
+└── skills/             # 共有スキル
+```
+
+`Init Global` コマンドでフォルダが作成されます。
+
+### ルールモジュールの形式
+
+```markdown
+---
+name: compaction-recovery
+description: コンパクション対策ルール
+auto_select: true
+target_roles: [common]
+---
+
+（ルール内容）
+```
+
+## maid-notify（エージェント間通知）
+
+tmux send-keys ベースのエージェント間通知コマンド。
+
+```bash
+# 基本形式
+.maid-agent/system/bin/maid-notify {ターゲット} "メッセージ"
+
+# 使用例
+.maid-agent/system/bin/maid-notify chief "タスク完了しました"
+.maid-agent/system/bin/maid-notify emma "新しいタスクがあります"
+```
+
+### MCP再接続
+
+MCPツール使用時に「Server not initialized」エラーが発生した場合:
+
+```bash
+.maid-agent/system/bin/maid-notify --mcp-reconnect {自分のID} &
+```
+
+自動的に MCP サーバーの disable → enable が実行されます。
 
 ## tmux 設定
 
@@ -414,7 +459,6 @@ set-option -t {session} -g copy-mode-timeout 5
 ```
 
 これにより、スクロール中でも5秒後に通知が配信されます。
-※ tmux 3.2 未満では無視されます（エラーにはなりません）
 
 ### 手動設定（オプション）
 
@@ -424,39 +468,13 @@ set-option -t {session} -g copy-mode-timeout 5
 set -g mouse on
 ```
 
-### "jump to front" 表示について
-
-tmux でスクロール中に新しい出力があると、下部に "jump to front" と表示されます。
-これは copy mode（スクロールモード）中であることを示しています。
-
-- `q` または表示されているキーを押すと copy mode を抜けます
-- copy mode 中は通知が入力されない場合があります
-- 上記の `copy-mode-timeout` 設定で自動解除されます
-
 ### 通知が届かない場合
 
 maid-notify は最大3回リトライしますが、それでも失敗する場合：
 
 1. `~/.tmux.conf` の設定を確認
 2. ターゲットエージェントがスクロール中でないか確認
-3. `.maid-agent/notifications/history.log` でエラーを確認
-
-## Memory MCP
-
-Memory MCP が利用可能な場合、セッション間で知識を共有できます。
-各エージェントはセッション開始時に過去の知識グラフを読み込みます。
-
-## multi-agent-shogun との違い
-
-| 項目 | multi-agent-shogun | Maid Agent Controller |
-|------|-------------------|----------------------|
-| 環境 | tmux (Linux/macOS) | VSCode + WSL (Windows対応) |
-| ターミナル管理 | tmux send-keys | tmux send-keys (WSL経由) |
-| エージェント間通信 | YAMLファイル直接操作 | MCPツール経由（トークン節約） |
-| 階層構造 | 将軍→家老→足軽 | 執事→メイド長→メイド |
-| GUI | なし | サイドバー + ダッシュボード |
-| 起動方法 | シェルスクリプト | VSCodeコマンド |
-| 立ち絵表示 | なし | サイドバーパネル（ステータス連動） |
+3. `.maid-agent/system/data/notifications/history.log` でエラーを確認
 
 ## 参考
 

@@ -80,7 +80,7 @@ describe('updateDashboard', () => {
             updateDashboard(mockCtx);
 
             expect(capturedHtml).not.toContain("openFile('queue/");
-            expect(capturedHtml).toContain("openFile('tasks.yaml')");
+            expect(capturedHtml).toContain("openFile('system/data/tasks.yaml')");
         });
 
         it('QUICK_REFERENCE.md リンクが存在すること', () => {

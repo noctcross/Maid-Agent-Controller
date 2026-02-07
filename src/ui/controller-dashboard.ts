@@ -259,7 +259,7 @@ export function updateDashboard(ctx: DashboardContext): void {
         <button class="action-btn" onclick="sendTask()">📝 執事に指令</button>
         <button class="action-btn secondary" onclick="refresh()">🔄 更新</button>
         <button class="action-btn secondary" onclick="showTaskDashboard()">📋 Tasks</button>
-        <button class="action-btn secondary" onclick="openFile('tasks.yaml')">📂 Tasks YAML</button>
+        <button class="action-btn secondary" onclick="openFile('system/data/tasks.yaml')">📂 Tasks YAML</button>
     </div>
 
     <div class="two-column">

@@ -5,7 +5,7 @@
 
 import path from "path";
 import type { AgentStatus } from "../types/index.js";
-import { convertMarkdownToHtml, escapeHtml } from "../markdown-utils.js";
+import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { formatDateJstShort } from "../utils/yaml-helper.js";
 
 // DashboardData型定義
@@ -101,7 +101,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
         <span class="task-title">${escapeHtml(title)}</span>
         <span class="task-priority">[${task.priority}]</span>
         <div class="task-detail">
-          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           <div class="task-detail-row"><span class="task-detail-label">作成日時:</span><span class="task-detail-value">${createdDate}</span></div>
         </div>
       </div>`;
@@ -118,7 +118,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           <span class="task-title">${escapeHtml(title)}</span>
           <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
           <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
             <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
             <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
           </div>
@@ -173,7 +173,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
             </span>
           </div>
           <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
             ${task.summary ? `<div class="task-detail-row"><span class="task-detail-label">結果:</span><span class="task-detail-value task-summary-text">${escapeHtml(task.summary)}</span></div>` : ""}
             <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
             <div class="task-detail-row"><span class="task-detail-label">完了日時:</span><span class="task-detail-value">${completedDate}</span></div>
@@ -199,7 +199,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           </div>
           ${substatusHtml}
           <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
             <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
             <div class="task-detail-row"><span class="task-detail-label">ブロック理由:</span><span class="task-detail-value">${task.substatus ? escapeHtml(task.substatus) : "不明"}</span></div>
           </div>
@@ -219,7 +219,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           <span class="task-title">${escapeHtml(title)}</span>
           ${substatusHtml}
           <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           </div>
         </div>`;
       }).join("\n")
@@ -232,7 +232,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           <span class="task-id">${task.id}</span>
           <span class="task-title">${escapeHtml(title)}</span>
           <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           </div>
         </div>`;
       }).join("\n")
@@ -245,7 +245,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           <span class="task-id">${task.id}</span>
           <span class="task-title">${escapeHtml(title)}</span>
           <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${convertMarkdownToHtml(task.description)}</span></div>` : ""}
+            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           </div>
         </div>`;
       }).join("\n")
@@ -435,6 +435,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
     .task-report-links { display: flex; gap: 6px; flex-wrap: wrap; }
     .report-link { color: var(--accent-color); text-decoration: none; padding: 1px 5px; background: rgba(86, 156, 214, 0.1); border-radius: 3px; font-size: 0.75rem; }
     .report-link:hover { background: rgba(86, 156, 214, 0.2); text-decoration: underline; }
+    .path-link { color: var(--accent-color); text-decoration: none; border-bottom: 1px dotted var(--accent-color); cursor: pointer; }
+    .path-link:hover { text-decoration: underline; background: rgba(86, 156, 214, 0.1); }
     /* Phase 3: フィルタ/検索 */
     .controls-section { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .search-box {

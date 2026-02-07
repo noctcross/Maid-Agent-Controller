@@ -4,6 +4,8 @@
  * central-server.ts から抽出。テスト可能にするため独立モジュール化。
  */
 
+import path from "path";
+
 export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -85,4 +87,97 @@ export function convertMarkdownToHtml(markdown: string): string {
   html = html.replace(/<p>(<hr>)<\/p>/g, '$1');
 
   return html;
+}
+
+/**
+ * パスリンク化で検出するプレフィクスのデフォルト値
+ * プロジェクト固有のプレフィクス（例: "VSCode拡張"）は
+ * linkifyProjectPaths() の第3引数で追加可能
+ */
+export const DEFAULT_PATH_PREFIXES: string[] = [
+  "docs",
+  "\\.maid-agent",
+  "src",
+  "packages",
+  "tests?",
+  "scripts",
+  "\\.github",
+  "config",
+];
+
+/**
+ * 相対パスをWindows絶対パスに変換（WSL環境対応）
+ * 既存のreportPathsリンク生成ロジック（dashboard-html.ts 142-158行目）を関数化
+ */
+export function resolveToWindowsPath(relativePath: string, projectPath: string): string {
+  // 絶対パスに変換
+  let absolutePath = path.join(projectPath, relativePath);
+
+  // WSLパス(/mnt/c/...)をWindowsパス(C:/...)に変換
+  if (absolutePath.startsWith("/mnt/")) {
+    const match = absolutePath.match(/^\/mnt\/([a-z])\/(.*)/);
+    if (match) {
+      absolutePath = `${match[1].toUpperCase()}:/${match[2]}`;
+    }
+  }
+
+  // ドライブレターを大文字に正規化
+  absolutePath = absolutePath.replace(/^([a-z]):/, (_: string, letter: string) => `${letter.toUpperCase()}:`);
+
+  return absolutePath;
+}
+
+/**
+ * HTML内のプロジェクト相対パスをクリック可能なリンクに変換
+ *
+ * 処理手順:
+ * 1. <pre>, <code>, <a> タグ内のテキストをプレースホルダーに置換（保護）
+ * 2. 残りのテキスト部分で正規表現によるパス検出
+ * 3. マッチしたパスを <a> タグに変換
+ * 4. プレースホルダーを復元
+ *
+ * @param html - convertMarkdownToHtml() で変換済みのHTML文字列
+ * @param projectPath - プロジェクトルートの絶対パス（WSLパスまたはWindowsパス）
+ * @param pathPrefixes - 検出するパスプレフィクス（省略時はDEFAULT_PATH_PREFIXES）
+ * @returns リンク化されたHTML文字列
+ */
+export function linkifyProjectPaths(
+  html: string,
+  projectPath: string,
+  pathPrefixes: string[] = DEFAULT_PATH_PREFIXES,
+): string {
+  // Step 1: 保護対象タグの内容をプレースホルダーに置換
+  // <pre>...</pre>, <code ...>...</code>, <a ...>...</a> の中身を保護
+  // 属性付きタグ（<code class="...">等）にも対応
+  const placeholders: string[] = [];
+  let result = html.replace(
+    /<(pre|code|a)(\s[^>]*)?>[\s\S]*?<\/\1>/gi,
+    (match) => {
+      placeholders.push(match);
+      return `\x00PLACEHOLDER_${placeholders.length - 1}\x00`;
+    },
+  );
+
+  // Step 2: パス検出と置換
+  const pathRegex = new RegExp(
+    `(?:${pathPrefixes.join("|")})(?:/[\\w\\-.\\u3000-\\u9FFF]+)+(?:\\.\\w+)?`,
+    "g",
+  );
+
+  result = result.replace(pathRegex, (match) => {
+    const windowsPath = resolveToWindowsPath(match, projectPath);
+    const fileViewUrl = `/file?path=${encodeURIComponent(windowsPath)}&project=${encodeURIComponent(projectPath)}`;
+    // onclick: VSCode Webviewでは openFile() でpostMessage、ブラウザではデフォルトリンク動作
+    // シングルクォートのエスケープ
+    const escapedWindowsPath = windowsPath.replace(/'/g, "\\'");
+    return `<a href="${fileViewUrl}" class="path-link" onclick="return openFile(this, '${escapedWindowsPath}')" title="${match}">${match}</a>`;
+  });
+
+  // Step 3: プレースホルダーを復元
+  result = result.replace(
+    /\x00PLACEHOLDER_(\d+)\x00/g,
+    (_, idx) => placeholders[parseInt(idx)],
+  );
+
+  return result;
 }

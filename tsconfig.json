@@ -10,5 +10,5 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", ".vscode-test", "packages", "global-templates", "src/__tests__", "src/__mocks__", "jest.config.js"]
+  "exclude": ["node_modules", ".vscode-test", "packages", "global-templates", "src/__tests__", "src/__mocks__", "jest.config.js", "vitest.config.ts"]
 }

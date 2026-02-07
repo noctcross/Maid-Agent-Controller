@@ -29,4 +29,10 @@ export declare const sessions: Map<string, SessionInfo>;
  * @returns 削除されたセッション数
  */
 export declare function cleanupIdleSessions(idleTimeoutMs: number): number;
+/**
+ * プロジェクトパスが有効か検証する
+ * .maid-agent/ ディレクトリの存在を確認
+ * @returns エラーメッセージ。有効な場合は null
+ */
+export declare function validateProjectPath(projectPath: string): string | null;
 export declare function getProjectPathFromRequest(req: Request): string;

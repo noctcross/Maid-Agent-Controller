@@ -5,6 +5,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { validateProjectPath } from "../middleware/session-manager.js";
 export function createMcpRoutes(deps) {
     const { sessions, createMcpServer, keepAliveManager } = deps;
     const router = Router();
@@ -12,13 +13,14 @@ export function createMcpRoutes(deps) {
     router.post("/mcp", async (req, res) => {
         // プロジェクトパスをヘッダーから取得
         const projectPath = req.headers["x-maid-project-path"];
-        if (!projectPath) {
-            console.error("MCP request rejected: X-Maid-Project-Path header is required");
+        const pathError = validateProjectPath(projectPath);
+        if (pathError) {
+            console.error(`MCP request rejected: ${pathError}`);
             res.status(400).json({
                 jsonrpc: "2.0",
                 error: {
                     code: -32000,
-                    message: "X-Maid-Project-Path header is required",
+                    message: pathError,
                 },
                 id: null,
             });

@@ -439,6 +439,10 @@ export async function openFileWithPreview(ctx: DashboardContext, filePath: strin
 
         // パネル作成/再利用
         ensureReportViewerPanel(ctx, fileName);
+
+        // エージェント背景画像: サーバーURL → ローカルファイルのWebview URIに差し替え
+        html = replaceAgentImageWithLocal(html, ctx);
+
         ctx.reportViewerPanel!.webview.html = html;
         ctx.reportViewerPanel!.reveal(vscode.ViewColumn.Active);
     } catch (error) {
@@ -551,6 +555,48 @@ function ensureReportViewerPanel(ctx: DashboardContext, fileName: string): void 
         undefined,
         ctx.context?.subscriptions
     );
+}
+
+/**
+ * サーバーHTMLの /agent-image URL をローカル画像の Webview URI に差し替える
+ * サイドバーと同じ画像ディレクトリからランダム選択する
+ */
+function replaceAgentImageWithLocal(html: string, ctx: DashboardContext): string {
+    if (!ctx.reportViewerPanel || !ctx.workspaceRoot) return html;
+
+    // <img src="/agent-image?agent=xxx&project=xxx" ... > を検出
+    const match = html.match(/src="\/agent-image\?agent=([^&"]+)/);
+    if (!match) return html;
+
+    const agentId = decodeURIComponent(match[1]);
+    const imagesDir = path.join(ctx.workspaceRoot, '.maid-agent', 'system', 'resources', 'images');
+    if (!fs.existsSync(imagesDir)) return html;
+
+    // バージョン画像をスキャン（{agentId}.ext, {agentId}_{number}.ext）
+    const extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+    const candidates: string[] = [];
+    try {
+        const files = fs.readdirSync(imagesDir);
+        for (const file of files) {
+            const baseRegex = new RegExp(`^${agentId}\\.(${extensions.join('|')})$`);
+            const versionRegex = new RegExp(`^${agentId}_(\\d+)\\.(${extensions.join('|')})$`);
+            if (baseRegex.test(file) || versionRegex.test(file)) {
+                candidates.push(file);
+            }
+        }
+    } catch {
+        return html;
+    }
+
+    if (candidates.length === 0) return html;
+
+    const selected = candidates[Math.floor(Math.random() * candidates.length)];
+    const localUri = ctx.reportViewerPanel.webview.asWebviewUri(
+        vscode.Uri.file(path.join(imagesDir, selected))
+    ).toString();
+
+    // src属性を差し替え
+    return html.replace(/src="\/agent-image\?[^"]*"/, `src="${localUri}"`);
 }
 
 /**

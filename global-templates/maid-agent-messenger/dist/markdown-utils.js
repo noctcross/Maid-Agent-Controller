@@ -16,13 +16,45 @@ export function escapeHtml(str) {
  * 簡易マークダウン→HTML変換
  */
 export function convertMarkdownToHtml(markdown) {
-    let html = escapeHtml(markdown);
+    // 改行コードを統一（Windows CRLF対応）
+    let html = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    html = escapeHtml(html);
     // コードブロック（```）
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang, code) => {
         return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
     });
     // インラインコード（`）
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // テーブル（| Header | ... | 形式）- 見出しより先に処理
+    const tableRegex = /(?:^[ \t]*\|.+\|[ \t]*$\n?)+/gm;
+    html = html.replace(tableRegex, (tableBlock) => {
+        const rows = tableBlock.trim().split('\n').filter(row => row.trim());
+        if (rows.length < 2)
+            return tableBlock;
+        let tableHtml = '<table>';
+        let isHeaderDone = false;
+        for (const row of rows) {
+            const cellContent = row.trim().replace(/^\||\|$/g, '');
+            const cells = cellContent.split('|').map(cell => cell.trim());
+            // セパレータ行（|---|---|）をスキップ
+            if (cells.every(cell => /^[-:]+$/.test(cell))) {
+                isHeaderDone = true;
+                continue;
+            }
+            if (!isHeaderDone) {
+                tableHtml += '<thead><tr>';
+                cells.forEach(cell => { tableHtml += `<th>${cell}</th>`; });
+                tableHtml += '</tr></thead><tbody>';
+            }
+            else {
+                tableHtml += '<tr>';
+                cells.forEach(cell => { tableHtml += `<td>${cell}</td>`; });
+                tableHtml += '</tr>';
+            }
+        }
+        tableHtml += '</tbody></table>';
+        return tableHtml;
+    });
     // 見出し（# ～ ######）
     html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
     html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
@@ -34,6 +66,9 @@ export function convertMarkdownToHtml(markdown) {
     html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // チェックボックス（- [x] / - [ ]）- 通常リストより先に処理
+    html = html.replace(/^[-*]\s+\[x\]\s+(.+)$/gm, '<div class="checkbox checked">&#x2611; $1</div>');
+    html = html.replace(/^[-*]\s+\[ \]\s+(.+)$/gm, '<div class="checkbox">&#x2610; $1</div>');
     // 箇条書きリスト（- または *）- 番号付きリストより先に処理
     html = html.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
     html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
@@ -70,6 +105,10 @@ export function convertMarkdownToHtml(markdown) {
     html = html.replace(/(<\/ol>)<\/p>/g, '$1');
     html = html.replace(/<p>(<pre>)/g, '$1');
     html = html.replace(/(<\/pre>)<\/p>/g, '$1');
+    html = html.replace(/<p>(<table>)/g, '$1');
+    html = html.replace(/(<\/table>)<\/p>/g, '$1');
+    html = html.replace(/<p>(<div class="checkbox)/g, '$1');
+    html = html.replace(/(<\/div>)<\/p>/g, '$1');
     html = html.replace(/<p>(<hr>)<\/p>/g, '$1');
     return html;
 }

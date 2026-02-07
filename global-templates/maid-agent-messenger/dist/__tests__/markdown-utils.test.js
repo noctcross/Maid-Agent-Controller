@@ -3,7 +3,7 @@
  * linkifyProjectPaths() と resolveToWindowsPath() のユニットテスト
  */
 import { describe, it, expect } from "@jest/globals";
-import { linkifyProjectPaths, resolveToWindowsPath, DEFAULT_PATH_PREFIXES, } from "../markdown-utils.js";
+import { convertMarkdownToHtml, linkifyProjectPaths, resolveToWindowsPath, DEFAULT_PATH_PREFIXES, } from "../markdown-utils.js";
 // テスト用のプロジェクトパス（WSL形式）
 const PROJECT_PATH = "/mnt/c/Users/noct/Development/TestProject";
 describe("resolveToWindowsPath", () => {
@@ -128,5 +128,81 @@ describe("linkifyProjectPaths", () => {
     it("DEFAULT_PATH_PREFIXES がエクスポートされている", () => {
         expect(Array.isArray(DEFAULT_PATH_PREFIXES)).toBe(true);
         expect(DEFAULT_PATH_PREFIXES.length).toBeGreaterThan(0);
+    });
+});
+describe("convertMarkdownToHtml", () => {
+    // --- テーブル対応 ---
+    it("Markdownテーブルを<table>に変換する", () => {
+        const input = "| Header1 | Header2 |\n|---------|--------|\n| Data1 | Data2 |";
+        const result = convertMarkdownToHtml(input);
+        expect(result).toContain("<table");
+        expect(result).toContain("<thead>");
+        expect(result).toContain("<th>Header1</th>");
+        expect(result).toContain("<th>Header2</th>");
+        expect(result).toContain("<tbody>");
+        expect(result).toContain("<td>Data1</td>");
+        expect(result).toContain("<td>Data2</td>");
+    });
+    it("複数行のテーブルを正しく変換する", () => {
+        const input = "| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |";
+        const result = convertMarkdownToHtml(input);
+        expect(result).toContain("<th>A</th>");
+        expect(result).toContain("<td>1</td>");
+        expect(result).toContain("<td>6</td>");
+    });
+    it("テーブルの前後にテキストがあっても正しく変換する", () => {
+        const input = "テーブルの前\n\n| H1 | H2 |\n|---|---|\n| D1 | D2 |\n\nテーブルの後";
+        const result = convertMarkdownToHtml(input);
+        expect(result).toContain("<table");
+        expect(result).toContain("テーブルの前");
+        expect(result).toContain("テーブルの後");
+    });
+    // --- チェックボックス対応 ---
+    it("チェック済みチェックボックスを変換する", () => {
+        const input = "- [x] 完了したタスク";
+        const result = convertMarkdownToHtml(input);
+        expect(result).toContain("checked");
+        expect(result).toContain("完了したタスク");
+    });
+    it("未チェックのチェックボックスを変換する", () => {
+        const input = "- [ ] 未完了タスク";
+        const result = convertMarkdownToHtml(input);
+        expect(result).toContain("未完了タスク");
+        // チェック済みクラスがないこと
+        expect(result).not.toContain("checked");
+    });
+    it("チェックボックスと通常リストが混在する場合", () => {
+        const input = "- [x] 完了\n- [ ] 未完了\n- 通常項目";
+        const result = convertMarkdownToHtml(input);
+        expect(result).toContain("完了");
+        expect(result).toContain("未完了");
+        expect(result).toContain("通常項目");
+    });
+    // --- 改行コード統一 ---
+    it("Windows改行コード(CRLF)を正しく処理する", () => {
+        const input = "# Title\r\n\r\nParagraph\r\n";
+        const result = convertMarkdownToHtml(input);
+        expect(result).toContain("<h1>");
+        expect(result).toContain("Title");
+        expect(result).toContain("Paragraph");
+        // \r が残っていないこと
+        expect(result).not.toContain("\r");
+    });
+    // --- 既存機能の回帰テスト ---
+    it("見出し変換が引き続き動作する", () => {
+        const result = convertMarkdownToHtml("# H1\n## H2\n### H3");
+        expect(result).toContain("<h1>");
+        expect(result).toContain("<h2>");
+        expect(result).toContain("<h3>");
+    });
+    it("コードブロック変換が引き続き動作する", () => {
+        const result = convertMarkdownToHtml("```js\nconsole.log('hello');\n```");
+        expect(result).toContain("<pre>");
+        expect(result).toContain("<code");
+    });
+    it("番号付きリスト変換が引き続き動作する", () => {
+        const result = convertMarkdownToHtml("1. First\n2. Second");
+        expect(result).toContain("<ol>");
+        expect(result).toContain("<li>");
     });
 });

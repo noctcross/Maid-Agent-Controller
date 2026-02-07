@@ -23,6 +23,7 @@ import legacyRoutes from "./routes/legacy-routes.js";
 import taskApiRoutes from "./routes/task-api-routes.js";
 import { createDashboardRoutes } from "./routes/dashboard-routes.js";
 import fileRoutes from "./routes/file-routes.js";
+import imageRoutes from "./routes/image-routes.js";
 
 // ビュー
 import { generateDashboardHtml } from "./views/dashboard-html.js";
@@ -79,6 +80,7 @@ async function main(): Promise<void> {
   app.use(taskApiRoutes);
   app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml }));
   app.use(fileRoutes);
+  app.use(imageRoutes);
 
   // ========================================
 

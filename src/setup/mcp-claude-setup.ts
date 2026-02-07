@@ -3,8 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { SetupContext } from '../types';
-import { CURRENT_ENV } from '../utils/environment';
-import { windowsToWslPath } from '../utils/environment';
+import { CURRENT_ENV, windowsToWslPath } from '../utils/environment';
 
 /**
  * .mcp.json を生成
@@ -16,16 +15,15 @@ export async function generateMcpJson(ctx: SetupContext): Promise<void> {
     const mcpJsonPath = path.join(ctx.workspaceRoot, '.mcp.json');
     const serverName = 'maid-agent-messenger';
 
-    // プロジェクトパスを取得（Windows環境ではWSLパスに変換）
-    const projectPath = CURRENT_ENV === 'windows-native'
-        ? windowsToWslPath(ctx.workspaceRoot)
-        : ctx.workspaceRoot;
+    // 注: ヘッダーに ${CLAUDE_PROJECT_DIR} を使用するため、
+    // パス変換はClaude Code側で自動的に行われる。
+    // ただし、既存ファイルチェック等で ctx.workspaceRoot は引き続き使用。
 
     const maidAgentServerConfig = {
         type: "http",
         url: "http://localhost:3100/mcp",
         headers: {
-            "X-Maid-Project-Path": projectPath
+            "X-Maid-Project-Path": "${CLAUDE_PROJECT_DIR}"
         }
     };
 
@@ -42,8 +40,27 @@ export async function generateMcpJson(ctx: SetupContext): Promise<void> {
                 existingConfig.mcpServers = {};
             }
 
-            // 既に maid-agent-messenger が存在する場合はスキップ
+            // 既に maid-agent-messenger が存在する場合
             if (existingConfig.mcpServers[serverName]) {
+                const existingHeaders = (existingConfig.mcpServers[serverName] as Record<string, unknown>)?.headers as Record<string, string> | undefined;
+                const currentPath = existingHeaders?.["X-Maid-Project-Path"];
+
+                // ${CLAUDE_PROJECT_DIR} を使用していない場合は更新を提案
+                if (currentPath && !currentPath.includes("${CLAUDE_PROJECT_DIR}")) {
+                    const choice = await vscode.window.showInformationMessage(
+                        `.mcp.json の X-Maid-Project-Path を動的パス(\${CLAUDE_PROJECT_DIR})に更新しますか？`,
+                        '更新する',
+                        'スキップ'
+                    );
+
+                    if (choice === '更新する') {
+                        existingHeaders!["X-Maid-Project-Path"] = "${CLAUDE_PROJECT_DIR}";
+                        fs.writeFileSync(mcpJsonPath, JSON.stringify(existingConfig, null, 2));
+                        ctx.log('[MCP] X-Maid-Project-Path を ${CLAUDE_PROJECT_DIR} に更新しました');
+                    }
+                    return;
+                }
+
                 ctx.log(`[MCP] ${serverName} は既に設定済みのためスキップ`);
                 return;
             }
@@ -166,4 +183,63 @@ export async function setupClaudeSettings(ctx: SetupContext): Promise<void> {
     // 新規作成
     fs.writeFileSync(settingsPath, JSON.stringify(hooksConfig, null, 2));
     ctx.log(`[Claude] .claude/settings.json を生成: ${settingsPath}`);
+}
+
+/**
+ * .mcp.json のパスが現在のワークスペースと一致するか検証し、
+ * 不一致の場合は更新を提案する
+ */
+export async function checkAndUpdateMcpJsonPath(ctx: SetupContext): Promise<void> {
+    if (!ctx.workspaceRoot) return;
+
+    const mcpJsonPath = path.join(ctx.workspaceRoot, '.mcp.json');
+    if (!fs.existsSync(mcpJsonPath)) return;
+
+    try {
+        const content = fs.readFileSync(mcpJsonPath, 'utf-8');
+        const config = JSON.parse(content) as {
+            mcpServers?: Record<string, { headers?: Record<string, string> }>;
+        };
+
+        const serverConfig = config.mcpServers?.['maid-agent-messenger'];
+        if (!serverConfig?.headers) return;
+
+        const currentPath = serverConfig.headers['X-Maid-Project-Path'];
+        if (!currentPath) return;
+
+        // 既に ${CLAUDE_PROJECT_DIR} を使用していれば何もしない
+        if (currentPath.includes('${CLAUDE_PROJECT_DIR}')) return;
+
+        // パスが一致していれば何もしない（移動されていない）
+        const expectedPath = CURRENT_ENV === 'windows-native'
+            ? windowsToWslPath(ctx.workspaceRoot)
+            : ctx.workspaceRoot;
+
+        if (currentPath === expectedPath) {
+            // パスは正しいが、${CLAUDE_PROJECT_DIR} への移行を提案
+            ctx.log('[MCP] パスは正しいですが、${CLAUDE_PROJECT_DIR} への移行を推奨');
+            return;
+        }
+
+        // パス不一致: 更新を提案
+        const choice = await vscode.window.showWarningMessage(
+            `.mcp.json のプロジェクトパスが古い可能性があります。` +
+            `\n現在: ${currentPath}\n期待: ${expectedPath}`,
+            '${CLAUDE_PROJECT_DIR} に更新',
+            '現在のパスに更新',
+            'スキップ'
+        );
+
+        if (choice === '${CLAUDE_PROJECT_DIR} に更新') {
+            serverConfig.headers['X-Maid-Project-Path'] = '${CLAUDE_PROJECT_DIR}';
+            fs.writeFileSync(mcpJsonPath, JSON.stringify(config, null, 2));
+            ctx.log('[MCP] ${CLAUDE_PROJECT_DIR} に更新しました');
+        } else if (choice === '現在のパスに更新') {
+            serverConfig.headers['X-Maid-Project-Path'] = expectedPath;
+            fs.writeFileSync(mcpJsonPath, JSON.stringify(config, null, 2));
+            ctx.log(`[MCP] パスを ${expectedPath} に更新しました`);
+        }
+    } catch (error) {
+        ctx.log(`[MCP] .mcp.json の検証に失敗: ${error}`);
+    }
 }

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Agent, SetupContext, AgentContext, DashboardContext, CompletedViewState } from './types';
-import { MAID_AGENT_DIR } from './constants';
+import { MAID_AGENT_DIR, NOTIFICATIONS_SUBDIR } from './constants';
 import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion } from './utils/environment';
 import { getGlobalMaidAgentPath, getSessionNameFromPath, getOrderedMaids } from './utils/helpers';
 import { TmuxManager } from './tmux/tmux-manager';
@@ -648,7 +648,7 @@ export class MultiAgentController {
             // 通知履歴ログを確認
             if (!this.maidAgentPath) return;
 
-            const historyPath = path.join(this.maidAgentPath, 'notifications', 'history.log');
+            const historyPath = path.join(this.maidAgentPath, NOTIFICATIONS_SUBDIR, 'history.log');
             let hasNotifiedChief = false;
 
             try {
@@ -730,7 +730,7 @@ export class MultiAgentController {
             return;
         }
 
-        const historyPath = path.join(this.maidAgentPath, 'notifications', 'history.log');
+        const historyPath = path.join(this.maidAgentPath, NOTIFICATIONS_SUBDIR, 'history.log');
         if (!fs.existsSync(historyPath)) {
             vscode.window.showWarningMessage('history.log が存在しません（まだ通知が送信されていません）');
             return;
@@ -764,7 +764,7 @@ export class MultiAgentController {
         // 通知履歴の件数を取得
         let notifyCount = 0;
         if (this.maidAgentPath) {
-            const historyPath = path.join(this.maidAgentPath, 'notifications', 'history.log');
+            const historyPath = path.join(this.maidAgentPath, NOTIFICATIONS_SUBDIR, 'history.log');
             if (fs.existsSync(historyPath)) {
                 try {
                     const content = fs.readFileSync(historyPath, 'utf-8');

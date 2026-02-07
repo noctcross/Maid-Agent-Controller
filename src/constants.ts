@@ -9,6 +9,12 @@ export const GLOBAL_MAID_AGENT_DIR = '.maid-agent';  // ~/.maid-agent/
 export const TMUX_SESSION_PREFIX = 'maid-agent';  // tmuxセッション名のプレフィックス
 export const WEB_DASHBOARD_POLLING_INTERVAL = 10000;  // Webダッシュボード自動更新間隔（10秒）
 
+// B案ディレクトリ構造のサブパス
+export const NOTIFICATIONS_SUBDIR = 'system/data/notifications';
+export const MAID_DATA_SUBDIR = 'system/data/maid';
+export const INSTRUCTIONS_SUBDIR = 'agents/instructions';
+export const CONFIG_SUBDIR = 'system/config';
+
 export const MAIDS_MAP: { [key: string]: MaidConfig } = {
     emma: { name: 'エマ', id: 'emma', emoji: '🌸' },
     sophia: { name: 'ソフィア', id: 'sophia', emoji: '📚' },

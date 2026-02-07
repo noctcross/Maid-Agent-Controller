@@ -156,10 +156,28 @@
       "properties": {
         "maidAgent.maidOrder": {
           "type": "array",
-          "default": ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"],
+          "default": [
+            "emma",
+            "sophia",
+            "lily",
+            "rose",
+            "alice",
+            "may",
+            "flora",
+            "luna"
+          ],
           "items": {
             "type": "string",
-            "enum": ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"]
+            "enum": [
+              "emma",
+              "sophia",
+              "lily",
+              "rose",
+              "alice",
+              "may",
+              "flora",
+              "luna"
+            ]
           },
           "description": "メイドの起動順序（順番起動時に使用）"
         },

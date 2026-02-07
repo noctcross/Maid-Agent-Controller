@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Agent, DashboardContext } from '../types';
-import { MAIDS } from '../constants';
+import { MAIDS, NOTIFICATIONS_SUBDIR, MAID_DATA_SUBDIR, INSTRUCTIONS_SUBDIR, CONFIG_SUBDIR, WEB_DASHBOARD_POLLING_INTERVAL } from '../constants';
 
 /**
  * コントローラダッシュボード関連の関数群
@@ -108,7 +108,7 @@ export function updateDashboard(ctx: DashboardContext): void {
     // 会話ログ（history.log）を読み込む
     let conversationLogs = '';
     if (ctx.maidAgentPath) {
-        const historyPath = path.join(ctx.maidAgentPath, 'notifications', 'history.log');
+        const historyPath = path.join(ctx.maidAgentPath, NOTIFICATIONS_SUBDIR, 'history.log');
         if (fs.existsSync(historyPath)) {
             const content = fs.readFileSync(historyPath, 'utf-8');
             const lines = content.trim().split('\n').filter(l => l.length > 0);
@@ -125,9 +125,30 @@ export function updateDashboard(ctx: DashboardContext): void {
         }
     }
 
+    // メイドのYAMLファイルからタスク情報を取得
+    const getMaidTaskInfo = (maidId: string): { taskId: string; title: string; status: string } | null => {
+        if (!ctx.maidAgentPath) return null;
+        const yamlPath = path.join(ctx.maidAgentPath, MAID_DATA_SUBDIR, `${maidId}.yaml`);
+        if (!fs.existsSync(yamlPath)) return null;
+        const content = fs.readFileSync(yamlPath, 'utf-8');
+        const taskIdMatch = content.match(/^task_id:\s*"?([^"\n]+)"?/m);
+        const titleMatch = content.match(/^title:\s*"?([^"\n]+)"?/m);
+        const statusMatch = content.match(/^status:\s*"?([^"\n]+)"?/m);
+        if (!taskIdMatch) return null;
+        return {
+            taskId: taskIdMatch[1],
+            title: titleMatch ? titleMatch[1] : '',
+            status: statusMatch ? statusMatch[1] : '',
+        };
+    };
+
     const renderAgent = (a: Agent, emoji: string, role: string) => {
         const statusEmoji = a.status === 'working' ? '⚡' : a.status === 'done' ? '✅' : '💤';
         const statusClass = a.status === 'working' ? 'working' : 'idle';
+        const taskInfo = getMaidTaskInfo(a.id);
+        const taskHtml = taskInfo
+            ? `<div class="agent-task">${taskInfo.taskId}: ${taskInfo.title}</div>`
+            : '';
         return `
             <div class="agent-card ${statusClass}">
                 <div class="agent-header">
@@ -137,6 +158,7 @@ export function updateDashboard(ctx: DashboardContext): void {
                 <div class="agent-status">
                     <span class="status-badge">${statusEmoji} ${a.status}</span>
                 </div>
+                ${taskHtml}
             </div>`;
     };
 
@@ -191,6 +213,7 @@ export function updateDashboard(ctx: DashboardContext): void {
         .agent-role { font-size: 0.7em; color: #888; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 5px; }
         .status-badge { font-size: 0.75em; padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,0.15); }
         .empty-agent { color: #666; font-style: italic; padding: 15px; }
+        .agent-task { font-size: 0.7em; color: #aaa; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .section { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; margin: 15px 0; }
         .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
@@ -236,7 +259,7 @@ export function updateDashboard(ctx: DashboardContext): void {
         <button class="action-btn" onclick="sendTask()">📝 執事に指令</button>
         <button class="action-btn secondary" onclick="refresh()">🔄 更新</button>
         <button class="action-btn secondary" onclick="showTaskDashboard()">📋 Tasks</button>
-        <button class="action-btn secondary" onclick="openFile('queue/butler_to_chief.yaml')">📂 Queue</button>
+        <button class="action-btn secondary" onclick="openFile('tasks.yaml')">📂 Tasks YAML</button>
     </div>
 
     <div class="two-column">
@@ -269,10 +292,11 @@ export function updateDashboard(ctx: DashboardContext): void {
         <h2>📁 設定ファイル</h2>
         <div class="file-links">
             <span class="file-link" onclick="openFile('CLAUDE.md')">CLAUDE.md</span>
-            <span class="file-link" onclick="openFile('instructions/butler.md')">butler.md</span>
-            <span class="file-link" onclick="openFile('instructions/chief.md')">chief.md</span>
-            <span class="file-link" onclick="openFile('instructions/maid.md')">maid.md</span>
-            <span class="file-link" onclick="openFile('config/settings.yaml')">settings.yaml</span>
+            <span class="file-link" onclick="openFile('QUICK_REFERENCE.md')">QUICK_REFERENCE.md</span>
+            <span class="file-link" onclick="openFile('${INSTRUCTIONS_SUBDIR}/butler.md')">butler.md</span>
+            <span class="file-link" onclick="openFile('${INSTRUCTIONS_SUBDIR}/chief.md')">chief.md</span>
+            <span class="file-link" onclick="openFile('${INSTRUCTIONS_SUBDIR}/maid.md')">maid.md</span>
+            <span class="file-link" onclick="openFile('${CONFIG_SUBDIR}/settings.yaml')">settings.yaml</span>
         </div>
     </div>
 
@@ -282,6 +306,7 @@ export function updateDashboard(ctx: DashboardContext): void {
         function sendTask() { vscode.postMessage({ command: 'sendTask' }); }
         function openFile(file) { vscode.postMessage({ command: 'openFile', file: file }); }
         function showTaskDashboard() { vscode.postMessage({ command: 'showTaskDashboard' }); }
+        setInterval(() => { refresh(); }, ${WEB_DASHBOARD_POLLING_INTERVAL});
     </script>
 </body>
 </html>`;

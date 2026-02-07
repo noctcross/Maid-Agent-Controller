@@ -15,7 +15,7 @@ import { loadConfig, getServerUrl } from "./utils/config-loader.js";
 import { getTimestamp } from "./utils/yaml-helper.js";
 
 // セッション管理
-import { sessions } from "./middleware/session-manager.js";
+import { sessions, cleanupIdleSessions } from "./middleware/session-manager.js";
 
 // ルーター
 import { createMcpRoutes } from "./routes/mcp-routes.js";
@@ -30,6 +30,7 @@ import { generateTaskHtml } from "./views/task-html.js";
 
 // MCPサーバーファクトリ
 import { createMcpServer } from "./mcp-server-factory.js";
+import { KeepAliveManager } from "./middleware/keepalive-manager.js";
 
 const app = express();
 app.use(express.json());
@@ -57,23 +58,6 @@ app.get("/health", (_req: Request, res: Response) => {
 
 
 // ========================================
-// ルートマウント
-// ========================================
-
-app.use(createMcpRoutes({ sessions, createMcpServer }));
-app.use(legacyRoutes);
-app.use(taskApiRoutes);
-app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml }));
-app.use(fileRoutes);
-
-// ========================================
-
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("Server error:", err);
-  res.status(500).json({ error: "Internal server error" });
-});
-
-// ========================================
 // サーバー起動
 // ========================================
 
@@ -81,12 +65,57 @@ async function main(): Promise<void> {
   const config = await loadConfig();
   const { port, host } = config.server;
 
-  app.listen(port, host, () => {
+  // Phase 3: KeepAliveManager
+  const keepAliveManager = config.keepalive.ping_enabled
+    ? new KeepAliveManager(config.keepalive)
+    : undefined;
+
+  // ========================================
+  // ルートマウント
+  // ========================================
+
+  app.use(createMcpRoutes({ sessions, createMcpServer, keepAliveManager }));
+  app.use(legacyRoutes);
+  app.use(taskApiRoutes);
+  app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml }));
+  app.use(fileRoutes);
+
+  // ========================================
+
+  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    console.error("Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  });
+
+  const server = app.listen(port, host, () => {
     console.log(`Central MCP Server v4.1.0 running on ${getServerUrl(config)}`);
     console.log(`MCP endpoint: ${getServerUrl(config)}/mcp`);
     console.log(`Health check: ${getServerUrl(config)}/health`);
     console.log(`Mode: Streamable HTTP Transport (Multi-Project Support)`);
     console.log(`Note: Requires X-Maid-Project-Path header for project identification`);
+    console.log(`Session GC: interval=${config.keepalive.gc_interval}ms, idle_timeout=${config.keepalive.session_idle_timeout}ms`);
+  });
+
+  // HTTP Keep-Alive タイムアウト設定
+  // プロキシの60秒タイムアウトより長く設定してpremature close を防止
+  server.keepAliveTimeout = config.keepalive.http_keepalive_timeout;
+  server.headersTimeout = config.keepalive.http_headers_timeout;
+
+  // セッションGCタイマー
+  const gcTimer = setInterval(() => {
+    const cleaned = cleanupIdleSessions(config.keepalive.session_idle_timeout);
+    if (cleaned > 0) {
+      console.log(`[SessionGC] ${cleaned} idle session(s) cleaned up. Remaining: ${sessions.size}`);
+    }
+  }, config.keepalive.gc_interval);
+
+  // プロセス終了時にタイマーをクリア
+  process.on("SIGTERM", () => {
+    clearInterval(gcTimer);
+    if (keepAliveManager) {
+      keepAliveManager.stopAll();
+    }
+    server.close();
   });
 }
 

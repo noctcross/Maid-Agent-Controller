@@ -1,0 +1,106 @@
+import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
+
+describe("cleanupIdleSessions", () => {
+  let sessions: Map<string, unknown>;
+  let cleanupIdleSessions: (idleTimeoutMs: number) => number;
+
+  beforeEach(async () => {
+    const mod = await import("../../middleware/session-manager.js");
+    sessions = mod.sessions;
+    cleanupIdleSessions = mod.cleanupIdleSessions;
+    sessions.clear();
+  });
+
+  afterEach(() => {
+    sessions.clear();
+  });
+
+  it("アイドルタイムアウトを超えたセッションのみ削除される", () => {
+    const mockTransport = { close: jest.fn() };
+    const mockServer = {};
+
+    // 10分前のセッション（アイドル）
+    sessions.set("old-session", {
+      transport: mockTransport,
+      server: mockServer,
+      projectPath: "/test",
+      createdAt: new Date(Date.now() - 600000),
+      lastActivity: new Date(Date.now() - 600000),
+    } as unknown);
+
+    // 直近のセッション（アクティブ）
+    sessions.set("active-session", {
+      transport: { close: jest.fn() },
+      server: mockServer,
+      projectPath: "/test",
+      createdAt: new Date(),
+      lastActivity: new Date(),
+    } as unknown);
+
+    const cleaned = cleanupIdleSessions(300000); // 5分
+
+    expect(cleaned).toBe(1);
+    expect(sessions.has("old-session")).toBe(false);
+    expect(sessions.has("active-session")).toBe(true);
+    expect(mockTransport.close).toHaveBeenCalled();
+  });
+
+  it("アイドルセッションがない場合は0を返す", () => {
+    sessions.set("active", {
+      transport: { close: jest.fn() },
+      server: {},
+      projectPath: "/test",
+      createdAt: new Date(),
+      lastActivity: new Date(),
+    } as unknown);
+
+    const cleaned = cleanupIdleSessions(300000);
+    expect(cleaned).toBe(0);
+    expect(sessions.size).toBe(1);
+  });
+
+  it("セッションが空の場合は0を返す", () => {
+    const cleaned = cleanupIdleSessions(300000);
+    expect(cleaned).toBe(0);
+  });
+
+  it("transport.close() がエラーでもセッションは削除される", () => {
+    const mockTransport = {
+      close: jest.fn(() => {
+        throw new Error("close failed");
+      }),
+    };
+
+    sessions.set("error-session", {
+      transport: mockTransport,
+      server: {},
+      projectPath: "/test",
+      createdAt: new Date(Date.now() - 600000),
+      lastActivity: new Date(Date.now() - 600000),
+    } as unknown);
+
+    const cleaned = cleanupIdleSessions(300000);
+    expect(cleaned).toBe(1);
+    expect(sessions.has("error-session")).toBe(false);
+  });
+
+  it("pingTimer がある場合は clearInterval される", () => {
+    const mockTimer = setInterval(() => {}, 10000);
+    const clearIntervalSpy = jest.spyOn(global, "clearInterval");
+
+    sessions.set("timer-session", {
+      transport: { close: jest.fn() },
+      server: {},
+      projectPath: "/test",
+      createdAt: new Date(Date.now() - 600000),
+      lastActivity: new Date(Date.now() - 600000),
+      pingTimer: mockTimer,
+    } as unknown);
+
+    const cleaned = cleanupIdleSessions(300000);
+    expect(cleaned).toBe(1);
+    expect(clearIntervalSpy).toHaveBeenCalledWith(mockTimer);
+
+    clearIntervalSpy.mockRestore();
+  });
+});

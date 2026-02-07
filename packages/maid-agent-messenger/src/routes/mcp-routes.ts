@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { SessionInfo } from "../middleware/session-manager.js";
+import type { KeepAliveManager } from "../middleware/keepalive-manager.js";
 
 // SessionInfo型を再エクスポート
 export type { SessionInfo };
@@ -15,10 +16,11 @@ export type { SessionInfo };
 export interface McpRoutesDeps {
   sessions: Map<string, SessionInfo>;
   createMcpServer: (projectPath: string) => McpServer;
+  keepAliveManager?: KeepAliveManager;  // Phase 3: オプショナル（未設定時はping無効）
 }
 
 export function createMcpRoutes(deps: McpRoutesDeps): Router {
-  const { sessions, createMcpServer } = deps;
+  const { sessions, createMcpServer, keepAliveManager } = deps;
   const router = Router();
 
   // POST /mcp
@@ -45,6 +47,7 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
     // 既存セッションがある場合はそれを使用
     if (sessionId && sessions.has(sessionId)) {
       const session = sessions.get(sessionId)!;
+      session.lastActivity = new Date();
       console.log(`Reusing session: ${sessionId}`);
       try {
         await session.transport.handleRequest(req, res, req.body);
@@ -88,10 +91,23 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
       const server = createMcpServer(projectPath);
 
       // セッション情報を保存
-      sessions.set(newSessionId, { transport, server, projectPath });
+      const now = new Date();
+      sessions.set(newSessionId, {
+        transport,
+        server,
+        projectPath,
+        createdAt: now,
+        lastActivity: now,
+        missedPings: 0,
+      });
 
       // サーバーに接続
       await server.connect(transport);
+
+      // Phase 3: Pingタイマー開始
+      if (keepAliveManager) {
+        keepAliveManager.startPing(newSessionId, sessions.get(newSessionId)!);
+      }
 
       // リクエストを処理
       await transport.handleRequest(req, res, req.body);
@@ -99,6 +115,9 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
       // セッション終了時のクリーンアップ（transportのcloseイベント）
       transport.onclose = () => {
         console.log(`Session closed: ${newSessionId}`);
+        if (keepAliveManager) {
+          keepAliveManager.stopPing(newSessionId, sessions.get(newSessionId)!);
+        }
         sessions.delete(newSessionId);
       };
 
@@ -131,6 +150,7 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
     }
 
     const session = sessions.get(sessionId)!;
+    session.lastActivity = new Date();
     console.log(`SSE stream requested for session: ${sessionId}`);
 
     try {
@@ -163,6 +183,9 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
     const session = sessions.get(sessionId);
     if (session) {
       console.log(`Session terminated: ${sessionId}`);
+      if (keepAliveManager) {
+        keepAliveManager.stopPing(sessionId, session);
+      }
       await session.transport.close();
       sessions.delete(sessionId);
     }

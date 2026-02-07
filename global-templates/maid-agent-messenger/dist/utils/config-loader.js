@@ -23,6 +23,16 @@ const DEFAULT_CONFIG = {
     dashboard: {
         editor: "vscode",
     },
+    keepalive: {
+        session_idle_timeout: 300000,
+        gc_interval: 60000,
+        http_keepalive_timeout: 65000,
+        http_headers_timeout: 66000,
+        ping_enabled: true,
+        ping_interval: 30000,
+        ping_timeout: 5000,
+        max_missed_pings: 2,
+    },
 };
 let cachedConfig = null;
 /**
@@ -56,6 +66,7 @@ export async function loadConfig() {
             central: { ...DEFAULT_CONFIG.central, ...parsed.central },
             fallback: { ...DEFAULT_CONFIG.fallback, ...parsed.fallback },
             dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
+            keepalive: { ...DEFAULT_CONFIG.keepalive, ...parsed.keepalive },
         };
         return cachedConfig;
     }

@@ -3,6 +3,16 @@
  *
  * .maid-agent/config/mcp-server.yaml から設定を読み込む
  */
+export interface KeepAliveConfig {
+    session_idle_timeout: number;
+    gc_interval: number;
+    http_keepalive_timeout: number;
+    http_headers_timeout: number;
+    ping_enabled: boolean;
+    ping_interval: number;
+    ping_timeout: number;
+    max_missed_pings: number;
+}
 export interface ServerConfig {
     mode: "central" | "local" | "hybrid";
     port: number;
@@ -24,6 +34,7 @@ export interface McpServerConfig {
     central: CentralConfig;
     fallback: FallbackConfig;
     dashboard: DashboardConfig;
+    keepalive: KeepAliveConfig;
 }
 /**
  * 設定ファイルを読み込む

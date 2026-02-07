@@ -12,6 +12,10 @@ export interface SessionInfo {
     transport: StreamableHTTPServerTransport;
     server: McpServer;
     projectPath: string;
+    createdAt: Date;
+    lastActivity: Date;
+    missedPings: number;
+    pingTimer?: ReturnType<typeof setInterval>;
 }
 /**
  * セッションID -> SessionInfo のマップ
@@ -20,4 +24,9 @@ export declare const sessions: Map<string, SessionInfo>;
 /**
  * リクエストヘッダーからプロジェクトパスを取得する共通ヘルパー
  */
+/**
+ * アイドル状態のセッションをクリーンアップ
+ * @returns 削除されたセッション数
+ */
+export declare function cleanupIdleSessions(idleTimeoutMs: number): number;
 export declare function getProjectPathFromRequest(req: Request): string;

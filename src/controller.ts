@@ -445,20 +445,12 @@ export class MultiAgentController {
         return AgentLifecycle.startSelectedMaids(this.createAgentContext());
     }
 
-    public async startMaidsByCount(): Promise<void> {
-        return AgentLifecycle.startMaidsByCount(this.createAgentContext());
+    public async killPick(): Promise<void> {
+        return AgentLifecycle.killPick(this.createAgentContext());
     }
 
-    public async startMaidsByCountRandom(): Promise<void> {
-        return AgentLifecycle.startMaidsByCountRandom(this.createAgentContext());
-    }
-
-    public async startAllByCount(): Promise<void> {
-        return AgentLifecycle.startAllByCount(this.createAgentContext());
-    }
-
-    public async startAllByCountRandom(): Promise<void> {
-        return AgentLifecycle.startAllByCountRandom(this.createAgentContext());
+    public async restartPick(): Promise<void> {
+        return AgentLifecycle.restartPick(this.createAgentContext());
     }
 
     public async startAllAgents(): Promise<void> {
@@ -900,14 +892,14 @@ ${agentList || '  (なし)'}
     }
 
     /**
-     * tmuxセッションを終了
+     * 全セッションを終了
      */
-    public killTmuxSession(): void {
+    public killAll(): void {
         if (this.tmuxManager) {
             this.tmuxManager.killSession();
             this.agents.clear();
-            this.log('[tmux] セッションを終了しました');
-            vscode.window.showInformationMessage('🎩 Maid Agent セッションを終了しました');
+            this.log('[tmux] 全セッションを終了しました');
+            vscode.window.showInformationMessage('🎩 Maid Agent 全セッションを終了しました');
         }
     }
 }

@@ -95,20 +95,8 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('multiAgent.startSelectedMaids', () => {
             controller.startSelectedMaids();
         }),
-        vscode.commands.registerCommand('multiAgent.startMaidsByCount', () => {
-            controller.startMaidsByCount();
-        }),
-        vscode.commands.registerCommand('multiAgent.startMaidsByCountRandom', () => {
-            controller.startMaidsByCountRandom();
-        }),
         vscode.commands.registerCommand('multiAgent.startAll', () => {
             controller.startAllAgents();
-        }),
-        vscode.commands.registerCommand('multiAgent.startAllByCount', () => {
-            controller.startAllByCount();
-        }),
-        vscode.commands.registerCommand('multiAgent.startAllByCountRandom', () => {
-            controller.startAllByCountRandom();
         }),
         vscode.commands.registerCommand('multiAgent.sendToButler', () => {
             controller.promptAndSendToButler();
@@ -137,8 +125,14 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('multiAgent.openTmuxViewer', () => {
             controller.openTmuxViewer();
         }),
-        vscode.commands.registerCommand('multiAgent.killSession', () => {
-            controller.killTmuxSession();
+        vscode.commands.registerCommand('multiAgent.killAll', () => {
+            controller.killAll();
+        }),
+        vscode.commands.registerCommand('multiAgent.killPick', () => {
+            controller.killPick();
+        }),
+        vscode.commands.registerCommand('multiAgent.restartPick', () => {
+            controller.restartPick();
         }),
         vscode.commands.registerCommand('multiAgent.processNotifications', () => {
             controller.manualProcessNotifications();

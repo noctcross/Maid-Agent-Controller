@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
 import { Agent, AgentContext } from '../types';
-import { MAIDS, MAIDS_MAP, MAID_AGENT_DIR } from '../constants';
+import { MAIDS } from '../constants';
 import { getOrderedMaids } from '../utils/helpers';
 
 // =============================================================================
@@ -167,179 +165,112 @@ export async function startSelectedMaids(ctx: AgentContext): Promise<void> {
 }
 
 /**
- * Call Maids xN - メイドN人を順番に起動
+ * エージェントのロールに対応する絵文字を返す
  */
-export async function startMaidsByCount(ctx: AgentContext): Promise<void> {
-    await _startMaidsByCountInternal(ctx, false);
+function agentEmoji(agent: Agent): string {
+    switch (agent.role) {
+        case 'butler': return '🎩';
+        case 'chiefMaid': return '👑';
+        case 'maid': return '🎀';
+        default: return '❓';
+    }
 }
 
 /**
- * Call Maids xN -r - メイドN人をランダムに起動
+ * Kill Pick - エージェントを選んで終了
  */
-export async function startMaidsByCountRandom(ctx: AgentContext): Promise<void> {
-    await _startMaidsByCountInternal(ctx, true);
-}
-
-/**
- * メイドN人を起動（内部実装）
- */
-async function _startMaidsByCountInternal(ctx: AgentContext, random: boolean): Promise<void> {
-    if (!await ctx.ensureInitialized()) return;
-
-    const orderedMaids = getOrderedMaids();
-    const availableMaids = orderedMaids.filter(m => !ctx.agents.has(m.id));
-
-    if (availableMaids.length === 0) {
-        vscode.window.showWarningMessage('メイドは既に全員お仕えしております');
+export async function killPick(ctx: AgentContext): Promise<void> {
+    if (ctx.agents.size === 0) {
+        vscode.window.showWarningMessage('起動中のエージェントがいません');
         return;
     }
 
-    const countStr = await vscode.window.showInputBox({
-        prompt: `何人のメイドをお呼びしますか？（1〜${availableMaids.length}人）${random ? '【ランダム】' : '【順番】'}`,
-        placeHolder: '例: 3',
-        validateInput: (value) => {
-            const num = parseInt(value);
-            if (isNaN(num) || num < 1) {
-                return '1以上の数値を入力してください';
-            }
-            if (num > availableMaids.length) {
-                return `最大${availableMaids.length}人まで指定できます`;
-            }
-            return null;
-        }
+    const roleOrder: Record<string, number> = { butler: 0, chiefMaid: 1, maid: 2 };
+    const items = Array.from(ctx.agents.values())
+        .sort((a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9))
+        .map(agent => ({
+            label: `${agentEmoji(agent)} ${agent.name}`,
+            description: agent.id,
+            detail: `ステータス: ${agent.status}`,
+            agentId: agent.id
+        }));
+
+    const selected = await vscode.window.showQuickPick(items, {
+        canPickMany: true,
+        placeHolder: '終了するエージェントを選択してください'
     });
 
-    if (!countStr) return;
+    if (!selected || selected.length === 0) return;
 
-    const count = parseInt(countStr);
-
-    let maidsToStart: typeof availableMaids;
-    if (random) {
-        const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
-        maidsToStart = shuffled.slice(0, count);
-    } else {
-        maidsToStart = availableMaids.slice(0, count);
+    for (const item of selected) {
+        killAgent(ctx, item.agentId);
     }
 
-    // 進捗表示付きでお呼び出し
+    const names = selected.map(s => s.label).join(', ');
+    vscode.window.showInformationMessage(`${names} を終了しました`);
+}
+
+/**
+ * Restart Pick - エージェントを選んで再起動（Kill + Call）
+ */
+export async function restartPick(ctx: AgentContext): Promise<void> {
+    if (ctx.agents.size === 0) {
+        vscode.window.showWarningMessage('起動中のエージェントがいません');
+        return;
+    }
+
+    const roleOrder: Record<string, number> = { butler: 0, chiefMaid: 1, maid: 2 };
+    const items = Array.from(ctx.agents.values())
+        .sort((a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9))
+        .map(agent => ({
+            label: `${agentEmoji(agent)} ${agent.name}`,
+            description: agent.id,
+            detail: `ステータス: ${agent.status}`,
+            agentId: agent.id,
+            agentRole: agent.role,
+            agentName: agent.name,
+            agentEmoji: agentEmoji(agent)
+        }));
+
+    const selected = await vscode.window.showQuickPick(items, {
+        canPickMany: true,
+        placeHolder: '再起動するエージェントを選択してください'
+    });
+
+    if (!selected || selected.length === 0) return;
+
+    const RESTART_DELAY_MS = 500;
+
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
-        title: '🎀 メイドお仕えの準備中...',
+        title: '再起動中...',
         cancellable: false
     }, async (progress) => {
-        for (let i = 0; i < maidsToStart.length; i++) {
-            const maid = maidsToStart[i];
+        for (let i = 0; i < selected.length; i++) {
+            const item = selected[i];
             progress.report({
-                message: `${maid.name}お仕えの準備中...`,
-                increment: (100 / maidsToStart.length)
+                message: `${item.label} を再起動中...`,
+                increment: 100 / selected.length
             });
-            ctx.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-            await ctx.launchClaudeWithRole(maid.id, 'maid', maid.name);
+
+            // 1. Kill
+            killAgent(ctx, item.agentId);
+
+            // 2. 待機（tmux ウィンドウ削除完了を待つ）
+            await new Promise(resolve => setTimeout(resolve, RESTART_DELAY_MS));
+
+            // 3. Call（新規ウィンドウ作成 + Claude 起動）
+            ctx.createAgent(item.agentName, item.agentId, item.agentRole, item.agentEmoji);
+            await ctx.launchClaudeWithRole(
+                item.agentId,
+                item.agentRole,
+                item.agentRole === 'maid' ? item.agentName : undefined
+            );
         }
     });
 
-    const maidNames = maidsToStart.map(m => m.name).join('、');
-    vscode.window.showInformationMessage(`🎀 ${maidNames} がお仕えの準備を整えました！`);
-    ctx.updateDashboard();
-}
-
-/**
- * Call All xN - 執事 + メイド長 + メイドN人を順番に起動
- */
-export async function startAllByCount(ctx: AgentContext): Promise<void> {
-    await _startAllByCountInternal(ctx, false);
-}
-
-/**
- * Call All xN -r - 執事 + メイド長 + メイドN人をランダムに起動
- */
-export async function startAllByCountRandom(ctx: AgentContext): Promise<void> {
-    await _startAllByCountInternal(ctx, true);
-}
-
-/**
- * 執事 + メイド長 + メイドN人を起動（内部実装）
- */
-async function _startAllByCountInternal(ctx: AgentContext, random: boolean): Promise<void> {
-    if (!await ctx.ensureInitialized()) return;
-
-    const orderedMaids = getOrderedMaids();
-    const availableMaids = orderedMaids.filter(m => !ctx.agents.has(m.id));
-
-    if (availableMaids.length === 0) {
-        vscode.window.showWarningMessage('メイドは既に全員お仕えしております。Call All をお使いください。');
-        return;
-    }
-
-    const countStr = await vscode.window.showInputBox({
-        prompt: `メイドを何人お呼びしますか？（1〜${availableMaids.length}人）執事+メイド長もお呼び ${random ? '【ランダム】' : '【順番】'}`,
-        placeHolder: '例: 3',
-        validateInput: (value) => {
-            const num = parseInt(value);
-            if (isNaN(num) || num < 1) {
-                return '1以上の数値を入力してください';
-            }
-            if (num > availableMaids.length) {
-                return `最大${availableMaids.length}人まで指定できます`;
-            }
-            return null;
-        }
-    });
-
-    if (!countStr) return;
-
-    const count = parseInt(countStr);
-
-    // 進捗表示付きでお呼び出し
-    await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
-        title: '🎩 スタッフお仕えの準備中...',
-        cancellable: false
-    }, async (progress) => {
-        const totalAgents = (ctx.agents.has('butler') ? 0 : 1) +
-                           (ctx.agents.has('chief') ? 0 : 1) + count;
-        let currentAgent = 0;
-
-        // tmuxビューアを開く
-        ctx.openTmuxViewer();
-
-        // 執事・メイド長を先にお呼び
-        if (!ctx.agents.has('butler')) {
-            progress.report({ message: 'シルヴィア（執事）お仕えの準備中...', increment: 0 });
-            ctx.createAgent('シルヴィア', 'butler', 'butler', '🎩');
-            await ctx.launchClaudeWithRole('butler', 'butler');
-            currentAgent++;
-            progress.report({ increment: (100 / totalAgents) });
-        }
-
-        if (!ctx.agents.has('chief')) {
-            progress.report({ message: 'ビオラ（メイド長）お仕えの準備中...' });
-            ctx.createAgent('ビオラ', 'chief', 'chiefMaid', '👑');
-            await ctx.launchClaudeWithRole('chief', 'chiefMaid');
-            currentAgent++;
-            progress.report({ increment: (100 / totalAgents) });
-        }
-
-        let maidsToStart: typeof availableMaids;
-        if (random) {
-            const shuffled = [...availableMaids].sort(() => Math.random() - 0.5);
-            maidsToStart = shuffled.slice(0, count);
-        } else {
-            maidsToStart = availableMaids.slice(0, count);
-        }
-
-        for (const maid of maidsToStart) {
-            progress.report({ message: `${maid.name}（メイド）お仕えの準備中...` });
-            ctx.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-            await ctx.launchClaudeWithRole(maid.id, 'maid', maid.name);
-            currentAgent++;
-            progress.report({ increment: (100 / totalAgents) });
-        }
-
-        const maidNames = maidsToStart.map(m => m.name).join('、');
-        vscode.window.showInformationMessage(`🎩 執事 + 👑 メイド長 + 🎀 ${maidNames} がお仕えの準備を整えました！`);
-        ctx.updateDashboard();
-    });
+    const names = selected.map(s => s.label).join(', ');
+    vscode.window.showInformationMessage(`${names} を再起動しました`);
 }
 
 /**

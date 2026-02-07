@@ -51,28 +51,8 @@
         "category": "Maid Agent"
       },
       {
-        "command": "multiAgent.startMaidsByCount",
-        "title": "Call Maids xN - メイドをN人呼ぶ（順番）",
-        "category": "Maid Agent"
-      },
-      {
-        "command": "multiAgent.startMaidsByCountRandom",
-        "title": "Call Maids xN Random - メイドをN人呼ぶ（ランダム）",
-        "category": "Maid Agent"
-      },
-      {
         "command": "multiAgent.startAll",
         "title": "Call All - 全員を呼ぶ",
-        "category": "Maid Agent"
-      },
-      {
-        "command": "multiAgent.startAllByCount",
-        "title": "Call All xN - 執事+メイド長+メイドN人（順番）",
-        "category": "Maid Agent"
-      },
-      {
-        "command": "multiAgent.startAllByCountRandom",
-        "title": "Call All xN Random - 執事+メイド長+メイドN人（ランダム）",
         "category": "Maid Agent"
       },
       {
@@ -121,8 +101,18 @@
         "category": "Maid Agent"
       },
       {
-        "command": "multiAgent.killSession",
-        "title": "Kill Session - セッションを終了",
+        "command": "multiAgent.killAll",
+        "title": "Kill All - 全セッションを終了",
+        "category": "Maid Agent"
+      },
+      {
+        "command": "multiAgent.killPick",
+        "title": "Kill Pick - エージェントを選んで終了",
+        "category": "Maid Agent"
+      },
+      {
+        "command": "multiAgent.restartPick",
+        "title": "Restart Pick - エージェントを選んで再起動",
         "category": "Maid Agent"
       },
       {

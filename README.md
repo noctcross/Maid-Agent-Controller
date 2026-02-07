@@ -92,16 +92,10 @@ Maid Agent: Init Global
 | コマンド | 検索キーワード | 説明 |
 |---------|--------------|------|
 | `Call All` | all | 全員起動（執事+メイド長+メイド8人 = 10人） |
-| `Call All xN` | all xn | 執事+メイド長+メイドN人（順番） |
-| `Call All xN Random` | all xn random | 執事+メイド長+メイドN人（ランダム） |
 | `Call Butler` | butler | 執事のみ起動 |
 | `Call Chief` | chief | メイド長のみ起動 |
 | `Call Butler & Chief` | agents | 執事とメイド長を起動 |
-| `Call Maids xN` | maids xn | メイドN人のみ（順番） |
-| `Call Maids xN Random` | maids xn random | メイドN人のみ（ランダム） |
 | `Call Maids Pick` | pick | チェックボックスでメイドを選択 |
-
-> **-r / Random**: ランダム選択。なしの場合は設定の `maidAgent.maidOrder` 順
 
 > ⚠️ **初回起動時の注意**: `claude --dangerously-skip-permissions` を初めて実行する環境では、
 > 確認プロンプトが表示されます（デフォルトNo）。
@@ -141,7 +135,9 @@ Maid Agent: Init Global
 | コマンド | 説明 |
 |---------|------|
 | `Resume` | 既存のtmuxセッションに復帰 |
-| `Kill Session` | tmuxセッションを終了 |
+| `Kill All` | 全セッション一括終了 |
+| `Kill Pick` | エージェントを選んで終了 |
+| `Restart Pick` | エージェントを選んで再起動 |
 | `Tmux Viewer` | tmuxビューアを開く |
 | `Claude Start` | 全ターミナルでClaude Code起動 |
 
@@ -355,13 +351,9 @@ VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
 | `Init Global` | init global | グローバル設定初期化（~/.maid-agent/） |
 | `Resume` | resume | 既存セッションに復帰 |
 | `Call All` | all | 全員起動（10人） |
-| `Call All xN` | all xn | 執事+メイド長+メイドN人（順番） |
-| `Call All xN Random` | all xn random | 執事+メイド長+メイドN人（ランダム） |
 | `Call Butler` | butler | 執事起動 |
 | `Call Chief` | chief | メイド長起動 |
 | `Call Butler & Chief` | agents | 執事とメイド長を起動 |
-| `Call Maids xN` | maids xn | メイドN人のみ（順番） |
-| `Call Maids xN Random` | maids xn random | メイドN人のみ（ランダム） |
 | `Call Maids Pick` | pick | 選択して起動 |
 | `Claude Start` | claude | 全ターミナルでClaude起動 |
 | `Task to Butler` | task butler | 執事にタスク送信 |
@@ -370,7 +362,9 @@ VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
 | `Web Dashboard` | web dashboard | タスクダッシュボード表示 |
 | `Open Dashboard in Browser` | browser | ブラウザでダッシュボードを開く |
 | `Tmux Viewer` | tmux viewer | tmuxビューアを開く |
-| `Kill Session` | kill session | セッションを終了 |
+| `Kill All` | kill all | 全セッション一括終了 |
+| `Kill Pick` | kill pick | エージェントを選んで終了 |
+| `Restart Pick` | restart | エージェントを選んで再起動 |
 | `Watch Start` | watch start | YAMLファイル監視開始 |
 | `Watch Stop` | watch stop | YAMLファイル監視停止 |
 | `Promote Rule` | promote rule | ルールをグローバルに昇格 |

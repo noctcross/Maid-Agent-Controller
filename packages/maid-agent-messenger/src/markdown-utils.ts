@@ -147,11 +147,12 @@ export function linkifyProjectPaths(
   pathPrefixes: string[] = DEFAULT_PATH_PREFIXES,
 ): string {
   // Step 1: 保護対象タグの内容をプレースホルダーに置換
-  // <pre>...</pre>, <code ...>...</code>, <a ...>...</a> の中身を保護
-  // 属性付きタグ（<code class="...">等）にも対応
+  // <pre>...</pre>, <a ...>...</a> の中身を保護
+  // インライン<code>は保護しない（報告書でパスをバッククォートで囲む慣習に対応）
+  // <pre><code>...</code></pre> は <pre> の保護で内部の <code> も保護される
   const placeholders: string[] = [];
   let result = html.replace(
-    /<(pre|code|a)(\s[^>]*)?>[\s\S]*?<\/\1>/gi,
+    /<(pre|a)(\s[^>]*)?>[\s\S]*?<\/\1>/gi,
     (match) => {
       placeholders.push(match);
       return `\x00PLACEHOLDER_${placeholders.length - 1}\x00`;

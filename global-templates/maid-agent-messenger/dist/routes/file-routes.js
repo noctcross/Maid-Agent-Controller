@@ -112,7 +112,8 @@ router.get("/file", async (req, res) => {
   <script>
     // linkifyProjectPaths() が生成するonclickハンドラ用フォールバック
     // ファイルビューアではVSCode APIが使えないため、デフォルトリンク動作に委譲
-    if (typeof openFile === "undefined") { window.openFile = function() { return false; }; }
+    // falseを返すとリンク遷移がブロックされるので、何も返さない（undefined → デフォルト動作）
+    if (typeof openFile === "undefined") { window.openFile = function() {}; }
   </script>
 </body>
 </html>`;

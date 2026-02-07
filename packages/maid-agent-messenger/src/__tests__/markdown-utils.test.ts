@@ -105,16 +105,16 @@ describe("linkifyProjectPaths", () => {
     expect(result).toBe(input);
   });
 
-  it("<code>内のパスはリンク化しない（インラインコード）", () => {
+  it("インライン<code>内のパスはリンク化する（報告書のバッククォート対応）", () => {
     const input = "<code>src/index.ts</code>";
     const result = linkifyProjectPaths(input, PROJECT_PATH);
-    expect(result).toBe(input);
+    expect(result).toContain(">src/index.ts</a>");
   });
 
-  it("属性付き<code>内のパスはリンク化しない（061-L2対応）", () => {
+  it("属性付き<code>内のパスもリンク化する", () => {
     const input = '<code class="language-typescript">src/index.ts</code>';
     const result = linkifyProjectPaths(input, PROJECT_PATH);
-    expect(result).toBe(input);
+    expect(result).toContain(">src/index.ts</a>");
   });
 
   it("属性付き<pre>内のパスはリンク化しない", () => {
@@ -137,12 +137,12 @@ describe("linkifyProjectPaths", () => {
 
   // --- 混在ケース ---
 
-  it("保護タグと非保護テキストが混在する場合、非保護部分のみリンク化する", () => {
+  it("インライン<code>内もテキスト部分も両方リンク化する", () => {
     const input = "<p><code>src/a.ts</code> と docs/b.md を参照</p>";
     const result = linkifyProjectPaths(input, PROJECT_PATH);
-    // <code>内はリンク化しない
-    expect(result).toContain("<code>src/a.ts</code>");
-    // テキスト部分はリンク化する
+    // <code>内もリンク化される
+    expect(result).toContain(">src/a.ts</a>");
+    // テキスト部分もリンク化する
     expect(result).toContain(">docs/b.md</a>");
   });
 

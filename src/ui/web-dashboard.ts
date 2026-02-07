@@ -420,58 +420,137 @@ export async function openMaidAgentFile(ctx: DashboardContext, filename: string)
 /**
  * ファイルを開き、マークダウンの場合はプレビューも表示
  * Webダッシュボードからの報告書リンク用
+ *
+ * サーバーの /file エンドポイントからリンク化済みHTMLを取得する。
+ * サーバー接続失敗時はローカルレンダリング（simpleMarkdownToHtml）にフォールバック。
  */
 export async function openFileWithPreview(ctx: DashboardContext, filePath: string): Promise<void> {
     try {
-        // Windowsパス（C:/...）をそのまま使用
-        // WSL環境では/mnt/c/...に変換が必要
-        let normalizedPath = filePath;
-        if (CURRENT_ENV === 'wsl' && /^[A-Z]:\//i.test(filePath)) {
-            // Windowsパス → WSLパス変換
-            const driveLetter = filePath[0].toLowerCase();
-            normalizedPath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
+        const fileName = path.basename(filePath);
+
+        // サーバーからリンク化済みHTMLを取得（パスリンク化対応）
+        let html = await fetchRenderedFileHtml(ctx, filePath);
+
+        if (!html) {
+            // フォールバック: ローカルレンダリング（リンク化なし、将来のIDE独自スタイル復活用に保持）
+            html = renderFileLocally(filePath, fileName);
+            if (!html) return; // ファイルが見つからない場合
         }
 
-        // ファイルの存在確認
-        if (!fs.existsSync(normalizedPath)) {
-            vscode.window.showErrorMessage(`ファイルが見つかりません: ${filePath}`);
-            return;
-        }
-
-        // ファイル内容を読み込み、HTMLに変換
-        const content = fs.readFileSync(normalizedPath, 'utf-8');
-        const fileName = path.basename(normalizedPath);
-        const isMarkdown = /\.(md|markdown)$/i.test(filePath);
-
-        const contentHtml = isMarkdown
-            ? simpleMarkdownToHtml(content)
-            : `<pre class="md-code-block"><code>${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
-
-        // 既存パネルがあれば内容を更新して表示
-        if (ctx.reportViewerPanel) {
-            ctx.reportViewerPanel.title = `📄 ${fileName}`;
-            setReportViewerHtml(ctx, contentHtml, fileName);
-            ctx.reportViewerPanel.reveal(vscode.ViewColumn.Active);
-            return;
-        }
-
-        // Controller/Dashboardと同じ ViewColumn.Active で開く
-        ctx.reportViewerPanel = vscode.window.createWebviewPanel(
-            'maidAgentReportViewer',
-            `📄 ${fileName}`,
-            vscode.ViewColumn.Active,
-            { enableScripts: false, retainContextWhenHidden: false }
-        );
-
-        ctx.reportViewerPanel.onDidDispose(() => {
-            ctx.reportViewerPanel = undefined;
-        });
-
-        setReportViewerHtml(ctx, contentHtml, fileName);
+        // パネル作成/再利用
+        ensureReportViewerPanel(ctx, fileName);
+        ctx.reportViewerPanel!.webview.html = html;
+        ctx.reportViewerPanel!.reveal(vscode.ViewColumn.Active);
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         vscode.window.showErrorMessage(`ファイルを開けませんでした: ${message}`);
     }
+}
+
+/**
+ * MCPサーバーの /file エンドポイントからレンダリング済みHTMLを取得
+ * linkifyProjectPaths() によるパスリンク化が適用されたHTMLが返る
+ * @returns HTML文字列、または取得失敗時は null
+ */
+async function fetchRenderedFileHtml(ctx: DashboardContext, filePath: string): Promise<string | null> {
+    try {
+        const serverUrl = 'http://localhost:3100';
+        let projectPath = ctx.workspaceRoot;
+        if (!projectPath) {
+            projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        }
+        const normalizedProjectPath = projectPath && CURRENT_ENV === 'windows-native'
+            ? windowsToWslPath(projectPath)
+            : projectPath;
+
+        const fileUrl = `${serverUrl}/file?path=${encodeURIComponent(filePath)}&project=${encodeURIComponent(normalizedProjectPath || '')}`;
+        const response = await fetch(fileUrl);
+        if (!response.ok) return null;
+
+        let html = await response.text();
+
+        // VSCode Webview用: openFile()ハンドラを注入（サーバーのフォールバックを上書き）
+        // パスリンクのonclickからpostMessageでextensionに通知し、ネストしたファイルも開ける
+        const vscodeOpenFileScript = `
+    <script>
+        var _vscodeApi = null;
+        try { if (typeof acquireVsCodeApi !== 'undefined') { _vscodeApi = acquireVsCodeApi(); } } catch (e) {}
+        window.openFile = function(element, filePath) {
+            if (_vscodeApi) {
+                _vscodeApi.postMessage({ command: 'openFile', path: filePath });
+                return false;
+            }
+            return true;
+        };
+    </script>`;
+        html = html.replace('</body>', vscodeOpenFileScript + '\n</body>');
+
+        return html;
+    } catch {
+        // サーバー接続失敗 → フォールバック
+        return null;
+    }
+}
+
+/**
+ * ローカルファイルを読み込みHTMLに変換（フォールバック用）
+ * simpleMarkdownToHtml()を使用。linkifyProjectPathsは適用されない。
+ * 将来IDE独自スタイルを復活させる場合に備えて保持。
+ * @returns HTML文字列、またはファイルが見つからない場合は null
+ */
+function renderFileLocally(filePath: string, fileName: string): string | null {
+    // Windowsパス（C:/...）をWSLパスに変換
+    let normalizedPath = filePath;
+    if (CURRENT_ENV === 'wsl' && /^[A-Z]:\//i.test(filePath)) {
+        const driveLetter = filePath[0].toLowerCase();
+        normalizedPath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
+    }
+
+    if (!fs.existsSync(normalizedPath)) {
+        vscode.window.showErrorMessage(`ファイルが見つかりません: ${filePath}`);
+        return null;
+    }
+
+    const content = fs.readFileSync(normalizedPath, 'utf-8');
+    const isMarkdown = /\.(md|markdown)$/i.test(filePath);
+    const contentHtml = isMarkdown
+        ? simpleMarkdownToHtml(content)
+        : `<pre class="md-code-block"><code>${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+
+    return buildReportViewerHtml(contentHtml, fileName);
+}
+
+/**
+ * レポートビューアパネルを確保（既存パネル再利用 or 新規作成）
+ * enableScripts: true でパスリンクのonclickが動作する
+ */
+function ensureReportViewerPanel(ctx: DashboardContext, fileName: string): void {
+    if (ctx.reportViewerPanel) {
+        ctx.reportViewerPanel.title = `📄 ${fileName}`;
+        return;
+    }
+
+    ctx.reportViewerPanel = vscode.window.createWebviewPanel(
+        'maidAgentReportViewer',
+        `📄 ${fileName}`,
+        vscode.ViewColumn.Active,
+        { enableScripts: true, retainContextWhenHidden: false }
+    );
+
+    ctx.reportViewerPanel.onDidDispose(() => {
+        ctx.reportViewerPanel = undefined;
+    });
+
+    // レポートビューア内のパスリンククリックを処理（ネストしたファイルも開ける）
+    ctx.reportViewerPanel.webview.onDidReceiveMessage(
+        message => {
+            if (message.command === 'openFile') {
+                openFileWithPreview(ctx, message.path);
+            }
+        },
+        undefined,
+        ctx.context?.subscriptions
+    );
 }
 
 /**
@@ -480,6 +559,70 @@ export async function openFileWithPreview(ctx: DashboardContext, filePath: strin
 export function setReportViewerHtml(ctx: DashboardContext, contentHtml: string, fileName: string): void {
     if (!ctx.reportViewerPanel) return;
     ctx.reportViewerPanel.webview.html = `<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+            padding: 16px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            min-height: 100vh;
+            margin: 0;
+            line-height: 1.6;
+            font-size: 13px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e94560;
+        }
+        h1 { color: #e94560; margin: 0; font-size: 1.2em; }
+        .content {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .md-h1 { font-size: 1.4em; color: #e94560; border-bottom: 2px solid #e94560; padding-bottom: 6px; margin: 16px 0 12px 0; }
+        .md-h2 { font-size: 1.15em; color: #ffc107; border-bottom: 1px solid #444; padding-bottom: 4px; margin: 14px 0 10px 0; }
+        .md-h3 { font-size: 1.05em; color: #81c784; margin: 12px 0 6px 0; }
+        .md-p { margin: 8px 0; }
+        .md-ul { margin: 6px 0; padding-left: 25px; }
+        .md-li { margin: 4px 0; list-style-type: disc; }
+        .md-checkbox { padding: 4px 0; }
+        .md-checkbox.checked { color: #81c784; }
+        .md-table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+        .md-table th, .md-table td { border: 1px solid #444; padding: 6px 10px; text-align: left; }
+        .md-table th { background: rgba(255,255,255,0.1); color: #ffc107; }
+        .md-code-block { background: #0a0a0a; padding: 12px; border-radius: 6px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.9em; margin: 8px 0; }
+        .md-inline-code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', monospace; }
+        .md-hr { border: none; border-top: 1px solid #444; margin: 16px 0; }
+        .md-link { color: #4fc3f7; }
+        strong { color: #ffc107; }
+        em { font-style: italic; color: #aaa; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📄 ${fileName}</h1>
+    </div>
+    <div class="content">
+        ${contentHtml}
+    </div>
+</body>
+</html>`;
+}
+
+/**
+ * レポートビューアのHTMLを生成（文字列として返す）
+ * setReportViewerHtml()のHTML生成部分を関数化。フォールバック用ローカルレンダリングで使用。
+ */
+function buildReportViewerHtml(contentHtml: string, fileName: string): string {
+    return `<!DOCTYPE html>
 <html>
 <head>
     <style>

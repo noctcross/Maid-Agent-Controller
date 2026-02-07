@@ -127,6 +127,38 @@ export interface CompletedViewState {
  * Dashboard系関数で使用する共通コンテキスト
  * UI関連メソッドをスタンドアロン関数に渡すためのインターフェース
  */
+/**
+ * サイドバーパネル（AgentPanel）のメッセージ型
+ * Webview → Extension
+ */
+export type AgentPanelMessage =
+    | { command: 'refresh' }
+    | { command: 'showDashboard' }
+    | { command: 'showController' }
+    | { command: 'openInBrowser' }
+    | { command: 'selectAgent'; agentId: string };
+
+/**
+ * Extension → Webview の更新データ型
+ */
+export interface AgentPanelUpdateData {
+    currentAgentId: string | null;
+    agents: Array<{
+        id: string;
+        name: string;
+        role: string;
+        status: string;
+        taskId?: string;
+    }>;
+    stats?: {
+        pendingCount: number;
+        workingCount: number;
+        blockedCount: number;
+        completedTodayCount: number;
+        actionRequiredCount: number;
+    };
+}
+
 export interface DashboardContext {
     // ─── State ───
     agents: Map<string, Agent>;

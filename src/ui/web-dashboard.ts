@@ -553,7 +553,7 @@ export function restoreWebDashboardPanel(ctx: DashboardContext, panel: vscode.We
     // 自動更新ポーリングを開始
     startWebDashboardPolling(ctx);
 
-    // メッセージハンドラを再設定
+    // メッセージハンドラを再設定（showWebDashboard と同一のハンドラ群）
     panel.webview.onDidReceiveMessage(
         message => {
             switch (message.command) {
@@ -568,6 +568,24 @@ export function restoreWebDashboardPanel(ctx: DashboardContext, panel: vscode.We
                     break;
                 case 'openFile':
                     openFileWithPreview(ctx, message.path);
+                    break;
+                case 'toggleReview':
+                    toggleTaskReview(ctx, message.taskId, message.reviewed);
+                    break;
+                case 'toggleStar':
+                    toggleTaskStar(ctx, message.taskId, message.starred);
+                    break;
+                case 'completedPage':
+                    fetchCompletedPage(ctx, message.offset, message.limit, message.reviewed, message.starred);
+                    break;
+                case 'updateCompletedViewState':
+                    ctx.completedViewState = {
+                        ...ctx.completedViewState,
+                        limit: message.limit ?? ctx.completedViewState.limit,
+                        offset: message.offset ?? ctx.completedViewState.offset,
+                        reviewed: message.reviewed,
+                        starred: message.starred,
+                    };
                     break;
             }
         },

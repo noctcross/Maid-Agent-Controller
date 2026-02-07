@@ -139,15 +139,44 @@
         "command": "multiAgent.promoteRuleToGlobal",
         "title": "Promote Rule - ルールをグローバルに昇格",
         "category": "Maid Agent"
+      },
+      {
+        "command": "multiAgent.refreshAgentPanel",
+        "title": "Refresh Agent Panel - エージェントパネルを更新",
+        "category": "Maid Agent",
+        "icon": "$(refresh)"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "maidAgent",
+          "title": "Maid Agent",
+          "icon": "resources/maid-agent.svg"
+        }
+      ]
+    },
     "views": {
-      "explorer": [
+      "maidAgent": [
         {
           "type": "webview",
           "id": "maidAgent.agentPanel",
-          "name": "Maid Agent",
+          "name": "Agent Panel",
           "when": "config.maidAgent.showAgentPanel"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "multiAgent.refreshAgentPanel",
+          "when": "view == maidAgent.agentPanel",
+          "group": "navigation"
+        },
+        {
+          "command": "multiAgent.showWebDashboard",
+          "when": "view == maidAgent.agentPanel",
+          "group": "navigation"
         }
       ]
     },
@@ -156,10 +185,28 @@
       "properties": {
         "maidAgent.maidOrder": {
           "type": "array",
-          "default": ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"],
+          "default": [
+            "emma",
+            "sophia",
+            "lily",
+            "rose",
+            "alice",
+            "may",
+            "flora",
+            "luna"
+          ],
           "items": {
             "type": "string",
-            "enum": ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"]
+            "enum": [
+              "emma",
+              "sophia",
+              "lily",
+              "rose",
+              "alice",
+              "may",
+              "flora",
+              "luna"
+            ]
           },
           "description": "メイドの起動順序（順番起動時に使用）"
         },
@@ -186,11 +233,15 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "test": "jest"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.3.0"
   }
 }

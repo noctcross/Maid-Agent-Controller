@@ -149,6 +149,9 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('multiAgent.promoteRuleToGlobal', () => {
             controller.promoteRuleToGlobal();
         }),
+        vscode.commands.registerCommand('multiAgent.refreshAgentPanel', () => {
+            controller.refreshAgentPanel();
+        }),
     ];
 
     context.subscriptions.push(...commands);

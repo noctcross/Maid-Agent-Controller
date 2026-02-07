@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Agent } from '../types';
+import { Agent, AgentPanelMessage, AgentPanelUpdateData } from '../types';
 import { MAID_AGENT_DIR, AGENT_COLORS } from '../constants';
 
 // =============================================================================
@@ -16,6 +16,8 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
     private _extensionUri: vscode.Uri;
     private _workspaceRoot: string | undefined;
     private _outputChannel: vscode.OutputChannel | undefined;
+    private _onMessage: ((message: AgentPanelMessage) => void) | undefined;
+    private _taskStats: AgentPanelUpdateData['stats'] | undefined;
 
     constructor(extensionUri: vscode.Uri) {
         this._extensionUri = extensionUri;
@@ -57,12 +59,37 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             localResourceRoots: resourceRoots
         };
 
+        // Webview → Extension メッセージハンドリング
+        webviewView.webview.onDidReceiveMessage(
+            (message: AgentPanelMessage) => {
+                this._log(`Message received: ${message.command}`);
+                if (this._onMessage) {
+                    this._onMessage(message);
+                }
+            }
+        );
+
         this._updateWebview();
     }
 
     public setAgents(agents: Map<string, Agent>): void {
         this._agents = agents;
         this._updateWebview();
+    }
+
+    public onMessage(callback: (message: AgentPanelMessage) => void): void {
+        this._onMessage = callback;
+    }
+
+    public setTaskStats(stats: AgentPanelUpdateData['stats']): void {
+        this._taskStats = stats;
+        this._updateWebview();
+    }
+
+    public postUpdate(data: Partial<AgentPanelUpdateData>): void {
+        if (this._view) {
+            this._view.webview.postMessage({ type: 'update', ...data });
+        }
     }
 
     public setCurrentAgent(agentId: string | null): void {
@@ -229,6 +256,65 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             `;
         }
 
+        // エージェント一覧セクション
+        let agentListHtml = '';
+        if (this._agents.size > 0) {
+            const agentItems = Array.from(this._agents.entries()).map(([id, a]) => {
+                const isSelected = id === this._currentAgentId;
+                const roleEmoji = a.role === 'butler' ? '🎩' : a.role === 'chiefMaid' ? '👑' : '🎀';
+                const statusEmoji = a.status === 'working' ? '⚡' : a.status === 'done' ? '✅' : '💤';
+                const selectedClass = isSelected ? ' selected' : '';
+                return `<div class="agent-item${selectedClass}" data-agent-id="${id}">
+                    <span class="agent-role">${roleEmoji}</span>
+                    <span class="agent-name">${a.name}</span>
+                    <span class="agent-status">${statusEmoji}</span>
+                </div>`;
+            }).join('');
+
+            agentListHtml = `
+                <div class="section">
+                    <div class="section-title">チーム</div>
+                    ${agentItems}
+                </div>`;
+        }
+
+        // アラート + タスク統計セクション
+        let statsHtml = '';
+        if (this._taskStats) {
+            const s = this._taskStats;
+            let alertHtml = '';
+            if (s.actionRequiredCount > 0) {
+                alertHtml += `<div class="alert alert-danger" data-action="showDashboard">🚨 要対応: ${s.actionRequiredCount}件</div>`;
+            }
+            if (s.blockedCount > 0) {
+                alertHtml += `<div class="alert alert-danger" data-action="showDashboard">🚫 ブロック: ${s.blockedCount}件</div>`;
+            }
+            if (alertHtml) {
+                alertHtml = `<div class="section"><div class="section-title">アラート</div>${alertHtml}</div>`;
+            }
+            statsHtml = `
+                ${alertHtml}
+                <div class="section">
+                    <div class="section-title">タスク概要</div>
+                    <div class="stats-grid">
+                        <div class="stat">⏳ 待機: ${s.pendingCount}</div>
+                        <div class="stat">⚡ 進行: ${s.workingCount}</div>
+                        <div class="stat">✅ 完了: ${s.completedTodayCount} (本日)</div>
+                    </div>
+                </div>`;
+        }
+
+        // クイックアクションセクション
+        const quickActionsHtml = `
+            <div class="section">
+                <div class="section-title">クイックアクション</div>
+                <div class="quick-actions">
+                    <button class="action-btn" data-action="showController">🎩 Controller</button>
+                    <button class="action-btn" data-action="showDashboard">📋 Tasks</button>
+                    <button class="action-btn" data-action="openInBrowser">🌐 ブラウザ</button>
+                </div>
+            </div>`;
+
         this._view.webview.html = `
 <!DOCTYPE html>
 <html>
@@ -331,10 +417,100 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             font-size: 0.9em;
             line-height: 1.6;
         }
+
+        /* セクション共通 */
+        .section { margin-top: 12px; width: 100%; }
+        .section-title {
+            font-size: 0.75em;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 8px;
+            border-bottom: 1px solid #333;
+        }
+
+        /* エージェント一覧 */
+        .agent-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            font-size: 0.85em;
+        }
+        .agent-item:hover { background: rgba(255,255,255,0.05); }
+        .agent-item.selected {
+            border-left-color: var(--vscode-focusBorder, #007fd4);
+            background: rgba(255,255,255,0.08);
+        }
+        .agent-role { margin-right: 6px; }
+        .agent-name { flex: 1; }
+        .agent-status { opacity: 0.7; }
+
+        /* アラート */
+        .alert {
+            padding: 6px 8px;
+            font-size: 0.85em;
+            cursor: pointer;
+        }
+        .alert-danger { color: #f48771; }
+        .alert:hover { background: rgba(255,255,255,0.05); }
+
+        /* タスク統計 */
+        .stats-grid {
+            padding: 6px 8px;
+            font-size: 0.85em;
+        }
+        .stat { padding: 2px 0; }
+
+        /* クイックアクション */
+        .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 6px 8px;
+        }
+        .action-btn {
+            flex: 1;
+            min-width: 80px;
+            padding: 6px 8px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #ddd;
+            cursor: pointer;
+            font-size: 0.8em;
+            text-align: center;
+        }
+        .action-btn:hover {
+            background: rgba(255,255,255,0.15);
+            border-color: #666;
+        }
     </style>
 </head>
 <body>
     ${content}
+    ${statsHtml}
+    ${agentListHtml}
+    ${quickActionsHtml}
+    <script>
+        const vscode = acquireVsCodeApi();
+        document.querySelectorAll('.agent-item').forEach(item => {
+            item.addEventListener('click', () => {
+                vscode.postMessage({ command: 'selectAgent', agentId: item.dataset.agentId });
+            });
+        });
+        document.querySelectorAll('.action-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                vscode.postMessage({ command: btn.dataset.action });
+            });
+        });
+        document.querySelectorAll('.alert').forEach(alert => {
+            alert.addEventListener('click', () => {
+                vscode.postMessage({ command: alert.dataset.action });
+            });
+        });
+    </script>
 </body>
 </html>`;
     }

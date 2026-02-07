@@ -162,4 +162,31 @@ describe("KeepAliveManager", () => {
     expect(session1.pingTimer).toBeUndefined();
     expect(session2.pingTimer).toBeUndefined();
   });
+
+  it("startPing で既存のPingタイマーが停止され新たに開始される（SSE再接続シナリオ）", () => {
+    const manager = new KeepAliveManager(defaultConfig);
+    const mockRequest = jest.fn<() => Promise<object>>().mockResolvedValue({});
+    const session = {
+      transport: { close: jest.fn() },
+      server: { server: { request: mockRequest } },
+      projectPath: "/test",
+      createdAt: new Date(),
+      lastActivity: new Date(),
+      missedPings: 2,  // Ping失敗でカウントアップ済み
+      pingTimer: undefined as ReturnType<typeof setInterval> | undefined,
+    };
+    sessions.set("reconnect-session", session as unknown);
+
+    // 初回Ping開始 → 停止（Ping失敗シナリオを模擬）
+    manager.startPing("reconnect-session", session as never);
+    expect(session.pingTimer).toBeDefined();
+    manager.stopPing("reconnect-session", session as never);
+    expect(session.pingTimer).toBeUndefined();
+
+    // SSE再接続: missedPingsリセット → Ping再開
+    session.missedPings = 0;
+    manager.startPing("reconnect-session", session as never);
+    expect(session.pingTimer).toBeDefined();
+    expect(session.missedPings).toBe(0);
+  });
 });

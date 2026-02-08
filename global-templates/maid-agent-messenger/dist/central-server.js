@@ -89,20 +89,23 @@ async function main() {
     server.keepAliveTimeout = config.keepalive.http_keepalive_timeout;
     server.headersTimeout = config.keepalive.http_headers_timeout;
     // セッションGCタイマー
-    const gcTimer = setInterval(() => {
-        const cleaned = cleanupIdleSessions(config.keepalive.session_idle_timeout);
+    const gcTimer = setInterval(async () => {
+        const cleaned = await cleanupIdleSessions(config.keepalive.session_idle_timeout);
         if (cleaned > 0) {
             console.log(`[SessionGC] ${cleaned} idle session(s) cleaned up. Remaining: ${sessions.size}`);
         }
     }, config.keepalive.gc_interval);
-    // プロセス終了時にタイマーをクリア
-    process.on("SIGTERM", () => {
+    // プロセス終了時のクリーンアップ（グレースフルシャットダウン）
+    const gracefulShutdown = () => {
         clearInterval(gcTimer);
         if (keepAliveManager) {
             keepAliveManager.stopAll();
         }
         server.close();
-    });
+    };
+    // PM2はデフォルトでSIGINTを最初に送信し、応答がなければSIGKILLを送る
+    process.on("SIGTERM", gracefulShutdown);
+    process.on("SIGINT", gracefulShutdown);
 }
 main().catch((error) => {
     console.error("Server startup failed:", error);

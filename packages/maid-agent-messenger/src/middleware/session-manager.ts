@@ -6,6 +6,7 @@
 import type { Request } from "express";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { InMemoryEventStore } from "./event-store.js";
 import { existsSync } from "fs";
 import { join } from "path";
 
@@ -21,6 +22,8 @@ export interface SessionInfo {
   // Phase 3
   missedPings: number;
   pingTimer?: ReturnType<typeof setInterval>;
+  // メモリリーク対策: EventStoreへの参照を保持
+  eventStore?: InMemoryEventStore;
 }
 
 /**
@@ -35,7 +38,7 @@ export const sessions = new Map<string, SessionInfo>();
  * アイドル状態のセッションをクリーンアップ
  * @returns 削除されたセッション数
  */
-export function cleanupIdleSessions(idleTimeoutMs: number): number {
+export async function cleanupIdleSessions(idleTimeoutMs: number): Promise<number> {
   const now = Date.now();
   let cleaned = 0;
   for (const [id, session] of sessions) {
@@ -45,10 +48,20 @@ export function cleanupIdleSessions(idleTimeoutMs: number): number {
       if (session.pingTimer) {
         clearInterval(session.pingTimer);
       }
+      // McpServer を先にclose（内部リスナー・ツールハンドラの解放）
+      try {
+        await session.server.close();
+      } catch (e) {
+        console.log(`[SessionGC] Error closing McpServer for session ${id}: ${e}`);
+      }
       try {
         session.transport.close();
       } catch (e) {
-        console.log(`[SessionGC] Error closing session ${id}: ${e}`);
+        console.log(`[SessionGC] Error closing transport for session ${id}: ${e}`);
+      }
+      // EventStoreのクリーンアップ
+      if (session.eventStore) {
+        session.eventStore.clear();
       }
       sessions.delete(id);
       cleaned++;

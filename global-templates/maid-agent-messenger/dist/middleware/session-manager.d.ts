@@ -5,6 +5,7 @@
 import type { Request } from "express";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { InMemoryEventStore } from "./event-store.js";
 /**
  * MCPセッション情報
  */
@@ -16,6 +17,7 @@ export interface SessionInfo {
     lastActivity: Date;
     missedPings: number;
     pingTimer?: ReturnType<typeof setInterval>;
+    eventStore?: InMemoryEventStore;
 }
 /**
  * セッションID -> SessionInfo のマップ
@@ -28,7 +30,7 @@ export declare const sessions: Map<string, SessionInfo>;
  * アイドル状態のセッションをクリーンアップ
  * @returns 削除されたセッション数
  */
-export declare function cleanupIdleSessions(idleTimeoutMs: number): number;
+export declare function cleanupIdleSessions(idleTimeoutMs: number): Promise<number>;
 /**
  * プロジェクトパスが有効か検証する
  * .maid-agent/ ディレクトリの存在を確認

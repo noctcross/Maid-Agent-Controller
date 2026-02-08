@@ -15,7 +15,7 @@ export const sessions = new Map();
  * アイドル状態のセッションをクリーンアップ
  * @returns 削除されたセッション数
  */
-export function cleanupIdleSessions(idleTimeoutMs) {
+export async function cleanupIdleSessions(idleTimeoutMs) {
     const now = Date.now();
     let cleaned = 0;
     for (const [id, session] of sessions) {
@@ -25,11 +25,22 @@ export function cleanupIdleSessions(idleTimeoutMs) {
             if (session.pingTimer) {
                 clearInterval(session.pingTimer);
             }
+            // McpServer を先にclose（内部リスナー・ツールハンドラの解放）
+            try {
+                await session.server.close();
+            }
+            catch (e) {
+                console.log(`[SessionGC] Error closing McpServer for session ${id}: ${e}`);
+            }
             try {
                 session.transport.close();
             }
             catch (e) {
-                console.log(`[SessionGC] Error closing session ${id}: ${e}`);
+                console.log(`[SessionGC] Error closing transport for session ${id}: ${e}`);
+            }
+            // EventStoreのクリーンアップ
+            if (session.eventStore) {
+                session.eventStore.clear();
             }
             sessions.delete(id);
             cleaned++;

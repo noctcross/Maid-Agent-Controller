@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Agent, ViewContext } from '../types';
 import { MAIDS, NOTIFICATIONS_SUBDIR, MAID_DATA_SUBDIR, INSTRUCTIONS_SUBDIR, CONFIG_SUBDIR, WEB_DASHBOARD_POLLING_INTERVAL } from '../constants';
+import { escapeHtml } from '../utils/html-escape';
 
 /**
  * コントローラーパネル関連の関数群
@@ -124,9 +125,9 @@ export function updateController(ctx: ViewContext): void {
                 const match = line.match(/^\[([^\]]+)\] (\w+) → (\w+): (.+)$/);
                 if (match) {
                     const [, timestamp, sender, target, message] = match;
-                    return `<div class="conv-entry"><span class="conv-time">${timestamp.split(' ')[1]}</span> <span class="conv-sender">${sender}</span> → <span class="conv-target">${target}</span>: ${message}</div>`;
+                    return `<div class="conv-entry"><span class="conv-time">${escapeHtml(timestamp.split(' ')[1] || '')}</span> <span class="conv-sender">${escapeHtml(sender)}</span> → <span class="conv-target">${escapeHtml(target)}</span>: ${escapeHtml(message)}</div>`;
                 }
-                return `<div class="conv-entry">${line}</div>`;
+                return `<div class="conv-entry">${escapeHtml(line)}</div>`;
             }).join('');
         }
     }
@@ -153,16 +154,16 @@ export function updateController(ctx: ViewContext): void {
         const statusClass = a.status === 'working' ? 'working' : 'idle';
         const taskInfo = getMaidTaskInfo(a.id);
         const taskHtml = taskInfo
-            ? `<div class="agent-task">${taskInfo.taskId}: ${taskInfo.title}</div>`
+            ? `<div class="agent-task">${escapeHtml(taskInfo.taskId)}: ${escapeHtml(taskInfo.title)}</div>`
             : '';
         return `
             <div class="agent-card ${statusClass}">
                 <div class="agent-header">
-                    <span class="agent-name">${emoji} ${a.name}</span>
-                    <span class="agent-role">${role}</span>
+                    <span class="agent-name">${escapeHtml(emoji)} ${escapeHtml(a.name)}</span>
+                    <span class="agent-role">${escapeHtml(role)}</span>
                 </div>
                 <div class="agent-status">
-                    <span class="status-badge">${statusEmoji} ${a.status}</span>
+                    <span class="status-badge">${statusEmoji} ${escapeHtml(a.status)}</span>
                 </div>
                 ${taskHtml}
             </div>`;
@@ -177,7 +178,7 @@ export function updateController(ctx: ViewContext): void {
         : '<div class="empty-agent">メイドがおりません</div>';
 
     const recentLogs = ctx.logs.slice(-10).reverse().map(log =>
-        `<div class="log-entry">${log}</div>`
+        `<div class="log-entry">${escapeHtml(log)}</div>`
     ).join('');
 
     ctx.controllerPanel.webview.html = `

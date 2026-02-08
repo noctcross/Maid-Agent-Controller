@@ -5,6 +5,8 @@ import { ViewContext } from '../types';
 import { WEB_DASHBOARD_POLLING_INTERVAL } from '../constants';
 import { CURRENT_ENV, windowsToWslPath } from '../utils/environment';
 import { simpleMarkdownToHtml } from '../utils/markdown';
+import { isPathWithinRoot } from '../utils/path-validator';
+import { escapeHtml } from '../utils/html-escape';
 
 /**
  * ダッシュボードを表示
@@ -165,7 +167,7 @@ export async function updateDashboard(ctx: ViewContext): Promise<void> {
             <body>
                 <div class="error-icon">⚠️</div>
                 <div class="error-title">MCPサーバーに接続できません</div>
-                <div class="error-message">${message}</div>
+                <div class="error-message">${escapeHtml(message)}</div>
                 <button class="btn" onclick="location.reload()">🔄 再試行</button>
                 <div class="hint">
                     <p>MCPサーバーが起動していることを確認してください:</p>
@@ -406,6 +408,11 @@ export function openDashboardInBrowser(ctx: ViewContext): void {
 export async function openMaidAgentFile(ctx: ViewContext, filename: string): Promise<void> {
     if (!ctx.maidAgentPath) return;
     const filePath = path.join(ctx.maidAgentPath, filename);
+    // パストラバーサル防止: .maid-agent/ 内のみ許可
+    if (!isPathWithinRoot(filePath, ctx.maidAgentPath)) {
+        ctx.log(`[Dashboard] Path traversal blocked: ${filename}`);
+        return;
+    }
     if (fs.existsSync(filePath)) {
         const doc = await vscode.workspace.openTextDocument(filePath);
         await vscode.window.showTextDocument(doc);
@@ -426,6 +433,11 @@ export async function openMaidAgentFile(ctx: ViewContext, filename: string): Pro
  */
 export async function openFileWithPreview(ctx: ViewContext, filePath: string): Promise<void> {
     try {
+        // パストラバーサル防止: ワークスペースルート内のみ許可
+        if (ctx.workspaceRoot && !isPathWithinRoot(filePath, ctx.workspaceRoot)) {
+            vscode.window.showErrorMessage('許可されたディレクトリ外のファイルは開けません');
+            return;
+        }
         const fileName = path.basename(filePath);
 
         // サーバーからリンク化済みHTMLを取得（パスリンク化対応）
@@ -433,7 +445,7 @@ export async function openFileWithPreview(ctx: ViewContext, filePath: string): P
 
         if (!html) {
             // フォールバック: ローカルレンダリング（リンク化なし、将来のIDE独自スタイル復活用に保持）
-            html = renderFileLocally(filePath, fileName);
+            html = renderFileLocally(filePath, fileName, ctx.workspaceRoot);
             if (!html) return; // ファイルが見つからない場合
         }
 
@@ -458,6 +470,10 @@ export async function openFileWithPreview(ctx: ViewContext, filePath: string): P
  */
 async function fetchRenderedFileHtml(ctx: ViewContext, filePath: string): Promise<string | null> {
     try {
+        // パストラバーサル防止
+        if (ctx.workspaceRoot && !isPathWithinRoot(filePath, ctx.workspaceRoot)) {
+            return null;
+        }
         const serverUrl = 'http://localhost:3100';
         let projectPath = ctx.workspaceRoot;
         if (!projectPath) {
@@ -502,7 +518,7 @@ async function fetchRenderedFileHtml(ctx: ViewContext, filePath: string): Promis
  * 将来IDE独自スタイルを復活させる場合に備えて保持。
  * @returns HTML文字列、またはファイルが見つからない場合は null
  */
-function renderFileLocally(filePath: string, fileName: string): string | null {
+function renderFileLocally(filePath: string, fileName: string, workspaceRoot?: string): string | null {
     // Windowsパス（C:/...）をWSLパスに変換
     let normalizedPath = filePath;
     if (CURRENT_ENV === 'wsl' && /^[A-Z]:\//i.test(filePath)) {
@@ -510,6 +526,11 @@ function renderFileLocally(filePath: string, fileName: string): string | null {
         normalizedPath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
     }
 
+    // パストラバーサル防止
+    if (workspaceRoot && !isPathWithinRoot(normalizedPath, workspaceRoot)) {
+        vscode.window.showErrorMessage('許可されたディレクトリ外のファイルは開けません');
+        return null;
+    }
     if (!fs.existsSync(normalizedPath)) {
         vscode.window.showErrorMessage(`ファイルが見つかりません: ${filePath}`);
         return null;
@@ -654,7 +675,7 @@ export function setReportViewerHtml(ctx: ViewContext, contentHtml: string, fileN
 </head>
 <body>
     <div class="header">
-        <h1>📄 ${fileName}</h1>
+        <h1>${escapeHtml('📄 ' + fileName)}</h1>
     </div>
     <div class="content">
         ${contentHtml}
@@ -718,7 +739,7 @@ function buildReportViewerHtml(contentHtml: string, fileName: string): string {
 </head>
 <body>
     <div class="header">
-        <h1>📄 ${fileName}</h1>
+        <h1>${escapeHtml('📄 ' + fileName)}</h1>
     </div>
     <div class="content">
         ${contentHtml}

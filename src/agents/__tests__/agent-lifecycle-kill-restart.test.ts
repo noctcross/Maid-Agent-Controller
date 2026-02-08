@@ -34,7 +34,7 @@ function createMockCtx(agents: Map<string, Agent> = new Map()): AgentContext {
         statusBarItem: undefined,
         statusBarResetTimeout: undefined,
         log: vi.fn(),
-        updateDashboard: vi.fn(),
+        updateController: vi.fn(),
         updateAgentPanel: vi.fn(),
         delay: vi.fn().mockResolvedValue(undefined),
         startWatchingFiles: vi.fn(),

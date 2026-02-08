@@ -274,7 +274,7 @@ export async function resumeSessions(ctx: AgentContext): Promise<void> {
         ctx.openTmuxViewer();
 
         vscode.window.showInformationMessage(`${resumedNames.join('、')} が復帰しました！`);
-        ctx.updateDashboard();
+        ctx.updateController();
         ctx.updateAgentPanel();
     } else {
         vscode.window.showInformationMessage('新たに復帰可能なエージェントはありませんでした。');

@@ -354,9 +354,32 @@ export function getMaidAgentClaudeHeader(): string {
 
 1. **指揮系統厳守**: 執事→メイド長→メイド の順序を守る
 2. **自己実行禁止**: 執事・メイド長は自分で作業しない
-3. **報告は dashboard.md**: 上への報告は \`.maid-agent/dashboard.md\` を更新
-4. **指示は YAML キュー**: 下への指示は \`.maid-agent/system/data/queue/\` のYAMLファイル経由
+3. **報告はMCPツール**: タスク状態を更新して待機
+4. **指示は YAML キュー**: 下への指示は \`.maid-agent/queue/\` のYAMLファイル経由
 5. **sendText 2段階**: 通知時はメッセージとEnterを別々に送信
+
+## MCPタスク管理ツール
+
+タスク管理はMCPツール（maid-agent-messenger）経由で行います。
+
+### 新規ツール（tasks.yaml管理）
+
+| ツール | 用途 | 使用者 |
+|--------|------|--------|
+| \`create_task\` | タスク/サブタスク作成 | 執事 |
+| \`get_task\` | タスク詳細取得 | 全員 |
+| \`list_tasks\` | タスク一覧取得（フィルタ対応） | 執事・メイド長 |
+| \`update_task\` | タスク更新 | メイド長・メイド |
+
+### 既存ツール（維持）
+
+| ツール | 用途 | 使用者 |
+|--------|------|--------|
+| \`get_my_task\` | 自分のタスク取得 | メイド |
+| \`update_status\` | ステータス更新 | メイド |
+| \`assign_task\` | タスク割り当て | メイド長 |
+
+詳細は \`.maid-agent/CLAUDE.md\` を参照。
 
 ## ファイル構成
 

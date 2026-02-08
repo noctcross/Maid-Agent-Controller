@@ -83,7 +83,7 @@ export interface AgentContext {
     log(message: string): void;
 
     // ─── Controller methods (NOT in E4) ───
-    updateDashboard(): void;
+    updateController(): void;
     updateAgentPanel(): void;
     delay(ms: number): Promise<void>;
     startWatchingFiles(silent?: boolean): void;

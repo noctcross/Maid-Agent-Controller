@@ -49,7 +49,7 @@ export function killAgent(ctx: AgentContext, agentId: string): void {
     ctx.tmuxManager.killWindow(agent.tmuxWindow);
     ctx.agents.delete(agentId);
     ctx.updateAgentPanel();
-    ctx.updateDashboard();
+    ctx.updateController();
     ctx.log(`[${agent.name}] を終了しました`);
 }
 
@@ -84,7 +84,7 @@ export async function startButler(ctx: AgentContext): Promise<void> {
         vscode.window.showInformationMessage('🎩 シルヴィアが復帰しました！');
     }
 
-    ctx.updateDashboard();
+    ctx.updateController();
 }
 
 /**
@@ -118,7 +118,7 @@ export async function startChiefMaid(ctx: AgentContext): Promise<void> {
         vscode.window.showInformationMessage('👑 ビオラが復帰しました！');
     }
 
-    ctx.updateDashboard();
+    ctx.updateController();
 }
 
 /**
@@ -161,7 +161,7 @@ export async function startSelectedMaids(ctx: AgentContext): Promise<void> {
     }
 
     vscode.window.showInformationMessage(`🎀 メイド${selected.length}人がお仕えする準備ができました！`);
-    ctx.updateDashboard();
+    ctx.updateController();
 }
 
 /**
@@ -287,5 +287,5 @@ export async function startAllAgents(ctx: AgentContext): Promise<void> {
             await ctx.launchClaudeWithRole(maid.id, 'maid', maid.name);
         }
     }
-    ctx.updateDashboard();
+    ctx.updateController();
 }

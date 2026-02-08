@@ -151,16 +151,14 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
         }
 
         try {
-            const escapedPassword = password.replace(/'/g, "'\\''");
-
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 title: 'pm2 をインストール中...',
                 cancellable: false
             }, async () => {
                 execSync(
-                    `wsl bash -c "echo '${escapedPassword}' | sudo -S npm install -g pm2 2>&1"`,
-                    { encoding: 'utf-8', timeout: 120000, stdio: 'pipe' }
+                    `wsl bash -c "sudo -S npm install -g pm2 2>&1"`,
+                    { encoding: 'utf-8', timeout: 120000, input: password + '\n' }
                 );
             });
 
@@ -231,6 +229,13 @@ export async function setupPm2Startup(ctx: SetupContext, cachedPassword?: string
         .replace(/env\s+PATH=[^\s]+\s+/, '');
     ctx.log(`[MCP] startup コマンド（整形後）: ${command}`);
 
+    // シェルメタ文字の拒否（コマンドインジェクション防止）
+    if (/[;&|`$()\n\r<>]/.test(command)) {
+        ctx.log('[MCP] pm2 startup コマンドに不正な文字が含まれています');
+        vscode.window.showErrorMessage('自動起動コマンドに不正な文字が含まれています');
+        return;
+    }
+
     // パスワードレスsudoが設定されている場合は自動で設定（ポップアップなし）
     if (checkPasswordlessSudo()) {
         try {
@@ -275,11 +280,10 @@ export async function setupPm2Startup(ctx: SetupContext, cachedPassword?: string
         }
 
         try {
-            const escapedPassword = password.replace(/'/g, "'\\''");
             ctx.log(`[MCP] 実行コマンド: ${command}`);
             execSync(
-                `wsl bash -c "echo '${escapedPassword}' | sudo -S ${command}"`,
-                { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' }
+                `wsl bash -c "sudo -S ${command}"`,
+                { encoding: 'utf-8', timeout: 30000, input: password + '\n' }
             );
             ctx.log('[MCP] pm2 startup 設定完了');
             vscode.window.showInformationMessage('✅ 自動起動を設定しました');

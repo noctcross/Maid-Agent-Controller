@@ -281,7 +281,7 @@ export class MultiAgentController {
             log: (msg: string) => this.log(msg),
 
             // ─── Controller methods (NOT in E4, stay in controller) ───
-            updateDashboard: () => this.updateController(),
+            updateController: () => this.updateController(),
             updateAgentPanel: () => this.updateAgentPanel(),
             delay: (ms: number) => this.delay(ms),
             startWatchingFiles: (silent?: boolean) => this.startWatchingFiles(silent),

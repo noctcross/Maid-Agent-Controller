@@ -287,8 +287,8 @@ export async function updateWebDashboardData(ctx: DashboardContext, serverUrl: s
     }
 
     const data = await response.json() as {
-        stats: { pendingCount: number; workingCount: number; blockedCount: number; completedTodayCount: number; timestamp: string };
-        tasks: { pending: string; working: string; blocked: string; completed?: string; actionRequired: string };
+        stats: { pendingCount: number; workingCount: number; masterWaitingCount: number; completedTodayCount: number; timestamp: string };
+        tasks: { pending: string; working: string; masterWaiting: string; masterReview: string; completed?: string };
         completedMeta?: { changed: boolean; hash: string; total: number };
     };
 

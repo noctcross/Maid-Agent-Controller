@@ -470,6 +470,62 @@ maid-notify は最大3回リトライしますが、それでも失敗する場�
 2. ターゲットエージェントがスクロール中でないか確認
 3. `.maid-agent/system/data/notifications/history.log` でエラーを確認
 
+## LAN内ダッシュボード閲覧
+
+LAN内の別端末（スマートフォン・タブレット等）からダッシュボードを閲覧できます。
+
+### 前提条件
+
+- Windows 11 22H2以降
+- WSL 2.0.4以降
+
+### セットアップ
+
+#### Step 1: WSL2 ネットワークモードを mirrored に変更
+
+`%USERPROFILE%\.wslconfig` を作成または編集:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+PowerShellでWSLを再起動:
+```powershell
+wsl --shutdown
+```
+
+#### Step 2: mcp-server.yaml のホスト設定を変更
+
+`~/.maid-agent/system/config/mcp-server.yaml`:
+
+```yaml
+server:
+  host: 0.0.0.0   # 127.0.0.1 から変更
+```
+
+#### Step 3: Windows Firewall インバウンドルール追加
+
+管理者権限のPowerShellで:
+
+```powershell
+New-NetFireWallRule -DisplayName 'Maid Agent Dashboard' -Direction Inbound -LocalPort 3100 -Action Allow -Protocol TCP
+```
+
+### アクセス方法
+
+LAN内端末のブラウザから:
+
+```
+http://<WindowsのIPアドレス>:3100/dashboard?project=<プロジェクトパス>
+```
+
+### セキュリティ
+
+- ダッシュボード（`/dashboard`）、ファイル配信（`/file`、`/image`）はLAN公開
+- MCPエンドポイント（`/mcp`）、レガシーAPI（`/legacy`）、タスクAPI（`/api`）はloopbackのみアクセス可（LAN端末からは403）
+- 認証機構は未実装のため、信頼できるLAN内でのみ使用推奨
+
 ## 参考
 
 - 元ネタ: [multi-agent-shogun](https://github.com/yohey-w/multi-agent-shogun)

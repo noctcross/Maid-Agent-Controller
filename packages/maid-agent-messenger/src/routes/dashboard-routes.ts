@@ -5,7 +5,7 @@
 
 import { Router, Request, Response } from "express";
 import { createHash } from "crypto";
-import { loadConfig } from "../utils/config-loader.js";
+import { loadConfig, getServerUrl } from "../utils/config-loader.js";
 import { getJstTimestamp } from "../utils/yaml-helper.js";
 import {
   executeListTasks,
@@ -82,6 +82,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           blockedCount: blocked.total,
           completedTodayCount,
         },
+        serverUrl: getServerUrl(config),
       }, editorScheme);
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -216,6 +217,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           hash: completedHash,
           total: completed.total,
         },
+        serverUrl: getServerUrl(config),
       };
 
       res.setHeader("Content-Type", "application/json");

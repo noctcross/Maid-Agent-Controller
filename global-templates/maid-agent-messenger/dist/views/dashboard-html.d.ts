@@ -71,5 +71,6 @@ export interface DashboardData {
         blockedCount: number;
         completedTodayCount: number;
     };
+    serverUrl: string;
 }
 export declare function generateDashboardHtml(data: DashboardData, editorScheme?: string): string;

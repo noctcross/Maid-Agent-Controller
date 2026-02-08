@@ -57,6 +57,15 @@ app.get("/health", (_req: Request, res: Response) => {
   });
 });
 
+// loopback-only ミドルウェア（LAN公開時に非公開エンドポイントを保護）
+const loopbackOnly = (req: Request, res: Response, next: NextFunction) => {
+  const ip = req.ip || req.socket.remoteAddress || '';
+  if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
+    next();
+  } else {
+    res.status(403).json({ error: 'Access denied: loopback only' });
+  }
+};
 
 // ========================================
 // サーバー起動
@@ -75,10 +84,13 @@ async function main(): Promise<void> {
   // ルートマウント
   // ========================================
 
-  app.use(createMcpRoutes({ sessions, createMcpServer, keepAliveManager }));
-  app.use(legacyRoutes);
-  app.use(taskApiRoutes);
+  // 非公開エンドポイント（loopbackのみ）
+  app.use(loopbackOnly, createMcpRoutes({ sessions, createMcpServer, keepAliveManager }));
+  app.use("/legacy", loopbackOnly, legacyRoutes);
+  app.use("/api", loopbackOnly, taskApiRoutes);
+  // ダッシュボード（LAN公開OK）
   app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml }));
+  // ファイル・画像配信（ダッシュボードから参照されるためLAN公開OK）
   app.use(fileRoutes);
   app.use(imageRoutes);
 

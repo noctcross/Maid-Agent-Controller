@@ -14,25 +14,24 @@ export interface DashboardData {
   timestamp: string;
   pending: Array<{ id: string; title: string; description: string; priority: string; createdAt: string; category?: string }>;
   working: Array<{ id: string; title: string; description: string; status: string; assignees: Array<{ agentId: string }>; priority: string }>;
-  blocked: Array<{ id: string; title: string; description: string; substatus: string | null; assignees: Array<{ agentId: string }>; priority: string }>;
   recentCompleted: Array<{ id: string; title: string; description: string; completedAt: string | null; summary: string | null; assignees: Array<{ agentId: string }>; reportPaths: string[]; reviewed?: boolean; starred?: boolean }>;
   completedTotal: number;
-  actionRequired: Array<{ id: string; title: string; description: string; substatus: string | null }>;
+  masterWaiting: Array<{ id: string; title: string; description: string; status: string; substatus: string | null; assignees: Array<{ agentId: string }>; priority: string; escalation?: boolean; escalatedAt?: string | null }>;
+  masterReview: Array<{ id: string; title: string; description: string; completedAt: string | null; summary: string | null; reviewed?: boolean }>;
   skillCandidates: Array<{ id: string; title: string; description: string }>;
   improvements: Array<{ id: string; title: string; description: string }>;
   teamStatus: AgentStatus[];
-  // Phase 2: 統計情報
   stats: {
     pendingCount: number;
     workingCount: number;
-    blockedCount: number;
+    masterWaitingCount: number;
     completedTodayCount: number;
   };
   serverUrl: string;  // サーバーの実URL（ポーリング用）
 }
 
 export function generateDashboardHtml(data: DashboardData, editorScheme: string = "vscode"): string {
-  const { projectPath, timestamp, pending, working, blocked, recentCompleted, completedTotal, actionRequired, skillCandidates, improvements, teamStatus, stats } = data;
+  const { projectPath, timestamp, pending, working, recentCompleted, completedTotal, masterWaiting, masterReview, skillCandidates, improvements, teamStatus, stats } = data;
 
   // ステータスアイコンマップ
   const statusIcon: Record<string, string> = {
@@ -184,43 +183,44 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       }).join("\n")
     : '<div class="empty-message">なし</div>';
 
-  // P2: blockedタスクHTML生成（title/description分離）
-  const blockedHtml = blocked.length > 0
-    ? blocked.map((task) => {
-        const assigneeStr = task.assignees.map((a) => a.agentId).join(", ");
+  // ⚠️対応待ち - アクティブ（未完了の action_required）
+  const masterWaitingHtml = masterWaiting.length > 0
+    ? masterWaiting.map((task) => {
         const title = task.title || task.description.split("\n")[0].substring(0, 50);
+        const assigneeStr = task.assignees?.map((a: any) => a.agentId).join(", ") || "";
         const substatusHtml = task.substatus
-          ? `<div class="task-substatus">⚠️ ${escapeHtml(task.substatus)}</div>`
-          : "";
-        return `<div class="task-item blocked-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}">
-          <div class="task-main-row">
-            <span class="task-id">${task.id}</span>
-            <span class="task-title">${escapeHtml(title)}</span>
-            <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
-          </div>
+          ? `<span class="task-substatus-inline">🔴 ${escapeHtml(task.substatus)}</span>`
+          : '<span class="task-substatus-inline">🔴 ご主人様判断待ち</span>';
+        return `<div class="task-item action-required-item" data-id="${task.id}">
+          <span class="task-id">${task.id}</span>
+          <span class="task-title">${escapeHtml(title)}</span>
           ${substatusHtml}
+          <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
           <div class="task-detail">
             ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
-            <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
-            <div class="task-detail-row"><span class="task-detail-label">ブロック理由:</span><span class="task-detail-value">${task.substatus ? escapeHtml(task.substatus) : "不明"}</span></div>
+            <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
+            ${assigneeStr ? `<div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr}</span></div>` : ""}
           </div>
         </div>`;
       }).join("\n")
     : '<div class="empty-message">なし</div>';
 
-  // P1: 特殊カテゴリHTML生成（title/description分離）
-  const actionRequiredHtml = actionRequired.length > 0
-    ? actionRequired.map((task) => {
+  // ⚠️対応待ち - 確認待ち（completed + action_required + unreviewed）
+  const masterReviewHtml = masterReview.length > 0
+    ? masterReview.map((task) => {
         const title = task.title || task.description.split("\n")[0].substring(0, 50);
-        const substatusHtml = task.substatus
-          ? `<span class="task-substatus-inline">⚠️ ${escapeHtml(task.substatus)}</span>`
+        const completedDate = task.completedAt
+          ? formatDateJstShort(new Date(task.completedAt))
           : "";
         return `<div class="task-item action-required-item" data-id="${task.id}">
-          <span class="task-id">${task.id}</span>
-          <span class="task-title">${escapeHtml(title)}</span>
-          ${substatusHtml}
+          <div class="task-main-row">
+            <span class="task-id">${task.id}</span>
+            <span class="task-title">${escapeHtml(title)}</span>
+            <span class="task-date">${completedDate}</span>
+          </div>
           <div class="task-detail">
             ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
+            ${task.summary ? `<div class="task-detail-row"><span class="task-detail-label">結果:</span><span class="task-detail-value task-summary-text">${escapeHtml(task.summary)}</span></div>` : ""}
           </div>
         </div>`;
       }).join("\n")
@@ -401,6 +401,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
     .count-badge-warning { background: #ff6b6b; }
     .count-badge-purple { background: #9b59b6; }
     .count-badge-orange { background: #f39c12; }
+    .subsection-header { color: var(--text-muted); font-size: 0.8rem; font-weight: 600; padding: 6px 0 3px; margin-top: 8px; border-bottom: 1px solid var(--border-color); }
+    .subsection-header:first-child { margin-top: 0; }
     .collapsible-header { cursor: pointer; user-select: none; }
     .collapsible-header:hover { opacity: 0.8; }
     .collapsible-content { }
@@ -788,8 +790,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           <div class="stat-label">⚡ 進行中</div>
         </div>
         <div class="stat-item stat-blocked">
-          <div class="stat-value">${stats.blockedCount}</div>
-          <div class="stat-label">🚫 ブロック</div>
+          <div class="stat-value">${stats.masterWaitingCount}</div>
+          <div class="stat-label">⚠️ 対応待ち</div>
         </div>
         <div class="stat-item stat-completed">
           <div class="stat-value">${stats.completedTodayCount}</div>
@@ -835,25 +837,17 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       </div>
     </div>
 
-    <!-- P1: 特殊カテゴリセクション（最上部に固定表示） -->
-    <div class="card special-section card-action-required" data-section="action-required">
+    <!-- ⚠️対応待ちセクション（統合） -->
+    <div class="card special-section card-action-required" data-section="master-waiting">
       <div class="card-header">
-        <span class="card-title">🚨 要対応</span>
-        <span class="count-badge count-badge-alert">${actionRequired.length}</span>
+        <span class="card-title">⚠️ 対応待ち</span>
+        <span class="count-badge count-badge-alert">${masterWaiting.length + masterReview.length}</span>
       </div>
       <div class="collapsible-content">
-        ${actionRequiredHtml}
-      </div>
-    </div>
-
-    <!-- P2: blockedタスクセクション -->
-    <div class="card special-section card-blocked" data-section="blocked">
-      <div class="card-header">
-        <span class="card-title">🚫 ブロック中</span>
-        <span class="count-badge count-badge-warning">${blocked.length}</span>
-      </div>
-      <div class="collapsible-content">
-        ${blockedHtml}
+        ${masterWaiting.length > 0 ? `<div class="subsection-header">アクティブ (${masterWaiting.length})</div>` : ""}
+        ${masterWaitingHtml}
+        ${masterReview.length > 0 ? `<div class="subsection-header">確認待ち (${masterReview.length})</div>` : ""}
+        ${masterReview.length > 0 ? masterReviewHtml : ""}
       </div>
     </div>
 
@@ -1025,11 +1019,10 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       if (tasks.working) {
         updateTaskSection('[data-section="working"]', tasks.working);
       }
-      if (tasks.blocked) {
-        updateTaskSection('[data-section="blocked"]', tasks.blocked);
-      }
-      if (tasks.actionRequired) {
-        updateTaskSection('[data-section="action-required"]', tasks.actionRequired);
+      if (tasks.masterWaiting !== undefined || tasks.masterReview !== undefined) {
+        // ⚠️対応待ちセクション全体を更新
+        updateTaskSection('[data-section="master-waiting"]',
+          (tasks.masterWaiting || '') + (tasks.masterReview || ''));
       }
       if (tasks.skillCandidates) {
         updateTaskSection('[data-section="skill-candidates"]', tasks.skillCandidates);
@@ -1078,7 +1071,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       const mapping = {
         pendingCount: '.stat-pending .stat-value',
         workingCount: '.stat-working .stat-value',
-        blockedCount: '.stat-blocked .stat-value',
+        masterWaitingCount: '.stat-blocked .stat-value',
         completedTodayCount: '.stat-completed .stat-value'
       };
       for (const [key, selector] of Object.entries(mapping)) {
@@ -1137,9 +1130,6 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       if (tasks.working) {
         updateTaskSection('[data-section="working"]', tasks.working);
       }
-      if (tasks.blocked) {
-        updateTaskSection('[data-section="blocked"]', tasks.blocked);
-      }
       if (tasks.completed) {
         if (isCompletedDefaultView()) {
           // デフォルト表示: 通常通り完了セクションを更新
@@ -1155,8 +1145,9 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           showCompletedNewBadge();
         }
       }
-      if (tasks.actionRequired) {
-        updateTaskSection('[data-section="action-required"]', tasks.actionRequired);
+      if (tasks.masterWaiting !== undefined || tasks.masterReview !== undefined) {
+        updateTaskSection('[data-section="master-waiting"]',
+          (tasks.masterWaiting || '') + (tasks.masterReview || ''));
       }
       if (tasks.skillCandidates) {
         updateTaskSection('[data-section="skill-candidates"]', tasks.skillCandidates);

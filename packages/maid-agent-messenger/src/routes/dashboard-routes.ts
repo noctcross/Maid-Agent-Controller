@@ -44,13 +44,13 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const [pending, working, blocked, completed, completedAll, actionRequired, skillCandidates, improvements, teamStatus] = await Promise.all([
+      const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, teamStatus] = await Promise.all([
         executeListTasks(projectPath, { status: ["pending"] }),
         executeListTasks(projectPath, { status: ["working", "assigned"] }),
-        executeListTasks(projectPath, { status: ["blocked"] }),
         executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
         executeListTasks(projectPath, { status: ["completed"], limit: 100 }),  // 本日完了カウント用
         executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
+        executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
         executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
         executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
         executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),
@@ -70,17 +70,17 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         timestamp: getJstTimestamp(),
         pending: pending.tasks,
         working: working.tasks,
-        blocked: blocked.tasks,
         recentCompleted: completed.tasks,
         completedTotal: completed.total,
-        actionRequired: actionRequired.tasks,
+        masterWaiting: masterWaiting.tasks,
+        masterReview: masterReview.tasks,
         skillCandidates: skillCandidates.tasks,
         improvements: improvements.tasks,
         teamStatus: teamStatus.agents,
         stats: {
           pendingCount: pending.tasks.filter((t: any) => !t.category || !SPECIAL_CATEGORIES.includes(t.category)).length,
           workingCount: working.total,
-          blockedCount: blocked.total,
+          masterWaitingCount: masterWaiting.total + masterReview.total,
           completedTodayCount,
         },
         serverUrl: getServerUrl(config),
@@ -161,10 +161,9 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
       const ACTIVE_STATUSES: ("pending" | "assigned" | "working" | "blocked")[] = ["pending", "assigned", "working", "blocked"];
 
-      const [pending, working, blocked, completed, completedAll, actionRequired, skillCandidates, improvements] = await Promise.all([
+      const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements] = await Promise.all([
         executeListTasks(projectPath, { status: ["pending"] }),
         executeListTasks(projectPath, { status: ["working", "assigned"] }),
-        executeListTasks(projectPath, { status: ["blocked"] }),
         executeListTasks(projectPath, {
           status: ["completed"],
           limit: completedLimit,
@@ -176,6 +175,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         }),
         executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
         executeListTasks(projectPath, { category: ["action_required"], status: ACTIVE_STATUSES }),
+        executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
         executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
         executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
       ]);
@@ -200,16 +200,16 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         stats: {
           pendingCount: filteredPendingTasks.length,
           workingCount: working.total,
-          blockedCount: blocked.total,
+          masterWaitingCount: masterWaiting.total + masterReview.total,
           completedTodayCount,
           timestamp: getJstTimestamp(),
         },
         tasks: {
           pending: generateTaskHtml(filteredPendingTasks, "pending", projectPath),
           working: generateTaskHtml(working.tasks, "working", projectPath),
-          blocked: generateTaskHtml(blocked.tasks, "blocked", projectPath),
           completed: completedChanged ? completedHtml : undefined,
-          actionRequired: generateTaskHtml(actionRequired.tasks, "action_required", projectPath),
+          masterWaiting: generateTaskHtml(masterWaiting.tasks, "action_required", projectPath),
+          masterReview: generateTaskHtml(masterReview.tasks, "master_review", projectPath),
           skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
           improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
         },
@@ -257,13 +257,13 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
           const sseActiveStatuses: ("pending" | "assigned" | "working" | "blocked")[] = ["pending", "assigned", "working", "blocked"];
 
-          const [pending, working, blocked, completed, completedAll, actionRequired, skillCandidates, improvements] = await Promise.all([
+          const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements] = await Promise.all([
             executeListTasks(projectPath, { status: ["pending"] }),
             executeListTasks(projectPath, { status: ["working", "assigned"] }),
-            executeListTasks(projectPath, { status: ["blocked"] }),
             executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
             executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
             executeListTasks(projectPath, { category: ["action_required"], status: sseActiveStatuses }),
+            executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
             executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),
             executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
           ]);
@@ -281,7 +281,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           const stats = {
             pendingCount: sseFilteredPending.length,
             workingCount: working.total,
-            blockedCount: blocked.total,
+            masterWaitingCount: masterWaiting.total + masterReview.total,
             completedTodayCount,
             timestamp: getJstTimestamp(),
           };
@@ -293,9 +293,9 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           const tasksHtml = {
             pending: generateTaskHtml(sseFilteredPending, "pending", projectPath),
             working: generateTaskHtml(working.tasks, "working", projectPath),
-            blocked: generateTaskHtml(blocked.tasks, "blocked", projectPath),
             completed: generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme),
-            actionRequired: generateTaskHtml(actionRequired.tasks, "action_required", projectPath),
+            masterWaiting: generateTaskHtml(masterWaiting.tasks, "action_required", projectPath),
+            masterReview: generateTaskHtml(masterReview.tasks, "master_review", projectPath),
             skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
             improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
           };

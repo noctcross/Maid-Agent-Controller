@@ -129,7 +129,7 @@ describe('killPick', () => {
         const ctx = createMockCtx(agents);
 
         vi.mocked(vscode.window.showQuickPick).mockResolvedValue([
-            { label: '🎀 エマ', description: 'emma', detail: 'ステータス: working', agentId: 'emma' }
+            { label: '☕ エマ', description: 'emma', detail: 'ステータス: working', agentId: 'emma' }
         ] as any);
 
         await killPick(ctx);
@@ -149,8 +149,8 @@ describe('killPick', () => {
         const ctx = createMockCtx(agents);
 
         vi.mocked(vscode.window.showQuickPick).mockResolvedValue([
-            { label: '🎀 エマ', description: 'emma', detail: 'ステータス: working', agentId: 'emma' },
-            { label: '🎀 ローズ', description: 'rose', detail: 'ステータス: idle', agentId: 'rose' },
+            { label: '☕ エマ', description: 'emma', detail: 'ステータス: working', agentId: 'emma' },
+            { label: '🌹 ローズ', description: 'rose', detail: 'ステータス: idle', agentId: 'rose' },
         ] as any);
 
         await killPick(ctx);
@@ -230,7 +230,7 @@ describe('restartPick', () => {
         const ctx = createMockCtx(agents);
 
         vi.mocked(vscode.window.showQuickPick).mockResolvedValue([
-            { label: '🎀 エマ', description: 'emma', detail: 'ステータス: working', agentId: 'emma', agentRole: 'maid', agentName: 'エマ', agentEmoji: '🎀' }
+            { label: '☕ エマ', description: 'emma', detail: 'ステータス: working', agentId: 'emma', agentRole: 'maid', agentName: 'エマ', agentEmoji: '☕' }
         ] as any);
 
         // withProgress はコールバックを即座に実行
@@ -242,7 +242,7 @@ describe('restartPick', () => {
 
         // killAgent が呼ばれた（agents mapから削除される）
         // createAgent が呼ばれた
-        expect(ctx.createAgent).toHaveBeenCalledWith('エマ', 'emma', 'maid', '🎀');
+        expect(ctx.createAgent).toHaveBeenCalledWith('エマ', 'emma', 'maid', '☕');
         // launchClaudeWithRole が呼ばれた
         expect(ctx.launchClaudeWithRole).toHaveBeenCalledWith('emma', 'maid', 'エマ');
         // 完了メッセージ
@@ -272,7 +272,7 @@ describe('restartPick', () => {
         const ctx = createMockCtx(agents);
 
         vi.mocked(vscode.window.showQuickPick).mockResolvedValue([
-            { label: '🎀 エマ', description: 'emma', detail: 'ステータス: working', agentId: 'emma', agentRole: 'maid', agentName: 'エマ', agentEmoji: '🎀' }
+            { label: '☕ エマ', description: 'emma', detail: 'ステータス: working', agentId: 'emma', agentRole: 'maid', agentName: 'エマ', agentEmoji: '☕' }
         ] as any);
 
         vi.mocked(vscode.window.withProgress).mockImplementation(async (_options, callback) => {

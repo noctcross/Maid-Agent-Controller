@@ -18,13 +18,13 @@ export const INSTRUCTIONS_SUBDIR = 'agents/instructions';
 export const CONFIG_SUBDIR = 'system/config';
 
 export const MAIDS_MAP: { [key: string]: MaidConfig } = {
-    emma: { name: 'エマ', id: 'emma', emoji: '🌸' },
-    sophia: { name: 'ソフィア', id: 'sophia', emoji: '📚' },
-    lily: { name: 'リリー', id: 'lily', emoji: '🎨' },
+    emma: { name: 'エマ', id: 'emma', emoji: '☕' },
+    sophia: { name: 'ソフィア', id: 'sophia', emoji: '❄️' },
+    lily: { name: 'リリー', id: 'lily', emoji: '🎀' },
     rose: { name: 'ローズ', id: 'rose', emoji: '🌹' },
-    alice: { name: 'アリス', id: 'alice', emoji: '🔧' },
-    may: { name: 'メイ', id: 'may', emoji: '🍰' },
-    flora: { name: 'フローラ', id: 'flora', emoji: '🌷' },
+    alice: { name: 'アリス', id: 'alice', emoji: '✨' },
+    may: { name: 'メイ', id: 'may', emoji: '🕊️' },
+    flora: { name: 'フローラ', id: 'flora', emoji: '🌿' },
     luna: { name: 'ルナ', id: 'luna', emoji: '🌙' },
 };
 

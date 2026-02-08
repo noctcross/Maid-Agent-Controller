@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Agent, AgentContext } from '../types';
-import { MAIDS } from '../constants';
+import { MAIDS, MAIDS_MAP } from '../constants';
 import { getOrderedMaids } from '../utils/helpers';
 
 // =============================================================================
@@ -171,7 +171,7 @@ function agentEmoji(agent: Agent): string {
     switch (agent.role) {
         case 'butler': return '🎩';
         case 'chiefMaid': return '👑';
-        case 'maid': return '🎀';
+        case 'maid': return MAIDS_MAP[agent.id]?.emoji ?? '🎀';
         default: return '❓';
     }
 }

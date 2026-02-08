@@ -89,6 +89,7 @@ MCPサーバーは Claude Code に機能を追加する仕組みです。
 | `create_task` | 新規タスク作成 | 執事・メイド長（※） |
 | `list_tasks` | タスク一覧取得（フィルタ対応） | 執事・メイド長 |
 | `get_task` | タスク詳細取得 | 全員 |
+| `get_report` | タスクのレポート内容取得 | 執事・メイド長 |
 | `update_task` | タスク更新 | メイド長 |
 | `get_my_task` | 自分のタスク情報を取得 | メイド |
 | `update_status` | ステータスを更新（working/completed/blocked） | メイド |

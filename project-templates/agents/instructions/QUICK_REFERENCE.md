@@ -22,6 +22,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 | `create_task` | 新規タスク作成 | title(必須), description(省略可) | 執事・メイド長（※） |
 | `list_tasks` | タスク一覧取得 | status, assignee, limit | 執事・メイド長 |
 | `get_task` | タスク詳細取得 | taskId | 全員 |
+| `get_report` | レポート内容取得 | taskId, limit(省略可) | 執事・メイド長 |
 | `update_task` | タスク状態更新 | taskId, status | メイド長 |
 | `get_my_task` | 自分のタスク取得 | agent_id | メイド |
 | `update_status` | ステータス更新 | agent_id, status | メイド |

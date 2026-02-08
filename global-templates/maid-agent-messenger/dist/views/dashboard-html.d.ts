@@ -24,16 +24,6 @@ export interface DashboardData {
         }>;
         priority: string;
     }>;
-    blocked: Array<{
-        id: string;
-        title: string;
-        description: string;
-        substatus: string | null;
-        assignees: Array<{
-            agentId: string;
-        }>;
-        priority: string;
-    }>;
     recentCompleted: Array<{
         id: string;
         title: string;
@@ -48,11 +38,26 @@ export interface DashboardData {
         starred?: boolean;
     }>;
     completedTotal: number;
-    actionRequired: Array<{
+    masterWaiting: Array<{
         id: string;
         title: string;
         description: string;
+        status: string;
         substatus: string | null;
+        assignees: Array<{
+            agentId: string;
+        }>;
+        priority: string;
+        escalation?: boolean;
+        escalatedAt?: string | null;
+    }>;
+    masterReview: Array<{
+        id: string;
+        title: string;
+        description: string;
+        completedAt: string | null;
+        summary: string | null;
+        reviewed?: boolean;
     }>;
     skillCandidates: Array<{
         id: string;
@@ -68,7 +73,7 @@ export interface DashboardData {
     stats: {
         pendingCount: number;
         workingCount: number;
-        blockedCount: number;
+        masterWaitingCount: number;
         completedTodayCount: number;
     };
     serverUrl: string;

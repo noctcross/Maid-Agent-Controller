@@ -147,13 +147,37 @@ MCPタスク管理システムの導入により、新しいツール（`create_
 
 ### ブロック時の対応
 
-外部要因で作業を進められない場合:
+外部要因で作業を進められない場合、エスカレーション要否を判断してください。
+
+#### 判断基準
+
+| 状況 | escalation | フロー |
+|------|-----------|--------|
+| ご主人様の判断が必要（技術方針・ライセンス・重要決定等） | `true` | フロー1 |
+| メイド長で解決可能（依存タスク待ち・リソース調整等） | 省略（false） | フロー3 |
+
+#### フロー1: ご主人様判断が必要な場合
 
 ```
-MCPツール update_status でブロックを報告:
-- agent_id: "emma"
-- status: "blocked"
-- summary: "ご主人様判断待ち"  # または "依存タスク待ち" | "外部要因待ち"
+1. 報告書の「問題・注意点」に詳細を記載
+2. 報告書の「エスカレーション」セクションに required: true + title + detail を設定
+3. MCPツール update_status でブロックを報告:
+   - agent_id: "{自分のID}"
+   - status: "blocked"
+   - summary: "{エスカレーション件名}"
+   - escalation: true
+4. maid-notify chief "{件名}でブロックされました"
+```
+
+#### フロー3: メイド長で対応可能な場合
+
+```
+1. MCPツール update_status でブロックを報告:
+   - agent_id: "{自分のID}"
+   - status: "blocked"
+   - summary: "{ブロック理由}"
+   # escalation は省略（デフォルト false）
+2. maid-notify chief "ブロックされました"
 ```
 
 ブロック理由を .maid-agent/system/data/reports/current_{name}.md に記載し、メイド長に通知してください。
@@ -193,11 +217,33 @@ MCPツール（`get_my_task`, `update_status`等）で「Server not initialized�
 3. `[MCP再接続完了]` メッセージを待つ
 4. MCPツールを再試行
 
-## 他メイドへの相談依頼（エスカレーション）
+## 相談・エスカレーション
+
+### ご主人様への要対応エスカレーション
+
+ご主人様の判断・確認が必要な場合:
+
+**エスカレーション対象**:
+- 技術的な重要決定（アーキテクチャ選択、破壊的変更等）
+- ライセンス・著作権に関する判断
+- 方針・優先順位の決定
+- 外部サービスの契約・設定変更
+
+**手順**:
+1. 報告書の `escalation` セクションに `required: true` + `title` + `detail` を設定
+2. `update_status(blocked, summary: "{件名}", escalation: true)` を実行
+3. `maid-notify chief "{件名}でブロックされました"` で通知
+
+**escalation パラメータの役割**:
+- `update_status(escalation: true)` → メイド長への構造化シグナル（機械的に検知可能）
+- テンプレートの `escalation` セクション → 詳細情報（なぜ必要かの背景）
+- 両者は補完関係。片方だけでは不十分
+
+### 他メイドへの相談依頼
 
 他のメイドに意見を求めたい、協力が必要な場合は、**メイド長にエスカレーション**します。
 
-### エスカレーションの流れ
+#### エスカレーションの流れ
 
 ```
 あなた（メイド）
@@ -207,7 +253,7 @@ MCPツール（`get_my_task`, `update_status`等）で「Server not initialized�
     └─ または、🚨 要対応タスクとしてご主人様に報告（create_task）
 ```
 
-### エスカレーション例
+#### エスカレーション例
 
 ```bash
 # 他メイドへの相談を依頼
@@ -217,7 +263,7 @@ MCPツール（`get_my_task`, `update_status`等）で「Server not initialized�
 .maid-agent/system/bin/maid-notify chief "要判断事項: この実装方法について他メイドの意見を集めていただけますでしょうか。"
 ```
 
-### 重要
+#### 重要
 - **直接連絡は禁止** - 必ずメイド長経由
 - メイド長が判断して適切な対応を行う
 - 詳細は `.maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md` に記載（完了時に自動で `.maid-agent/master/reports/` にアーカイブ）

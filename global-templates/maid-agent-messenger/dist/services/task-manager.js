@@ -283,6 +283,10 @@ export async function executeUpdateTask(projectPath, params) {
             task.starred = params.starred;
             task.starredAt = params.starred ? now : null;
         }
+        if (params.escalation !== undefined) {
+            task.escalation = params.escalation;
+            task.escalatedAt = params.escalation ? now : null;
+        }
         const result = { success: true, task };
         return { data, result: { result, prevStatus, prevAssignees } };
     });

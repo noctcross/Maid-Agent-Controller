@@ -109,6 +109,45 @@ describe("executeUpdateStatus - unified-task-state-gateway", () => {
             expect(result.updated_fields).toContain("tasks_yaml_synced");
             expect(result.archive_path).toContain("task-072-emma-test.md");
         });
+        it("blocked + escalation: true 時に escalation が委譲される", async () => {
+            mockedReadYamlFile.mockResolvedValue({
+                task_id: "task-072",
+                status: "working",
+            });
+            await executeUpdateStatus({
+                ...baseParams,
+                status: "blocked",
+                summary: "ライセンス判断が必要",
+                escalation: true,
+            });
+            expect(mockedExecuteUpdateTask).toHaveBeenCalledWith("/project", expect.objectContaining({
+                taskId: "072",
+                status: "blocked",
+                summary: "ライセンス判断が必要",
+                agentId: "emma",
+                escalation: true,
+            }));
+        });
+        it("escalation 省略時は undefined のまま委譲される", async () => {
+            mockedReadYamlFile.mockResolvedValue({
+                task_id: "task-072",
+                status: "working",
+            });
+            await executeUpdateStatus({
+                ...baseParams,
+                status: "blocked",
+                summary: "依存タスク待ち",
+            });
+            expect(mockedExecuteUpdateTask).toHaveBeenCalledWith("/project", expect.objectContaining({
+                taskId: "072",
+                status: "blocked",
+                summary: "依存タスク待ち",
+                agentId: "emma",
+            }));
+            // escalation が明示的に渡されていないことを確認
+            const callArgs = mockedExecuteUpdateTask.mock.calls[0][1];
+            expect(callArgs.escalation).toBeUndefined();
+        });
     });
     describe("task_id 正規化", () => {
         it("task- プレフィックスが正規化される", async () => {

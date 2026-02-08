@@ -240,10 +240,11 @@ MCPツール（`get_team_status`, `assign_task`等）で「Server not initialize
 |-----|------|
 | 他メイドの意見で解決できそう | 追加タスクとして該当メイドに割り振り |
 | 複数メイドの協議が必要 | 順番に意見収集タスクを割り振り |
-| 技術的判断が必要 | 🚨 要対応: `update_task`でstatus: "blocked"に設定し、`create_task`でご主人様向けタスクを作成 |
-| 作業方針の決定が必要 | 🚨 要対応: `update_task`でstatus: "blocked"に設定し、`create_task`でご主人様向けタスクを作成 |
+| 技術的判断が必要（escalation: true） | ⚠️ 対応待ち: `update_task(taskId, category: "action_required", substatus: "ご主人様判断待ち")` |
+| 作業方針の決定が必要（escalation: true） | ⚠️ 対応待ち: `update_task(taskId, category: "action_required", substatus: "ご主人様判断待ち")` |
+| 完了タスクの確認が必要 | ⚠️ 確認待ち: `update_task(taskId, category: "action_required")` ※status は completed のまま |
 
-※ 「🚨 要対応」タスクはWebビューで専用セクションとして表示予定
+※ ダッシュボードの「⚠️ 対応待ち」セクションに表示される
 
 ### 追加タスク割り振りの例（他メイドへの相談）
 
@@ -273,6 +274,51 @@ MCPツール create_task でご主人様向けタスク作成:
 - category: "action_required"  # 🚨 要対応
 
 ※ Webビューで「🚨 要対応」セクションに表示される（予定）
+```
+
+### メイドの blocked/escalation 検知ルール
+
+メイドが blocked を報告した際の対応手順:
+
+1. `get_team_status` でブロック中メイドを確認
+2. 報告書を確認（`.maid-agent/system/data/reports/current_{メイドID}.md`）
+3. **tasks.yaml の `escalation: true` を確認**（主要シグナル）
+
+#### escalation: true の場合 → フロー1
+
+```
+1. 報告書の escalation セクションで詳細確認
+2. update_task(taskId, category: "action_required", substatus: "ご主人様判断待ち")
+   ※ status: blocked は update_status で自動同期済み
+3. ダッシュボードの ⚠️対応待ち → アクティブ に表示される
+```
+
+#### escalation: false/未設定 の場合 → フロー3
+
+```
+1. 自身で対応を試みる（依存タスク調整、別メイドへの指示等）
+2a. 解決可能: maid-notify {メイド} "解消しました、再開してください"
+2b. 解決不可: → フロー1 に移行（update_task で category: action_required に変更）
+```
+
+### 完了タスクの確認待ち設定（フロー2）
+
+メイドの完了報告を確認し、ご主人様の確認が必要と判断した場合:
+
+```
+update_task(taskId, category: "action_required")
+※ status は completed のまま
+→ ダッシュボードの ⚠️対応待ち → 確認待ち に表示される
+```
+
+### ご主人様のアクション後（フロー4）
+
+ご主人様が判断を下した後:
+
+```
+1. 判断内容をメイドに伝達: maid-notify {メイド} "判断結果: {内容}"
+2. エスカレーション解除: update_task(taskId, category: "task", substatus: null)
+   ※ action_required → task に戻す
 ```
 
 ## 並列化ルール

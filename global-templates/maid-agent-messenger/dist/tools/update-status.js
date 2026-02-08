@@ -25,7 +25,11 @@ export function registerUpdateStatus(server) {
             .max(100)
             .optional()
             .describe("作業サマリ（100文字以内、オプション）"),
-    }, async ({ agent_id, status, summary }) => {
+        escalation: z
+            .boolean()
+            .optional()
+            .describe("エスカレーションフラグ（ご主人様判断が必要な場合にtrue）"),
+    }, async ({ agent_id, status, summary, escalation }) => {
         try {
             const result = await executeUpdateStatus({
                 queueMaidPath: PATHS.MAID_STATUS,
@@ -34,6 +38,7 @@ export function registerUpdateStatus(server) {
                 agentId: agent_id,
                 status,
                 summary,
+                escalation,
             });
             return {
                 content: [

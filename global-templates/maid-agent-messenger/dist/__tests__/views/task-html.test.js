@@ -33,3 +33,29 @@ describe("generateTaskHtml - report links", () => {
         expect(html).not.toContain("report-link");
     });
 });
+describe("master_review type", () => {
+    it("master_review タスクが action-required-item クラスで生成される", () => {
+        const tasks = [{
+                id: "001",
+                title: "確認待ちタスク",
+                description: "テスト",
+                completedAt: "2026-02-08T10:00:00+09:00",
+                summary: "完了サマリー",
+            }];
+        const html = generateTaskHtml(tasks, "master_review", "/test/project");
+        expect(html).toContain("action-required-item");
+        expect(html).toContain("001");
+        expect(html).toContain("確認待ちタスク");
+    });
+    it("master_review タスクに review/star ボタンが含まれない", () => {
+        const tasks = [{
+                id: "001",
+                title: "確認待ちタスク",
+                description: "テスト",
+                completedAt: "2026-02-08T10:00:00+09:00",
+            }];
+        const html = generateTaskHtml(tasks, "master_review", "/test/project");
+        expect(html).not.toContain("review-btn");
+        expect(html).not.toContain("star-btn");
+    });
+});

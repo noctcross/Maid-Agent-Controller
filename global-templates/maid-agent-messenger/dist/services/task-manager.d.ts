@@ -32,6 +32,8 @@ export interface Task {
     starred?: boolean;
     reviewedAt?: string | null;
     starredAt?: string | null;
+    escalation?: boolean;
+    escalatedAt?: string | null;
 }
 export interface TasksData {
     lastTaskNumber: number;
@@ -101,6 +103,7 @@ export interface UpdateTaskParams {
     reportPath?: string;
     reviewed?: boolean;
     starred?: boolean;
+    escalation?: boolean;
     description?: string;
     targetPath?: string;
     agentId?: string;

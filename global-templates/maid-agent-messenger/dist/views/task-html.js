@@ -126,6 +126,22 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
         </div>
       </div>`;
         }
+        else if (type === "master_review") {
+            const completedDate = task.completedAt
+                ? formatDateJstShort(new Date(task.completedAt))
+                : "";
+            return `<div class="task-item action-required-item" data-id="${task.id}">
+        <div class="task-main-row">
+          <span class="task-id">${task.id}</span>
+          <span class="task-title">${escapeHtml(title)}</span>
+          <span class="task-date">${completedDate}</span>
+        </div>
+        <div class="task-detail">
+          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
+          ${task.summary ? `<div class="task-detail-row"><span class="task-detail-label">結果:</span><span class="task-detail-value task-summary-text">${escapeHtml(task.summary)}</span></div>` : ""}
+        </div>
+      </div>`;
+        }
         else if (type === "skill_candidate") {
             return `<div class="task-item skill-item" data-id="${task.id}">
         <span class="task-id">${task.id}</span>

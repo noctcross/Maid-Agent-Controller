@@ -13,7 +13,7 @@ import { normalizeTaskId } from "../utils/task-id.js";
  * ステータスを更新
  */
 export async function executeUpdateStatus(params) {
-    const { queueMaidPath, agentId, status, summary } = params;
+    const { queueMaidPath, agentId, status, summary, escalation } = params;
     const filePath = path.join(queueMaidPath, `${agentId}.yaml`);
     const timestamp = getTimestamp();
     // maid yaml から task_id を取得（読み取りのみ、ロック不要）
@@ -37,6 +37,7 @@ export async function executeUpdateStatus(params) {
             status: status,
             summary: summary,
             agentId: agentId,
+            escalation: escalation,
         });
         const updatedFields = ["status"];
         if (result.sideEffects?.maidYamlSynced)

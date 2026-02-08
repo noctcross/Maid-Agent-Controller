@@ -48,6 +48,9 @@ export function showController(ctx: ViewContext): void {
                 case 'showTaskDashboard':
                     ctx.showDashboard();
                     break;
+                case 'openDashboardInBrowser':
+                    ctx.openDashboardInBrowser();
+                    break;
             }
         },
         undefined,
@@ -83,6 +86,9 @@ export function restoreControllerPanel(ctx: ViewContext, panel: vscode.WebviewPa
                     break;
                 case 'showTaskDashboard':
                     ctx.showDashboard();
+                    break;
+                case 'openDashboardInBrowser':
+                    ctx.openDashboardInBrowser();
                     break;
             }
         },
@@ -261,7 +267,8 @@ export function updateController(ctx: ViewContext): void {
     <div class="action-bar">
         <button class="action-btn" onclick="sendTask()">📝 執事に指令</button>
         <button class="action-btn secondary" onclick="refresh()">🔄 更新</button>
-        <button class="action-btn secondary" onclick="showTaskDashboard()">📋 Tasks</button>
+        <button class="action-btn secondary" onclick="showTaskDashboard()">📋 Dashboard</button>
+        <button class="action-btn secondary" onclick="openDashboardInBrowser()">🌐 ブラウザで開く</button>
         <button class="action-btn secondary" onclick="openFile('system/data/tasks.yaml')">📂 Tasks YAML</button>
     </div>
 
@@ -309,6 +316,7 @@ export function updateController(ctx: ViewContext): void {
         function sendTask() { vscode.postMessage({ command: 'sendTask' }); }
         function openFile(file) { vscode.postMessage({ command: 'openFile', file: file }); }
         function showTaskDashboard() { vscode.postMessage({ command: 'showTaskDashboard' }); }
+        function openDashboardInBrowser() { vscode.postMessage({ command: 'openDashboardInBrowser' }); }
         setInterval(() => { refresh(); }, ${WEB_DASHBOARD_POLLING_INTERVAL});
     </script>
 </body>

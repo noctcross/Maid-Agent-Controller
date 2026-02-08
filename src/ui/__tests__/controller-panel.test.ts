@@ -147,6 +147,29 @@ describe('updateController', () => {
         });
     });
 
+    describe('ダッシュボードボタンの表示', () => {
+        it('「Dashboard」ボタンが存在し「Tasks」ボタンが存在しないこと', () => {
+            vi.mocked(fs.existsSync).mockReturnValue(false);
+
+            updateController(mockCtx);
+
+            // 旧名「Tasks」のボタンが存在しないこと
+            expect(capturedHtml).not.toContain('>📋 Tasks<');
+            // 新名「Dashboard」ボタンが存在すること
+            expect(capturedHtml).toContain('📋 Dashboard');
+            expect(capturedHtml).toContain('showTaskDashboard()');
+        });
+
+        it('「ブラウザで開く」ボタンが存在すること', () => {
+            vi.mocked(fs.existsSync).mockReturnValue(false);
+
+            updateController(mockCtx);
+
+            expect(capturedHtml).toContain('openDashboardInBrowser()');
+            expect(capturedHtml).toContain('🌐');
+        });
+    });
+
     describe('自動更新', () => {
         it('setInterval による自動更新スクリプトが含まれること', () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);

@@ -665,7 +665,6 @@ http://<WindowsのIPアドレス>:3100/dashboard?project=<プロジェクトパ�
 - MCPエンドポイント（`/mcp`）、レガシーAPI（`/legacy`）、タスクAPI（`/api`）はloopbackのみアクセス可（LAN端末からは403）
 - 認証機構は未実装のため、信頼できるLAN内でのみ使用推奨
 
-<!-- TODO: ご主人様トーン判断後に差し替え(#108-5) -->
 ## 謝辞
 
 本プロジェクトは [multi-agent-shogun](https://github.com/yohey-w/multi-agent-shogun)（[@shio_shoppaize](https://x.com/shio_shoppaize)氏）を参考に開発しました。

@@ -19,6 +19,7 @@ import {
   executeCreateTask,
   executeGetTask,
   executeListTasks,
+  executeUpdateTask,
   type Task,
   type TasksData,
 } from "../src/services/task-manager";
@@ -492,5 +493,67 @@ describe("ファイルロック（エッジケース）", () => {
     expect(tasks).toEqual([]);
     expect(total).toBe(0);
     expect(hasMore).toBe(false);
+  });
+});
+
+describe("escalation フラグ", () => {
+  it("escalation: true でフラグと日時が設定される", async () => {
+    // 準備: タスク作成
+    const created = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "テストタスク",
+    });
+
+    // 実行: escalation: true で更新
+    const result = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: created.taskId,
+      status: "blocked",
+      escalation: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.task!.escalation).toBe(true);
+    expect(result.task!.escalatedAt).toBeTruthy();
+  });
+
+  it("escalation: false でフラグと日時がクリアされる", async () => {
+    // 準備: タスク作成 → escalation: true に設定
+    const created = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "テストタスク",
+    });
+    await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: created.taskId,
+      escalation: true,
+    });
+
+    // 実行: escalation: false で更新
+    const result = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: created.taskId,
+      escalation: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.task!.escalation).toBe(false);
+    expect(result.task!.escalatedAt).toBeNull();
+  });
+
+  it("escalation 未指定時は既存値を維持する", async () => {
+    // 準備: タスク作成 → escalation: true に設定
+    const created = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "テストタスク",
+    });
+    await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: created.taskId,
+      escalation: true,
+    });
+
+    // 実行: escalation を指定せず別フィールドを更新
+    const result = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: created.taskId,
+      summary: "更新テスト",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.task!.escalation).toBe(true);
+    expect(result.task!.escalatedAt).toBeTruthy();
   });
 });

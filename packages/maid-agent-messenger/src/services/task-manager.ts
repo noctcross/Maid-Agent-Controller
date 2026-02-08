@@ -51,6 +51,8 @@ export interface Task {
   starred?: boolean;         // スター付きフラグ（完了タスク用）
   reviewedAt?: string | null;  // チェック日時
   starredAt?: string | null;   // スター日時
+  escalation?: boolean;          // エスカレーションフラグ（ご主人様判断待ち）
+  escalatedAt?: string | null;   // エスカレーション日時
 }
 
 export interface TasksData {
@@ -367,6 +369,7 @@ export interface UpdateTaskParams {
   reportPath?: string;
   reviewed?: boolean;
   starred?: boolean;
+  escalation?: boolean;          // エスカレーションフラグ
   // --- 追加: unified-task-state-gateway ---
   description?: string;        // タスク説明（assign_task が独自の詳細説明を渡す場合に使用）
   targetPath?: string;         // 作業対象パス（assign_task からの伝達用）
@@ -465,6 +468,10 @@ export async function executeUpdateTask(
     if (params.starred !== undefined) {
       task.starred = params.starred;
       task.starredAt = params.starred ? now : null;
+    }
+    if (params.escalation !== undefined) {
+      task.escalation = params.escalation;
+      task.escalatedAt = params.escalation ? now : null;
     }
 
     const result: UpdateTaskResult = { success: true, task };

@@ -21,6 +21,7 @@ export interface UpdateStatusParams {
   agentId: string;
   status: UpdatableStatus;
   summary?: string;
+  escalation?: boolean;
 }
 
 /**
@@ -29,7 +30,7 @@ export interface UpdateStatusParams {
 export async function executeUpdateStatus(
   params: UpdateStatusParams
 ): Promise<UpdateStatusOutput> {
-  const { queueMaidPath, agentId, status, summary } = params;
+  const { queueMaidPath, agentId, status, summary, escalation } = params;
   const filePath = path.join(queueMaidPath, `${agentId}.yaml`);
   const timestamp = getTimestamp();
 
@@ -57,6 +58,7 @@ export async function executeUpdateStatus(
       status: status,
       summary: summary,
       agentId: agentId,
+      escalation: escalation,
     });
 
     const updatedFields: string[] = ["status"];

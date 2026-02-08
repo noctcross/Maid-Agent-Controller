@@ -10,7 +10,7 @@ import * as yaml from "yaml";
 
 export interface KeepAliveConfig {
   // Phase 1
-  session_idle_timeout: number;      // ms。デフォルト: 300000（5分）
+  session_idle_timeout: number;      // ms。デフォルト: 1800000（30分）
   gc_interval: number;               // ms。デフォルト: 60000（1分）
   // Phase 2
   http_keepalive_timeout: number;    // ms。デフォルト: 65000（65秒）
@@ -74,7 +74,7 @@ const DEFAULT_CONFIG: McpServerConfig = {
     editor: "vscode",
   },
   keepalive: {
-    session_idle_timeout: 300000,
+    session_idle_timeout: 1800000,
     gc_interval: 60000,
     http_keepalive_timeout: 65000,
     http_headers_timeout: 66000,

@@ -87,7 +87,7 @@ describe("KeepAliveManager", () => {
     expect(session.missedPings).toBe(1);
   });
 
-  it("max_missed_pings超過でセッションが切断される", async () => {
+  it("max_missed_pings超過でPingは停止されるがセッションは保全される", async () => {
     const manager = new KeepAliveManager(defaultConfig);
     const mockRequest = jest.fn<() => Promise<object>>().mockRejectedValue(new Error("timeout"));
     const mockClose = jest.fn();
@@ -98,6 +98,7 @@ describe("KeepAliveManager", () => {
       createdAt: new Date(),
       lastActivity: new Date(),
       missedPings: 1, // 既に1回失敗済み→次の失敗で max_missed_pings(2) に到達
+      pingTimer: undefined as ReturnType<typeof setInterval> | undefined,
     };
     sessions.set("stale-session", session as unknown);
 
@@ -106,8 +107,11 @@ describe("KeepAliveManager", () => {
     await Promise.resolve();
 
     expect(session.missedPings).toBe(2);
-    expect(mockClose).toHaveBeenCalled();
-    expect(sessions.has("stale-session")).toBe(false);
+    // セッションは保全される（transport.close()は呼ばれない、sessionsから削除されない）
+    expect(mockClose).not.toHaveBeenCalled();
+    expect(sessions.has("stale-session")).toBe(true);
+    // Pingタイマーは停止される
+    expect(session.pingTimer).toBeUndefined();
   });
 
   it("stopPing でタイマーが停止される", () => {
@@ -157,5 +161,32 @@ describe("KeepAliveManager", () => {
 
     expect(session1.pingTimer).toBeUndefined();
     expect(session2.pingTimer).toBeUndefined();
+  });
+
+  it("startPing で既存のPingタイマーが停止され新たに開始される（SSE再接続シナリオ）", () => {
+    const manager = new KeepAliveManager(defaultConfig);
+    const mockRequest = jest.fn<() => Promise<object>>().mockResolvedValue({});
+    const session = {
+      transport: { close: jest.fn() },
+      server: { server: { request: mockRequest } },
+      projectPath: "/test",
+      createdAt: new Date(),
+      lastActivity: new Date(),
+      missedPings: 2,  // Ping失敗でカウントアップ済み
+      pingTimer: undefined as ReturnType<typeof setInterval> | undefined,
+    };
+    sessions.set("reconnect-session", session as unknown);
+
+    // 初回Ping開始 → 停止（Ping失敗シナリオを模擬）
+    manager.startPing("reconnect-session", session as never);
+    expect(session.pingTimer).toBeDefined();
+    manager.stopPing("reconnect-session", session as never);
+    expect(session.pingTimer).toBeUndefined();
+
+    // SSE再接続: missedPingsリセット → Ping再開
+    session.missedPings = 0;
+    manager.startPing("reconnect-session", session as never);
+    expect(session.pingTimer).toBeDefined();
+    expect(session.missedPings).toBe(0);
   });
 });

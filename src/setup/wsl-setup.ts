@@ -223,7 +223,12 @@ export function checkPasswordlessSudo(): boolean {
  */
 export function getWslUsername(): string {
     try {
-        return execSync(`wsl bash -c "whoami"`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
+        const username = execSync(`wsl bash -c "whoami"`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
+        // ユーザー名バリデーション（sudoersファイルへのインジェクション防止）
+        if (!/^[a-z_][a-z0-9_-]*$/.test(username)) {
+            return 'user'; // 不正な文字を含む場合はフォールバック
+        }
+        return username;
     } catch {
         return 'user'; // フォールバック
     }
@@ -275,15 +280,14 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
         }
 
         try {
-            const escapedPassword = password.replace(/'/g, "'\\''");
             const escapedContent = sudoersContent
                 .replace(/'/g, "'\\''")
                 .replace(/\n/g, '\\n');  // 改行をリテラル \n に変換
 
-            // sudoers.d に設定ファイルを作成
+            // sudoers.d に設定ファイルを作成（stdin パイプでパスワードを渡す）
             execSync(
-                `wsl bash -c "echo '${escapedPassword}' | sudo -S bash -c 'echo -e \\"${escapedContent}\\" > /etc/sudoers.d/maid-agent && chmod 440 /etc/sudoers.d/maid-agent'"`,
-                { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' }
+                `wsl bash -c "sudo -S bash -c 'echo -e \\"${escapedContent}\\" > /etc/sudoers.d/maid-agent && chmod 440 /etc/sudoers.d/maid-agent'"`,
+                { encoding: 'utf-8', timeout: 30000, input: password + '\n' }
             );
 
             // 設定の検証
@@ -310,6 +314,10 @@ ${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
  */
 export function execSudoNoPassword(command: string): boolean {
     try {
+        // シェルメタ文字の拒否（コマンドインジェクション防止）
+        if (/[;&|`$()\n\r<>]/.test(command)) {
+            return false;
+        }
         execSync(`wsl bash -c "sudo -n ${command}"`, { encoding: 'utf-8', stdio: 'pipe' });
         return true;
     } catch {

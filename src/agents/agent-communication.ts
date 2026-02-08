@@ -23,7 +23,7 @@ export function sendToAgent(ctx: AgentContext, agentId: string, command: string)
         ctx.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
         agent.status = 'working';
         ctx.log(`[${agent.name}] → ${command.substring(0, 60)}...`);
-        ctx.updateDashboard();
+        ctx.updateController();
         return true;
     } catch (error) {
         ctx.log(`[ERROR] send-keys失敗: ${error}`);
@@ -130,7 +130,7 @@ export async function sendTaskToButler(ctx: AgentContext, taskDescription: strin
     await ctx.sendMessageToAgent('butler', instruction);
 
     vscode.window.showInformationMessage('🎩 執事にタスクを送信しました');
-    ctx.updateDashboard();
+    ctx.updateController();
 }
 
 /**

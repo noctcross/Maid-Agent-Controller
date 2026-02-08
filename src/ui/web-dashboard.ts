@@ -1,23 +1,23 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { DashboardContext } from '../types';
+import { ViewContext } from '../types';
 import { WEB_DASHBOARD_POLLING_INTERVAL } from '../constants';
 import { CURRENT_ENV, windowsToWslPath } from '../utils/environment';
 import { simpleMarkdownToHtml } from '../utils/markdown';
 
 /**
- * Webダッシュボードを表示
+ * ダッシュボードを表示
  */
-export function showWebDashboard(ctx: DashboardContext): void {
-    if (ctx.webDashboardPanel) {
-        ctx.webDashboardPanel.reveal();
-        updateWebDashboard(ctx);
+export function showDashboard(ctx: ViewContext): void {
+    if (ctx.dashboardPanel) {
+        ctx.dashboardPanel.reveal();
+        updateDashboard(ctx);
         return;
     }
 
-    ctx.webDashboardPanel = vscode.window.createWebviewPanel(
-        'maidAgentWebDashboard',
+    ctx.dashboardPanel = vscode.window.createWebviewPanel(
+        'maidAgentDashboard',
         '📋 Dashboard',
         vscode.ViewColumn.Active,
         {
@@ -26,26 +26,26 @@ export function showWebDashboard(ctx: DashboardContext): void {
         }
     );
 
-    ctx.webDashboardPanel.onDidDispose(() => {
-        ctx.webDashboardPanel = undefined;
-        ctx.webDashboardInitialized = false;
-        stopWebDashboardPolling(ctx);
+    ctx.dashboardPanel.onDidDispose(() => {
+        ctx.dashboardPanel = undefined;
+        ctx.dashboardInitialized = false;
+        stopDashboardPolling(ctx);
     });
 
     // 自動更新ポーリングを開始
-    startWebDashboardPolling(ctx);
+    startDashboardPolling(ctx);
 
-    ctx.webDashboardPanel.webview.onDidReceiveMessage(
+    ctx.dashboardPanel.webview.onDidReceiveMessage(
         message => {
             switch (message.command) {
                 case 'refresh':
-                    updateWebDashboard(ctx);
+                    updateDashboard(ctx);
                     break;
                 case 'openInBrowser':
                     openDashboardInBrowser(ctx);
                     break;
                 case 'showController':
-                    ctx.showDashboard();
+                    ctx.showController();
                     break;
                 case 'openFile':
                     openFileWithPreview(ctx, message.path);
@@ -75,14 +75,14 @@ export function showWebDashboard(ctx: DashboardContext): void {
         ctx.context?.subscriptions
     );
 
-    updateWebDashboard(ctx);
+    updateDashboard(ctx);
 }
 
 /**
- * Webダッシュボードを更新
+ * ダッシュボードを更新
  */
-export async function updateWebDashboard(ctx: DashboardContext): Promise<void> {
-    if (!ctx.webDashboardPanel) return;
+export async function updateDashboard(ctx: ViewContext): Promise<void> {
+    if (!ctx.dashboardPanel) return;
 
     // workspaceRootがない場合は再取得を試みる
     let projectPath = ctx.workspaceRoot;
@@ -92,7 +92,7 @@ export async function updateWebDashboard(ctx: DashboardContext): Promise<void> {
 
     if (!projectPath) {
         // ワークスペースが開かれていない場合のエラー表示
-        ctx.webDashboardPanel.webview.html = `
+        ctx.dashboardPanel.webview.html = `
             <!DOCTYPE html>
             <html>
             <head>
@@ -126,15 +126,15 @@ export async function updateWebDashboard(ctx: DashboardContext): Promise<void> {
 
     try {
         // 初回はHTMLを取得、2回目以降はJSON APIで部分更新
-        if (!ctx.webDashboardInitialized) {
-            await initializeWebDashboard(ctx, serverUrl, normalizedPath);
-            ctx.webDashboardInitialized = true;
+        if (!ctx.dashboardInitialized) {
+            await initializeDashboard(ctx, serverUrl, normalizedPath);
+            ctx.dashboardInitialized = true;
         } else {
-            await updateWebDashboardData(ctx, serverUrl, normalizedPath);
+            await updateDashboardData(ctx, serverUrl, normalizedPath);
         }
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        ctx.webDashboardPanel.webview.html = `
+        ctx.dashboardPanel.webview.html = `
             <!DOCTYPE html>
             <html>
             <head>
@@ -178,39 +178,39 @@ export async function updateWebDashboard(ctx: DashboardContext): Promise<void> {
 }
 
 /**
- * Webダッシュボードの自動更新ポーリングを開始
+ * ダッシュボードの自動更新ポーリングを開始
  */
-export function startWebDashboardPolling(ctx: DashboardContext): void {
-    if (ctx.webDashboardPollingInterval) return;
+export function startDashboardPolling(ctx: ViewContext): void {
+    if (ctx.dashboardPollingInterval) return;
 
-    ctx.webDashboardPollingInterval = setInterval(() => {
-        if (ctx.webDashboardPanel) {
-            updateWebDashboard(ctx);
+    ctx.dashboardPollingInterval = setInterval(() => {
+        if (ctx.dashboardPanel) {
+            updateDashboard(ctx);
         } else {
-            stopWebDashboardPolling(ctx);
+            stopDashboardPolling(ctx);
         }
     }, WEB_DASHBOARD_POLLING_INTERVAL);
 
-    ctx.log('[WebDashboard] 自動更新ポーリング開始（10秒間隔）');
+    ctx.log('[Dashboard] 自動更新ポーリング開始（10秒間隔）');
 }
 
 /**
- * Webダッシュボードの自動更新ポーリングを停止
+ * ダッシュボードの自動更新ポーリングを停止
  */
-export function stopWebDashboardPolling(ctx: DashboardContext): void {
-    if (ctx.webDashboardPollingInterval) {
-        clearInterval(ctx.webDashboardPollingInterval);
-        ctx.webDashboardPollingInterval = undefined;
-        ctx.log('[WebDashboard] 自動更新ポーリング停止');
+export function stopDashboardPolling(ctx: ViewContext): void {
+    if (ctx.dashboardPollingInterval) {
+        clearInterval(ctx.dashboardPollingInterval);
+        ctx.dashboardPollingInterval = undefined;
+        ctx.log('[Dashboard] 自動更新ポーリング停止');
     }
 }
 
 /**
- * Webダッシュボードを初期化（初回HTML設定）
+ * ダッシュボードを初期化（初回HTML設定）
  * postMessageリスナーを追加してJSON更新に対応
  */
-export async function initializeWebDashboard(ctx: DashboardContext, serverUrl: string, projectPath: string): Promise<void> {
-    if (!ctx.webDashboardPanel) return;
+export async function initializeDashboard(ctx: ViewContext, serverUrl: string, projectPath: string): Promise<void> {
+    if (!ctx.dashboardPanel) return;
 
     const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(projectPath)}`;
     const response = await fetch(dashboardUrl);
@@ -259,17 +259,17 @@ export async function initializeWebDashboard(ctx: DashboardContext, serverUrl: s
     // </body>の前にスクリプトを挿入
     html = html.replace('</body>', messageListenerScript + '</body>');
 
-    ctx.webDashboardPanel.webview.html = html;
-    ctx.log('[WebDashboard] 初回HTML設定完了（postMessageリスナー追加済み）');
+    ctx.dashboardPanel.webview.html = html;
+    ctx.log('[Dashboard] 初回HTML設定完了（postMessageリスナー追加済み）');
 }
 
 /**
- * WebダッシュボードをJSON APIで部分更新
+ * ダッシュボードをJSON APIで部分更新
  * 展開状態を保持したままデータのみ更新
  * Webviewの完了セクション表示設定を送信し、ハッシュ比較で差分検知
  */
-export async function updateWebDashboardData(ctx: DashboardContext, serverUrl: string, projectPath: string): Promise<void> {
-    if (!ctx.webDashboardPanel) return;
+export async function updateDashboardData(ctx: ViewContext, serverUrl: string, projectPath: string): Promise<void> {
+    if (!ctx.dashboardPanel) return;
 
     // Webviewの表示設定をクエリパラメータに含める
     const state = ctx.completedViewState;
@@ -299,20 +299,20 @@ export async function updateWebDashboardData(ctx: DashboardContext, serverUrl: s
 
     // postMessageでWebviewにデータを送信
     // Webview側のリスナーがupdateStats/updateTaskListsWithMetaを呼び出す
-    ctx.webDashboardPanel.webview.postMessage({
+    ctx.dashboardPanel.webview.postMessage({
         type: 'dashboardUpdate',
         stats: data.stats,
         tasks: data.tasks,
         completedMeta: data.completedMeta
     });
 
-    ctx.log('[WebDashboard] JSON APIで部分更新送信');
+    ctx.log('[Dashboard] JSON APIで部分更新送信');
 }
 
 /**
  * 完了タスクのレビュー済みフラグをトグル
  */
-export async function toggleTaskReview(ctx: DashboardContext, taskId: string, reviewed: boolean): Promise<void> {
+export async function toggleTaskReview(ctx: ViewContext, taskId: string, reviewed: boolean): Promise<void> {
     const serverUrl = 'http://localhost:3100';
     let projectPath = ctx.workspaceRoot;
     if (!projectPath) return;
@@ -326,16 +326,16 @@ export async function toggleTaskReview(ctx: DashboardContext, taskId: string, re
             body: JSON.stringify({ reviewed }),
         });
         // PATCH成功後、webviewに完了ページ再取得シグナルを送信
-        ctx.webDashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
+        ctx.dashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
     } catch (error) {
-        ctx.log(`[WebDashboard] Review toggle failed: ${error}`);
+        ctx.log(`[Dashboard] Review toggle failed: ${error}`);
     }
 }
 
 /**
  * 完了タスクのスターフラグをトグル
  */
-export async function toggleTaskStar(ctx: DashboardContext, taskId: string, starred: boolean): Promise<void> {
+export async function toggleTaskStar(ctx: ViewContext, taskId: string, starred: boolean): Promise<void> {
     const serverUrl = 'http://localhost:3100';
     let projectPath = ctx.workspaceRoot;
     if (!projectPath) return;
@@ -349,19 +349,19 @@ export async function toggleTaskStar(ctx: DashboardContext, taskId: string, star
             body: JSON.stringify({ starred }),
         });
         // PATCH成功後、webviewに完了ページ再取得シグナルを送信
-        ctx.webDashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
+        ctx.dashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
     } catch (error) {
-        ctx.log(`[WebDashboard] Star toggle failed: ${error}`);
+        ctx.log(`[Dashboard] Star toggle failed: ${error}`);
     }
 }
 
 /**
  * 完了タスクのページネーションデータを取得してWebviewに送信
  */
-export async function fetchCompletedPage(ctx: DashboardContext, offset: number, limit: number, reviewed?: string, starred?: string): Promise<void> {
+export async function fetchCompletedPage(ctx: ViewContext, offset: number, limit: number, reviewed?: string, starred?: string): Promise<void> {
     const serverUrl = 'http://localhost:3100';
     let projectPath = ctx.workspaceRoot;
-    if (!projectPath || !ctx.webDashboardPanel) return;
+    if (!projectPath || !ctx.dashboardPanel) return;
     const normalizedPath = CURRENT_ENV === 'windows-native'
         ? windowsToWslPath(projectPath)
         : projectPath;
@@ -374,7 +374,7 @@ export async function fetchCompletedPage(ctx: DashboardContext, offset: number, 
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
         const data = await response.json() as { html: string; total: number; offset: number; limit: number; hasMore: boolean };
-        ctx.webDashboardPanel.webview.postMessage({
+        ctx.dashboardPanel.webview.postMessage({
             type: 'completedPageUpdate',
             html: data.html,
             total: data.total,
@@ -382,14 +382,14 @@ export async function fetchCompletedPage(ctx: DashboardContext, offset: number, 
             limit: data.limit,
         });
     } catch (error) {
-        ctx.log(`[WebDashboard] Completed page fetch failed: ${error}`);
+        ctx.log(`[Dashboard] Completed page fetch failed: ${error}`);
     }
 }
 
 /**
- * ブラウザでWebダッシュボードを開く
+ * ブラウザでダッシュボードを開く
  */
-export function openDashboardInBrowser(ctx: DashboardContext): void {
+export function openDashboardInBrowser(ctx: ViewContext): void {
     if (!ctx.workspaceRoot) return;
     const serverUrl = 'http://localhost:3100';
     // Windows環境の場合はWSLパスに変換
@@ -403,7 +403,7 @@ export function openDashboardInBrowser(ctx: DashboardContext): void {
 /**
  * .maid-agentディレクトリ内のファイルを開く
  */
-export async function openMaidAgentFile(ctx: DashboardContext, filename: string): Promise<void> {
+export async function openMaidAgentFile(ctx: ViewContext, filename: string): Promise<void> {
     if (!ctx.maidAgentPath) return;
     const filePath = path.join(ctx.maidAgentPath, filename);
     if (fs.existsSync(filePath)) {
@@ -419,12 +419,12 @@ export async function openMaidAgentFile(ctx: DashboardContext, filename: string)
 
 /**
  * ファイルを開き、マークダウンの場合はプレビューも表示
- * Webダッシュボードからの報告書リンク用
+ * ダッシュボードからの報告書リンク用
  *
  * サーバーの /file エンドポイントからリンク化済みHTMLを取得する。
  * サーバー接続失敗時はローカルレンダリング（simpleMarkdownToHtml）にフォールバック。
  */
-export async function openFileWithPreview(ctx: DashboardContext, filePath: string): Promise<void> {
+export async function openFileWithPreview(ctx: ViewContext, filePath: string): Promise<void> {
     try {
         const fileName = path.basename(filePath);
 
@@ -456,7 +456,7 @@ export async function openFileWithPreview(ctx: DashboardContext, filePath: strin
  * linkifyProjectPaths() によるパスリンク化が適用されたHTMLが返る
  * @returns HTML文字列、または取得失敗時は null
  */
-async function fetchRenderedFileHtml(ctx: DashboardContext, filePath: string): Promise<string | null> {
+async function fetchRenderedFileHtml(ctx: ViewContext, filePath: string): Promise<string | null> {
     try {
         const serverUrl = 'http://localhost:3100';
         let projectPath = ctx.workspaceRoot;
@@ -528,7 +528,7 @@ function renderFileLocally(filePath: string, fileName: string): string | null {
  * レポートビューアパネルを確保（既存パネル再利用 or 新規作成）
  * enableScripts: true でパスリンクのonclickが動作する
  */
-function ensureReportViewerPanel(ctx: DashboardContext, fileName: string): void {
+function ensureReportViewerPanel(ctx: ViewContext, fileName: string): void {
     if (ctx.reportViewerPanel) {
         ctx.reportViewerPanel.title = `📄 ${fileName}`;
         return;
@@ -561,7 +561,7 @@ function ensureReportViewerPanel(ctx: DashboardContext, fileName: string): void 
  * サーバーHTMLの /agent-image URL をローカル画像の Webview URI に差し替える
  * サイドバーと同じ画像ディレクトリからランダム選択する
  */
-function replaceAgentImageWithLocal(html: string, ctx: DashboardContext): string {
+function replaceAgentImageWithLocal(html: string, ctx: ViewContext): string {
     if (!ctx.reportViewerPanel || !ctx.workspaceRoot) return html;
 
     // <img src="/agent-image?agent=xxx&project=xxx" ... > を検出
@@ -602,7 +602,7 @@ function replaceAgentImageWithLocal(html: string, ctx: DashboardContext): string
 /**
  * レポートビューアのHTMLを設定
  */
-export function setReportViewerHtml(ctx: DashboardContext, contentHtml: string, fileName: string): void {
+export function setReportViewerHtml(ctx: ViewContext, contentHtml: string, fileName: string): void {
     if (!ctx.reportViewerPanel) return;
     ctx.reportViewerPanel.webview.html = `<!DOCTYPE html>
 <html>
@@ -728,32 +728,32 @@ function buildReportViewerHtml(contentHtml: string, fileName: string): string {
 }
 
 /**
- * SerializerからWebダッシュボードパネルを復元する
+ * Serializerからダッシュボードパネルを復元する
  */
-export function restoreWebDashboardPanel(ctx: DashboardContext, panel: vscode.WebviewPanel): void {
-    ctx.webDashboardPanel = panel;
+export function restoreDashboardPanel(ctx: ViewContext, panel: vscode.WebviewPanel): void {
+    ctx.dashboardPanel = panel;
 
     // パネル破棄時の処理を再設定
     panel.onDidDispose(() => {
-        ctx.webDashboardPanel = undefined;
-        stopWebDashboardPolling(ctx);
+        ctx.dashboardPanel = undefined;
+        stopDashboardPolling(ctx);
     });
 
     // 自動更新ポーリングを開始
-    startWebDashboardPolling(ctx);
+    startDashboardPolling(ctx);
 
     // メッセージハンドラを再設定
     panel.webview.onDidReceiveMessage(
         message => {
             switch (message.command) {
                 case 'refresh':
-                    updateWebDashboard(ctx);
+                    updateDashboard(ctx);
                     break;
                 case 'openInBrowser':
                     openDashboardInBrowser(ctx);
                     break;
                 case 'showController':
-                    ctx.showDashboard();
+                    ctx.showController();
                     break;
                 case 'openFile':
                     openFileWithPreview(ctx, message.path);
@@ -765,5 +765,5 @@ export function restoreWebDashboardPanel(ctx: DashboardContext, panel: vscode.We
     );
 
     // パネル内容を更新
-    updateWebDashboard(ctx);
+    updateDashboard(ctx);
 }

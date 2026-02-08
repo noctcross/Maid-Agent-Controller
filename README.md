@@ -111,16 +111,16 @@ Maid Agent: Init Global
 
 ### 6. 進捗確認
 
-#### Webダッシュボード（推奨）
+#### ダッシュボード（推奨）
 
 - ステータスバーの「📋 Dashboard」をクリック
-- または `Web Dashboard` コマンド
+- または `Dashboard` コマンド
 - ブラウザで開く場合は `Open Dashboard in Browser` コマンド
 - 10秒間隔で自動更新
 
 #### コントローラーパネル
 
-- `Dashboard` コマンドで表示（VSCode内WebView）
+- `Controller` コマンドで表示（VSCode内WebView）
 
 #### サイドバー（エージェントパネル）
 
@@ -358,8 +358,8 @@ VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
 | `Claude Start` | claude | 全ターミナルでClaude起動 |
 | `Task to Butler` | task butler | 執事にタスク送信 |
 | `Task to Maid` | task maid | 特定メイドに送信 |
-| `Dashboard` | dashboard | コントローラーパネル表示 |
-| `Web Dashboard` | web dashboard | タスクダッシュボード表示 |
+| `Controller` | controller | コントローラーパネル表示 |
+| `Dashboard` | dashboard | ダッシュボード表示 |
 | `Open Dashboard in Browser` | browser | ブラウザでダッシュボードを開く |
 | `Tmux Viewer` | tmux viewer | tmuxビューアを開く |
 | `Kill All` | kill all | 全セッション一括終了 |

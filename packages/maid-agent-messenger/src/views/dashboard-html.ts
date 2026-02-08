@@ -771,7 +771,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
 <body>
   <div class="header">
     <div>
-      <h1>🎩 Maid Agent Dashboard</h1>
+      <h1>📋 Maid Agent Dashboard</h1>
       <div class="project-path">${escapeHtml(projectPath)}</div>
     </div>
     <div class="timestamp">更新: ${timestamp}</div>

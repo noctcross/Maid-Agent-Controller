@@ -31,7 +31,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // コントローラパネルの永続化（VSCode再起動時に復元）
     context.subscriptions.push(
-        vscode.window.registerWebviewPanelSerializer('multiAgentDashboard', {
+        vscode.window.registerWebviewPanelSerializer('maidAgentController', {
             async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown) {
                 // パネルのオプションを再設定
                 panel.webview.options = { enableScripts: true };
@@ -40,13 +40,13 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // Webダッシュボードパネルの永続化（VSCode再起動時に復元）
+    // ダッシュボードパネルの永続化（VSCode再起動時に復元）
     context.subscriptions.push(
-        vscode.window.registerWebviewPanelSerializer('maidAgentWebDashboard', {
+        vscode.window.registerWebviewPanelSerializer('maidAgentDashboard', {
             async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown) {
                 // パネルのオプションを再設定
                 panel.webview.options = { enableScripts: true };
-                controller.restoreWebDashboardPanel(panel);
+                controller.restoreDashboardPanel(panel);
             }
         })
     );
@@ -107,11 +107,11 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('multiAgent.startClaude', () => {
             controller.startClaudeOnAllAgents();
         }),
+        vscode.commands.registerCommand('multiAgent.showController', () => {
+            controller.showController();
+        }),
         vscode.commands.registerCommand('multiAgent.showDashboard', () => {
             controller.showDashboard();
-        }),
-        vscode.commands.registerCommand('multiAgent.showWebDashboard', () => {
-            controller.showWebDashboard();
         }),
         vscode.commands.registerCommand('multiAgent.openDashboardInBrowser', () => {
             controller.openDashboardInBrowser();
@@ -147,10 +147,10 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(...commands);
 
-    // Dashboard ボタン（タスク一覧）
+    // ダッシュボードボタン（タスク一覧）
     const dashboardStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 101);
     dashboardStatusBarItem.text = '📋 Dashboard';
-    dashboardStatusBarItem.command = 'multiAgent.showWebDashboard';
+    dashboardStatusBarItem.command = 'multiAgent.showDashboard';
     dashboardStatusBarItem.tooltip = 'クリックでタスク一覧を表示';
     dashboardStatusBarItem.show();
     context.subscriptions.push(dashboardStatusBarItem);
@@ -158,7 +158,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Controller ボタン（コントローラー）
     const controllerStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     controllerStatusBarItem.text = '🎩 Controller';
-    controllerStatusBarItem.command = 'multiAgent.showDashboard';
+    controllerStatusBarItem.command = 'multiAgent.showController';
     controllerStatusBarItem.tooltip = 'クリックでコントローラーを表示';
     controllerStatusBarItem.show();
     context.subscriptions.push(controllerStatusBarItem);

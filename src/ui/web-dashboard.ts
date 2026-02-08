@@ -320,7 +320,7 @@ export async function toggleTaskReview(ctx: DashboardContext, taskId: string, re
         ? windowsToWslPath(projectPath)
         : projectPath;
     try {
-        await fetch(`${serverUrl}/api/tasks/${taskId}/review`, {
+        await fetch(`${serverUrl}/dashboard/tasks/${taskId}/review`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': normalizedPath },
             body: JSON.stringify({ reviewed }),
@@ -343,7 +343,7 @@ export async function toggleTaskStar(ctx: DashboardContext, taskId: string, star
         ? windowsToWslPath(projectPath)
         : projectPath;
     try {
-        await fetch(`${serverUrl}/api/tasks/${taskId}/star`, {
+        await fetch(`${serverUrl}/dashboard/tasks/${taskId}/star`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': normalizedPath },
             body: JSON.stringify({ starred }),

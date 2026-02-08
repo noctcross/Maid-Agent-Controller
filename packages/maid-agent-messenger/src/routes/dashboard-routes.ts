@@ -10,6 +10,7 @@ import { getJstTimestamp } from "../utils/yaml-helper.js";
 import {
   executeListTasks,
   executeGetTeamStatus,
+  executeUpdateTask,
 } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import type { DashboardData } from "../views/dashboard-html.js";
@@ -312,6 +313,52 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({ error: "SSE connection failed", details: message });
+    }
+  });
+
+  // PATCH /dashboard/tasks/:id/review - レビュー済みトグル（LAN公開）
+  router.patch("/dashboard/tasks/:id/review", async (req: Request, res: Response) => {
+    try {
+      const projectPath = getProjectPathFromRequest(req);
+      const { reviewed } = req.body;
+
+      const result = await executeUpdateTask(projectPath, {
+        taskId: req.params.id,
+        reviewed: reviewed !== undefined ? reviewed : true,
+      });
+
+      if (!result.success) {
+        res.status(404).json({ error: "Task not found", taskId: req.params.id });
+        return;
+      }
+
+      res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Review toggle failed", details: message });
+    }
+  });
+
+  // PATCH /dashboard/tasks/:id/star - スタートグル（LAN公開）
+  router.patch("/dashboard/tasks/:id/star", async (req: Request, res: Response) => {
+    try {
+      const projectPath = getProjectPathFromRequest(req);
+      const { starred } = req.body;
+
+      const result = await executeUpdateTask(projectPath, {
+        taskId: req.params.id,
+        starred: starred !== undefined ? starred : true,
+      });
+
+      if (!result.success) {
+        res.status(404).json({ error: "Task not found", taskId: req.params.id });
+        return;
+      }
+
+      res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Star toggle failed", details: message });
     }
   });
 

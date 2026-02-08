@@ -555,7 +555,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       if (_vscodeApi) {
         _vscodeApi.postMessage({ command: 'toggleReview', taskId: taskId, reviewed: newValue });
       } else {
-        fetch('/api/tasks/' + taskId + '/review', {
+        fetch('/dashboard/tasks/' + taskId + '/review', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}' },
           body: JSON.stringify({ reviewed: newValue })
@@ -571,7 +571,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       if (_vscodeApi) {
         _vscodeApi.postMessage({ command: 'toggleStar', taskId: taskId, starred: newValue });
       } else {
-        fetch('/api/tasks/' + taskId + '/star', {
+        fetch('/dashboard/tasks/' + taskId + '/star', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}' },
           body: JSON.stringify({ starred: newValue })

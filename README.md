@@ -8,9 +8,41 @@ VSCode拡張として動作するマルチエージェントClaude Code管理シ
 - **階層型マルチエージェント**: 執事 → メイド長 → メイド8人の3層構造
 - **MCPサーバー連携**: タスク管理・エージェント間通信をMCP経由で効率化（トークン消費削減）
 - **タスク管理システム**: tasks.yaml による一元管理、ステータス追跡、レポートアーカイブ
-- **Webダッシュボード**: リアルタイムでタスク進捗を確認、ブラウザからもアクセス可能
+- **ダッシュボード**: リアルタイムでタスク進捗を確認、ブラウザからもアクセス可能
 - **WSL + tmux**: Windows環境でもWSL経由で安定動作
 - **ビジュアル管理**: サイドバーの立ち絵表示、tmuxビューア
+
+## 環境要件
+
+### 対応プラットフォーム
+
+| プラットフォーム | v1 サポート | 備考 |
+|----------------|------------|------|
+| Windows + WSL2 | ✅ サポート | メイン開発・テスト環境 |
+| Linux (ネイティブ) | ⚠️ 未検証 | 動作する可能性はあるが保証なし |
+| macOS | ⚠️ 未検証 | Init Global の動作未確認 |
+
+### 必須ソフトウェア
+
+| ソフトウェア | バージョン | 備考 |
+|------------|-----------|------|
+| VSCode | 1.85.0 以上 | |
+| Node.js | 20.x 以上 | npm install に必要 |
+| Claude Code (CLI) | 最新版 | Anthropic 公式 CLI |
+| tmux | 3.0 以上 | |
+
+### Windows 追加要件
+
+| ソフトウェア | バージョン | 備考 |
+|------------|-----------|------|
+| WSL2 | - | `Init Global` で自動チェック |
+| Ubuntu (WSL) | 22.04+ 推奨 | Node.js, tmux は WSL 内にインストール |
+
+### 自動インストールされるもの
+
+以下は `Init Global` 実行時に自動セットアップされます:
+- **PM2**: プロセスマネージャー
+- **maid-agent-messenger**: MCPサーバー
 
 ## 階層構造
 
@@ -38,11 +70,42 @@ VSCode拡張として動作するマルチエージェントClaude Code管理シ
 
 ## インストール
 
+### 方法1: VSIX ファイルから（推奨）
+
+1. [Releases ページ](https://github.com/noctcross/AgentMaid/releases) から `.vsix` ファイルをダウンロード
+2. VSCode のコマンドパレット（`Ctrl+Shift+P`）→ `Extensions: Install from VSIX...`
+3. ダウンロードした `.vsix` ファイルを選択
+
+### 方法2: ソースからビルド（開発者向け）
+
 ```bash
 cd "VSCode拡張/AgentMaid"
 npm install
 npm run compile
+# F5 でデバッグ起動、または:
+npx @vscode/vsce package  # .vsix ファイルを生成
 ```
+
+## 事前準備
+
+### Claude Code のセットアップ
+
+本拡張機能はエージェント起動時に Claude Code CLI を使用します。事前にインストールと認証を完了してください。
+
+1. [Claude Code 公式ドキュメント](https://docs.anthropic.com/en/docs/claude-code) に従いインストール
+   ```bash
+   # WSL 内で実行
+   npm install -g @anthropic-ai/claude-code
+   ```
+2. 初回認証を完了:
+   ```bash
+   claude  # 初回起動で認証フロー
+   ```
+3. `--dangerously-skip-permissions` の初回確認:
+   ```bash
+   claude --dangerously-skip-permissions
+   # → Yes を選択（エージェント自律動作に必要）
+   ```
 
 ## 使い方
 
@@ -97,10 +160,8 @@ Maid Agent: Init Global
 | `Call Butler & Chief` | agents | 執事とメイド長を起動 |
 | `Call Maids Pick` | pick | チェックボックスでメイドを選択 |
 
-> ⚠️ **初回起動時の注意**: `claude --dangerously-skip-permissions` を初めて実行する環境では、
-> 確認プロンプトが表示されます（デフォルトNo）。
-> **事前に別のターミナルで一度実行し、Yes を選択してください。**
-> 2回目以降は確認なしで起動します。
+> ⚠️ **初回起動時の注意**: `--dangerously-skip-permissions` の初回確認が必要です。
+> 詳細は[事前準備](#事前準備)セクションを参照してください。
 
 ### 5. タスクを実行
 
@@ -375,7 +436,7 @@ VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
 
 1. メイドがスキル化候補を発見 → reports/ に記載
 2. メイド長が集約 → `create_task(category: "skill_candidate")` でタスク作成
-3. Webダッシュボードの「📚 スキル候補」に表示
+3. ダッシュボードの「📚 スキル候補」に表示
 4. ユーザーが承認 → skills/ に作成
 
 詳細は `.maid-agent/agents/skills/skill-creator/SKILL.md` を参照。
@@ -386,7 +447,7 @@ VSCode の設定（`Ctrl+,`）で以下の項目を変更できます：
 
 1. メイドが改善点を発見 → reports/ に `improvement_proposal` を記載
 2. メイド長が集約 → `create_task(category: "improvement")` でタスク作成
-3. Webダッシュボードの「💡 改善提案」に表示
+3. ダッシュボードの「💡 改善提案」に表示
 4. ユーザーが承認 → 該当ルールを更新
 
 ## グローバル設定

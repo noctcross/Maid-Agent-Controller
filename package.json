@@ -1,8 +1,10 @@
 {
   "name": "multi-agent-controller",
   "displayName": "Maid Agent Controller",
-  "description": "VSCode extension for multi-agent Claude Code orchestration (multi-agent-shogun style)",
-  "version": "0.5.0",
+  "publisher": "TBD",
+  "description": "VSCode extension for multi-agent Claude Code orchestration with hierarchical maid system",
+  "version": "1.0.0",
+  "keywords": ["multi-agent", "claude", "ai", "orchestration", "maid-agent"],
   "engines": {
     "vscode": "^1.85.0"
   },

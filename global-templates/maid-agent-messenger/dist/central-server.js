@@ -27,6 +27,7 @@ import { generateTaskHtml } from "./views/task-html.js";
 // MCPサーバーファクトリ
 import { createMcpServer } from "./mcp-server-factory.js";
 import { KeepAliveManager } from "./middleware/keepalive-manager.js";
+import { loopbackOnly } from "./middleware/loopback-only.js";
 const app = express();
 app.use(express.json());
 // リクエストログ
@@ -60,10 +61,13 @@ async function main() {
     // ========================================
     // ルートマウント
     // ========================================
-    app.use(createMcpRoutes({ sessions, createMcpServer, keepAliveManager }));
-    app.use(legacyRoutes);
-    app.use(taskApiRoutes);
+    // 非公開エンドポイント（loopbackのみ）
+    app.use(loopbackOnly, createMcpRoutes({ sessions, createMcpServer, keepAliveManager }));
+    app.use(loopbackOnly, legacyRoutes);
+    app.use(loopbackOnly, taskApiRoutes);
+    // ダッシュボード（LAN公開OK）
     app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml }));
+    // ファイル・画像配信（ダッシュボードから参照されるためLAN公開OK）
     app.use(fileRoutes);
     app.use(imageRoutes);
     // ========================================

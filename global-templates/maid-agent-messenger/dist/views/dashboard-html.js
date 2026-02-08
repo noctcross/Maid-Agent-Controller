@@ -932,8 +932,11 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
     // 完了セクションのハッシュ（差分検知用）
     var completedHash = '';
 
-    // サーバーURLを埋め込み（VSCode Webview対応）
-    const serverBaseUrl = 'http://127.0.0.1:3100';
+    // サーバーURLを動的に取得（ブラウザ: location.origin、VSCode Webview: サーバー設定値）
+    // 0.0.0.0 はリッスンアドレスであり接続先として不適切なため 127.0.0.1 にfallback
+    const serverBaseUrl = (typeof acquireVsCodeApi !== 'undefined')
+      ? '${data.serverUrl}'.replace('0.0.0.0', '127.0.0.1')
+      : window.location.origin;
 
     function startPolling() {
       if (pollingIntervalId) return; // 既に開始済み

@@ -118,7 +118,7 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
       // McpServer インスタンスを作成
       const server = createMcpServer(projectPath);
 
-      // セッション情報を保存
+      // セッション情報を保存（eventStoreも保持してGC時にクリーンアップ可能にする）
       const now = new Date();
       sessions.set(newSessionId, {
         transport,
@@ -127,6 +127,7 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
         createdAt: now,
         lastActivity: now,
         missedPings: 0,
+        eventStore,
       });
 
       // サーバーに接続
@@ -141,12 +142,25 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
       await transport.handleRequest(req, res, req.body);
 
       // セッション終了時のクリーンアップ（transportのcloseイベント）
-      transport.onclose = () => {
+      transport.onclose = async () => {
         console.log(`Session closed: ${newSessionId}`);
-        if (keepAliveManager) {
-          keepAliveManager.stopPing(newSessionId, sessions.get(newSessionId)!);
+        const closingSession = sessions.get(newSessionId);
+        if (closingSession) {
+          if (keepAliveManager) {
+            keepAliveManager.stopPing(newSessionId, closingSession);
+          }
+          // McpServerをclose（内部リスナー・ツールハンドラの解放）
+          try {
+            await closingSession.server.close();
+          } catch (e) {
+            console.log(`[SessionCleanup] Error closing McpServer: ${e}`);
+          }
+          // EventStoreのクリーンアップ
+          if (closingSession.eventStore) {
+            closingSession.eventStore.clear();
+          }
+          sessions.delete(newSessionId);
         }
-        sessions.delete(newSessionId);
       };
 
     } catch (error) {
@@ -238,7 +252,17 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
     if (keepAliveManager) {
       keepAliveManager.stopPing(sessionId, session);
     }
+    // McpServerをclose（内部リスナー・ツールハンドラの解放）
+    try {
+      await session.server.close();
+    } catch (e) {
+      console.log(`[SessionCleanup] Error closing McpServer: ${e}`);
+    }
     await session.transport.close();
+    // EventStoreのクリーンアップ
+    if (session.eventStore) {
+      session.eventStore.clear();
+    }
     sessions.delete(sessionId);
 
     res.status(204).end();

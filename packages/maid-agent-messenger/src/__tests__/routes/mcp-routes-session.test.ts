@@ -7,7 +7,7 @@ import type { AddressInfo } from "net";
 jest.unstable_mockModule("../../middleware/session-manager.js", () => ({
   sessions: new Map(),
   validateProjectPath: () => null, // always valid
-  cleanupIdleSessions: () => 0,
+  cleanupIdleSessions: () => Promise.resolve(0),
   getProjectPathFromRequest: () => "/test/project",
 }));
 

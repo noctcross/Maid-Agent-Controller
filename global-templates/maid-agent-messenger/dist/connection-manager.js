@@ -176,6 +176,10 @@ export class ConnectionManager {
                 `(attempt ${this.reconnectAttempts}/${max_reconnect_attempts}, ` +
                 `next in ${Math.round(this.currentReconnectInterval / 1000)}s)`);
             const isHealthy = await checkHealth(this.baseUrl, this.config.central.connection_timeout);
+            // await中にdisconnect()が呼ばれた場合、再接続を中止
+            if (this.mode !== "local") {
+                return;
+            }
             if (isHealthy) {
                 this.mode = "central";
                 this.reconnectAttempts = 0;

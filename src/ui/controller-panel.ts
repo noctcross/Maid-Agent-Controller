@@ -1,26 +1,26 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Agent, DashboardContext } from '../types';
+import { Agent, ViewContext } from '../types';
 import { MAIDS, NOTIFICATIONS_SUBDIR, MAID_DATA_SUBDIR, INSTRUCTIONS_SUBDIR, CONFIG_SUBDIR, WEB_DASHBOARD_POLLING_INTERVAL } from '../constants';
 
 /**
- * コントローラダッシュボード関連の関数群
+ * コントローラーパネル関連の関数群
  * extension.ts の MultiAgentController から抽出
  */
 
 /**
- * コントローラダッシュボードを表示
+ * コントローラーパネルを表示
  */
-export function showDashboard(ctx: DashboardContext): void {
-    if (ctx.dashboardPanel) {
-        ctx.dashboardPanel.reveal();
-        ctx.updateDashboard();
+export function showController(ctx: ViewContext): void {
+    if (ctx.controllerPanel) {
+        ctx.controllerPanel.reveal();
+        ctx.updateController();
         return;
     }
 
-    ctx.dashboardPanel = vscode.window.createWebviewPanel(
-        'multiAgentDashboard',
+    ctx.controllerPanel = vscode.window.createWebviewPanel(
+        'maidAgentController',
         '🎩 Controller',
         vscode.ViewColumn.Active,
         {
@@ -29,15 +29,15 @@ export function showDashboard(ctx: DashboardContext): void {
         }
     );
 
-    ctx.dashboardPanel.onDidDispose(() => {
-        ctx.dashboardPanel = undefined;
+    ctx.controllerPanel.onDidDispose(() => {
+        ctx.controllerPanel = undefined;
     });
 
-    ctx.dashboardPanel.webview.onDidReceiveMessage(
+    ctx.controllerPanel.webview.onDidReceiveMessage(
         message => {
             switch (message.command) {
                 case 'refresh':
-                    ctx.updateDashboard();
+                    ctx.updateController();
                     break;
                 case 'sendTask':
                     ctx.promptAndSendToButler();
@@ -46,7 +46,7 @@ export function showDashboard(ctx: DashboardContext): void {
                     ctx.openMaidAgentFile(message.file);
                     break;
                 case 'showTaskDashboard':
-                    ctx.showWebDashboard();
+                    ctx.showDashboard();
                     break;
             }
         },
@@ -54,18 +54,18 @@ export function showDashboard(ctx: DashboardContext): void {
         ctx.context?.subscriptions
     );
 
-    ctx.updateDashboard();
+    ctx.updateController();
 }
 
 /**
  * Serializerからコントローラパネルを復元する
  */
-export function restoreControllerPanel(ctx: DashboardContext, panel: vscode.WebviewPanel): void {
-    ctx.dashboardPanel = panel;
+export function restoreControllerPanel(ctx: ViewContext, panel: vscode.WebviewPanel): void {
+    ctx.controllerPanel = panel;
 
     // パネル破棄時の処理を再設定
     panel.onDidDispose(() => {
-        ctx.dashboardPanel = undefined;
+        ctx.controllerPanel = undefined;
     });
 
     // メッセージハンドラを再設定
@@ -73,7 +73,7 @@ export function restoreControllerPanel(ctx: DashboardContext, panel: vscode.Webv
         message => {
             switch (message.command) {
                 case 'refresh':
-                    ctx.updateDashboard();
+                    ctx.updateController();
                     break;
                 case 'sendTask':
                     ctx.promptAndSendToButler();
@@ -82,7 +82,7 @@ export function restoreControllerPanel(ctx: DashboardContext, panel: vscode.Webv
                     ctx.openMaidAgentFile(message.file);
                     break;
                 case 'showTaskDashboard':
-                    ctx.showWebDashboard();
+                    ctx.showDashboard();
                     break;
             }
         },
@@ -91,14 +91,14 @@ export function restoreControllerPanel(ctx: DashboardContext, panel: vscode.Webv
     );
 
     // パネル内容を更新
-    ctx.updateDashboard();
+    ctx.updateController();
 }
 
 /**
- * ダッシュボードHTMLを生成してパネルを更新
+ * コントローラーHTMLを生成してパネルを更新
  */
-export function updateDashboard(ctx: DashboardContext): void {
-    if (!ctx.dashboardPanel) return;
+export function updateController(ctx: ViewContext): void {
+    if (!ctx.controllerPanel) return;
 
     const butler = ctx.agents.get('butler');
     const chief = ctx.agents.get('chief');
@@ -174,7 +174,7 @@ export function updateDashboard(ctx: DashboardContext): void {
         `<div class="log-entry">${log}</div>`
     ).join('');
 
-    ctx.dashboardPanel.webview.html = `
+    ctx.controllerPanel.webview.html = `
 <!DOCTYPE html>
 <html>
 <head>

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Agent, SetupContext, AgentContext, DashboardContext, CompletedViewState } from './types';
+import { Agent, SetupContext, AgentContext, ViewContext, CompletedViewState } from './types';
 import { MAID_AGENT_DIR, NOTIFICATIONS_SUBDIR } from './constants';
 import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion } from './utils/environment';
 import { getGlobalMaidAgentPath, getSessionNameFromPath, getOrderedMaids } from './utils/helpers';
@@ -13,8 +13,8 @@ import * as RulesSkills from './setup/rules-skills';
 import * as AgentLifecycle from './agents/agent-lifecycle';
 import * as AgentComm from './agents/agent-communication';
 import * as AgentStartup from './agents/agent-startup';
-import * as ControllerDashboard from './ui/controller-dashboard';
-import * as WebDashboard from './ui/web-dashboard';
+import * as ControllerPanel from './ui/controller-panel';
+import * as Dashboard from './ui/web-dashboard';
 import * as StatusBar from './ui/status-bar';
 
 // =============================================================================
@@ -24,7 +24,7 @@ import * as StatusBar from './ui/status-bar';
 export class MultiAgentController {
     private agents: Map<string, Agent> = new Map();
     private outputChannel: vscode.OutputChannel;
-    private dashboardPanel: vscode.WebviewPanel | undefined;
+    private controllerPanel: vscode.WebviewPanel | undefined;
     private logs: string[] = [];
     private context: vscode.ExtensionContext | undefined;
     private workspaceRoot: string | undefined;
@@ -38,9 +38,9 @@ export class MultiAgentController {
     private lastDetectedAgentId: string | null = null;  // 前回検出したエージェントID
     private statusBarItem: vscode.StatusBarItem | undefined;  // ステータスバー通知用
     private statusBarResetTimeout: NodeJS.Timeout | undefined;  // ステータスバー表示リセット用
-    private webDashboardPanel: vscode.WebviewPanel | undefined;
-    private webDashboardPollingInterval: NodeJS.Timeout | undefined;
-    private webDashboardInitialized = false;
+    private dashboardPanel: vscode.WebviewPanel | undefined;
+    private dashboardPollingInterval: NodeJS.Timeout | undefined;
+    private dashboardInitialized = false;
     private completedViewState: CompletedViewState = { limit: 10, offset: 0, reviewed: undefined, starred: undefined, hash: '' };
     private reportViewerPanel: vscode.WebviewPanel | undefined;
 
@@ -81,51 +81,51 @@ export class MultiAgentController {
     // =========================================================================
 
     private showStatusBarNotification(icon: string, message: string): void {
-        StatusBar.showStatusBarNotification(this.createDashboardContext(), icon, message);
+        StatusBar.showStatusBarNotification(this.createViewContext(), icon, message);
     }
 
-    public showDashboard(): void {
-        ControllerDashboard.showDashboard(this.createDashboardContext());
+    public showController(): void {
+        ControllerPanel.showController(this.createViewContext());
     }
 
     public restoreControllerPanel(panel: vscode.WebviewPanel): void {
-        ControllerDashboard.restoreControllerPanel(this.createDashboardContext(), panel);
+        ControllerPanel.restoreControllerPanel(this.createViewContext(), panel);
     }
 
-    private updateDashboard(): void {
-        ControllerDashboard.updateDashboard(this.createDashboardContext());
+    private updateController(): void {
+        ControllerPanel.updateController(this.createViewContext());
     }
 
-    public showWebDashboard(): void {
-        WebDashboard.showWebDashboard(this.createDashboardContext());
+    public showDashboard(): void {
+        Dashboard.showDashboard(this.createViewContext());
     }
 
-    private async updateWebDashboard(): Promise<void> {
-        return WebDashboard.updateWebDashboard(this.createDashboardContext());
+    private async updateDashboard(): Promise<void> {
+        return Dashboard.updateDashboard(this.createViewContext());
     }
 
-    private startWebDashboardPolling(): void {
-        WebDashboard.startWebDashboardPolling(this.createDashboardContext());
+    private startDashboardPolling(): void {
+        Dashboard.startDashboardPolling(this.createViewContext());
     }
 
-    private stopWebDashboardPolling(): void {
-        WebDashboard.stopWebDashboardPolling(this.createDashboardContext());
+    private stopDashboardPolling(): void {
+        Dashboard.stopDashboardPolling(this.createViewContext());
     }
 
     public openDashboardInBrowser(): void {
-        WebDashboard.openDashboardInBrowser(this.createDashboardContext());
+        Dashboard.openDashboardInBrowser(this.createViewContext());
     }
 
     private async openMaidAgentFile(filename: string): Promise<void> {
-        return WebDashboard.openMaidAgentFile(this.createDashboardContext(), filename);
+        return Dashboard.openMaidAgentFile(this.createViewContext(), filename);
     }
 
     private async openFileWithPreview(filePath: string): Promise<void> {
-        return WebDashboard.openFileWithPreview(this.createDashboardContext(), filePath);
+        return Dashboard.openFileWithPreview(this.createViewContext(), filePath);
     }
 
-    public restoreWebDashboardPanel(panel: vscode.WebviewPanel): void {
-        WebDashboard.restoreWebDashboardPanel(this.createDashboardContext(), panel);
+    public restoreDashboardPanel(panel: vscode.WebviewPanel): void {
+        Dashboard.restoreDashboardPanel(this.createViewContext(), panel);
     }
 
     // エージェントパネルを更新
@@ -281,7 +281,7 @@ export class MultiAgentController {
             log: (msg: string) => this.log(msg),
 
             // ─── Controller methods (NOT in E4, stay in controller) ───
-            updateDashboard: () => this.updateDashboard(),
+            updateDashboard: () => this.updateController(),
             updateAgentPanel: () => this.updateAgentPanel(),
             delay: (ms: number) => this.delay(ms),
             startWatchingFiles: (silent?: boolean) => this.startWatchingFiles(silent),
@@ -311,7 +311,7 @@ export class MultiAgentController {
         };
     }
 
-    private createDashboardContext(): DashboardContext {
+    private createViewContext(): ViewContext {
         const controller = this;
         return {
             // ─── State ───
@@ -322,14 +322,14 @@ export class MultiAgentController {
             get context() { return controller.context; },
 
             // ─── Panel State (mutable via getter/setter) ───
+            get controllerPanel() { return controller.controllerPanel; },
+            set controllerPanel(v) { controller.controllerPanel = v; },
             get dashboardPanel() { return controller.dashboardPanel; },
             set dashboardPanel(v) { controller.dashboardPanel = v; },
-            get webDashboardPanel() { return controller.webDashboardPanel; },
-            set webDashboardPanel(v) { controller.webDashboardPanel = v; },
-            get webDashboardInitialized() { return controller.webDashboardInitialized; },
-            set webDashboardInitialized(v) { controller.webDashboardInitialized = v; },
-            get webDashboardPollingInterval() { return controller.webDashboardPollingInterval; },
-            set webDashboardPollingInterval(v) { controller.webDashboardPollingInterval = v; },
+            get dashboardInitialized() { return controller.dashboardInitialized; },
+            set dashboardInitialized(v) { controller.dashboardInitialized = v; },
+            get dashboardPollingInterval() { return controller.dashboardPollingInterval; },
+            set dashboardPollingInterval(v) { controller.dashboardPollingInterval = v; },
             get completedViewState() { return controller.completedViewState; },
             set completedViewState(v) { controller.completedViewState = v; },
             get reportViewerPanel() { return controller.reportViewerPanel; },
@@ -345,16 +345,16 @@ export class MultiAgentController {
             promptAndSendToButler: () => this.promptAndSendToButler(),
 
             // ─── Cross-module E5 methods ───
+            showController: () => this.showController(),
             showDashboard: () => this.showDashboard(),
-            showWebDashboard: () => this.showWebDashboard(),
+            updateController: () => this.updateController(),
             updateDashboard: () => this.updateDashboard(),
-            updateWebDashboard: () => this.updateWebDashboard(),
             openMaidAgentFile: (filename: string) => this.openMaidAgentFile(filename),
             openFileWithPreview: (filePath: string) => this.openFileWithPreview(filePath),
             openDashboardInBrowser: () => this.openDashboardInBrowser(),
             showStatusBarNotification: (icon: string, message: string) => this.showStatusBarNotification(icon, message),
-            startWebDashboardPolling: () => this.startWebDashboardPolling(),
-            stopWebDashboardPolling: () => this.stopWebDashboardPolling(),
+            startDashboardPolling: () => this.startDashboardPolling(),
+            stopDashboardPolling: () => this.stopDashboardPolling(),
         };
     }
 
@@ -595,7 +595,7 @@ export class MultiAgentController {
         this.fileWatcher.onDidChange((uri) => {
             const fileName = path.basename(uri.fsPath);
             this.log(`[ファイル変更] ${fileName}`);
-            this.updateDashboard();
+            this.updateController();
 
 
             // reports/*.md が更新されたらメイド長への報告チェック
@@ -874,7 +874,7 @@ ${agentList || '  (なし)'}
 
         // ポーリングを停止
         this.stopTmuxWindowPolling();
-        this.stopWebDashboardPolling();
+        this.stopDashboardPolling();
 
         // ステータスバー通知タイマーを停止
         if (this.statusBarResetTimeout) {
@@ -886,8 +886,8 @@ ${agentList || '  (なし)'}
 
         // その他のリソースをクリーンアップ
         this.outputChannel.dispose();
+        this.controllerPanel?.dispose();
         this.dashboardPanel?.dispose();
-        this.webDashboardPanel?.dispose();
         this.fileWatcher?.dispose();
     }
 

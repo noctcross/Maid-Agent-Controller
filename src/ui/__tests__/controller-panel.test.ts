@@ -10,12 +10,12 @@ vi.mock('vscode', () => ({
 
 import * as fs from 'fs';
 import { NOTIFICATIONS_SUBDIR, INSTRUCTIONS_SUBDIR, CONFIG_SUBDIR } from '../../constants';
-import { updateDashboard } from '../controller-dashboard';
+import { updateController } from '../controller-panel';
 
 // fs.existsSync / readFileSync をスパイ
 vi.mock('fs');
 
-describe('updateDashboard', () => {
+describe('updateController', () => {
     let capturedHtml: string;
     let mockCtx: any;
 
@@ -24,7 +24,7 @@ describe('updateDashboard', () => {
         vi.restoreAllMocks();
 
         mockCtx = {
-            dashboardPanel: {
+            controllerPanel: {
                 webview: {
                     set html(value: string) { capturedHtml = value; },
                     get html() { return capturedHtml; },
@@ -40,7 +40,7 @@ describe('updateDashboard', () => {
         it('history.log を system/data/notifications/ から読み取ること', () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
 
-            updateDashboard(mockCtx);
+            updateController(mockCtx);
 
             // existsSync に渡されたパスを検証
             const calls = vi.mocked(fs.existsSync).mock.calls;
@@ -56,7 +56,7 @@ describe('updateDashboard', () => {
         it('設定ファイルリンクが agents/instructions/ パスを使用すること', () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
 
-            updateDashboard(mockCtx);
+            updateController(mockCtx);
 
             expect(capturedHtml).toContain(`openFile('${INSTRUCTIONS_SUBDIR}/butler.md')`);
             expect(capturedHtml).toContain(`openFile('${INSTRUCTIONS_SUBDIR}/chief.md')`);
@@ -67,7 +67,7 @@ describe('updateDashboard', () => {
         it('旧パス（instructions/, config/）を使用していないこと', () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
 
-            updateDashboard(mockCtx);
+            updateController(mockCtx);
 
             // 旧パスが含まれていないことを確認
             expect(capturedHtml).not.toMatch(/openFile\('instructions\//);
@@ -77,7 +77,7 @@ describe('updateDashboard', () => {
         it('Queue ボタンが存在せず tasks.yaml リンクがあること', () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
 
-            updateDashboard(mockCtx);
+            updateController(mockCtx);
 
             expect(capturedHtml).not.toContain("openFile('queue/");
             expect(capturedHtml).toContain("openFile('system/data/tasks.yaml')");
@@ -86,7 +86,7 @@ describe('updateDashboard', () => {
         it('QUICK_REFERENCE.md リンクが存在すること', () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
 
-            updateDashboard(mockCtx);
+            updateController(mockCtx);
 
             expect(capturedHtml).toContain('QUICK_REFERENCE.md');
         });
@@ -100,7 +100,7 @@ describe('updateDashboard', () => {
                 '[2026-02-07 12:01:00] chief → emma: 新タスク割り当て'
             );
 
-            updateDashboard(mockCtx);
+            updateController(mockCtx);
 
             expect(capturedHtml).toContain('conv-sender');
             expect(capturedHtml).toContain('alice');
@@ -110,7 +110,7 @@ describe('updateDashboard', () => {
         it('history.log が存在しない場合、デフォルトメッセージを表示すること', () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
 
-            updateDashboard(mockCtx);
+            updateController(mockCtx);
 
             expect(capturedHtml).toContain('会話ログはございません');
         });
@@ -141,7 +141,7 @@ describe('updateDashboard', () => {
                 name: 'アリス', id: 'alice', role: 'maid', status: 'working', tmuxWindow: 'alice',
             });
 
-            updateDashboard(mockCtx);
+            updateController(mockCtx);
 
             expect(capturedHtml).toContain('task-060-5');
         });
@@ -151,7 +151,7 @@ describe('updateDashboard', () => {
         it('setInterval による自動更新スクリプトが含まれること', () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
 
-            updateDashboard(mockCtx);
+            updateController(mockCtx);
 
             expect(capturedHtml).toContain('setInterval');
             expect(capturedHtml).toContain('refresh()');

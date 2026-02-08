@@ -71,13 +71,13 @@
         "category": "Maid Agent"
       },
       {
-        "command": "multiAgent.showDashboard",
-        "title": "Dashboard - ダッシュボードを表示",
+        "command": "multiAgent.showController",
+        "title": "Controller - コントローラーを表示",
         "category": "Maid Agent"
       },
       {
-        "command": "multiAgent.showWebDashboard",
-        "title": "Web Dashboard - タスクダッシュボードを表示",
+        "command": "multiAgent.showDashboard",
+        "title": "Dashboard - ダッシュボードを表示",
         "category": "Maid Agent"
       },
       {

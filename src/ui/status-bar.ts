@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import { DashboardContext } from '../types';
+import { ViewContext } from '../types';
 
 /**
  * ステータスバーに一時的なメッセージを表示（5秒後に元に戻る）
  */
-export function showStatusBarNotification(ctx: DashboardContext, icon: string, message: string): void {
+export function showStatusBarNotification(ctx: ViewContext, icon: string, message: string): void {
     if (!ctx.statusBarItem) return;
 
     // 既存のリセットタイマーをクリア

@@ -379,7 +379,12 @@ export async function ensureInitialized(ctx: AgentContext): Promise<boolean> {
  * MCPサーバーが起動しているか確認し、起動していなければ起動する
  */
 export async function ensureMcpServerRunning(ctx: AgentContext): Promise<void> {
-    return Pm2Setup.ensureMcpServerRunning(ctx.createSetupContext());
+    const setupCtx = ctx.createSetupContext();
+    if (!setupCtx) {
+        ctx.log('[MCP] SetupContext未初期化のためMCPサーバー起動をスキップ');
+        return;
+    }
+    return Pm2Setup.ensureMcpServerRunning(setupCtx);
 }
 
 /**

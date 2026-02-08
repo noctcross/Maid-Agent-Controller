@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ViewContext } from '../types';
-import { WEB_DASHBOARD_POLLING_INTERVAL } from '../constants';
+import { WEB_DASHBOARD_POLLING_INTERVAL, DASHBOARD_SERVER_URL } from '../constants';
 import { CURRENT_ENV, windowsToWslPath } from '../utils/environment';
 import { simpleMarkdownToHtml } from '../utils/markdown';
 import { isPathWithinRoot } from '../utils/path-validator';
@@ -121,7 +121,7 @@ export async function updateDashboard(ctx: ViewContext): Promise<void> {
         return;
     }
 
-    const serverUrl = 'http://localhost:3100';
+    const serverUrl = DASHBOARD_SERVER_URL;
     const normalizedPath = CURRENT_ENV === 'windows-native'
         ? windowsToWslPath(projectPath)
         : projectPath;
@@ -315,7 +315,7 @@ export async function updateDashboardData(ctx: ViewContext, serverUrl: string, p
  * 完了タスクのレビュー済みフラグをトグル
  */
 export async function toggleTaskReview(ctx: ViewContext, taskId: string, reviewed: boolean): Promise<void> {
-    const serverUrl = 'http://localhost:3100';
+    const serverUrl = DASHBOARD_SERVER_URL;
     let projectPath = ctx.workspaceRoot;
     if (!projectPath) return;
     const normalizedPath = CURRENT_ENV === 'windows-native'
@@ -338,7 +338,7 @@ export async function toggleTaskReview(ctx: ViewContext, taskId: string, reviewe
  * 完了タスクのスターフラグをトグル
  */
 export async function toggleTaskStar(ctx: ViewContext, taskId: string, starred: boolean): Promise<void> {
-    const serverUrl = 'http://localhost:3100';
+    const serverUrl = DASHBOARD_SERVER_URL;
     let projectPath = ctx.workspaceRoot;
     if (!projectPath) return;
     const normalizedPath = CURRENT_ENV === 'windows-native'
@@ -361,7 +361,7 @@ export async function toggleTaskStar(ctx: ViewContext, taskId: string, starred: 
  * 完了タスクのページネーションデータを取得してWebviewに送信
  */
 export async function fetchCompletedPage(ctx: ViewContext, offset: number, limit: number, reviewed?: string, starred?: string): Promise<void> {
-    const serverUrl = 'http://localhost:3100';
+    const serverUrl = DASHBOARD_SERVER_URL;
     let projectPath = ctx.workspaceRoot;
     if (!projectPath || !ctx.dashboardPanel) return;
     const normalizedPath = CURRENT_ENV === 'windows-native'
@@ -393,7 +393,7 @@ export async function fetchCompletedPage(ctx: ViewContext, offset: number, limit
  */
 export function openDashboardInBrowser(ctx: ViewContext): void {
     if (!ctx.workspaceRoot) return;
-    const serverUrl = 'http://localhost:3100';
+    const serverUrl = DASHBOARD_SERVER_URL;
     // Windows環境の場合はWSLパスに変換
     const normalizedPath = CURRENT_ENV === 'windows-native'
         ? windowsToWslPath(ctx.workspaceRoot)
@@ -474,7 +474,7 @@ async function fetchRenderedFileHtml(ctx: ViewContext, filePath: string): Promis
         if (ctx.workspaceRoot && !isPathWithinRoot(filePath, ctx.workspaceRoot)) {
             return null;
         }
-        const serverUrl = 'http://localhost:3100';
+        const serverUrl = DASHBOARD_SERVER_URL;
         let projectPath = ctx.workspaceRoot;
         if (!projectPath) {
             projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -778,6 +778,24 @@ export function restoreDashboardPanel(ctx: ViewContext, panel: vscode.WebviewPan
                     break;
                 case 'openFile':
                     openFileWithPreview(ctx, message.path);
+                    break;
+                case 'toggleReview':
+                    toggleTaskReview(ctx, message.taskId, message.reviewed);
+                    break;
+                case 'toggleStar':
+                    toggleTaskStar(ctx, message.taskId, message.starred);
+                    break;
+                case 'completedPage':
+                    fetchCompletedPage(ctx, message.offset, message.limit, message.reviewed, message.starred);
+                    break;
+                case 'updateCompletedViewState':
+                    ctx.completedViewState = {
+                        limit: message.limit ?? 10,
+                        offset: message.offset ?? 0,
+                        reviewed: message.reviewed,
+                        starred: message.starred,
+                        hash: message.hash ?? ''
+                    };
                     break;
             }
         },

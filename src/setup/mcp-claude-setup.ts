@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { SetupContext } from '../types';
 import { CURRENT_ENV, windowsToWslPath } from '../utils/environment';
+import { DASHBOARD_SERVER_URL } from '../constants';
 
 /**
  * .mcp.json を生成
@@ -21,7 +22,7 @@ export async function generateMcpJson(ctx: SetupContext): Promise<void> {
 
     const maidAgentServerConfig = {
         type: "http",
-        url: "http://localhost:3100/mcp",
+        url: `${DASHBOARD_SERVER_URL}/mcp`,
         headers: {
             "X-Maid-Project-Path": "${CLAUDE_PROJECT_DIR}"
         }

@@ -26,7 +26,7 @@ VSCode拡張として動作するマルチエージェントClaude Code管理シ
 
 | ソフトウェア | バージョン | 備考 |
 |------------|-----------|------|
-| VSCode | 1.85.0 以上 | |
+| VSCode | 1.85.0 以上 | Windsurf (19.9544.35) でも動作確認済み |
 | Node.js | 20.x 以上 | npm install に必要 |
 | Claude Code (CLI) | 最新版 | Anthropic 公式 CLI |
 | tmux | 3.0 以上 | |
@@ -35,12 +35,12 @@ VSCode拡張として動作するマルチエージェントClaude Code管理シ
 
 | ソフトウェア | バージョン | 備考 |
 |------------|-----------|------|
-| WSL2 | - | `Init Global` で自動チェック |
+| WSL2 | - | [`Init Global`](#2-グローバル初期化初回のみ) コマンドで自動チェック |
 | Ubuntu (WSL) | 22.04+ 推奨 | Node.js, tmux は WSL 内にインストール |
 
 ### 自動インストールされるもの
 
-以下は `Init Global` 実行時に自動セットアップされます:
+以下は [`Init Global`](#2-グローバル初期化初回のみ) 実行時に自動セットアップされます:
 - **PM2**: プロセスマネージャー
 - **maid-agent-messenger**: MCPサーバー
 
@@ -63,8 +63,8 @@ VSCode拡張として動作するマルチエージェントClaude Code管理シ
 │🎀│🎀│🎀│🎀│🎀│🎀│🎀│🎀│ ← 並列実行
 │エ│ソ│リ│ロ│ア│メ│フ│ル│    update_status で報告
 │マ│フ│リ│｜│リ│イ│ロ│ナ│
-│  │ィ│｜│ズ│ス│  │ラ│  │
-│  │ア│  │  │  │  │  │  │
+│  │ィ│｜│ズ│ス│  │｜│  │
+│  │ア│  │  │  │  │ラ│  │
 └──┴──┴──┴──┴──┴──┴──┴──┘
 ```
 
@@ -72,7 +72,7 @@ VSCode拡張として動作するマルチエージェントClaude Code管理シ
 
 ### 方法1: VSIX ファイルから（推奨）
 
-1. [Releases ページ](https://github.com/noctcross/AgentMaid/releases) から `.vsix` ファイルをダウンロード
+1. [Releases ページ](https://github.com/noctcross/Maid-Agent-Controller/releases) から `.vsix` ファイルをダウンロード
 2. VSCode のコマンドパレット（`Ctrl+Shift+P`）→ `Extensions: Install from VSIX...`
 3. ダウンロードした `.vsix` ファイルを選択
 
@@ -203,6 +203,75 @@ Maid Agent: Init Global
 | `Claude Start` | 全ターミナルでClaude Code起動 |
 
 > IDE起動時に既存セッションがあれば自動復帰します（`maidAgent.autoResumeOnStartup`）
+
+## 画面構成
+
+本拡張機能は3つの画面を提供し、それぞれ異なる用途で使用します。
+
+<!-- TODO: スクショ（3画面の概要） -->
+
+| 画面 | 表示場所 | 用途 | 開き方 |
+|------|---------|------|--------|
+| **ダッシュボード** | VSCode内 WebView / ブラウザ | タスク進捗・レポート閲覧 | `Dashboard` コマンド |
+| **コントローラー** | VSCode内 WebView | セッション管理・エージェント操作 | `Controller` コマンド |
+| **サイドバー** | VSCode サイドバー | エージェント立ち絵表示 | Activity Bar の ♥ アイコン |
+
+### ダッシュボード
+
+タスクの進捗確認とレポート閲覧を行うメイン画面です。
+
+<!-- TODO: スクショ（ダッシュボード全体） -->
+
+**主な機能:**
+
+- **タスク一覧**: 全タスクのステータス（pending / working / completed / blocked）をリアルタイム表示
+- **進捗トラッキング**: 各メイドの作業状況をステータスアイコンで確認
+- **レポート閲覧**: メイドが作成した作業報告書をダッシュボード上で直接閲覧
+- **カテゴリ分類**: 🚨 要対応 / 📚 スキル候補 / 💡 改善提案 をタブで切り替え
+- **自動更新**: 10秒間隔でデータを自動取得
+
+**表示方法:**
+- VSCode 内: `Dashboard` コマンド（WebView パネル）
+- ブラウザ: `Open Dashboard in Browser` コマンド（`http://localhost:3100/dashboard`）
+- LAN 内端末: [LAN内ダッシュボード閲覧](#lan内ダッシュボード閲覧) を参照
+
+### コントローラーパネル
+
+エージェントの起動・停止・再起動を管理する操作画面です。
+
+<!-- TODO: スクショ（コントローラー） -->
+
+- `Controller` コマンドで VSCode 内に WebView として表示
+- 各エージェントのステータス表示と操作ボタン
+- セッション一括管理
+
+### サイドバー（エージェントパネル）
+
+ターミナルタブの切り替えに連動して、対応するエージェントの立ち絵を表示します。
+
+<!-- TODO: スクショ（サイドバー立ち絵） -->
+
+- Activity Bar の ♥ アイコンで表示
+- カスタム画像に対応（[カスタム立ち絵](#カスタム立ち絵) 参照）
+
+### 報告書システム
+
+メイドのタスク完了時に作業報告書が自動生成・アーカイブされ、ダッシュボードから閲覧できます。
+
+```
+メイド: タスク実行 → current_{name}.md に報告書作成
+    ↓ update_status(completed)
+MCPサーバー: reports/ current_{name}.md → master/reports/task-{id}-{name}.md にアーカイブ
+    ↓
+ダッシュボード: タスク詳細からレポートを閲覧
+```
+
+**報告書の内容:**
+- タスク情報（ID・タイトル・ステータス）
+- 作業内容の詳細
+- 変更ファイル一覧
+- 問題・注意点
+- スキル化候補・改善提案（該当する場合）
 
 ## タスク管理システム
 
@@ -336,11 +405,20 @@ pm2 stop maid-agent-messenger     # 停止
   "mcpServers": {
     "maid-agent-messenger": {
       "type": "http",
-      "url": "http://localhost:3100/mcp"
+      "url": "http://localhost:3100/mcp",
+      "headers": {
+        "X-Maid-Project-Path": "${CLAUDE_PROJECT_DIR}"
+      }
     }
   }
 }
 ```
+
+`X-Maid-Project-Path` ヘッダーは、MCPサーバーが操作対象のプロジェクトを識別するために使用します。
+`${CLAUDE_PROJECT_DIR}` は Claude Code が起動時にプロジェクトルートの絶対パスに自動展開します。
+
+> **Note**: 1つのMCPサーバーが複数プロジェクトに対応するため、このヘッダーは必須です。
+> 手動で `.mcp.json` を編集する場合は、プロジェクトの絶対パス（WSLパス形式）を直接指定することもできます。
 
 ## カスタム立ち絵
 
@@ -587,11 +665,23 @@ http://<WindowsのIPアドレス>:3100/dashboard?project=<プロジェクトパ�
 - MCPエンドポイント（`/mcp`）、レガシーAPI（`/legacy`）、タスクAPI（`/api`）はloopbackのみアクセス可（LAN端末からは403）
 - 認証機構は未実装のため、信頼できるLAN内でのみ使用推奨
 
+<!-- TODO: ご主人様トーン判断後に差し替え(#108-5) -->
+## 謝辞
+
+本プロジェクトは [multi-agent-shogun](https://github.com/yohey-w/multi-agent-shogun)（[@shio_shoppaize](https://x.com/shio_shoppaize)氏）を参考に開発しました。
+執事・メイド長・メイドの3層構造によるマルチエージェント管理という着想は、同プロジェクトに着想を得ています。
+
+本プロジェクトでは、MCPサーバーによるエージェント間通信、VSCode拡張としてのGUI統合、ダッシュボード機能などを独自に追加しています。
+開発開始時点（shogun v1.1相当）から双方のアップデートが重なり、現在は異なる方向に発展しています。
+
+> 公開にあたり、開発者ご本人より許可をいただいております（[Xポスト](https://x.com/shio_shoppaize/status/2019729337113878551)）。
+> 素晴らしいプロジェクトを公開してくださったことに感謝いたします。
+
 ## 参考
 
-- 元ネタ: [multi-agent-shogun](https://github.com/yohey-w/multi-agent-shogun)
-- 記事: https://zenn.dev/shio_shoppaize/articles/5fee11d03a11a1
-- VSCode API: https://code.visualstudio.com/api
+- [multi-agent-shogun](https://github.com/yohey-w/multi-agent-shogun) — 3層マルチエージェント管理の元プロジェクト
+- [解説記事](https://zenn.dev/shio_shoppaize/articles/5fee11d03a11a1) — multi-agent-shogun の設計思想
+- [VSCode API](https://code.visualstudio.com/api) — VSCode拡張開発リファレンス
 
 ## ライセンス
 

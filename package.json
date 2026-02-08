@@ -7,7 +7,7 @@
   "keywords": ["multi-agent", "claude", "ai", "orchestration", "maid-agent"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/noctcross/AgentMaid.git"
+    "url": "https://github.com/noctcross/Maid-Agent-Controller.git"
   },
   "engines": {
     "vscode": "^1.85.0"

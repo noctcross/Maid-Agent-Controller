@@ -226,13 +226,13 @@ export async function resumeSessions(ctx: AgentContext): Promise<void> {
     const agentMapping: { [key: string]: { name: string; role: 'butler' | 'chiefMaid' | 'maid'; emoji: string } } = {
         'butler': { name: 'シルヴィア', role: 'butler', emoji: '🎩' },
         'chief': { name: 'ビオラ', role: 'chiefMaid', emoji: '👑' },
-        'emma': { name: 'エマ', role: 'maid', emoji: '🌸' },
-        'sophia': { name: 'ソフィア', role: 'maid', emoji: '📚' },
-        'lily': { name: 'リリー', role: 'maid', emoji: '🎨' },
+        'emma': { name: 'エマ', role: 'maid', emoji: '☕' },
+        'sophia': { name: 'ソフィア', role: 'maid', emoji: '❄️' },
+        'lily': { name: 'リリー', role: 'maid', emoji: '🎀' },
         'rose': { name: 'ローズ', role: 'maid', emoji: '🌹' },
-        'alice': { name: 'アリス', role: 'maid', emoji: '🔧' },
-        'may': { name: 'メイ', role: 'maid', emoji: '🍰' },
-        'flora': { name: 'フローラ', role: 'maid', emoji: '🌷' },
+        'alice': { name: 'アリス', role: 'maid', emoji: '✨' },
+        'may': { name: 'メイ', role: 'maid', emoji: '🕊️' },
+        'flora': { name: 'フローラ', role: 'maid', emoji: '🌿' },
         'luna': { name: 'ルナ', role: 'maid', emoji: '🌙' }
     };
 

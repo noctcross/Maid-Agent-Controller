@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Agent, ViewContext } from '../types';
-import { MAIDS, NOTIFICATIONS_SUBDIR, MAID_DATA_SUBDIR, INSTRUCTIONS_SUBDIR, CONFIG_SUBDIR, WEB_DASHBOARD_POLLING_INTERVAL } from '../constants';
+import { MAIDS, MAIDS_MAP, NOTIFICATIONS_SUBDIR, MAID_DATA_SUBDIR, INSTRUCTIONS_SUBDIR, CONFIG_SUBDIR, WEB_DASHBOARD_POLLING_INTERVAL } from '../constants';
 import { escapeHtml } from '../utils/html-escape';
 
 /**
@@ -171,8 +171,8 @@ export function updateController(ctx: ViewContext): void {
 
     const butlerHtml = butler ? renderAgent(butler, '🎩', '統括') : '<div class="empty-agent">執事がおりません</div>';
     const chiefHtml = chief ? renderAgent(chief, '👑', '配分担当') : '<div class="empty-agent">メイド長がおりません</div>';
-    const maidsRow1 = maids.slice(0, 4).map(m => renderAgent(m, '🎀', '実行担当')).join('');
-    const maidsRow2 = maids.slice(4).map(m => renderAgent(m, '🎀', '実行担当')).join('');
+    const maidsRow1 = maids.slice(0, 4).map(m => renderAgent(m, MAIDS_MAP[m.id]?.emoji ?? '🎀', '実行担当')).join('');
+    const maidsRow2 = maids.slice(4).map(m => renderAgent(m, MAIDS_MAP[m.id]?.emoji ?? '🎀', '実行担当')).join('');
     const maidsHtml = maids.length > 0
         ? `<div class="maids-grid">${maidsRow1}</div><div class="maids-grid">${maidsRow2}</div>`
         : '<div class="empty-agent">メイドがおりません</div>';

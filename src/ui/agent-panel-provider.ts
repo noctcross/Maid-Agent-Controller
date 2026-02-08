@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Agent } from '../types';
-import { MAID_AGENT_DIR, AGENT_COLORS } from '../constants';
+import { MAID_AGENT_DIR, AGENT_COLORS, MAIDS_MAP } from '../constants';
 
 // =============================================================================
 // エージェントパネル（サイドバー用 WebviewView）
@@ -183,7 +183,8 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             const roleLabel = agent.role === 'butler' ? '執事' :
                              agent.role === 'chiefMaid' ? 'メイド長' : 'メイド';
             const emoji = agent.role === 'butler' ? '🎩' :
-                         agent.role === 'chiefMaid' ? '👑' : '🎀';
+                         agent.role === 'chiefMaid' ? '👑' :
+                         MAIDS_MAP[agent.id]?.emoji ?? '🎀';
             const statusEmoji = agent.status === 'working' ? '⚡' :
                                agent.status === 'done' ? '✅' : '💤';
             const statusLabel = agent.status === 'working' ? 'working' :

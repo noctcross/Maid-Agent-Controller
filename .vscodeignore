@@ -15,17 +15,22 @@ src/
 node_modules/
 global-templates/maid-agent-messenger/node_modules/
 
-# Build artifacts that are regenerated
-*.map
+# Build artifacts
+**/*.map
 
 # Test files
 .vscode-test/
 **/*.test.ts
 **/*.spec.ts
+out/**/__tests__/
+global-templates/maid-agent-messenger/dist/__tests__/
+
+# Type definitions (not needed at runtime)
+global-templates/maid-agent-messenger/dist/**/*.d.ts
 
 # Logs
 *.log
-logs/
+**/logs/
 
 # Editor/IDE
 *.swp

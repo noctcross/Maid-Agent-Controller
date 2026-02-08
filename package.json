@@ -1,8 +1,14 @@
 {
   "name": "multi-agent-controller",
   "displayName": "Maid Agent Controller",
-  "description": "VSCode extension for multi-agent Claude Code orchestration (multi-agent-shogun style)",
-  "version": "0.5.0",
+  "description": "VSCode extension for multi-agent Claude Code orchestration with hierarchical maid system",
+  "version": "1.0.0",
+  "publisher": "noctcross",
+  "keywords": ["multi-agent", "claude", "ai", "orchestration", "maid-agent"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/noctcross/AgentMaid.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },

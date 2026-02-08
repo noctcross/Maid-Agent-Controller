@@ -2,6 +2,7 @@
 
 ## タスク情報
 - task_id: {{TASK_ID}}
+- title: {{TITLE}}
 - description: {{DESCRIPTION}}
 - status: (作業中)
 - completed_at:
@@ -14,6 +15,13 @@
 
 ## 問題・注意点
 
+
+## エスカレーション
+escalation:
+  required: false
+  # required: true の場合は以下を記載
+  # title: ""         # エスカレーション件名
+  # detail: ""        # 詳細・背景（「問題・注意点」と重複する場合は参照でも可）
 
 ## 切り出し確認
 extraction_check:

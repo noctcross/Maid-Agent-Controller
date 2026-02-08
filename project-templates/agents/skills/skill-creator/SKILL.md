@@ -101,7 +101,7 @@ description: PDFからテーブルを抽出しCSVに変換する。データ分�
 ### 5. 保存
 
 保存先:
-- ローカル: `.maid-agent/skills/{skill-name}/`
+- ローカル: `.maid-agent/agents/skills/{skill-name}/`
 - グローバル: `~/.claude/skills/maid-generated/`（将来対応）
 
 ## 使用フロー（承認プロセス）
@@ -179,7 +179,7 @@ description: ユニットテストのテンプレートを生成する。Jest/Mo
 新しいスキルを作成いたしました:
 - スキル名: {name}
 - 用途: {description}
-- 保存先: .maid-agent/skills/{name}/SKILL.md
+- 保存先: .maid-agent/agents/skills/{name}/SKILL.md
 
 詳細は該当ファイルをご確認くださいませ。
 ```

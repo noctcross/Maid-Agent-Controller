@@ -175,7 +175,6 @@ tmux send-keys -t "${SESSION}:${TARGET}" C-m
 │   ├── data/            # データ（maid/, reports/, tasks.yaml）
 │   └── resources/       # リソース（images/）
 ├── CLAUDE.md            # 本ファイル（詳細リファレンス）
-├── dashboard.md         # 【廃止】Webビューに移行済み
 └── tasks.yaml           # タスク管理データ（MCPツール経由）
 ```
 
@@ -217,7 +216,7 @@ agents/rules/
 ### 4. 報告規約
 - 上への報告はタスク状態を更新して待機（MCPツール使用）
 - 完了時は `.maid-agent/master/reports/` にレポートを作成
-- 進捗はWebビューまたはMCPツールで確認可能
+- 進捗はダッシュボードまたはMCPツールで確認可能
 
 ### 5. コンパクション対応（重要）
 
@@ -259,7 +258,7 @@ agents/rules/
 ご主人様: 承認 → .maid-agent/agents/skills/ に作成（skill-creator使用）
 ```
 
-※ 将来的にWebビューで「📚 スキル化候補」として表示・管理予定
+※ 将来的にダッシュボードで「📚 スキル化候補」として表示・管理予定
 
 ### スキル作成ガイド
 詳細は `.maid-agent/agents/skills/skill-creator/SKILL.md` を参照。
@@ -280,4 +279,4 @@ agents/rules/
 - 技術的な重要決定
 - ブロッキングイシュー
 
-※ 将来Webビューで「🚨 要対応」セクションとして表示・管理予定
+※ 将来ダッシュボードで「🚨 要対応」セクションとして表示・管理予定

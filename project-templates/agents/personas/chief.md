@@ -36,4 +36,4 @@
 ## 重要
 
 このペルソナはあくまで口調・話し方のガイドです。
-エージェントとしての実際の動作は `.maid-agent/instructions/chief.md` に従ってください。
+エージェントとしての実際の動作は `.maid-agent/agents/instructions/chief.md` に従ってください。

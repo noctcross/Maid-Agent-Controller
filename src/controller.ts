@@ -246,12 +246,16 @@ export class MultiAgentController {
     // 初期化（setup/ モジュールへの委譲）
     // =========================================================================
 
-    private createSetupContext(): SetupContext {
+    private createSetupContext(): SetupContext | undefined {
+        if (!this.workspaceRoot || !this.maidAgentPath || !this.context) {
+            this.log('[setup] SetupContext生成不可: 必要なプロパティが未初期化');
+            return undefined;
+        }
         return {
-            workspaceRoot: this.workspaceRoot!,
-            maidAgentPath: this.maidAgentPath!,
+            workspaceRoot: this.workspaceRoot,
+            maidAgentPath: this.maidAgentPath,
             globalMaidAgentPath: getGlobalMaidAgentPath(),
-            extensionPath: this.context!.extensionPath,
+            extensionPath: this.context.extensionPath,
             outputChannel: this.outputChannel,
             log: (msg: string) => this.log(msg),
         };
@@ -359,16 +363,31 @@ export class MultiAgentController {
     }
 
     public async initializeWorkspace(): Promise<boolean> {
-        return WorkspaceInit.initializeWorkspace(this.createSetupContext());
+        const ctx = this.createSetupContext();
+        if (!ctx) {
+            vscode.window.showErrorMessage('ワークスペースが初期化されていません。フォルダを開いてください。');
+            return false;
+        }
+        return WorkspaceInit.initializeWorkspace(ctx);
     }
 
     public async initializeGlobalSettings(): Promise<boolean> {
-        return WorkspaceInit.initializeGlobalSettings(this.createSetupContext());
+        const ctx = this.createSetupContext();
+        if (!ctx) {
+            vscode.window.showErrorMessage('ワークスペースが初期化されていません。フォルダを開いてください。');
+            return false;
+        }
+        return WorkspaceInit.initializeGlobalSettings(ctx);
     }
 
     public async promoteRuleToGlobal(): Promise<void> {
+        const ctx = this.createSetupContext();
+        if (!ctx) {
+            vscode.window.showErrorMessage('ワークスペースが初期化されていません。フォルダを開いてください。');
+            return;
+        }
         return RulesSkills.promoteRuleToGlobal(
-            this.createSetupContext(),
+            ctx,
             () => this.initializeGlobalSettings()
         );
     }
@@ -470,7 +489,12 @@ export class MultiAgentController {
     }
 
     private async ensureWslAvailable(): Promise<boolean> {
-        return WslSetup.ensureWslAvailable(this.createSetupContext());
+        const ctx = this.createSetupContext();
+        if (!ctx) {
+            this.log('[WSL] SetupContext未初期化のためWSL確認をスキップ');
+            return false;
+        }
+        return WslSetup.ensureWslAvailable(ctx);
     }
 
     private async installTmux(): Promise<boolean> {
@@ -635,6 +659,7 @@ export class MultiAgentController {
 
         // 5秒後にチェック
         const timer = setTimeout(async () => {
+            try {
             this.pendingReportChecks.delete(maidName);
 
             // 通知履歴ログを確認
@@ -686,6 +711,9 @@ export class MultiAgentController {
                 }
             } else {
                 this.log(`[報告チェック] ${maidName} は正常にメイド長へ報告済み`);
+            }
+            } catch (error) {
+                this.log(`[報告チェック] ${maidName} のチェック中にエラー: ${error}`);
             }
         }, 5000);
 
@@ -880,6 +908,12 @@ ${agentList || '  (なし)'}
         if (this.statusBarResetTimeout) {
             clearTimeout(this.statusBarResetTimeout);
         }
+
+        // 報告チェックタイマーを全クリア
+        for (const timer of this.pendingReportChecks.values()) {
+            clearTimeout(timer);
+        }
+        this.pendingReportChecks.clear();
 
         // ビューアターミナルを閉じる
         this.tmuxViewerTerminal?.dispose();

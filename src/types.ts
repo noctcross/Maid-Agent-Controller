@@ -90,7 +90,7 @@ export interface AgentContext {
     initializeWorkspace(): Promise<boolean>;
     installTmux(): Promise<boolean>;
     showTmuxInstallInstructions(): void;
-    createSetupContext(): SetupContext;
+    createSetupContext(): SetupContext | undefined;
     ensureWslAvailable(): Promise<boolean>;
 
     // ─── Cross-module E4 methods (delegated through controller) ───

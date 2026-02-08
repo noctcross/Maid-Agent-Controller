@@ -66,46 +66,100 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     const commands = [
-        vscode.commands.registerCommand('multiAgent.initialize', () => {
-            controller.initializeWorkspace();
-        }),
-        vscode.commands.registerCommand('multiAgent.initializeGlobal', async () => {
-            const success = await controller.initializeGlobalSettings();
-            if (success) {
-                const globalPath = getGlobalMaidAgentPath();
-                vscode.window.showInformationMessage(`🌐 グローバル設定を初期化しました: ${globalPath}`);
-                // フォルダを開く
-                const uri = vscode.Uri.file(globalPath);
-                vscode.commands.executeCommand('revealFileInOS', uri);
+        vscode.commands.registerCommand('multiAgent.initialize', async () => {
+            try {
+                await controller.initializeWorkspace();
+            } catch (error) {
+                vscode.window.showErrorMessage(`初期化に失敗しました: ${error}`);
+                console.error('[Maid Agent] initializeWorkspace:', error);
             }
         }),
-        vscode.commands.registerCommand('multiAgent.resumeSessions', () => {
-            controller.resumeSessions();
+        vscode.commands.registerCommand('multiAgent.initializeGlobal', async () => {
+            try {
+                const success = await controller.initializeGlobalSettings();
+                if (success) {
+                    const globalPath = getGlobalMaidAgentPath();
+                    vscode.window.showInformationMessage(`🌐 グローバル設定を初期化しました: ${globalPath}`);
+                    const uri = vscode.Uri.file(globalPath);
+                    vscode.commands.executeCommand('revealFileInOS', uri);
+                }
+            } catch (error) {
+                vscode.window.showErrorMessage(`グローバル初期化に失敗しました: ${error}`);
+                console.error('[Maid Agent] initializeGlobalSettings:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.startButler', () => {
-            controller.startButler();
+        vscode.commands.registerCommand('multiAgent.resumeSessions', async () => {
+            try {
+                await controller.resumeSessions();
+            } catch (error) {
+                vscode.window.showErrorMessage(`セッション復帰に失敗しました: ${error}`);
+                console.error('[Maid Agent] resumeSessions:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.startChiefMaid', () => {
-            controller.startChiefMaid();
+        vscode.commands.registerCommand('multiAgent.startButler', async () => {
+            try {
+                await controller.startButler();
+            } catch (error) {
+                vscode.window.showErrorMessage(`執事の起動に失敗しました: ${error}`);
+                console.error('[Maid Agent] startButler:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.startAgents', () => {
-            controller.startButler();
-            controller.startChiefMaid();
+        vscode.commands.registerCommand('multiAgent.startChiefMaid', async () => {
+            try {
+                await controller.startChiefMaid();
+            } catch (error) {
+                vscode.window.showErrorMessage(`メイド長の起動に失敗しました: ${error}`);
+                console.error('[Maid Agent] startChiefMaid:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.startSelectedMaids', () => {
-            controller.startSelectedMaids();
+        vscode.commands.registerCommand('multiAgent.startAgents', async () => {
+            try {
+                await controller.startButler();
+                await controller.startChiefMaid();
+            } catch (error) {
+                vscode.window.showErrorMessage(`エージェント起動に失敗しました: ${error}`);
+                console.error('[Maid Agent] startAgents:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.startAll', () => {
-            controller.startAllAgents();
+        vscode.commands.registerCommand('multiAgent.startSelectedMaids', async () => {
+            try {
+                await controller.startSelectedMaids();
+            } catch (error) {
+                vscode.window.showErrorMessage(`メイド起動に失敗しました: ${error}`);
+                console.error('[Maid Agent] startSelectedMaids:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.sendToButler', () => {
-            controller.promptAndSendToButler();
+        vscode.commands.registerCommand('multiAgent.startAll', async () => {
+            try {
+                await controller.startAllAgents();
+            } catch (error) {
+                vscode.window.showErrorMessage(`全エージェント起動に失敗しました: ${error}`);
+                console.error('[Maid Agent] startAllAgents:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.sendToMaid', () => {
-            controller.promptAndSendToMaid();
+        vscode.commands.registerCommand('multiAgent.sendToButler', async () => {
+            try {
+                await controller.promptAndSendToButler();
+            } catch (error) {
+                vscode.window.showErrorMessage(`執事への送信に失敗しました: ${error}`);
+                console.error('[Maid Agent] promptAndSendToButler:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.startClaude', () => {
-            controller.startClaudeOnAllAgents();
+        vscode.commands.registerCommand('multiAgent.sendToMaid', async () => {
+            try {
+                await controller.promptAndSendToMaid();
+            } catch (error) {
+                vscode.window.showErrorMessage(`メイドへの送信に失敗しました: ${error}`);
+                console.error('[Maid Agent] promptAndSendToMaid:', error);
+            }
+        }),
+        vscode.commands.registerCommand('multiAgent.startClaude', async () => {
+            try {
+                await controller.startClaudeOnAllAgents();
+            } catch (error) {
+                vscode.window.showErrorMessage(`Claude起動に失敗しました: ${error}`);
+                console.error('[Maid Agent] startClaudeOnAllAgents:', error);
+            }
         }),
         vscode.commands.registerCommand('multiAgent.showController', () => {
             controller.showController();
@@ -116,8 +170,13 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('multiAgent.openDashboardInBrowser', () => {
             controller.openDashboardInBrowser();
         }),
-        vscode.commands.registerCommand('multiAgent.watchFiles', () => {
-            controller.startWatchingFiles();
+        vscode.commands.registerCommand('multiAgent.watchFiles', async () => {
+            try {
+                await controller.startWatchingFiles();
+            } catch (error) {
+                vscode.window.showErrorMessage(`ファイル監視の開始に失敗しました: ${error}`);
+                console.error('[Maid Agent] startWatchingFiles:', error);
+            }
         }),
         vscode.commands.registerCommand('multiAgent.stopWatchFiles', () => {
             controller.stopWatchingFiles();
@@ -128,20 +187,40 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('multiAgent.killAll', () => {
             controller.killAll();
         }),
-        vscode.commands.registerCommand('multiAgent.killPick', () => {
-            controller.killPick();
+        vscode.commands.registerCommand('multiAgent.killPick', async () => {
+            try {
+                await controller.killPick();
+            } catch (error) {
+                vscode.window.showErrorMessage(`エージェント終了に失敗しました: ${error}`);
+                console.error('[Maid Agent] killPick:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.restartPick', () => {
-            controller.restartPick();
+        vscode.commands.registerCommand('multiAgent.restartPick', async () => {
+            try {
+                await controller.restartPick();
+            } catch (error) {
+                vscode.window.showErrorMessage(`エージェント再起動に失敗しました: ${error}`);
+                console.error('[Maid Agent] restartPick:', error);
+            }
         }),
-        vscode.commands.registerCommand('multiAgent.processNotifications', () => {
-            controller.manualProcessNotifications();
+        vscode.commands.registerCommand('multiAgent.processNotifications', async () => {
+            try {
+                await controller.manualProcessNotifications();
+            } catch (error) {
+                vscode.window.showErrorMessage(`通知処理に失敗しました: ${error}`);
+                console.error('[Maid Agent] manualProcessNotifications:', error);
+            }
         }),
         vscode.commands.registerCommand('multiAgent.showStatus', () => {
             controller.showDebugStatus();
         }),
-        vscode.commands.registerCommand('multiAgent.promoteRuleToGlobal', () => {
-            controller.promoteRuleToGlobal();
+        vscode.commands.registerCommand('multiAgent.promoteRuleToGlobal', async () => {
+            try {
+                await controller.promoteRuleToGlobal();
+            } catch (error) {
+                vscode.window.showErrorMessage(`ルール昇格に失敗しました: ${error}`);
+                console.error('[Maid Agent] promoteRuleToGlobal:', error);
+            }
         }),
     ];
 

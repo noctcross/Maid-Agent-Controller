@@ -5,6 +5,7 @@ import { execSync } from 'child_process';
 import { SetupContext } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { windowsToWslPath } from '../utils/environment';
+import { DASHBOARD_SERVER_URL } from '../constants';
 import { checkPasswordlessSudo, setupPasswordlessSudo, promptWslPassword, showPasswordHelp } from './wsl-setup';
 
 /**
@@ -305,7 +306,7 @@ export async function setupPm2Startup(ctx: SetupContext, cachedPassword?: string
  * - 応答がなければ pm2 start/restart を実行
  */
 export async function ensureMcpServerRunning(ctx: SetupContext): Promise<void> {
-    const healthUrl = 'http://localhost:3100/health';
+    const healthUrl = `${DASHBOARD_SERVER_URL}/health`;
 
     try {
         // ヘルスチェック（タイムアウト3秒）

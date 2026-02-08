@@ -32,6 +32,7 @@ import { generateTaskHtml } from "./views/task-html.js";
 // MCPサーバーファクトリ
 import { createMcpServer } from "./mcp-server-factory.js";
 import { KeepAliveManager } from "./middleware/keepalive-manager.js";
+import { loopbackOnly } from "./middleware/loopback-only.js";
 
 const app = express();
 app.use(express.json());
@@ -57,16 +58,6 @@ app.get("/health", (_req: Request, res: Response) => {
   });
 });
 
-// loopback-only ミドルウェア（LAN公開時に非公開エンドポイントを保護）
-const loopbackOnly = (req: Request, res: Response, next: NextFunction) => {
-  const ip = req.ip || req.socket.remoteAddress || '';
-  if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
-    next();
-  } else {
-    res.status(403).json({ error: 'Access denied: loopback only' });
-  }
-};
-
 // ========================================
 // サーバー起動
 // ========================================
@@ -86,8 +77,8 @@ async function main(): Promise<void> {
 
   // 非公開エンドポイント（loopbackのみ）
   app.use(loopbackOnly, createMcpRoutes({ sessions, createMcpServer, keepAliveManager }));
-  app.use("/legacy", loopbackOnly, legacyRoutes);
-  app.use("/api", loopbackOnly, taskApiRoutes);
+  app.use(loopbackOnly, legacyRoutes);
+  app.use(loopbackOnly, taskApiRoutes);
   // ダッシュボード（LAN公開OK）
   app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml }));
   // ファイル・画像配信（ダッシュボードから参照されるためLAN公開OK）

@@ -18,7 +18,7 @@
 .maid-agent/system/bin/maid-notify chief "報告しました。ご確認ください。"
 ```
 
-**報告ファイル**: `.maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md`
+**報告ファイル**: `.maid-agent/system/data/reports/current_{自分のID}.md`
 
 **禁止**: 他メイドへの通知、執事/ご主人様への直接連絡、指示外の作業
 
@@ -32,7 +32,7 @@
 1. メイド長からの通知を受領
 2. MCPツール `get_my_task` で自分のタスクを確認
 3. MCPツール `update_status` で `working` に更新し、タスクを実行
-4. `.maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md` に報告を作成
+4. `.maid-agent/system/data/reports/current_{自分のID}.md` に報告を作成
 5. MCPツール `update_status` で `completed` に更新
 6. メイド長に maid-notify で通知
 
@@ -91,7 +91,7 @@
 
 3. タスクを実行
 
-4. 完了したら .maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md に報告:
+4. 完了したら .maid-agent/system/data/reports/current_{自分のID}.md に報告:
 
    # 作業報告 - エマ
 
@@ -266,7 +266,7 @@ MCPツール（`get_my_task`, `update_status`等）で「Server not initialized�
 #### 重要
 - **直接連絡は禁止** - 必ずメイド長経由
 - メイド長が判断して適切な対応を行う
-- 詳細は `.maid-agent/.maid-agent/system/data/reports/current_{自分のID}.md` に記載（完了時に自動で `.maid-agent/master/reports/` にアーカイブ）
+- 詳細は `.maid-agent/system/data/reports/current_{自分のID}.md` に記載（完了時に自動で `.maid-agent/master/reports/` にアーカイブ）
 
 ## 報告形式
 
@@ -401,7 +401,7 @@ improvement_proposal:
 お仕事完了でございます♪
 
 [タスク内容]を完了いたしました。
-詳細は .maid-agent/.maid-agent/system/data/reports/current_emma.md をご確認くださいませ。
+詳細は .maid-agent/system/data/reports/current_emma.md をご確認くださいませ。
 ```
 
 ### エラー時の口調
@@ -410,7 +410,7 @@ improvement_proposal:
 申し訳ございません、問題が発生いたしました。
 
 [問題の説明]
-詳細は .maid-agent/.maid-agent/system/data/reports/current_emma.md に記載いたしました。
+詳細は .maid-agent/system/data/reports/current_emma.md に記載いたしました。
 メイド長のご判断をお待ちしております。
 ```
 

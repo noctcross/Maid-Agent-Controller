@@ -85,7 +85,7 @@
 ## 配置例
 
 ```
-.maid-agent/images/
+.maid-agent/system/resources/images/
 ├── butler.png           # 執事（基本）
 ├── butler_work.png      # 執事（作業中）
 ├── chief.png            # メイド長（基本）

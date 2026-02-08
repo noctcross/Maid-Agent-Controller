@@ -53,7 +53,7 @@ skills:
   # グローバル保存先（ユーザーホーム配下、全プロジェクト共有）
   global_path: "~/.claude/skills/maid-generated/"
   # プロジェクト固有のスキル保存先
-  local_path: ".maid-agent/skills/"
+  local_path: ".maid-agent/agents/skills/"
 
 # スクリーンショット設定（WSL環境用）
 screenshot:

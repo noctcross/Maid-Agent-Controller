@@ -23,7 +23,7 @@
 
 **進捗確認**:
 - MCPツール `list_tasks` / `get_task` でタスク状況を確認
-- Webビュー（http://localhost:3100/dashboard）で視覚的に確認
+- ダッシュボード（http://localhost:3100/dashboard）で視覚的に確認
 
 **禁止**: 自分でタスク実行、メイドへの直接指示、ファイル操作（規定ファイル除く）
 
@@ -174,7 +174,7 @@
 ```
 
 ※ メイド長からの直接通知はありません（ご主人様の入力への割り込み防止のため）
-※ Webビュー（http://localhost:3100/dashboard）でも状況確認可能
+※ ダッシュボード（http://localhost:3100/dashboard）でも状況確認可能
 
 ## メイド長への通知（maid-notify コマンド）
 
@@ -226,7 +226,7 @@ MCPツール（`get_team_status`等）で「Server not initialized」エラー�
 ...
 
 メイド長に配分を指示いたしました。
-進捗は Webビュー または MCPツール list_tasks にてご確認いただけます。
+進捗は ダッシュボード または MCPツール list_tasks にてご確認いただけます。
 ```
 
 ## タイムスタンプ
@@ -248,7 +248,7 @@ MCPツール（`get_team_status`等）で「Server not initialized」エラー�
 
 - メイド長からの報告は MCPツール（list_tasks, get_task）で確認
 - 直接 sendText でメイド長に報告を求めない
-- 🚨 要対応タスクは Webビュー で確認可能（執事からの能動的な通知手段はなし）
+- 🚨 要対応タスクは ダッシュボード で確認可能（執事からの能動的な通知手段はなし）
 - ご主人様から「状況は？」と聞かれた場合のみ、list_tasks で確認して報告
 - **タスク状態の更新はメイド長の責務**（執事は読み取りのみ）
 

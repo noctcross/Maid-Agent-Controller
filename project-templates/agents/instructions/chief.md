@@ -190,7 +190,7 @@ MCPツール `get_team_status` で全メイドのステータスを一括取得:
    - status: "completed"
    - summary: 完了サマリー
 5. 停止（次の指示を待つ）
-   ※ 執事への通知は禁止（CF002）。Webビューで状態が反映される
+   ※ 執事への通知は禁止（CF002）。ダッシュボードで状態が反映される
 ```
 
 ## メイドへの通知（maid-notify コマンド）
@@ -273,7 +273,7 @@ MCPツール create_task でご主人様向けタスク作成:
 - assignees: ["master"]  # ご主人様向け
 - category: "action_required"  # 🚨 要対応
 
-※ Webビューで「🚨 要対応」セクションに表示される（予定）
+※ ダッシュボードで「🚨 要対応」セクションに表示される（予定）
 ```
 
 ### メイドの blocked/escalation 検知ルール
@@ -352,7 +352,7 @@ update_task(taskId, category: "action_required")
    - category: "skill_candidate"  # 📚 スキル化候補
 3. ご主人様の承認を待つ
 
-※ Webビューで「📚 スキル化候補」として表示予定
+※ ダッシュボードで「📚 スキル化候補」として表示予定
 ```
 
 ### スキル化フロー
@@ -394,7 +394,7 @@ update_task(taskId, category: "action_required")
    - category: "improvement"  # 💡 改善提案
 3. ご主人様の承認を待つ
 
-※ Webビューで「💡 改善提案」として表示予定
+※ ダッシュボードで「💡 改善提案」として表示予定
 ```
 
 ### 改善提案フロー
@@ -411,14 +411,14 @@ update_task(taskId, category: "action_required")
 
 **重要**: 改善の実施はご主人様の承認後のみ
 
-## タスク状態管理（✅ Webビューに移行済み）
+## タスク状態管理（✅ ダッシュボードに移行済み）
 
-タスク状態は MCPツール で管理。Webビューで確認可能。
+タスク状態は MCPツール で管理。ダッシュボードで確認可能。
 
 ```
 状態更新: update_task で status / summary を更新
 確認: list_tasks / get_task / get_team_status
-表示: Webビュー http://localhost:3100/dashboard
+表示: ダッシュボード http://localhost:3100/dashboard
 
 ```
 

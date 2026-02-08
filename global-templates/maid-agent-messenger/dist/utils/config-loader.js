@@ -27,7 +27,7 @@ const DEFAULT_CONFIG = {
         editor: "vscode",
     },
     keepalive: {
-        session_idle_timeout: 300000,
+        session_idle_timeout: 1800000,
         gc_interval: 60000,
         http_keepalive_timeout: 65000,
         http_headers_timeout: 66000,

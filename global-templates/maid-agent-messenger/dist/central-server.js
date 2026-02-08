@@ -61,15 +61,16 @@ async function main() {
     // ========================================
     // ルートマウント
     // ========================================
+    // 公開エンドポイント（LAN公開OK）を先にマウント
+    // ※ loopbackOnly付きルートを先にマウントすると、パス指定なしの
+    //    app.use(loopbackOnly, router) が全リクエストをブロックしてしまうため
+    app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml }));
+    app.use(fileRoutes);
+    app.use(imageRoutes);
     // 非公開エンドポイント（loopbackのみ）
     app.use(loopbackOnly, createMcpRoutes({ sessions, createMcpServer, keepAliveManager }));
     app.use(loopbackOnly, legacyRoutes);
     app.use(loopbackOnly, taskApiRoutes);
-    // ダッシュボード（LAN公開OK）
-    app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml }));
-    // ファイル・画像配信（ダッシュボードから参照されるためLAN公開OK）
-    app.use(fileRoutes);
-    app.use(imageRoutes);
     // ========================================
     app.use((err, _req, res, _next) => {
         console.error("Server error:", err);

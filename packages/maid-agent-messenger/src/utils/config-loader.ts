@@ -45,12 +45,20 @@ export interface DashboardConfig {
   editor: "vscode" | "windsurf" | "cursor";
 }
 
+export interface Pm2Config {
+  max_memory_restart: string;  // デフォルト: "500M"
+  instances: number;           // デフォルト: 1
+  autorestart: boolean;        // デフォルト: true
+  watch: boolean;              // デフォルト: false
+}
+
 export interface McpServerConfig {
   server: ServerConfig;
   central: CentralConfig;
   fallback: FallbackConfig;
   dashboard: DashboardConfig;
   keepalive: KeepAliveConfig;
+  pm2: Pm2Config;
 }
 
 const DEFAULT_CONFIG: McpServerConfig = {
@@ -82,6 +90,12 @@ const DEFAULT_CONFIG: McpServerConfig = {
     ping_interval: 30000,
     ping_timeout: 5000,
     max_missed_pings: 2,
+  },
+  pm2: {
+    max_memory_restart: "500M",
+    instances: 1,
+    autorestart: true,
+    watch: false,
   },
 };
 
@@ -123,6 +137,7 @@ export async function loadConfig(): Promise<McpServerConfig> {
       fallback: { ...DEFAULT_CONFIG.fallback, ...parsed.fallback },
       dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
       keepalive: { ...DEFAULT_CONFIG.keepalive, ...(parsed as Record<string, unknown>).keepalive as Partial<KeepAliveConfig> },
+      pm2: { ...DEFAULT_CONFIG.pm2, ...(parsed as Record<string, unknown>).pm2 as Partial<Pm2Config> },
     };
 
     return cachedConfig;

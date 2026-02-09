@@ -143,23 +143,29 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
 
       // セッション終了時のクリーンアップ（transportのcloseイベント）
       transport.onclose = async () => {
-        console.log(`Session closed: ${newSessionId}`);
+        // 再帰防止: sessions.get()で再入チェック（server.close()→SDK内部→transport.close()→onclose再発火を防ぐ）
         const closingSession = sessions.get(newSessionId);
-        if (closingSession) {
-          if (keepAliveManager) {
-            keepAliveManager.stopPing(newSessionId, closingSession);
-          }
-          // McpServerをclose（内部リスナー・ツールハンドラの解放）
-          try {
-            await closingSession.server.close();
-          } catch (e) {
-            console.log(`[SessionCleanup] Error closing McpServer: ${e}`);
-          }
-          // EventStoreのクリーンアップ
-          if (closingSession.eventStore) {
-            closingSession.eventStore.clear();
-          }
-          sessions.delete(newSessionId);
+        if (!closingSession) return;
+
+        // 先にMapから削除（再帰呼び出し時のガード）
+        sessions.delete(newSessionId);
+        console.log(`Session closed: ${newSessionId}`);
+
+        // KeepAlive Ping停止
+        if (keepAliveManager) {
+          keepAliveManager.stopPing(newSessionId, closingSession);
+        }
+
+        // McpServerをclose（transport.oncloseが再発火するがガードで防止）
+        try {
+          await closingSession.server.close();
+        } catch (e) {
+          console.log(`[SessionCleanup] Error closing McpServer: ${e}`);
+        }
+
+        // EventStoreのクリーンアップ
+        if (closingSession.eventStore) {
+          closingSession.eventStore.clear();
         }
       };
 
@@ -248,22 +254,26 @@ export function createMcpRoutes(deps: McpRoutesDeps): Router {
       return;
     }
 
+    // 先にMapから削除（oncloseハンドラの再帰防止）
+    sessions.delete(sessionId);
     console.log(`Session terminated: ${sessionId}`);
+
+    // KeepAlive Ping停止
     if (keepAliveManager) {
       keepAliveManager.stopPing(sessionId, session);
     }
-    // McpServerをclose（内部リスナー・ツールハンドラの解放）
+
+    // McpServerをclose（内部でtransport.close()も呼ばれる）
     try {
       await session.server.close();
     } catch (e) {
       console.log(`[SessionCleanup] Error closing McpServer: ${e}`);
     }
-    await session.transport.close();
+
     // EventStoreのクリーンアップ
     if (session.eventStore) {
       session.eventStore.clear();
     }
-    sessions.delete(sessionId);
 
     res.status(204).end();
   });

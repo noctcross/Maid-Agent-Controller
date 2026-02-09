@@ -42,7 +42,8 @@ describe("cleanupIdleSessions", () => {
     expect(cleaned).toBe(1);
     expect(sessions.has("old-session")).toBe(false);
     expect(sessions.has("active-session")).toBe(true);
-    expect(mockTransport.close).toHaveBeenCalled();
+    // transport.close()はserver.close()内でSDKが呼ぶため、明示的な呼び出しは不要
+    expect(mockServer.close).toHaveBeenCalled();
   });
 
   it("アイドルセッションがない場合は0を返す", async () => {
@@ -64,16 +65,14 @@ describe("cleanupIdleSessions", () => {
     expect(cleaned).toBe(0);
   });
 
-  it("transport.close() がエラーでもセッションは削除される", async () => {
-    const mockTransport = {
-      close: jest.fn(() => {
-        throw new Error("close failed");
-      }),
+  it("server.close() がエラーでもセッションは削除される", async () => {
+    const mockServer = {
+      close: jest.fn<() => Promise<void>>().mockRejectedValue(new Error("close failed")),
     };
 
     sessions.set("error-session", {
-      transport: mockTransport,
-      server: { close: jest.fn<() => Promise<void>>().mockResolvedValue(undefined) },
+      transport: { close: jest.fn() },
+      server: mockServer,
       projectPath: "/test",
       createdAt: new Date(Date.now() - 600000),
       lastActivity: new Date(Date.now() - 600000),

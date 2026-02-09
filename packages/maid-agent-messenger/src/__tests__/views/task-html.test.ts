@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from "@jest/globals";
-import { generateTaskHtml, composeMasterWaitingHtml } from "../../views/task-html.js";
+import { generateTaskHtml, composeMasterWaitingHtml, generateReportLinksHtml } from "../../views/task-html.js";
 
 const PROJECT_PATH = "/mnt/c/Users/noct/Development/TestProject";
 
@@ -133,5 +133,138 @@ describe("composeMasterWaitingHtml - 対応待ちセクション結合", () => {
     const tasks = [actionRequiredTask, { ...actionRequiredTask, id: "ar-002", title: "もう1つ" }];
     const html = composeMasterWaitingHtml(tasks as any, [], PROJECT_PATH);
     expect(html).toContain("アクティブ (2)");
+  });
+});
+
+describe("generateTaskHtml - action_required セクション（統一仕様）", () => {
+  const PROJECT_PATH = "/test/project";
+  const actionRequiredTask = {
+    id: "ar-001",
+    title: "要対応タスク",
+    description: "判断が必要なタスク",
+    status: "blocked",
+    substatus: "技術方針の決定待ち",
+    assignees: [{ agentId: "emma" }],
+    priority: "high",
+  };
+
+  it("🔴アイコンを使用すること", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("🔴");
+    expect(html).not.toContain("⚠️");
+  });
+
+  it("substatus設定時は🔴アイコンとsubstatusテキストを表示", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("🔴 技術方針の決定待ち");
+  });
+
+  it("substatus未設定時はデフォルトで「🔴 ご主人様判断待ち」を表示", () => {
+    const task = { ...actionRequiredTask, substatus: null };
+    const html = generateTaskHtml([task] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("🔴 ご主人様判断待ち");
+  });
+
+  it("担当者を表示すること", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("👤 emma");
+  });
+
+  it("task-detailにステータスと担当者を含む", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("ステータス:");
+    expect(html).toContain("担当者:");
+  });
+
+  it("action-required-itemクラスを含む", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("action-required-item");
+  });
+});
+
+describe("generateReportLinksHtml - 報告書リンク共通関数", () => {
+  const PROJECT_PATH = "/mnt/c/Users/noct/Development/TestProject";
+
+  it("空配列の場合は空文字列を返す", () => {
+    expect(generateReportLinksHtml([], PROJECT_PATH)).toBe("");
+  });
+
+  it("undefinedの場合は空文字列を返す", () => {
+    expect(generateReportLinksHtml(undefined as any, PROJECT_PATH)).toBe("");
+  });
+
+  it("相対パスをprojectPathと結合して絶対パスにする", () => {
+    const html = generateReportLinksHtml(
+      [".maid-agent/master/reports/task-001.md"],
+      PROJECT_PATH
+    );
+    expect(html).toContain(`/mnt/c/Users/noct/Development/TestProject/.maid-agent/master/reports/task-001.md`);
+  });
+
+  it("絶対パス（WSL）はそのまま使用される", () => {
+    const absPath = "/mnt/c/Users/noct/reports/task-001.md";
+    const html = generateReportLinksHtml([absPath], PROJECT_PATH);
+    expect(html).toContain(absPath);
+  });
+
+  it("report-linkクラスとdata-path属性を含む", () => {
+    const html = generateReportLinksHtml(
+      [".maid-agent/master/reports/task-001.md"],
+      PROJECT_PATH
+    );
+    expect(html).toContain('class="report-link"');
+    expect(html).toContain("data-path=");
+  });
+
+  it("/file?path= エンドポイントのhrefを含む", () => {
+    const html = generateReportLinksHtml(
+      [".maid-agent/master/reports/task-001.md"],
+      PROJECT_PATH
+    );
+    expect(html).toContain("/file?path=");
+    expect(html).toContain(`&project=${encodeURIComponent(PROJECT_PATH)}`);
+  });
+
+  it("onclick属性にopenFile関数呼び出しを含む", () => {
+    const html = generateReportLinksHtml(
+      [".maid-agent/master/reports/task-001.md"],
+      PROJECT_PATH
+    );
+    expect(html).toContain("onclick=\"return openFile(this,");
+  });
+
+  it("ファイル名のみがリンクテキストとして表示される", () => {
+    const html = generateReportLinksHtml(
+      [".maid-agent/master/reports/task-001.md"],
+      PROJECT_PATH
+    );
+    expect(html).toContain(">task-001.md</a>");
+  });
+
+  it("複数パスをカンマ区切りで結合する", () => {
+    const html = generateReportLinksHtml(
+      ["report-a.md", "report-b.md"],
+      PROJECT_PATH
+    );
+    expect(html).toContain("report-a.md</a>, <a");
+  });
+
+  it("generateTaskHtml completedと同じHTMLを生成する", () => {
+    const reportPaths = [".maid-agent/system/data/reports/current_lily.md"];
+    const directHtml = generateReportLinksHtml(reportPaths, PROJECT_PATH);
+    const taskHtml = generateTaskHtml([{
+      id: "test-001",
+      title: "テスト",
+      description: "テスト",
+      priority: "medium",
+      status: "completed",
+      assignees: [{ agentId: "lily" }],
+      completedAt: "2026-01-01T01:00:00Z",
+      reportPaths,
+      reviewed: false,
+      starred: false,
+    }], "completed", PROJECT_PATH);
+    // generateReportLinksHtmlの出力がgenerateTaskHtmlのcompleted出力に含まれる
+    expect(taskHtml).toContain(directHtml);
   });
 });

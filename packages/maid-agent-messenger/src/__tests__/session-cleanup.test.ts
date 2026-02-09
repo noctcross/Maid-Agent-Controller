@@ -103,7 +103,7 @@ describe("セッションクリーンアップ - McpServer.close()", () => {
   });
 
   describe("DELETE /mcp ハンドラ", () => {
-    it("セッション終了時にserver.close()が呼ばれること", async () => {
+    it("セッション終了時にsessions.delete()が先に呼ばれ、server.close()が実行されること", async () => {
       const mockServer = createMockMcpServer();
       sessions.set("delete-test", {
         transport: { close: jest.fn() } as any,
@@ -116,10 +116,9 @@ describe("セッションクリーンアップ - McpServer.close()", () => {
 
       const session = sessions.get("delete-test")!;
 
-      // server.close()を呼んでからtransport.close()を呼ぶべき
-      await session.server.close();
-      await session.transport.close();
+      // 修正後: sessions.delete()を先に実行（再帰防止）、transport.close()は不要（server.close()内で呼ばれる）
       sessions.delete("delete-test");
+      await session.server.close();
 
       expect(mockServer.close).toHaveBeenCalledTimes(1);
       expect(sessions.has("delete-test")).toBe(false);

@@ -36,6 +36,12 @@ const DEFAULT_CONFIG = {
         ping_timeout: 5000,
         max_missed_pings: 2,
     },
+    pm2: {
+        max_memory_restart: "500M",
+        instances: 1,
+        autorestart: true,
+        watch: false,
+    },
 };
 let cachedConfig = null;
 /**
@@ -70,6 +76,7 @@ export async function loadConfig() {
             fallback: { ...DEFAULT_CONFIG.fallback, ...parsed.fallback },
             dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
             keepalive: { ...DEFAULT_CONFIG.keepalive, ...parsed.keepalive },
+            pm2: { ...DEFAULT_CONFIG.pm2, ...parsed.pm2 },
         };
         return cachedConfig;
     }

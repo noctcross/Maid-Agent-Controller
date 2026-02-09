@@ -3,6 +3,11 @@
  * generateTaskHtml() - SSEエンドポイントとJSON APIエンドポイントの両方で使用
  */
 /**
+ * 報告書リンクのHTMLを生成する共通関数
+ * dashboard-html.ts と task-html.ts の両方から使用
+ */
+export declare function generateReportLinksHtml(reportPaths: string[], projectPath: string): string;
+/**
  * タスクリストのHTMLを生成するヘルパー関数
  * SSEエンドポイントとJSON APIエンドポイントの両方で使用
  */

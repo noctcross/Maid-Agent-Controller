@@ -32,12 +32,19 @@ export interface FallbackConfig {
 export interface DashboardConfig {
     editor: "vscode" | "windsurf" | "cursor";
 }
+export interface Pm2Config {
+    max_memory_restart: string;
+    instances: number;
+    autorestart: boolean;
+    watch: boolean;
+}
 export interface McpServerConfig {
     server: ServerConfig;
     central: CentralConfig;
     fallback: FallbackConfig;
     dashboard: DashboardConfig;
     keepalive: KeepAliveConfig;
+    pm2: Pm2Config;
 }
 /**
  * 設定ファイルを読み込む

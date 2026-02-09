@@ -21,28 +21,23 @@ export async function cleanupIdleSessions(idleTimeoutMs) {
     for (const [id, session] of sessions) {
         if (now - session.lastActivity.getTime() > idleTimeoutMs) {
             console.log(`[SessionGC] Cleaning up idle session: ${id} (idle for ${Math.round((now - session.lastActivity.getTime()) / 1000)}s)`);
+            // 先にMapから削除（oncloseハンドラの再帰防止）
+            sessions.delete(id);
             // pingTimer が動いている場合は先に停止（競合防止）
             if (session.pingTimer) {
                 clearInterval(session.pingTimer);
             }
-            // McpServer を先にclose（内部リスナー・ツールハンドラの解放）
+            // McpServerをclose（内部でtransport.close()も呼ばれる）
             try {
                 await session.server.close();
             }
             catch (e) {
                 console.log(`[SessionGC] Error closing McpServer for session ${id}: ${e}`);
             }
-            try {
-                session.transport.close();
-            }
-            catch (e) {
-                console.log(`[SessionGC] Error closing transport for session ${id}: ${e}`);
-            }
             // EventStoreのクリーンアップ
             if (session.eventStore) {
                 session.eventStore.clear();
             }
-            sessions.delete(id);
             cleaned++;
         }
     }

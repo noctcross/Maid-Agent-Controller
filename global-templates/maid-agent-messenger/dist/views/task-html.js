@@ -6,6 +6,25 @@ import path from "path";
 import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { formatDateJstShort } from "../utils/yaml-helper.js";
 /**
+ * 報告書リンクのHTMLを生成する共通関数
+ * dashboard-html.ts と task-html.ts の両方から使用
+ */
+export function generateReportLinksHtml(reportPaths, projectPath) {
+    if (!reportPaths || reportPaths.length === 0)
+        return "";
+    return reportPaths.map((p) => {
+        const fileName = p.split("/").pop() || p;
+        // 相対パスを絶対パスに変換（WSLパスはそのまま保持）
+        const absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
+            ? p
+            : path.join(projectPath, p);
+        // ブラウザ用: /file?path=... エンドポイント（&project= で報告書内パスリンク化を有効化）
+        const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
+        // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
+        return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(absolutePath)}" onclick="return openFile(this, '${escapeHtml(absolutePath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
+    }).join(", ");
+}
+/**
  * タスクリストのHTMLを生成するヘルパー関数
  * SSEエンドポイントとJSON APIエンドポイントの両方で使用
  */
@@ -51,19 +70,7 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
       </div>`;
         }
         else if (type === "completed") {
-            const reportLinksHtml = task.reportPaths?.length > 0
-                ? task.reportPaths.map((p) => {
-                    const fileName = p.split("/").pop() || p;
-                    // 相対パスを絶対パスに変換（WSLパスはそのまま保持）
-                    const absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
-                        ? p
-                        : path.join(projectPath, p);
-                    // ブラウザ用: /file?path=... エンドポイント（&project= で報告書内パスリンク化を有効化）
-                    const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
-                    // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
-                    return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(absolutePath)}" onclick="return openFile(this, '${escapeHtml(absolutePath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
-                }).join(", ")
-                : "";
+            const reportLinksHtml = generateReportLinksHtml(task.reportPaths, projectPath);
             const reviewedClass = task.reviewed ? " reviewed" : "";
             const reviewedActive = task.reviewed ? " active" : "";
             const starredActive = task.starred ? " active" : "";
@@ -107,14 +114,17 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
         }
         else if (type === "action_required") {
             const substatusHtml = task.substatus
-                ? `<span class="task-substatus-inline">⚠️ ${escapeHtml(task.substatus)}</span>`
-                : "";
+                ? `<span class="task-substatus-inline">🔴 ${escapeHtml(task.substatus)}</span>`
+                : '<span class="task-substatus-inline">🔴 ご主人様判断待ち</span>';
             return `<div class="task-item action-required-item" data-id="${task.id}">
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         ${substatusHtml}
+        <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
+          <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
+          ${assigneeStr ? `<div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr}</span></div>` : ""}
         </div>
       </div>`;
         }

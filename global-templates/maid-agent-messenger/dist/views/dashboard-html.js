@@ -2,9 +2,8 @@
  * ダッシュボードHTML生成
  * generateDashboardHtml() - メインダッシュボードのHTML生成
  */
-import path from "path";
-import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
-import { formatDateJstShort } from "../utils/yaml-helper.js";
+import { escapeHtml } from "../markdown-utils.js";
+import { generateTaskHtml, composeMasterWaitingHtml } from "./task-html.js";
 export function generateDashboardHtml(data, editorScheme = "vscode") {
     const { projectPath, timestamp, pending, working, recentCompleted, completedTotal, masterWaiting, masterReview, skillCandidates, improvements, teamStatus, stats } = data;
     // ステータスアイコンマップ
@@ -16,12 +15,6 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         idle: "💤",
         unknown: "❓",
         error: "⚠️",
-    };
-    // 優先度カラーマップ
-    const priorityClass = {
-        high: "priority-high",
-        medium: "priority-medium",
-        low: "priority-low",
     };
     // Phase 2: 経過時間計算ヘルパー
     const formatElapsedTime = (startedAt) => {
@@ -57,155 +50,16 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
       </div>`;
     })
         .join("\n");
-    // 待機中タスクHTML生成（特殊カテゴリは専用セクションに表示するため除外）
+    // 待機中タスク（特殊カテゴリは専用セクションに表示するため除外）
     const SPECIAL_CATEGORIES = ["action_required", "skill_candidate", "improvement"];
     const filteredPending = pending.filter((task) => !task.category || !SPECIAL_CATEGORIES.includes(task.category));
-    const pendingHtml = filteredPending.length > 0
-        ? filteredPending.map((task) => {
-            const createdDate = task.createdAt
-                ? formatDateJstShort(new Date(task.createdAt))
-                : "";
-            // titleがなければdescriptionの先頭を使用（後方互換）
-            const title = task.title || task.description.split("\n")[0].substring(0, 50);
-            return `<div class="task-item ${priorityClass[task.priority] || ""}" data-priority="${task.priority}" data-id="${task.id}">
-        <span class="task-id">${task.id}</span>
-        <span class="task-title">${escapeHtml(title)}</span>
-        <span class="task-priority">[${task.priority}]</span>
-        <div class="task-detail">
-          ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
-          <div class="task-detail-row"><span class="task-detail-label">作成日時:</span><span class="task-detail-value">${createdDate}</span></div>
-        </div>
-      </div>`;
-        }).join("\n")
-        : '<div class="empty-message">なし</div>';
-    // 進行中タスクHTML生成（title/description分離）
-    const workingHtml = working.length > 0
-        ? working.map((task) => {
-            const assigneeStr = task.assignees.map((a) => a.agentId).join(", ");
-            const title = task.title || task.description.split("\n")[0].substring(0, 50);
-            return `<div class="task-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}">
-          <span class="task-id">${task.id}</span>
-          <span class="task-title">${escapeHtml(title)}</span>
-          <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
-          <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
-            <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
-            <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
-          </div>
-        </div>`;
-        }).join("\n")
-        : '<div class="empty-message">なし</div>';
-    // 完了タスクHTML生成（title/description分離、展開機能追加、担当者・報告書リンク追加）
-    const completedHtml = recentCompleted.length > 0
-        ? recentCompleted.map((task) => {
-            const completedDate = task.completedAt
-                ? formatDateJstShort(new Date(task.completedAt))
-                : "";
-            const title = task.title || task.description.split("\n")[0].substring(0, 50);
-            const assigneeStr = task.assignees.map((a) => a.agentId).join(", ");
-            // 報告書リンクHTML生成（VSCode Webview + ブラウザ両対応）
-            const reportLinksHtml = task.reportPaths.length > 0
-                ? task.reportPaths.map((p) => {
-                    const fileName = p.split("/").pop() || p;
-                    // 相対パスを絶対パスに変換（WSLパスはそのまま保持）
-                    const absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
-                        ? p
-                        : path.join(projectPath, p);
-                    // ブラウザ用: /file?path=... エンドポイント（&project= で報告書内パスリンク化を有効化）
-                    const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
-                    // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
-                    return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(absolutePath)}" onclick="return openFile(this, '${escapeHtml(absolutePath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
-                }).join(", ")
-                : "";
-            const reviewedClass = task.reviewed ? " reviewed" : "";
-            const reviewedActive = task.reviewed ? " active" : "";
-            const starredActive = task.starred ? " active" : "";
-            return `<div class="task-item completed${reviewedClass}" data-id="${task.id}">
-          <div class="task-main-row">
-            <span class="task-id">${task.id}</span>
-            <span class="task-title">${escapeHtml(title)}</span>
-            <span class="task-right-group">
-              ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
-              <span class="task-date">${completedDate}</span>
-              <button class="task-action-btn review-btn${reviewedActive}" onclick="toggleReview(event, '${task.id}', ${!task.reviewed})" title="確認済み">✔</button>
-              <button class="task-action-btn star-btn${starredActive}" onclick="toggleStar(event, '${task.id}', ${!task.starred})" title="スター">★</button>
-            </span>
-          </div>
-          <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
-            ${task.summary ? `<div class="task-detail-row"><span class="task-detail-label">結果:</span><span class="task-detail-value task-summary-text">${escapeHtml(task.summary)}</span></div>` : ""}
-            <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
-            <div class="task-detail-row"><span class="task-detail-label">完了日時:</span><span class="task-detail-value">${completedDate}</span></div>
-            ${reportLinksHtml ? `<div class="task-detail-row"><span class="task-detail-label">報告書:</span><span class="task-detail-value task-report-links">${reportLinksHtml}</span></div>` : ""}
-          </div>
-        </div>`;
-        }).join("\n")
-        : '<div class="empty-message">なし</div>';
-    // ⚠️対応待ち - アクティブ（未完了の action_required）
-    const masterWaitingHtml = masterWaiting.length > 0
-        ? masterWaiting.map((task) => {
-            const title = task.title || task.description.split("\n")[0].substring(0, 50);
-            const assigneeStr = task.assignees?.map((a) => a.agentId).join(", ") || "";
-            const substatusHtml = task.substatus
-                ? `<span class="task-substatus-inline">🔴 ${escapeHtml(task.substatus)}</span>`
-                : '<span class="task-substatus-inline">🔴 ご主人様判断待ち</span>';
-            return `<div class="task-item action-required-item" data-id="${task.id}">
-          <span class="task-id">${task.id}</span>
-          <span class="task-title">${escapeHtml(title)}</span>
-          ${substatusHtml}
-          <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
-          <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
-            <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
-            ${assigneeStr ? `<div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr}</span></div>` : ""}
-          </div>
-        </div>`;
-        }).join("\n")
-        : '<div class="empty-message">なし</div>';
-    // ⚠️対応待ち - 確認待ち（completed + action_required + unreviewed）
-    const masterReviewHtml = masterReview.length > 0
-        ? masterReview.map((task) => {
-            const title = task.title || task.description.split("\n")[0].substring(0, 50);
-            const completedDate = task.completedAt
-                ? formatDateJstShort(new Date(task.completedAt))
-                : "";
-            return `<div class="task-item action-required-item" data-id="${task.id}">
-          <div class="task-main-row">
-            <span class="task-id">${task.id}</span>
-            <span class="task-title">${escapeHtml(title)}</span>
-            <span class="task-date">${completedDate}</span>
-          </div>
-          <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
-            ${task.summary ? `<div class="task-detail-row"><span class="task-detail-label">結果:</span><span class="task-detail-value task-summary-text">${escapeHtml(task.summary)}</span></div>` : ""}
-          </div>
-        </div>`;
-        }).join("\n")
-        : '<div class="empty-message">なし</div>';
-    const skillCandidatesHtml = skillCandidates.length > 0
-        ? skillCandidates.map((task) => {
-            const title = task.title || task.description.split("\n")[0].substring(0, 50);
-            return `<div class="task-item skill-item" data-id="${task.id}">
-          <span class="task-id">${task.id}</span>
-          <span class="task-title">${escapeHtml(title)}</span>
-          <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
-          </div>
-        </div>`;
-        }).join("\n")
-        : '<div class="empty-message">なし</div>';
-    const improvementsHtml = improvements.length > 0
-        ? improvements.map((task) => {
-            const title = task.title || task.description.split("\n")[0].substring(0, 50);
-            return `<div class="task-item improvement-item" data-id="${task.id}">
-          <span class="task-id">${task.id}</span>
-          <span class="task-title">${escapeHtml(title)}</span>
-          <div class="task-detail">
-            ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
-          </div>
-        </div>`;
-        }).join("\n")
-        : '<div class="empty-message">なし</div>';
+    // HTML生成を task-html.ts に委譲（初回レンダリングとポーリング更新で同一出力を保証）
+    const pendingHtml = generateTaskHtml(filteredPending, "pending", projectPath);
+    const workingHtml = generateTaskHtml(working, "working", projectPath);
+    const completedHtml = generateTaskHtml(recentCompleted, "completed", projectPath);
+    const masterWaitingSectionHtml = composeMasterWaitingHtml(masterWaiting, masterReview, projectPath);
+    const skillCandidatesHtml = generateTaskHtml(skillCandidates, "skill_candidate", projectPath);
+    const improvementsHtml = generateTaskHtml(improvements, "improvement", projectPath);
     return `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -798,10 +652,7 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         <span class="count-badge count-badge-alert">${masterWaiting.length + masterReview.length}</span>
       </div>
       <div class="collapsible-content">
-        ${masterWaiting.length > 0 ? `<div class="subsection-header">アクティブ (${masterWaiting.length})</div>` : ""}
-        ${masterWaitingHtml}
-        ${masterReview.length > 0 ? `<div class="subsection-header">確認待ち (${masterReview.length})</div>` : ""}
-        ${masterReview.length > 0 ? masterReviewHtml : ""}
+        ${masterWaitingSectionHtml}
       </div>
     </div>
 

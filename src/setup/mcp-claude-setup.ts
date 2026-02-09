@@ -188,7 +188,8 @@ export async function setupClaudeSettings(ctx: SetupContext): Promise<void> {
 
 /**
  * .mcp.json のパスが現在のワークスペースと一致するか検証し、
- * 不一致の場合は更新を提案する
+ * ハードコードパスから ${CLAUDE_PROJECT_DIR} への移行を提案する。
+ * パス不一致の場合は更新も提案する。
  */
 export async function checkAndUpdateMcpJsonPath(ctx: SetupContext): Promise<void> {
     if (!ctx.workspaceRoot) return;
@@ -211,14 +212,24 @@ export async function checkAndUpdateMcpJsonPath(ctx: SetupContext): Promise<void
         // 既に ${CLAUDE_PROJECT_DIR} を使用していれば何もしない
         if (currentPath.includes('${CLAUDE_PROJECT_DIR}')) return;
 
-        // パスが一致していれば何もしない（移動されていない）
+        // パスが一致する場合は ${CLAUDE_PROJECT_DIR} への移行を提案
         const expectedPath = CURRENT_ENV === 'windows-native'
             ? windowsToWslPath(ctx.workspaceRoot)
             : ctx.workspaceRoot;
 
         if (currentPath === expectedPath) {
-            // パスは正しいが、${CLAUDE_PROJECT_DIR} への移行を提案
-            ctx.log('[MCP] パスは正しいですが、${CLAUDE_PROJECT_DIR} への移行を推奨');
+            // パスは現在のワークスペースと一致するが、動的パスへの移行を提案
+            const choice = await vscode.window.showInformationMessage(
+                `.mcp.json の X-Maid-Project-Path を動的パス(\${CLAUDE_PROJECT_DIR})に更新しますか？\n現在のハードコードパスでも動作しますが、動的パスへの移行を推奨します。`,
+                '${CLAUDE_PROJECT_DIR} に更新',
+                'スキップ'
+            );
+
+            if (choice === '${CLAUDE_PROJECT_DIR} に更新') {
+                serverConfig.headers['X-Maid-Project-Path'] = '${CLAUDE_PROJECT_DIR}';
+                fs.writeFileSync(mcpJsonPath, JSON.stringify(config, null, 2));
+                ctx.log('[MCP] ${CLAUDE_PROJECT_DIR} に更新しました');
+            }
             return;
         }
 

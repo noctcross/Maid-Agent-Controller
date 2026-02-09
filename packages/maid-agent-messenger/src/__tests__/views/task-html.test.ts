@@ -136,6 +136,52 @@ describe("composeMasterWaitingHtml - 対応待ちセクション結合", () => {
   });
 });
 
+describe("generateTaskHtml - action_required セクション（統一仕様）", () => {
+  const PROJECT_PATH = "/test/project";
+  const actionRequiredTask = {
+    id: "ar-001",
+    title: "要対応タスク",
+    description: "判断が必要なタスク",
+    status: "blocked",
+    substatus: "技術方針の決定待ち",
+    assignees: [{ agentId: "emma" }],
+    priority: "high",
+  };
+
+  it("🔴アイコンを使用すること", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("🔴");
+    expect(html).not.toContain("⚠️");
+  });
+
+  it("substatus設定時は🔴アイコンとsubstatusテキストを表示", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("🔴 技術方針の決定待ち");
+  });
+
+  it("substatus未設定時はデフォルトで「🔴 ご主人様判断待ち」を表示", () => {
+    const task = { ...actionRequiredTask, substatus: null };
+    const html = generateTaskHtml([task] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("🔴 ご主人様判断待ち");
+  });
+
+  it("担当者を表示すること", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("👤 emma");
+  });
+
+  it("task-detailにステータスと担当者を含む", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("ステータス:");
+    expect(html).toContain("担当者:");
+  });
+
+  it("action-required-itemクラスを含む", () => {
+    const html = generateTaskHtml([actionRequiredTask] as any, "action_required", PROJECT_PATH);
+    expect(html).toContain("action-required-item");
+  });
+});
+
 describe("generateReportLinksHtml - 報告書リンク共通関数", () => {
   const PROJECT_PATH = "/mnt/c/Users/noct/Development/TestProject";
 

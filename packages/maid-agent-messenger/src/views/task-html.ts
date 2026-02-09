@@ -119,14 +119,17 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
       </div>`;
     } else if (type === "action_required") {
       const substatusHtml = task.substatus
-        ? `<span class="task-substatus-inline">⚠️ ${escapeHtml(task.substatus)}</span>`
-        : "";
+        ? `<span class="task-substatus-inline">🔴 ${escapeHtml(task.substatus)}</span>`
+        : '<span class="task-substatus-inline">🔴 ご主人様判断待ち</span>';
       return `<div class="task-item action-required-item" data-id="${task.id}">
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         ${substatusHtml}
+        <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
+          <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
+          ${assigneeStr ? `<div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr}</span></div>` : ""}
         </div>
       </div>`;
     } else if (type === "master_review") {

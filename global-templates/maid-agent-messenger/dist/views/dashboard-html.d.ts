@@ -12,6 +12,7 @@ export interface DashboardData {
         description: string;
         priority: string;
         createdAt: string;
+        updatedAt?: string;
         category?: string;
     }>;
     working: Array<{
@@ -23,6 +24,8 @@ export interface DashboardData {
             agentId: string;
         }>;
         priority: string;
+        startedAt?: string | null;
+        updatedAt?: string;
     }>;
     recentCompleted: Array<{
         id: string;
@@ -36,6 +39,7 @@ export interface DashboardData {
         reportPaths: string[];
         reviewed?: boolean;
         starred?: boolean;
+        updatedAt?: string;
     }>;
     completedTotal: number;
     masterWaiting: Array<{

@@ -58,6 +58,7 @@
 | CF003 | ポーリング/待機ループ | リソース浪費（API代金の無駄） | イベント駆動 |
 | CF004 | コンテキスト未読で作業開始 | 状況把握不足 | 必ず事前読み込み |
 | CF005 | 他メイドのタスクを変更 | 担当外 | 各メイド専用 |
+| CF006 | create_taskせずにassign_taskのみで作業指示 | タスクID不在で報告書上書き事故 | 必ずcreate_task→assign_taskの順 |
 
 ## セッション開始時（必須）
 
@@ -112,6 +113,20 @@
    - target_path: "docs/"          # 省略可: 作業対象パス
 
    ※ list_tasksで取得したID（"077"）にはtask-プレフィックスを付けて使用
+
+   ⚠️ サブタスク発行必須ルール（CF006）:
+   レビュー・追加作業等のサブタスクを指示する際は、
+   必ず create_task（parentId指定）でサブタスクを作成してから assign_task すること。
+   タスクIDが存在しない状態でメイドに作業させてはならない。
+
+   正しい手順:
+   a. create_task(parentId: "077", title: "レビュー") → サブタスクID取得
+   b. assign_task(task_id: "task-077-1", target_agent: "emma", title: "レビュー")
+   c. maid-notify emma "新しいタスクがあります"
+
+   禁止パターン:
+   × assign_task だけで存在しないサブタスクIDを指定
+     → メイドのタスクIDが前タスクのまま作業し、報告書が上書きされる事故が発生する
 
 3. 各メイドに maid-notify で通知
 4. 停止（完了報告を待つ）
@@ -192,6 +207,23 @@ MCPツール `get_team_status` で全メイドのステータスを一括取得:
 5. 停止（次の指示を待つ）
    ※ 執事への通知は禁止（CF002）。ダッシュボードで状態が反映される
 ```
+
+### 親提案タスクのクローズルール
+
+📚スキル化候補や💡改善提案のサブタスクが完了したら、親の提案タスクも必ず completed または cancelled にクローズすること。
+
+```
+例:
+- #123-1（スキル作成サブタスク）完了 → 親#123もcompleted
+- #069-1（改善実施サブタスク）完了 → 親#069もcompleted
+
+手順:
+update_task(taskId: "123", status: "completed", summary: "サブタスク完了によりクローズ")
+```
+
+**対象**: category が `skill_candidate` または `improvement` のタスク
+**タイミング**: サブタスクの完了報告収集後
+**理由**: 親タスクが pending/assigned のまま残ると、ダッシュボードや list_tasks で未処理として表示され続ける
 
 ## メイドへの通知（maid-notify コマンド）
 

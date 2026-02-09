@@ -27,6 +27,23 @@ function parseTasksData(content) {
             !Array.isArray(data.tasks)) {
             throw new Error("Invalid tasks.yaml format");
         }
+        // updatedAt マイグレーション（既存データの後方互換）
+        for (const task of data.tasks) {
+            if (!task.updatedAt) {
+                const timestamps = [
+                    task.completedAt,
+                    task.starredAt,
+                    task.reviewedAt,
+                    task.escalatedAt,
+                    task.startedAt,
+                    task.assignedAt,
+                    task.createdAt,
+                ].filter((t) => t != null);
+                task.updatedAt = timestamps.length > 0
+                    ? timestamps.sort().pop()
+                    : task.createdAt;
+            }
+        }
         return data;
     }
     catch (error) {
@@ -115,6 +132,7 @@ export async function executeCreateTask(projectPath, params) {
             })),
             targetPath: null,
             createdAt: now,
+            updatedAt: now,
             assignedAt: params.assignees?.length ? now : null,
             startedAt: null,
             completedAt: null,
@@ -287,6 +305,8 @@ export async function executeUpdateTask(projectPath, params) {
             task.escalation = params.escalation;
             task.escalatedAt = params.escalation ? now : null;
         }
+        // 最終更新日時を自動設定
+        task.updatedAt = now;
         const result = { success: true, task };
         return { data, result: { result, prevStatus, prevAssignees } };
     });

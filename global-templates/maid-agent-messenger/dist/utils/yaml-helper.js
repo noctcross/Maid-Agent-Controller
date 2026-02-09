@@ -70,6 +70,32 @@ export function formatDateJst(date) {
     });
 }
 /**
+ * 日時を相対時間表示に変換（日本語）
+ * 例: "3分前", "2時間前", "1日前", "3週間前"
+ */
+export function formatRelativeTime(dateString) {
+    if (!dateString)
+        return "";
+    const now = Date.now();
+    const target = new Date(dateString).getTime();
+    const diffMs = now - target;
+    if (diffMs < 0)
+        return "たった今";
+    const MINUTE = 60 * 1000;
+    const HOUR = 60 * MINUTE;
+    const DAY = 24 * HOUR;
+    const WEEK = 7 * DAY;
+    if (diffMs < MINUTE)
+        return "たった今";
+    if (diffMs < HOUR)
+        return `${Math.floor(diffMs / MINUTE)}分前`;
+    if (diffMs < DAY)
+        return `${Math.floor(diffMs / HOUR)}時間前`;
+    if (diffMs < WEEK)
+        return `${Math.floor(diffMs / DAY)}日前`;
+    return `${Math.floor(diffMs / WEEK)}週間前`;
+}
+/**
  * 日付を日本時間で MM/DD HH:mm 形式にフォーマット（短縮版）
  */
 export function formatDateJstShort(date) {

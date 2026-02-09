@@ -26,6 +26,7 @@ export interface Task {
     assignedAt: string | null;
     startedAt: string | null;
     completedAt: string | null;
+    updatedAt: string;
     reportPaths: string[];
     summary: string | null;
     reviewed?: boolean;
@@ -76,7 +77,7 @@ export interface ListTasksParams {
     starred?: boolean;
     limit?: number;
     offset?: number;
-    sortField?: "createdAt" | "priority" | "status" | "id";
+    sortField?: "createdAt" | "priority" | "status" | "id" | "updatedAt";
     sortOrder?: "asc" | "desc";
 }
 export interface ListTasksResult {

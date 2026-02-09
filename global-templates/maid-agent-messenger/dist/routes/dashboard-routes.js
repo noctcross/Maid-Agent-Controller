@@ -25,10 +25,12 @@ export function createDashboardRoutes(deps) {
             // 並列でデータを取得（Phase 1: 特殊カテゴリ・blocked追加, Phase 2: 本日完了追加）
             const today = new Date();
             today.setHours(0, 0, 0, 0);
+            // 完了セクションのソート設定を取得
+            const completedSortField = req.query.completedSortField === "updatedAt" ? "updatedAt" : "id";
             const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, teamStatus] = await Promise.all([
                 executeListTasks(projectPath, { status: ["pending"] }),
                 executeListTasks(projectPath, { status: ["working", "assigned"] }),
-                executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
+                executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
                 executeListTasks(projectPath, { status: ["completed"], limit: 100 }), // 本日完了カウント用
                 executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
@@ -88,13 +90,15 @@ export function createDashboardRoutes(deps) {
             const starredParam = req.query.starred;
             const reviewed = reviewedParam === "yes" ? true : reviewedParam === "no" ? false : undefined;
             const starred = starredParam === "yes" ? true : starredParam === "no" ? false : undefined;
+            // 完了セクションのソート設定を取得
+            const completedSortField = req.query.completedSortField === "updatedAt" ? "updatedAt" : "id";
             const completed = await executeListTasks(projectPath, {
                 status: ["completed"],
                 limit,
                 offset,
                 reviewed,
                 starred,
-                sortField: "id",
+                sortField: completedSortField,
                 sortOrder: "desc",
             });
             res.json({
@@ -127,6 +131,8 @@ export function createDashboardRoutes(deps) {
             const completedReviewed = completedReviewedParam === "yes" ? true : completedReviewedParam === "no" ? false : undefined;
             const completedStarred = completedStarredParam === "yes" ? true : completedStarredParam === "no" ? false : undefined;
             const clientCompletedHash = req.query.completedHash;
+            // 完了セクションのソート設定を取得
+            const completedSortField = req.query.completedSortField === "updatedAt" ? "updatedAt" : "id";
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const ACTIVE_STATUSES = ["pending", "assigned", "working", "blocked"];
@@ -139,7 +145,7 @@ export function createDashboardRoutes(deps) {
                     offset: completedOffset,
                     reviewed: completedReviewed,
                     starred: completedStarred,
-                    sortField: "id",
+                    sortField: completedSortField,
                     sortOrder: "desc",
                 }),
                 executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
@@ -210,6 +216,8 @@ export function createDashboardRoutes(deps) {
             res.setHeader("X-Accel-Buffering", "no");
             // 接続確認
             res.write("data: {\"type\":\"connected\"}\n\n");
+            // 完了セクションのソート設定を取得（SSE接続時のクエリパラメータ）
+            const completedSortField = req.query.completedSortField === "updatedAt" ? "updatedAt" : "id";
             // 定期的にタスク情報を送信（10秒ごと）
             const intervalId = setInterval(async () => {
                 try {
@@ -219,7 +227,7 @@ export function createDashboardRoutes(deps) {
                     const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements] = await Promise.all([
                         executeListTasks(projectPath, { status: ["pending"] }),
                         executeListTasks(projectPath, { status: ["working", "assigned"] }),
-                        executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
+                        executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
                         executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
                         executeListTasks(projectPath, { category: ["action_required"], status: sseActiveStatuses }),
                         executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),

@@ -31,6 +31,11 @@ export declare function getJstTimestamp(): string;
  */
 export declare function formatDateJst(date: Date): string;
 /**
+ * 日時を相対時間表示に変換（日本語）
+ * 例: "3分前", "2時間前", "1日前", "3週間前"
+ */
+export declare function formatRelativeTime(dateString: string | null | undefined): string;
+/**
  * 日付を日本時間で MM/DD HH:mm 形式にフォーマット（短縮版）
  */
 export declare function formatDateJstShort(date: Date): string;

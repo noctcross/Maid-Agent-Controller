@@ -4,7 +4,7 @@
  */
 import path from "path";
 import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
-import { formatDateJstShort } from "../utils/yaml-helper.js";
+import { formatDateJstShort, formatRelativeTime } from "../utils/yaml-helper.js";
 /**
  * 報告書リンクのHTMLを生成する共通関数
  * dashboard-html.ts と task-html.ts の両方から使用
@@ -20,8 +20,8 @@ export function generateReportLinksHtml(reportPaths, projectPath) {
             : path.join(projectPath, p);
         // ブラウザ用: /file?path=... エンドポイント（&project= で報告書内パスリンク化を有効化）
         const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
-        // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
-        return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(absolutePath)}" onclick="return openFile(this, '${escapeHtml(absolutePath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
+        // VSCode Webview用: addEventListenerでpostMessage、ブラウザではhref遷移
+        return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(absolutePath)}" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
     }).join(", ");
 }
 /**
@@ -47,10 +47,12 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
             ? formatDateJstShort(new Date(task.completedAt))
             : "";
         if (type === "pending") {
-            return `<div class="task-item ${priorityClass[task.priority] || ""}" data-priority="${task.priority}" data-id="${task.id}">
+            const relativeCreatedTime = formatRelativeTime(task.createdAt);
+            return `<div class="task-item ${priorityClass[task.priority] || ""}" data-priority="${task.priority}" data-id="${task.id}" data-updated="${task.updatedAt || task.createdAt}">
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <span class="task-priority">[${task.priority}]</span>
+        ${relativeCreatedTime ? `<span class="task-date">${relativeCreatedTime}</span>` : ""}
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           <div class="task-detail-row"><span class="task-detail-label">作成日時:</span><span class="task-detail-value">${createdDate}</span></div>
@@ -58,10 +60,12 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
       </div>`;
         }
         else if (type === "working") {
-            return `<div class="task-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}">
+            const elapsedTime = task.startedAt ? formatRelativeTime(task.startedAt) : "";
+            return `<div class="task-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}" data-updated="${task.updatedAt || task.createdAt}">
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
+        ${elapsedTime ? `<span class="task-date">🕐 ${elapsedTime}</span>` : ""}
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
@@ -74,15 +78,16 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
             const reviewedClass = task.reviewed ? " reviewed" : "";
             const reviewedActive = task.reviewed ? " active" : "";
             const starredActive = task.starred ? " active" : "";
-            return `<div class="task-item completed${reviewedClass}" data-id="${task.id}">
+            const relativeCompletedTime = formatRelativeTime(task.completedAt);
+            return `<div class="task-item completed${reviewedClass}" data-id="${task.id}" data-updated="${task.updatedAt || task.completedAt || task.createdAt}">
         <div class="task-main-row">
           <span class="task-id">${task.id}</span>
           <span class="task-title">${escapeHtml(title)}</span>
           <span class="task-right-group">
             ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
-            <span class="task-date">${completedDate}</span>
-            <button class="task-action-btn review-btn${reviewedActive}" onclick="toggleReview(event, '${task.id}', ${!task.reviewed})" title="確認済み">✔</button>
-            <button class="task-action-btn star-btn${starredActive}" onclick="toggleStar(event, '${task.id}', ${!task.starred})" title="スター">★</button>
+            <span class="task-date" title="${relativeCompletedTime}">${completedDate}</span>
+            <button class="task-action-btn review-btn${reviewedActive}" data-task-id="${task.id}" data-new-value="${!task.reviewed}" title="確認済み">✔</button>
+            <button class="task-action-btn star-btn${starredActive}" data-task-id="${task.id}" data-new-value="${!task.starred}" title="スター">★</button>
           </span>
         </div>
         <div class="task-detail">

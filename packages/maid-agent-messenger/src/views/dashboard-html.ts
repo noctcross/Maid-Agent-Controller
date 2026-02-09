@@ -11,9 +11,9 @@ import { generateTaskHtml, composeMasterWaitingHtml } from "./task-html.js";
 export interface DashboardData {
   projectPath: string;
   timestamp: string;
-  pending: Array<{ id: string; title: string; description: string; priority: string; createdAt: string; category?: string }>;
-  working: Array<{ id: string; title: string; description: string; status: string; assignees: Array<{ agentId: string }>; priority: string }>;
-  recentCompleted: Array<{ id: string; title: string; description: string; completedAt: string | null; summary: string | null; assignees: Array<{ agentId: string }>; reportPaths: string[]; reviewed?: boolean; starred?: boolean }>;
+  pending: Array<{ id: string; title: string; description: string; priority: string; createdAt: string; updatedAt?: string; category?: string }>;
+  working: Array<{ id: string; title: string; description: string; status: string; assignees: Array<{ agentId: string }>; priority: string; startedAt?: string | null; updatedAt?: string }>;
+  recentCompleted: Array<{ id: string; title: string; description: string; completedAt: string | null; summary: string | null; assignees: Array<{ agentId: string }>; reportPaths: string[]; reviewed?: boolean; starred?: boolean; updatedAt?: string }>;
   completedTotal: number;
   masterWaiting: Array<{ id: string; title: string; description: string; status: string; substatus: string | null; assignees: Array<{ agentId: string }>; priority: string; escalation?: boolean; escalatedAt?: string | null }>;
   masterReview: Array<{ id: string; title: string; description: string; completedAt: string | null; summary: string | null; reviewed?: boolean }>;
@@ -191,6 +191,10 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
     .completed-header-center { flex: 1; display: flex; justify-content: center; }
     .completed-header-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
     .completed-filter-group { display: flex; align-items: center; gap: 4px; }
+    .sort-toggle-group { display: flex; gap: 3px; margin-left: auto; }
+    .sort-toggle-btn { background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; padding: 1px 6px; border-radius: 3px; font-size: 0.68rem; transition: all 0.15s; user-select: none; }
+    .sort-toggle-btn:hover { background: rgba(255,255,255,0.12); }
+    .sort-toggle-btn.active { background: rgba(86, 156, 214, 0.2); border-color: var(--accent-color); color: var(--accent-color); }
     .filter-toggle-btn { background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; padding: 2px 7px; border-radius: 4px; font-size: 0.7rem; transition: all 0.15s; user-select: none; }
     .filter-toggle-btn:hover { background: rgba(255,255,255,0.12); }
     .filter-toggle-btn.filter-yes { background: rgba(76,175,80,0.2); border-color: var(--success-color); color: var(--success-color); }
@@ -422,6 +426,57 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       }
     }
 
+    // ソート状態管理
+    var sortState = { pending: 'id', working: 'id', completed: 'id' };
+
+    function toggleSort(section, sortBy) {
+      sortState[section] = sortBy;
+      // ボタンのアクティブ状態を更新
+      var buttons = document.querySelectorAll('.sort-toggle-btn[data-section="' + section + '"]');
+      buttons.forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.sort === sortBy);
+      });
+      // 完了セクションはサーバーサイドソート
+      if (section === 'completed') {
+        completedCurrentPage = 0;
+        requestCompletedPage();
+        return;
+      }
+      // 待機中・進行中はクライアントサイドソート
+      sortTaskItems(section, sortBy);
+    }
+
+    function sortTaskItems(section, sortBy) {
+      var sectionEl = document.querySelector('[data-section="' + section + '"]');
+      if (!sectionEl) return;
+      var items = Array.from(sectionEl.querySelectorAll('.task-item'));
+      if (items.length === 0) return;
+      var parent = items[0].parentNode;
+      items.sort(function(a, b) {
+        if (sortBy === 'id') {
+          return compareTaskIds(b.dataset.id || '', a.dataset.id || '');
+        } else {
+          var aTime = a.dataset.updated || '';
+          var bTime = b.dataset.updated || '';
+          return bTime.localeCompare(aTime);
+        }
+      });
+      items.forEach(function(item) { parent.appendChild(item); });
+    }
+
+    function compareTaskIds(a, b) {
+      var partsA = a.split('-');
+      var partsB = b.split('-');
+      for (var i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+        var pa = i < partsA.length ? parseInt(partsA[i], 10) : -1;
+        var pb = i < partsB.length ? parseInt(partsB[i], 10) : -1;
+        if (isNaN(pa)) pa = -1;
+        if (isNaN(pb)) pb = -1;
+        if (pa !== pb) return pa - pb;
+      }
+      return 0;
+    }
+
     // Part 2: 表示件数トグル（セッション中のみ保持）
     var COMPLETED_LIMIT_OPTIONS = [5, 10, 20, 100];
     var COMPLETED_LIMIT_DEFAULT_INDEX = 1; // 初期値: 10
@@ -520,6 +575,10 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       else if (completedFilterReview === 'no') filterParams += '&reviewed=no';
       if (completedFilterStar === 'yes') filterParams += '&starred=yes';
       else if (completedFilterStar === 'no') filterParams += '&starred=no';
+      // ソートパラメータを追加
+      if (sortState.completed !== 'id') {
+        filterParams += '&completedSortField=' + sortState.completed;
+      }
 
       if (_vscodeApi) {
         _vscodeApi.postMessage({
@@ -528,6 +587,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           limit: limit,
           reviewed: completedFilterReview !== 'all' ? completedFilterReview : undefined,
           starred: completedFilterStar !== 'all' ? completedFilterStar : undefined,
+          completedSortField: sortState.completed !== 'id' ? sortState.completed : undefined,
         });
         // 表示設定をextensionに送信（ポーリング時に使用）
         syncCompletedViewState();
@@ -690,6 +750,10 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       <div class="card-header">
         <span class="card-title">⏳ 待機中</span>
         <span class="card-count">${filteredPending.length}</span>
+        <div class="sort-toggle-group">
+          <button class="sort-toggle-btn active" data-section="pending" data-sort="id" onclick="toggleSort('pending', 'id')">ID↓</button>
+          <button class="sort-toggle-btn" data-section="pending" data-sort="updatedAt" onclick="toggleSort('pending', 'updatedAt')">更新↓</button>
+        </div>
       </div>
       ${pendingHtml}
     </div>
@@ -698,6 +762,10 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       <div class="card-header">
         <span class="card-title">⚡ 進行中</span>
         <span class="card-count">${working.length}</span>
+        <div class="sort-toggle-group">
+          <button class="sort-toggle-btn active" data-section="working" data-sort="id" onclick="toggleSort('working', 'id')">ID↓</button>
+          <button class="sort-toggle-btn" data-section="working" data-sort="updatedAt" onclick="toggleSort('working', 'updatedAt')">更新↓</button>
+        </div>
       </div>
       ${workingHtml}
     </div>
@@ -715,6 +783,10 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
             <div class="inline-pagination" id="completedPagination"></div>
           </div>
           <div class="completed-header-right">
+            <div class="sort-toggle-group">
+              <button class="sort-toggle-btn active" data-section="completed" data-sort="id" onclick="toggleSort('completed', 'id')">ID↓</button>
+              <button class="sort-toggle-btn" data-section="completed" data-sort="updatedAt" onclick="toggleSort('completed', 'updatedAt')">更新↓</button>
+            </div>
             <div class="completed-filter-group">
               <button id="filterReviewBtn" class="filter-toggle-btn" onclick="cycleFilter('review')" title="チェックフィルター（クリックで切替）">✔すべて</button>
               <button id="filterStarBtn" class="filter-toggle-btn" onclick="cycleFilter('star')" title="スターフィルター（クリックで切替）">★すべて</button>
@@ -826,6 +898,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       if (completedFilterReview !== 'all') completedParams += '&completedReviewed=' + completedFilterReview;
       if (completedFilterStar !== 'all') completedParams += '&completedStarred=' + completedFilterStar;
       if (completedHash) completedParams += '&completedHash=' + completedHash;
+      if (sortState.completed !== 'id') completedParams += '&completedSortField=' + sortState.completed;
 
       var url = serverBaseUrl + '/dashboard/data?project=' + projectPath + completedParams;
       fetch(url)
@@ -896,6 +969,13 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
 
       // イベントリスナーを再設定
       attachTaskItemListeners();
+
+      // ソート状態を再適用
+      Object.keys(sortState).forEach(function(section) {
+        if (sortState[section] !== 'id' && section !== 'completed') {
+          sortTaskItems(section, sortState[section]);
+        }
+      });
 
       // フィルタを再適用
       filterTasks();
@@ -996,6 +1076,13 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
 
       // イベントリスナーを再設定
       attachTaskItemListeners();
+
+      // ソート状態を再適用
+      Object.keys(sortState).forEach(function(section) {
+        if (sortState[section] !== 'id' && section !== 'completed') {
+          sortTaskItems(section, sortState[section]);
+        }
+      });
 
       // フィルタを再適用
       filterTasks();

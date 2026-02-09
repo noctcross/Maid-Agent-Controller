@@ -225,12 +225,13 @@ describe("generateReportLinksHtml - 報告書リンク共通関数", () => {
     expect(html).toContain(`&project=${encodeURIComponent(PROJECT_PATH)}`);
   });
 
-  it("onclick属性にopenFile関数呼び出しを含む", () => {
+  it("data-path属性にファイルパスを含む（addEventListener用、onclick属性なし）", () => {
     const html = generateReportLinksHtml(
       [".maid-agent/master/reports/task-001.md"],
       PROJECT_PATH
     );
-    expect(html).toContain("onclick=\"return openFile(this,");
+    expect(html).toContain("data-path=\"");
+    expect(html).not.toContain("onclick=");
   });
 
   it("ファイル名のみがリンクテキストとして表示される", () => {

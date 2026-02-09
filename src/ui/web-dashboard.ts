@@ -69,7 +69,7 @@ function setupDashboardMessageHandler(ctx: ViewContext, panel: vscode.WebviewPan
                     toggleTaskStar(ctx, message.taskId, message.starred);
                     break;
                 case 'completedPage':
-                    fetchCompletedPage(ctx, message.offset, message.limit, message.reviewed, message.starred);
+                    fetchCompletedPage(ctx, message.offset, message.limit, message.reviewed, message.starred, message.completedSortField);
                     break;
                 case 'updateCompletedViewState':
                     ctx.completedViewState = {
@@ -77,7 +77,8 @@ function setupDashboardMessageHandler(ctx: ViewContext, panel: vscode.WebviewPan
                         offset: message.offset ?? 0,
                         reviewed: message.reviewed,
                         starred: message.starred,
-                        hash: message.hash ?? ''
+                        hash: message.hash ?? '',
+                        completedSortField: message.completedSortField,
                     };
                     break;
             }
@@ -288,6 +289,7 @@ export async function updateDashboardData(ctx: ViewContext, serverUrl: string, p
     if (state.reviewed) dataUrl += `&completedReviewed=${state.reviewed}`;
     if (state.starred) dataUrl += `&completedStarred=${state.starred}`;
     if (state.hash) dataUrl += `&completedHash=${state.hash}`;
+    if (state.completedSortField) dataUrl += `&completedSortField=${state.completedSortField}`;
 
     const response = await fetch(dataUrl);
 
@@ -367,7 +369,7 @@ export async function toggleTaskStar(ctx: ViewContext, taskId: string, starred: 
 /**
  * 完了タスクのページネーションデータを取得してWebviewに送信
  */
-export async function fetchCompletedPage(ctx: ViewContext, offset: number, limit: number, reviewed?: string, starred?: string): Promise<void> {
+export async function fetchCompletedPage(ctx: ViewContext, offset: number, limit: number, reviewed?: string, starred?: string, completedSortField?: string): Promise<void> {
     const serverUrl = DASHBOARD_SERVER_URL;
     let projectPath = ctx.workspaceRoot;
     if (!projectPath || !ctx.dashboardPanel) return;
@@ -380,6 +382,7 @@ export async function fetchCompletedPage(ctx: ViewContext, offset: number, limit
         else if (reviewed === 'no') url += '&reviewed=no';
         if (starred === 'yes') url += '&starred=yes';
         else if (starred === 'no') url += '&starred=no';
+        if (completedSortField) url += `&completedSortField=${completedSortField}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
         const data = await response.json() as { html: string; total: number; offset: number; limit: number; hasMore: boolean };

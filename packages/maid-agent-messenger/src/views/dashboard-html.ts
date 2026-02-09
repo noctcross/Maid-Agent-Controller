@@ -611,7 +611,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           offset: completedCurrentPage * getCompletedLimit(),
           reviewed: completedFilterReview !== 'all' ? completedFilterReview : undefined,
           starred: completedFilterStar !== 'all' ? completedFilterStar : undefined,
-          hash: completedHash
+          hash: completedHash,
+          completedSortField: sortState.completed !== 'id' ? sortState.completed : undefined
         });
       }
     }

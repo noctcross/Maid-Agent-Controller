@@ -121,6 +121,7 @@ export interface CompletedViewState {
     reviewed: string | undefined;
     starred: string | undefined;
     hash: string;
+    completedSortField: string | undefined;
 }
 
 /**

@@ -41,7 +41,7 @@ export class MultiAgentController {
     private dashboardPanel: vscode.WebviewPanel | undefined;
     private dashboardPollingInterval: NodeJS.Timeout | undefined;
     private dashboardInitialized = false;
-    private completedViewState: CompletedViewState = { limit: 10, offset: 0, reviewed: undefined, starred: undefined, hash: '' };
+    private completedViewState: CompletedViewState = { limit: 10, offset: 0, reviewed: undefined, starred: undefined, hash: '', completedSortField: undefined };
     private reportViewerPanel: vscode.WebviewPanel | undefined;
 
     constructor() {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isPathWithinRoot } from '../path-validator';
+import { isPathWithinRoot, normalizePathForValidation } from '../path-validator';
 
 describe('isPathWithinRoot', () => {
     it('ルート内のファイルパスは true を返すこと', () => {
@@ -28,5 +28,72 @@ describe('isPathWithinRoot', () => {
 
     it('ルート名の部分一致は false を返すこと（prefix attack防止）', () => {
         expect(isPathWithinRoot('/workspace-evil/file.txt', '/workspace')).toBe(false);
+    });
+
+    it('Linux上でWindowsパス(C:/)はCWD依存の不正確な結果となること', () => {
+        // #121: Linux上ではC:/はドライブレターではなく相対パスとして解釈される
+        // path.resolve('C:/Users/...') → '{CWD}/C:/Users/...' → CWD依存の結果
+        // → isPathWithinRoot の前に normalizePathForValidation で正規化が必要
+        const result = isPathWithinRoot(
+            'C:/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/master/reports/task-116.md',
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse'
+        );
+        // CWD依存のためtrue/falseどちらもあり得る（結果自体は検証しない）
+        expect(typeof result).toBe('boolean');
+    });
+});
+
+describe('normalizePathForValidation', () => {
+    it('WSL環境でWindowsパス(C:/)をWSLパスに変換すること', () => {
+        expect(normalizePathForValidation(
+            'C:/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/report.md',
+            'wsl'
+        )).toBe('/mnt/c/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/report.md');
+    });
+
+    it('WSL環境でWindowsパス(C:\\)をWSLパスに変換すること', () => {
+        expect(normalizePathForValidation(
+            'C:\\Users\\noct\\Development\\02_Projects\\MaidsHouse\\.maid-agent\\report.md',
+            'wsl'
+        )).toBe('/mnt/c/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/report.md');
+    });
+
+    it('WSL環境でWSLパスはそのまま返すこと', () => {
+        expect(normalizePathForValidation(
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/report.md',
+            'wsl'
+        )).toBe('/mnt/c/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/report.md');
+    });
+
+    it('WSL環境で小文字ドライブレターも変換すること', () => {
+        expect(normalizePathForValidation('c:/path/to/file.md', 'wsl'))
+            .toBe('/mnt/c/path/to/file.md');
+    });
+
+    it('Linux環境ではWindowsパスを変換しないこと', () => {
+        expect(normalizePathForValidation('C:/Users/file.md', 'linux'))
+            .toBe('C:/Users/file.md');
+    });
+
+    it('正規化後のパスがisPathWithinRootで正しく判定されること', () => {
+        const filePath = normalizePathForValidation(
+            'C:/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/master/reports/task-116.md',
+            'wsl'
+        );
+        expect(isPathWithinRoot(
+            filePath,
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse'
+        )).toBe(true);
+    });
+
+    it('正規化後のルート外パスはisPathWithinRootでfalseになること', () => {
+        const filePath = normalizePathForValidation(
+            'C:/Users/other/evil.md',
+            'wsl'
+        );
+        expect(isPathWithinRoot(
+            filePath,
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse'
+        )).toBe(false);
     });
 });

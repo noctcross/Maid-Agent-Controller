@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { windowsToWslPath } from './environment';
 
 /**
  * パストラバーサル防止: resolvedPath が allowedRoot 内にあることを検証
@@ -8,6 +9,20 @@ export function isPathWithinRoot(filePath: string, allowedRoot: string): boolean
     const resolved = path.resolve(filePath);
     const root = path.resolve(allowedRoot);
     return resolved.startsWith(root + path.sep) || resolved === root;
+}
+
+/**
+ * 環境を考慮したパストラバーサル防止
+ * Windows-native環境でMCPサーバーからWSLパスが渡され、workspaceRootがWindowsパスの場合、
+ * rootをWSL形式に統一してから比較する。
+ * 両パスが同じ形式になるため、path.resolveが同じ変換を適用し正しく比較できる。
+ */
+export function isPathWithinRootCrossEnv(filePath: string, allowedRoot: string, env: string): boolean {
+    if (env === 'windows-native') {
+        const normalizedRoot = windowsToWslPath(allowedRoot);
+        return isPathWithinRoot(filePath, normalizedRoot);
+    }
+    return isPathWithinRoot(filePath, allowedRoot);
 }
 
 /**

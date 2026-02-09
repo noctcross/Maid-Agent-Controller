@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isPathWithinRoot, normalizePathForValidation } from '../path-validator';
+import { isPathWithinRoot, isPathWithinRootCrossEnv, normalizePathForValidation } from '../path-validator';
 
 describe('isPathWithinRoot', () => {
     it('ルート内のファイルパスは true を返すこと', () => {
@@ -94,6 +94,58 @@ describe('normalizePathForValidation', () => {
         expect(isPathWithinRoot(
             filePath,
             '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse'
+        )).toBe(false);
+    });
+});
+
+describe('isPathWithinRootCrossEnv', () => {
+    // #116-1: Windows-native環境でWSLパス(filePath)とWindowsパス(root)の混在に対応
+
+    it('windows-native環境: WSLパスとWindowsルートの比較でルート内のパスはtrueを返すこと', () => {
+        expect(isPathWithinRootCrossEnv(
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/master/reports/task-002.md',
+            'c:\\Users\\noct\\Development\\02_Projects\\MaidsHouse',
+            'windows-native'
+        )).toBe(true);
+    });
+
+    it('windows-native環境: WSLパスとWindowsルートの比較でルート外のパスはfalseを返すこと', () => {
+        expect(isPathWithinRootCrossEnv(
+            '/mnt/c/Users/other/evil.md',
+            'c:\\Users\\noct\\Development\\02_Projects\\MaidsHouse',
+            'windows-native'
+        )).toBe(false);
+    });
+
+    it('windows-native環境: パストラバーサル攻撃を防止すること', () => {
+        expect(isPathWithinRootCrossEnv(
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse/../../etc/passwd',
+            'c:\\Users\\noct\\Development\\02_Projects\\MaidsHouse',
+            'windows-native'
+        )).toBe(false);
+    });
+
+    it('windows-native環境: prefix attack（ルート名の部分一致）を防止すること', () => {
+        expect(isPathWithinRootCrossEnv(
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse-evil/file.md',
+            'c:\\Users\\noct\\Development\\02_Projects\\MaidsHouse',
+            'windows-native'
+        )).toBe(false);
+    });
+
+    it('wsl環境: 通常のWSLパス比較はそのまま機能すること', () => {
+        expect(isPathWithinRootCrossEnv(
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/reports/task.md',
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse',
+            'wsl'
+        )).toBe(true);
+    });
+
+    it('wsl環境: ルート外のパスはfalseを返すこと', () => {
+        expect(isPathWithinRootCrossEnv(
+            '/mnt/c/Users/other/file.md',
+            '/mnt/c/Users/noct/Development/02_Projects/MaidsHouse',
+            'wsl'
         )).toBe(false);
     });
 });

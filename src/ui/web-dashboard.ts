@@ -5,7 +5,7 @@ import { ViewContext } from '../types';
 import { WEB_DASHBOARD_POLLING_INTERVAL, DASHBOARD_SERVER_URL } from '../constants';
 import { CURRENT_ENV, windowsToWslPath } from '../utils/environment';
 import { simpleMarkdownToHtml } from '../utils/markdown';
-import { isPathWithinRoot, normalizePathForValidation } from '../utils/path-validator';
+import { isPathWithinRoot, isPathWithinRootCrossEnv, normalizePathForValidation } from '../utils/path-validator';
 import { escapeHtml } from '../utils/html-escape';
 
 /**
@@ -440,13 +440,22 @@ export async function openMaidAgentFile(ctx: ViewContext, filename: string): Pro
  */
 export async function openFileWithPreview(ctx: ViewContext, filePath: string): Promise<void> {
     try {
+        // 診断ログ（#116-1: パス検証デバッグ）
+        ctx.log(`[openFileWithPreview] 入力パス: ${filePath}`);
+        ctx.log(`[openFileWithPreview] CURRENT_ENV: ${CURRENT_ENV}`);
+        ctx.log(`[openFileWithPreview] workspaceRoot: ${ctx.workspaceRoot}`);
+
         // パスフォーマット正規化: WSL環境でWindowsパスが渡された場合にWSLパスに変換
         // #121: MCPサーバーがWindowsパスを返す場合、Linux上のpath.resolveが
         // C:/をディレクトリ名として解釈し、isPathWithinRootが誤判定する問題の対策
         filePath = normalizePathForValidation(filePath, CURRENT_ENV);
+        ctx.log(`[openFileWithPreview] 正規化後パス: ${filePath}`);
 
         // パストラバーサル防止: ワークスペースルート内のみ許可
-        if (ctx.workspaceRoot && !isPathWithinRoot(filePath, ctx.workspaceRoot)) {
+        // #116-1: Windows-native環境ではMCPサーバーがWSLパスを返すため、
+        // isPathWithinRootCrossEnvでrootもWSL形式に統一して比較
+        if (ctx.workspaceRoot && !isPathWithinRootCrossEnv(filePath, ctx.workspaceRoot, CURRENT_ENV)) {
+            ctx.log(`[openFileWithPreview] isPathWithinRootCrossEnv=false → ブロック`);
             vscode.window.showErrorMessage('許可されたディレクトリ外のファイルは開けません');
             return;
         }
@@ -482,8 +491,8 @@ export async function openFileWithPreview(ctx: ViewContext, filePath: string): P
  */
 async function fetchRenderedFileHtml(ctx: ViewContext, filePath: string): Promise<string | null> {
     try {
-        // パストラバーサル防止
-        if (ctx.workspaceRoot && !isPathWithinRoot(filePath, ctx.workspaceRoot)) {
+        // パストラバーサル防止（#116-1: 環境を考慮した比較）
+        if (ctx.workspaceRoot && !isPathWithinRootCrossEnv(filePath, ctx.workspaceRoot, CURRENT_ENV)) {
             return null;
         }
         const serverUrl = DASHBOARD_SERVER_URL;
@@ -538,8 +547,8 @@ function renderFileLocally(filePath: string, fileName: string, workspaceRoot?: s
         normalizedPath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
     }
 
-    // パストラバーサル防止
-    if (workspaceRoot && !isPathWithinRoot(normalizedPath, workspaceRoot)) {
+    // パストラバーサル防止（#116-1: 環境を考慮した比較）
+    if (workspaceRoot && !isPathWithinRootCrossEnv(normalizedPath, workspaceRoot, CURRENT_ENV)) {
         vscode.window.showErrorMessage('許可されたディレクトリ外のファイルは開けません');
         return null;
     }

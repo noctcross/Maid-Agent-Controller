@@ -163,3 +163,23 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
         return "";
     }).join("\n");
 }
+/**
+ * 「対応待ち」セクションのHTMLを結合生成
+ * masterWaiting（アクティブ）と masterReview（確認待ち）を適切に結合し、
+ * 両方空の場合は「なし」を1つだけ表示する
+ */
+export function composeMasterWaitingHtml(masterWaitingTasks, masterReviewTasks, projectPath, scheme) {
+    if (masterWaitingTasks.length === 0 && masterReviewTasks.length === 0) {
+        return '<div class="empty-message">なし</div>';
+    }
+    let result = "";
+    if (masterWaitingTasks.length > 0) {
+        result += `<div class="subsection-header">アクティブ (${masterWaitingTasks.length})</div>`;
+        result += generateTaskHtml(masterWaitingTasks, "action_required", projectPath, scheme);
+    }
+    if (masterReviewTasks.length > 0) {
+        result += `<div class="subsection-header">確認待ち (${masterReviewTasks.length})</div>`;
+        result += generateTaskHtml(masterReviewTasks, "master_review", projectPath, scheme);
+    }
+    return result;
+}

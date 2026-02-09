@@ -8,5 +8,6 @@ export type { DashboardData };
 export interface DashboardRoutesDeps {
     generateDashboardHtml: (data: DashboardData, editorScheme?: string) => string;
     generateTaskHtml: (tasks: any[], type: string, projectPath: string, scheme?: string) => string;
+    composeMasterWaitingHtml: (masterWaitingTasks: any[], masterReviewTasks: any[], projectPath: string, scheme?: string) => string;
 }
 export declare function createDashboardRoutes(deps: DashboardRoutesDeps): Router;

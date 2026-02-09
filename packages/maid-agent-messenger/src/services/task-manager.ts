@@ -278,7 +278,7 @@ export interface ListTasksParams {
   starred?: boolean;
   limit?: number;
   offset?: number;
-  sortField?: "createdAt" | "priority" | "status" | "id" | "updatedAt";
+  sortField?: "createdAt" | "completedAt" | "priority" | "status" | "id" | "updatedAt";
   sortOrder?: "asc" | "desc";
 }
 

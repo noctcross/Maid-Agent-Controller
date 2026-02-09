@@ -25,8 +25,8 @@ export function generateReportLinksHtml(
       : path.join(projectPath, p);
     // ブラウザ用: /file?path=... エンドポイント（&project= で報告書内パスリンク化を有効化）
     const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
-    // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
-    return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(absolutePath)}" onclick="return openFile(this, '${escapeHtml(absolutePath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
+    // VSCode Webview用: addEventListenerでpostMessage、ブラウザではhref遷移
+    return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(absolutePath)}" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
   }).join(", ");
 }
 
@@ -93,8 +93,8 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
           <span class="task-right-group">
             ${assigneeStr ? `<span class="task-date">${assigneeStr}</span>` : ""}
             <span class="task-date" title="${relativeCompletedTime}">${completedDate}</span>
-            <button class="task-action-btn review-btn${reviewedActive}" onclick="toggleReview(event, '${task.id}', ${!task.reviewed})" title="確認済み">✔</button>
-            <button class="task-action-btn star-btn${starredActive}" onclick="toggleStar(event, '${task.id}', ${!task.starred})" title="スター">★</button>
+            <button class="task-action-btn review-btn${reviewedActive}" data-task-id="${task.id}" data-new-value="${!task.reviewed}" title="確認済み">✔</button>
+            <button class="task-action-btn star-btn${starredActive}" data-task-id="${task.id}" data-new-value="${!task.starred}" title="スター">★</button>
           </span>
         </div>
         <div class="task-detail">

@@ -644,9 +644,9 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
         paginationEl.innerHTML = '<span class="pagination-info">' + total + '件</span>';
       } else {
         paginationEl.innerHTML =
-          '<button class="pagination-btn" onclick="goCompletedPage(' + (currentPage - 1) + ')" ' + (currentPage === 0 ? 'disabled' : '') + '>◀</button>' +
+          '<button class="pagination-btn" data-page="' + (currentPage - 1) + '" ' + (currentPage === 0 ? 'disabled' : '') + '>◀</button>' +
           '<span class="pagination-info">' + (currentPage + 1) + '/' + totalPages + '</span>' +
-          '<button class="pagination-btn" onclick="goCompletedPage(' + (currentPage + 1) + ')" ' + (currentPage >= totalPages - 1 ? 'disabled' : '') + '>▶</button>';
+          '<button class="pagination-btn" data-page="' + (currentPage + 1) + '" ' + (currentPage >= totalPages - 1 ? 'disabled' : '') + '>▶</button>';
       }
     }
 
@@ -751,8 +751,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
         <span class="card-title">⏳ 待機中</span>
         <span class="card-count">${filteredPending.length}</span>
         <div class="sort-toggle-group">
-          <button class="sort-toggle-btn active" data-section="pending" data-sort="id" onclick="toggleSort('pending', 'id')">ID↓</button>
-          <button class="sort-toggle-btn" data-section="pending" data-sort="updatedAt" onclick="toggleSort('pending', 'updatedAt')">更新↓</button>
+          <button class="sort-toggle-btn active" data-section="pending" data-sort="id">ID↓</button>
+          <button class="sort-toggle-btn" data-section="pending" data-sort="updatedAt">更新↓</button>
         </div>
       </div>
       ${pendingHtml}
@@ -763,8 +763,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
         <span class="card-title">⚡ 進行中</span>
         <span class="card-count">${working.length}</span>
         <div class="sort-toggle-group">
-          <button class="sort-toggle-btn active" data-section="working" data-sort="id" onclick="toggleSort('working', 'id')">ID↓</button>
-          <button class="sort-toggle-btn" data-section="working" data-sort="updatedAt" onclick="toggleSort('working', 'updatedAt')">更新↓</button>
+          <button class="sort-toggle-btn active" data-section="working" data-sort="id">ID↓</button>
+          <button class="sort-toggle-btn" data-section="working" data-sort="updatedAt">更新↓</button>
         </div>
       </div>
       ${workingHtml}
@@ -775,7 +775,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
         <div class="completed-header-row">
           <div class="completed-header-left">
             <span class="card-title">✅ 直近完了</span>
-            <span class="card-count completed-count-toggle" onclick="toggleCompletedLimit()" title="クリックで表示件数を切替">
+            <span class="card-count completed-count-toggle" title="クリックで表示件数を切替">
               10件表示 (${completedTotal})
             </span>
           </div>
@@ -784,12 +784,12 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           </div>
           <div class="completed-header-right">
             <div class="sort-toggle-group">
-              <button class="sort-toggle-btn active" data-section="completed" data-sort="id" onclick="toggleSort('completed', 'id')">ID↓</button>
-              <button class="sort-toggle-btn" data-section="completed" data-sort="updatedAt" onclick="toggleSort('completed', 'updatedAt')">更新↓</button>
+              <button class="sort-toggle-btn active" data-section="completed" data-sort="id">ID↓</button>
+              <button class="sort-toggle-btn" data-section="completed" data-sort="updatedAt">更新↓</button>
             </div>
             <div class="completed-filter-group">
-              <button id="filterReviewBtn" class="filter-toggle-btn" onclick="cycleFilter('review')" title="チェックフィルター（クリックで切替）">✔すべて</button>
-              <button id="filterStarBtn" class="filter-toggle-btn" onclick="cycleFilter('star')" title="スターフィルター（クリックで切替）">★すべて</button>
+              <button id="filterReviewBtn" class="filter-toggle-btn" data-filter="review" title="チェックフィルター（クリックで切替）">✔すべて</button>
+              <button id="filterStarBtn" class="filter-toggle-btn" data-filter="star" title="スターフィルター（クリックで切替）">★すべて</button>
             </div>
           </div>
         </div>
@@ -822,12 +822,42 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
   </div>
 
   <script>
-    // Phase 2: タスク展開機能
-    document.querySelectorAll('.task-item').forEach(item => {
+    // task-item内ボタンのリスナーを追加する共通ヘルパー
+    function addTaskItemButtonListeners(item) {
+      // C-1: レポートリンク (openFile)
+      item.querySelectorAll('.report-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+          if (_vscodeApi) {
+            e.preventDefault();
+            _vscodeApi.postMessage({ command: 'openFile', path: this.dataset.path });
+          }
+          // ブラウザではデフォルトのhref遷移を許可
+        });
+      });
+      // C-2: レビューボタン (toggleReview)
+      item.querySelectorAll('.review-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleReview(e, this.dataset.taskId, this.dataset.newValue === 'true');
+        });
+      });
+      // C-3: スターボタン (toggleStar)
+      item.querySelectorAll('.star-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          toggleStar(e, this.dataset.taskId, this.dataset.newValue === 'true');
+        });
+      });
+    }
+
+    // Phase 2: タスク展開機能（初期リスナー設定）
+    document.querySelectorAll('.task-item').forEach(function(item) {
       item.addEventListener('click', function(e) {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
+        if (e.target.closest('a') || e.target.closest('button')) return;
         this.classList.toggle('expanded');
       });
+      addTaskItemButtonListeners(item);
     });
 
     // Phase 3: 検索機能
@@ -1133,6 +1163,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           if (e.target.closest('a') || e.target.closest('button')) return;
           this.classList.toggle('expanded');
         });
+        // cloneNodeでaddEventListenerが失われるため再設定
+        addTaskItemButtonListeners(newItem);
       });
     }
 
@@ -1151,12 +1183,46 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
 
     // 初期表示: ページネーションとフィルターを初期化
     initCompletedPagination();
+
+    // === addEventListener登録（インラインonclick置換） ===
+
+    // A-1: ソートボタン
+    document.querySelectorAll('.sort-toggle-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        toggleSort(this.dataset.section, this.dataset.sort);
+      });
+    });
+
+    // A-2: 表示件数トグル
+    var countToggle = document.querySelector('.completed-count-toggle');
+    if (countToggle) {
+      countToggle.addEventListener('click', toggleCompletedLimit);
+    }
+
+    // A-3: フィルターボタン
+    document.querySelectorAll('.filter-toggle-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        cycleFilter(this.dataset.filter);
+      });
+    });
+
+    // B-1: ページネーション（イベント委任）
+    var paginationRoot = document.getElementById('completedPagination');
+    if (paginationRoot) {
+      paginationRoot.addEventListener('click', function(e) {
+        var btn = e.target.closest('.pagination-btn');
+        if (btn && !btn.disabled) {
+          var page = parseInt(btn.dataset.page, 10);
+          goCompletedPage(page);
+        }
+      });
+    }
   </script>
   <!-- レポートオーバーレイ（VSCode Webview内でレポートを表示） -->
   <div id="reportOverlay" class="report-overlay">
     <div class="report-overlay-header">
       <h2 id="reportTitle">📄 Report</h2>
-      <button class="report-close-btn" onclick="closeReportOverlay()">✕ 閉じる</button>
+      <button class="report-close-btn">✕ 閉じる</button>
     </div>
     <div id="reportContent" class="report-overlay-content"></div>
   </div>
@@ -1168,6 +1234,11 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
     }
     function closeReportOverlay() {
       document.getElementById('reportOverlay').classList.remove('visible');
+    }
+    // A-4: レポートオーバーレイ閉じる（M-1: 第3スクリプトブロック内に配置）
+    var closeBtn = document.querySelector('.report-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', closeReportOverlay);
     }
   </script>
 </body>

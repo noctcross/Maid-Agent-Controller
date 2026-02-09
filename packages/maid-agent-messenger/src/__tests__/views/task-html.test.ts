@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from "@jest/globals";
-import { generateTaskHtml } from "../../views/task-html.js";
+import { generateTaskHtml, composeMasterWaitingHtml } from "../../views/task-html.js";
 
 const PROJECT_PATH = "/mnt/c/Users/noct/Development/TestProject";
 
@@ -65,5 +65,65 @@ describe("master_review type", () => {
     const html = generateTaskHtml(tasks as any, "master_review", "/test/project");
     expect(html).not.toContain("review-btn");
     expect(html).not.toContain("star-btn");
+  });
+});
+
+describe("composeMasterWaitingHtml - 対応待ちセクション結合", () => {
+  const PROJECT_PATH = "/test/project";
+
+  const actionRequiredTask = {
+    id: "ar-001",
+    title: "判断待ちタスク",
+    description: "ご主人様の判断が必要",
+    status: "blocked",
+    substatus: "技術方針の決定待ち",
+    assignees: [{ agentId: "emma" }],
+    priority: "high",
+  };
+
+  const masterReviewTask = {
+    id: "mr-001",
+    title: "確認待ちタスク",
+    description: "完了した要対応タスク",
+    completedAt: "2026-02-08T10:00:00+09:00",
+    summary: "完了しました",
+  };
+
+  it("両方空の場合、「なし」が1つだけ表示される", () => {
+    const html = composeMasterWaitingHtml([], [], PROJECT_PATH);
+    const matches = html.match(/なし/g);
+    expect(matches).toHaveLength(1);
+    expect(html).toContain("empty-message");
+  });
+
+  it("masterWaitingのみにタスクがある場合、アクティブのサブセクションヘッダーが表示される", () => {
+    const html = composeMasterWaitingHtml([actionRequiredTask] as any, [], PROJECT_PATH);
+    expect(html).toContain("アクティブ (1)");
+    expect(html).toContain("ar-001");
+    expect(html).not.toContain("確認待ち");
+    expect(html).not.toContain("empty-message");
+  });
+
+  it("masterReviewのみにタスクがある場合、確認待ちのサブセクションヘッダーが表示される", () => {
+    const html = composeMasterWaitingHtml([], [masterReviewTask] as any, PROJECT_PATH);
+    expect(html).toContain("確認待ち (1)");
+    expect(html).toContain("mr-001");
+    expect(html).not.toContain("アクティブ");
+    expect(html).not.toContain("empty-message");
+  });
+
+  it("両方にタスクがある場合、両方のサブセクションヘッダーが表示される", () => {
+    const html = composeMasterWaitingHtml([actionRequiredTask] as any, [masterReviewTask] as any, PROJECT_PATH);
+    expect(html).toContain("アクティブ (1)");
+    expect(html).toContain("確認待ち (1)");
+    expect(html).toContain("ar-001");
+    expect(html).toContain("mr-001");
+    expect(html).not.toContain("empty-message");
+  });
+
+  it("複数タスクの件数が正しく表示される", () => {
+    const tasks = [actionRequiredTask, { ...actionRequiredTask, id: "ar-002", title: "もう1つ" }];
+    const html = composeMasterWaitingHtml(tasks as any, [], PROJECT_PATH);
+    expect(html).toContain("アクティブ (2)");
   });
 });

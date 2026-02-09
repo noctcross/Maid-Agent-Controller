@@ -22,10 +22,11 @@ export type { DashboardData };
 export interface DashboardRoutesDeps {
   generateDashboardHtml: (data: DashboardData, editorScheme?: string) => string;
   generateTaskHtml: (tasks: any[], type: string, projectPath: string, scheme?: string) => string;
+  composeMasterWaitingHtml: (masterWaitingTasks: any[], masterReviewTasks: any[], projectPath: string, scheme?: string) => string;
 }
 
 export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
-  const { generateDashboardHtml, generateTaskHtml } = deps;
+  const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml } = deps;
   const router = Router();
 
   // GET /dashboard - HTMLダッシュボード（ブラウザ用）
@@ -208,8 +209,8 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           pending: generateTaskHtml(filteredPendingTasks, "pending", projectPath),
           working: generateTaskHtml(working.tasks, "working", projectPath),
           completed: completedChanged ? completedHtml : undefined,
-          masterWaiting: generateTaskHtml(masterWaiting.tasks, "action_required", projectPath),
-          masterReview: generateTaskHtml(masterReview.tasks, "master_review", projectPath),
+          masterWaiting: composeMasterWaitingHtml(masterWaiting.tasks, masterReview.tasks, projectPath),
+          masterReview: "",
           skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
           improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
         },
@@ -294,8 +295,8 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
             pending: generateTaskHtml(sseFilteredPending, "pending", projectPath),
             working: generateTaskHtml(working.tasks, "working", projectPath),
             completed: generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme),
-            masterWaiting: generateTaskHtml(masterWaiting.tasks, "action_required", projectPath),
-            masterReview: generateTaskHtml(masterReview.tasks, "master_review", projectPath),
+            masterWaiting: composeMasterWaitingHtml(masterWaiting.tasks, masterReview.tasks, projectPath),
+            masterReview: "",
             skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
             improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
           };

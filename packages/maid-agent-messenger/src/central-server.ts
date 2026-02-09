@@ -27,7 +27,7 @@ import imageRoutes from "./routes/image-routes.js";
 
 // ビュー
 import { generateDashboardHtml } from "./views/dashboard-html.js";
-import { generateTaskHtml } from "./views/task-html.js";
+import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js";
 
 // MCPサーバーファクトリ
 import { createMcpServer } from "./mcp-server-factory.js";
@@ -78,7 +78,7 @@ async function main(): Promise<void> {
   // 公開エンドポイント（LAN公開OK）を先にマウント
   // ※ loopbackOnly付きルートを先にマウントすると、パス指定なしの
   //    app.use(loopbackOnly, router) が全リクエストをブロックしてしまうため
-  app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml }));
+  app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml }));
   app.use(fileRoutes);
   app.use(imageRoutes);
   // 非公開エンドポイント（loopbackのみ）

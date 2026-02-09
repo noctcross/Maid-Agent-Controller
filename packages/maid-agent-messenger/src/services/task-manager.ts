@@ -45,6 +45,7 @@ export interface Task {
   assignedAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  updatedAt: string;           // 最終更新日時
   reportPaths: string[];
   summary: string | null;
   reviewed?: boolean;        // チェック済みフラグ（完了タスク用）
@@ -82,6 +83,24 @@ function parseTasksData(content: string): TasksData {
       !Array.isArray(data.tasks)
     ) {
       throw new Error("Invalid tasks.yaml format");
+    }
+
+    // updatedAt マイグレーション（既存データの後方互換）
+    for (const task of data.tasks) {
+      if (!task.updatedAt) {
+        const timestamps = [
+          task.completedAt,
+          task.starredAt,
+          task.reviewedAt,
+          task.escalatedAt,
+          task.startedAt,
+          task.assignedAt,
+          task.createdAt,
+        ].filter((t): t is string => t != null);
+        task.updatedAt = timestamps.length > 0
+          ? timestamps.sort().pop()!
+          : task.createdAt;
+      }
     }
 
     return data;
@@ -209,6 +228,7 @@ export async function executeCreateTask(
       })),
       targetPath: null,
       createdAt: now,
+      updatedAt: now,
       assignedAt: params.assignees?.length ? now : null,
       startedAt: null,
       completedAt: null,
@@ -258,7 +278,7 @@ export interface ListTasksParams {
   starred?: boolean;
   limit?: number;
   offset?: number;
-  sortField?: "createdAt" | "priority" | "status" | "id";
+  sortField?: "createdAt" | "priority" | "status" | "id" | "updatedAt";
   sortOrder?: "asc" | "desc";
 }
 
@@ -473,6 +493,9 @@ export async function executeUpdateTask(
       task.escalation = params.escalation;
       task.escalatedAt = params.escalation ? now : null;
     }
+
+    // 最終更新日時を自動設定
+    task.updatedAt = now;
 
     const result: UpdateTaskResult = { success: true, task };
     return { data, result: { result, prevStatus, prevAssignees } };

@@ -159,8 +159,8 @@ describe("generateDashboardHtml - セクション表示（task-html.ts委譲後�
         { id: "ar-001", title: "要対応", description: "テスト", priority: "high", createdAt: "2026-01-01T00:00:00Z", category: "action_required" },
       ],
     });
-    // pendingセクション内にar-001が含まれないこと
-    const pendingSection = html.match(/data-section="pending"[\s\S]*?<\/div>\s*<\/div>/);
+    // pendingセクション内にar-001が含まれないこと（次のdata-sectionまでをキャプチャ）
+    const pendingSection = html.match(/data-section="pending"[\s\S]*?(?=data-section="working")/);
     expect(pendingSection).not.toBeNull();
     expect(pendingSection![0]).toContain("p-001");
     expect(pendingSection![0]).not.toContain("ar-001");

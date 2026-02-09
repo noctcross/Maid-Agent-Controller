@@ -59,6 +59,7 @@ beforeEach(() => {
       category: "task" as const,
       assignees: [{ agentId: "emma", role: null, subTaskId: null }],
       createdAt: "2026-02-06T00:00:00Z",
+      updatedAt: "2026-02-06T00:00:00Z",
       assignedAt: "2026-02-06T00:00:00Z",
       startedAt: null,
       completedAt: null,

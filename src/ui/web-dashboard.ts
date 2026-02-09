@@ -37,7 +37,17 @@ export function showDashboard(ctx: ViewContext): void {
     // 自動更新ポーリングを開始
     startDashboardPolling(ctx);
 
-    ctx.dashboardPanel.webview.onDidReceiveMessage(
+    setupDashboardMessageHandler(ctx, ctx.dashboardPanel);
+
+    updateDashboard(ctx);
+}
+
+/**
+ * ダッシュボードWebviewのメッセージハンドラを設定
+ * showDashboard() と restoreDashboardPanel() の共通処理
+ */
+function setupDashboardMessageHandler(ctx: ViewContext, panel: vscode.WebviewPanel): void {
+    panel.webview.onDidReceiveMessage(
         message => {
             switch (message.command) {
                 case 'refresh':
@@ -62,7 +72,6 @@ export function showDashboard(ctx: ViewContext): void {
                     fetchCompletedPage(ctx, message.offset, message.limit, message.reviewed, message.starred);
                     break;
                 case 'updateCompletedViewState':
-                    // Webviewから表示設定を受け取り保持（ポーリング時に使用）
                     ctx.completedViewState = {
                         limit: message.limit ?? 10,
                         offset: message.offset ?? 0,
@@ -76,8 +85,6 @@ export function showDashboard(ctx: ViewContext): void {
         undefined,
         ctx.context?.subscriptions
     );
-
-    updateDashboard(ctx);
 }
 
 /**
@@ -769,44 +776,7 @@ export function restoreDashboardPanel(ctx: ViewContext, panel: vscode.WebviewPan
     startDashboardPolling(ctx);
 
     // メッセージハンドラを再設定
-    panel.webview.onDidReceiveMessage(
-        message => {
-            switch (message.command) {
-                case 'refresh':
-                    updateDashboard(ctx);
-                    break;
-                case 'openInBrowser':
-                    openDashboardInBrowser(ctx);
-                    break;
-                case 'showController':
-                    ctx.showController();
-                    break;
-                case 'openFile':
-                    openFileWithPreview(ctx, message.path);
-                    break;
-                case 'toggleReview':
-                    toggleTaskReview(ctx, message.taskId, message.reviewed);
-                    break;
-                case 'toggleStar':
-                    toggleTaskStar(ctx, message.taskId, message.starred);
-                    break;
-                case 'completedPage':
-                    fetchCompletedPage(ctx, message.offset, message.limit, message.reviewed, message.starred);
-                    break;
-                case 'updateCompletedViewState':
-                    ctx.completedViewState = {
-                        limit: message.limit ?? 10,
-                        offset: message.offset ?? 0,
-                        reviewed: message.reviewed,
-                        starred: message.starred,
-                        hash: message.hash ?? ''
-                    };
-                    break;
-            }
-        },
-        undefined,
-        ctx.context?.subscriptions
-    );
+    setupDashboardMessageHandler(ctx, panel);
 
     // パネル内容を更新
     updateDashboard(ctx);

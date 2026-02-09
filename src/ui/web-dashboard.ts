@@ -5,7 +5,7 @@ import { ViewContext } from '../types';
 import { WEB_DASHBOARD_POLLING_INTERVAL, DASHBOARD_SERVER_URL } from '../constants';
 import { CURRENT_ENV, windowsToWslPath } from '../utils/environment';
 import { simpleMarkdownToHtml } from '../utils/markdown';
-import { isPathWithinRoot } from '../utils/path-validator';
+import { isPathWithinRoot, normalizePathForValidation } from '../utils/path-validator';
 import { escapeHtml } from '../utils/html-escape';
 
 /**
@@ -433,6 +433,11 @@ export async function openMaidAgentFile(ctx: ViewContext, filename: string): Pro
  */
 export async function openFileWithPreview(ctx: ViewContext, filePath: string): Promise<void> {
     try {
+        // パスフォーマット正規化: WSL環境でWindowsパスが渡された場合にWSLパスに変換
+        // #121: MCPサーバーがWindowsパスを返す場合、Linux上のpath.resolveが
+        // C:/をディレクトリ名として解釈し、isPathWithinRootが誤判定する問題の対策
+        filePath = normalizePathForValidation(filePath, CURRENT_ENV);
+
         // パストラバーサル防止: ワークスペースルート内のみ許可
         if (ctx.workspaceRoot && !isPathWithinRoot(filePath, ctx.workspaceRoot)) {
             vscode.window.showErrorMessage('許可されたディレクトリ外のファイルは開けません');

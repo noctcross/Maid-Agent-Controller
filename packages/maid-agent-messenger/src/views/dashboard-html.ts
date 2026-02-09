@@ -7,6 +7,7 @@ import path from "path";
 import type { AgentStatus } from "../types/index.js";
 import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { formatDateJstShort } from "../utils/yaml-helper.js";
+import { generateReportLinksHtml } from "./task-html.js";
 
 // DashboardData型定義
 export interface DashboardData {
@@ -134,20 +135,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           : "";
         const title = task.title || task.description.split("\n")[0].substring(0, 50);
         const assigneeStr = task.assignees.map((a) => a.agentId).join(", ");
-        // 報告書リンクHTML生成（VSCode Webview + ブラウザ両対応）
-        const reportLinksHtml = task.reportPaths.length > 0
-          ? task.reportPaths.map((p) => {
-              const fileName = p.split("/").pop() || p;
-              // 相対パスを絶対パスに変換（WSLパスはそのまま保持）
-              const absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
-                ? p
-                : path.join(projectPath, p);
-              // ブラウザ用: /file?path=... エンドポイント（&project= で報告書内パスリンク化を有効化）
-              const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
-              // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
-              return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(absolutePath)}" onclick="return openFile(this, '${escapeHtml(absolutePath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
-            }).join(", ")
-          : "";
+        // 報告書リンクHTML生成（共通関数使用）
+        const reportLinksHtml = generateReportLinksHtml(task.reportPaths, projectPath);
         const reviewedClass = task.reviewed ? " reviewed" : "";
         const reviewedActive = task.reviewed ? " active" : "";
         const starredActive = task.starred ? " active" : "";

@@ -32,6 +32,13 @@ describe("generateTaskHtml - report links", () => {
         const html = generateTaskHtml([taskNoReport], "completed", PROJECT_PATH);
         expect(html).not.toContain("report-link");
     });
+    it("報告書リンクのonclickパスがWSLパスのまま（Windows変換されない）", () => {
+        const html = generateTaskHtml([completedTask], "completed", PROJECT_PATH);
+        // WSLパスがそのまま使われること
+        expect(html).toContain("/mnt/c/Users/noct/Development/TestProject/.maid-agent/system/data/reports/current_lily.md");
+        // Windowsパスに変換されていないこと
+        expect(html).not.toContain("C:/Users/noct");
+    });
 });
 describe("master_review type", () => {
     it("master_review タスクが action-required-item クラスで生成される", () => {

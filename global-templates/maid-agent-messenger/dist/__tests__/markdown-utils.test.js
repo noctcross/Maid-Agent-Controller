@@ -1,27 +1,23 @@
 /**
  * markdown-utils テスト
- * linkifyProjectPaths() と resolveToWindowsPath() のユニットテスト
+ * linkifyProjectPaths() と resolveToAbsolutePath() のユニットテスト
  */
 import { describe, it, expect } from "@jest/globals";
-import { convertMarkdownToHtml, linkifyProjectPaths, resolveToWindowsPath, DEFAULT_PATH_PREFIXES, } from "../markdown-utils.js";
+import { convertMarkdownToHtml, linkifyProjectPaths, resolveToAbsolutePath, DEFAULT_PATH_PREFIXES, } from "../markdown-utils.js";
 // テスト用のプロジェクトパス（WSL形式）
 const PROJECT_PATH = "/mnt/c/Users/noct/Development/TestProject";
-describe("resolveToWindowsPath", () => {
-    it("WSLプロジェクトパスで相対パスをWindowsパスに変換する", () => {
-        const result = resolveToWindowsPath("docs/a.md", "/mnt/c/Users/noct/Project");
-        expect(result).toBe("C:/Users/noct/Project/docs/a.md");
+describe("resolveToAbsolutePath", () => {
+    it("WSLプロジェクトパスで相対パスを絶対パスに変換する（WSLパスのまま）", () => {
+        const result = resolveToAbsolutePath("docs/a.md", "/mnt/c/Users/noct/Project");
+        expect(result).toBe("/mnt/c/Users/noct/Project/docs/a.md");
     });
     it("Windowsプロジェクトパスでも正しく動作する", () => {
-        const result = resolveToWindowsPath("docs/a.md", "C:/Users/noct/Project");
+        const result = resolveToAbsolutePath("docs/a.md", "C:/Users/noct/Project");
         expect(result).toBe("C:/Users/noct/Project/docs/a.md");
     });
-    it("小文字ドライブレターを大文字に正規化する", () => {
-        const result = resolveToWindowsPath("src/index.ts", "c:/Users/noct/Project");
-        expect(result).toBe("C:/Users/noct/Project/src/index.ts");
-    });
     it("ネストの深いパスを正しく変換する", () => {
-        const result = resolveToWindowsPath(".maid-agent/master/reports/task-061-lily.md", "/mnt/c/Users/noct/Project");
-        expect(result).toBe("C:/Users/noct/Project/.maid-agent/master/reports/task-061-lily.md");
+        const result = resolveToAbsolutePath(".maid-agent/master/reports/task-061-lily.md", "/mnt/c/Users/noct/Project");
+        expect(result).toBe("/mnt/c/Users/noct/Project/.maid-agent/master/reports/task-061-lily.md");
     });
 });
 describe("linkifyProjectPaths", () => {
@@ -72,6 +68,14 @@ describe("linkifyProjectPaths", () => {
         const input = "<p>docs/a.md</p>";
         const result = linkifyProjectPaths(input, PROJECT_PATH);
         expect(result).toContain('onclick="return openFile(this,');
+    });
+    it("onclickハンドラのパスがWSLパスのまま（Windows変換されない）", () => {
+        const input = "<p>docs/a.md</p>";
+        const result = linkifyProjectPaths(input, PROJECT_PATH);
+        // WSLパスがそのまま使われること
+        expect(result).toContain("/mnt/c/Users/noct/Development/TestProject/docs/a.md");
+        // Windowsパスに変換されていないこと
+        expect(result).not.toContain("C:/Users/noct");
     });
     // --- 除外条件 ---
     it("<pre><code>内のパスはリンク化しない", () => {

@@ -128,23 +128,16 @@ export const DEFAULT_PATH_PREFIXES = [
     "config",
 ];
 /**
- * 相対パスをWindows絶対パスに変換（WSL環境対応）
- * 既存のreportPathsリンク生成ロジック（dashboard-html.ts 142-158行目）を関数化
+ * 相対パスを絶対パスに変換
+ * WSLパスはWSLパスのまま、Windowsパスはそのまま返す
+ * （WSL→Windows変換はしない: VSCode拡張がWSL上で動作するため、
+ *   Windowsパスに変換するとisPathWithinRootでブロックされる）
  */
-export function resolveToWindowsPath(relativePath, projectPath) {
-    // 絶対パスに変換
-    let absolutePath = path.join(projectPath, relativePath);
-    // WSLパス(/mnt/c/...)をWindowsパス(C:/...)に変換
-    if (absolutePath.startsWith("/mnt/")) {
-        const match = absolutePath.match(/^\/mnt\/([a-z])\/(.*)/);
-        if (match) {
-            absolutePath = `${match[1].toUpperCase()}:/${match[2]}`;
-        }
-    }
-    // ドライブレターを大文字に正規化
-    absolutePath = absolutePath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
-    return absolutePath;
+export function resolveToAbsolutePath(relativePath, projectPath) {
+    return path.join(projectPath, relativePath);
 }
+/** @deprecated resolveToAbsolutePath を使用してください */
+export const resolveToWindowsPath = resolveToAbsolutePath;
 /**
  * HTML内のプロジェクト相対パスをクリック可能なリンクに変換
  *
@@ -172,12 +165,12 @@ export function linkifyProjectPaths(html, projectPath, pathPrefixes = DEFAULT_PA
     // Step 2: パス検出と置換
     const pathRegex = new RegExp(`(?:${pathPrefixes.join("|")})(?:/[\\w\\-.\\u3000-\\u9FFF]+)+(?:\\.\\w+)?`, "g");
     result = result.replace(pathRegex, (match) => {
-        const windowsPath = resolveToWindowsPath(match, projectPath);
-        const fileViewUrl = `/file?path=${encodeURIComponent(windowsPath)}&project=${encodeURIComponent(projectPath)}`;
+        const absolutePath = resolveToAbsolutePath(match, projectPath);
+        const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
         // onclick: VSCode Webviewでは openFile() でpostMessage、ブラウザではデフォルトリンク動作
         // シングルクォートのエスケープ
-        const escapedWindowsPath = windowsPath.replace(/'/g, "\\'");
-        return `<a href="${fileViewUrl}" class="path-link" onclick="return openFile(this, '${escapedWindowsPath}')" title="${match}">${match}</a>`;
+        const escapedPath = absolutePath.replace(/'/g, "\\'");
+        return `<a href="${fileViewUrl}" class="path-link" onclick="return openFile(this, '${escapedPath}')" title="${match}">${match}</a>`;
     });
     // Step 3: プレースホルダーを復元
     result = result.replace(/\x00PLACEHOLDER_(\d+)\x00/g, (_, idx) => placeholders[parseInt(idx)]);

@@ -1,5 +1,5 @@
 /**
  * markdown-utils テスト
- * linkifyProjectPaths() と resolveToWindowsPath() のユニットテスト
+ * linkifyProjectPaths() と resolveToAbsolutePath() のユニットテスト
  */
 export {};

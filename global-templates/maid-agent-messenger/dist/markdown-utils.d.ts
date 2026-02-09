@@ -15,10 +15,14 @@ export declare function convertMarkdownToHtml(markdown: string): string;
  */
 export declare const DEFAULT_PATH_PREFIXES: string[];
 /**
- * 相対パスをWindows絶対パスに変換（WSL環境対応）
- * 既存のreportPathsリンク生成ロジック（dashboard-html.ts 142-158行目）を関数化
+ * 相対パスを絶対パスに変換
+ * WSLパスはWSLパスのまま、Windowsパスはそのまま返す
+ * （WSL→Windows変換はしない: VSCode拡張がWSL上で動作するため、
+ *   Windowsパスに変換するとisPathWithinRootでブロックされる）
  */
-export declare function resolveToWindowsPath(relativePath: string, projectPath: string): string;
+export declare function resolveToAbsolutePath(relativePath: string, projectPath: string): string;
+/** @deprecated resolveToAbsolutePath を使用してください */
+export declare const resolveToWindowsPath: typeof resolveToAbsolutePath;
 /**
  * HTML内のプロジェクト相対パスをクリック可能なリンクに変換
  *

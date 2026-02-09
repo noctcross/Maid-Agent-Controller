@@ -57,22 +57,14 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
       const reportLinksHtml = task.reportPaths?.length > 0
         ? task.reportPaths.map((p: string) => {
             const fileName = p.split("/").pop() || p;
-            let absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
+            // 相対パスを絶対パスに変換（WSLパスはそのまま保持）
+            const absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
               ? p
               : path.join(projectPath, p);
-            // WSLパス→Windowsパス変換
-            let windowsPath = absolutePath;
-            if (absolutePath.startsWith("/mnt/")) {
-              const match = absolutePath.match(/^\/mnt\/([a-z])\/(.*)/);
-              if (match) {
-                windowsPath = `${match[1].toUpperCase()}:/${match[2]}`;
-              }
-            }
-            windowsPath = windowsPath.replace(/^([a-z]):/, (_, letter) => `${letter.toUpperCase()}:`);
             // ブラウザ用: /file?path=... エンドポイント（&project= で報告書内パスリンク化を有効化）
-            const fileViewUrl = `/file?path=${encodeURIComponent(windowsPath)}&project=${encodeURIComponent(projectPath)}`;
+            const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
             // VSCode Webview用: onclick でpostMessage、ブラウザではリンク先へ遷移
-            return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(windowsPath)}" onclick="return openFile(this, '${escapeHtml(windowsPath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
+            return `<a href="${fileViewUrl}" class="report-link" data-path="${escapeHtml(absolutePath)}" onclick="return openFile(this, '${escapeHtml(absolutePath.replace(/'/g, "\\'"))}')" title="${escapeHtml(p)}">${escapeHtml(fileName)}</a>`;
           }).join(", ")
         : "";
       const reviewedClass = task.reviewed ? " reviewed" : "";

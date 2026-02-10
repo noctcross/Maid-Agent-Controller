@@ -4,7 +4,13 @@
   "description": "VSCode extension for multi-agent Claude Code orchestration with hierarchical maid system",
   "version": "1.0.0",
   "publisher": "noctcross",
-  "keywords": ["multi-agent", "claude", "ai", "orchestration", "maid-agent"],
+  "keywords": [
+    "multi-agent",
+    "claude",
+    "ai",
+    "orchestration",
+    "maid-agent"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/noctcross/Maid-Agent-Controller.git"
@@ -207,5 +213,8 @@
     "@types/vscode": "^1.85.0",
     "typescript": "^5.3.0",
     "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "yaml": "^2.8.2"
   }
 }

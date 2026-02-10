@@ -14,6 +14,7 @@ import { getSessionNameFromPath, getGlobalMaidAgentPath } from '../utils/helpers
 import { TmuxManager } from '../tmux/tmux-manager';
 import * as Pm2Setup from '../setup/pm2-setup';
 import * as WslSetup from '../setup/wsl-setup';
+import { getModelForAgent } from '../utils/settings-loader';
 
 // =========================================================================
 // エージェント管理
@@ -170,7 +171,10 @@ export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, r
 
     // Claude Code を初期プロンプト付きで起動（tmux send-keys経由）
     // --append-system-prompt: コンパクション後も維持される静的な役割情報
-    const command = `claude --dangerously-skip-permissions --append-system-prompt '${escapedRolePrompt}' '${escapedInstruction}'`;
+    // --model: settings.yaml で設定されたLLMモデル（未設定時は省略）
+    const model = getModelForAgent(ctx.settings, agentId, role);
+    const modelFlag = model ? ` --model ${model}` : '';
+    const command = `claude --dangerously-skip-permissions${modelFlag} --append-system-prompt '${escapedRolePrompt}' '${escapedInstruction}'`;
     ctx.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
 
     const roleLabel = agent.role === 'butler' ? '執事' :
@@ -323,7 +327,9 @@ export function startClaudeOnAgent(ctx: AgentContext, agentId: string): void {
     const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
 
     // Claude Code を権限スキップモードで起動（役割情報付き）
-    ctx.sendToAgent(agentId, `claude --dangerously-skip-permissions --append-system-prompt '${escapedRolePrompt}'`);
+    const model = getModelForAgent(ctx.settings, agentId, agent.role);
+    const modelFlag = model ? ` --model ${model}` : '';
+    ctx.sendToAgent(agentId, `claude --dangerously-skip-permissions${modelFlag} --append-system-prompt '${escapedRolePrompt}'`);
 }
 
 export async function startClaudeOnAllAgents(ctx: AgentContext): Promise<void> {
@@ -333,7 +339,9 @@ export async function startClaudeOnAllAgents(ctx: AgentContext): Promise<void> {
         const rolePrompt = ctx.getRolePrompt(id, agent.role, agent.name);
         const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
 
-        ctx.sendToAgent(id, `claude --dangerously-skip-permissions --append-system-prompt '${escapedRolePrompt}'`);
+        const model = getModelForAgent(ctx.settings, id, agent.role);
+        const modelFlag = model ? ` --model ${model}` : '';
+        ctx.sendToAgent(id, `claude --dangerously-skip-permissions${modelFlag} --append-system-prompt '${escapedRolePrompt}'`);
         await ctx.delay(500); // 各エージェント間で少し待つ
         count++;
     }

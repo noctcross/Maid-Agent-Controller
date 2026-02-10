@@ -16,6 +16,7 @@ import * as AgentStartup from './agents/agent-startup';
 import * as ControllerPanel from './ui/controller-panel';
 import * as Dashboard from './ui/web-dashboard';
 import * as StatusBar from './ui/status-bar';
+import { loadSettings, MaidAgentSettings } from './utils/settings-loader';
 
 // =============================================================================
 // メインコントローラー
@@ -43,6 +44,7 @@ export class MultiAgentController {
     private dashboardInitialized = false;
     private completedViewState: CompletedViewState = { limit: 10, offset: 0, reviewed: undefined, starred: undefined, hash: '', completedSortField: undefined };
     private reportViewerPanel: vscode.WebviewPanel | undefined;
+    private settings: MaidAgentSettings | undefined;
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Maid Agent');
@@ -56,6 +58,8 @@ export class MultiAgentController {
             // ワークスペースパスからセッション名を生成（ディレクトリ名 + 短いハッシュ）
             this.tmuxSessionName = getSessionNameFromPath(this.workspaceRoot);
             this.tmuxManager = new TmuxManager(this.tmuxSessionName, this.workspaceRoot);
+            // settings.yaml を読み込み
+            this.settings = loadSettings(this.maidAgentPath);
         }
     }
 
@@ -280,6 +284,7 @@ export class MultiAgentController {
             get statusBarItem() { return controller.statusBarItem; },
             get statusBarResetTimeout() { return controller.statusBarResetTimeout; },
             set statusBarResetTimeout(v) { controller.statusBarResetTimeout = v; },
+            get settings() { return controller.settings; },
 
             // ─── Logger ───
             log: (msg: string) => this.log(msg),

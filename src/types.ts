@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { TmuxManager } from './tmux/tmux-manager';
 import type { AgentPanelProvider } from './ui/agent-panel-provider';
+import type { MaidAgentSettings } from './utils/settings-loader';
 
 // =============================================================================
 // 型定義
@@ -78,6 +79,7 @@ export interface AgentContext {
     agentPanelProvider: AgentPanelProvider | undefined;
     statusBarItem: vscode.StatusBarItem | undefined;
     statusBarResetTimeout: NodeJS.Timeout | undefined;
+    settings: MaidAgentSettings | undefined;
 
     // ─── Logger ───
     log(message: string): void;

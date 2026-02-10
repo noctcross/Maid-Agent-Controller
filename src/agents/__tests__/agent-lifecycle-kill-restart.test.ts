@@ -33,6 +33,7 @@ function createMockCtx(agents: Map<string, Agent> = new Map()): AgentContext {
         agentPanelProvider: undefined,
         statusBarItem: undefined,
         statusBarResetTimeout: undefined,
+        settings: undefined,
         log: vi.fn(),
         updateController: vi.fn(),
         updateAgentPanel: vi.fn(),

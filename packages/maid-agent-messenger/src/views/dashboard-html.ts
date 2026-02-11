@@ -225,6 +225,45 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
     .special-section { grid-column: 1 / -1; }
     .special-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     @media (max-width: 768px) { .special-grid { grid-template-columns: 1fr; } }
+    /* モバイル対応: 500px以下でフィルタUIを縦並びに変更 */
+    @media (max-width: 500px) {
+      .controls-section {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+      }
+      .filter-group {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .filter-group .filter-select {
+        flex: 1;
+        min-width: 0;
+      }
+      .completed-header-row {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .completed-header-left {
+        width: 100%;
+        justify-content: center;
+      }
+      .completed-header-center {
+        width: 100%;
+        justify-content: center;
+        order: 3;
+      }
+      .completed-header-right {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .sort-toggle-group,
+      .completed-filter-group {
+        justify-content: center;
+      }
+    }
     .card-action-required { border-left: 3px solid var(--error-color); }
     .card-blocked { border-left: 3px solid #ff6b6b; }
     .card-skill { border-left: 3px solid #9b59b6; }

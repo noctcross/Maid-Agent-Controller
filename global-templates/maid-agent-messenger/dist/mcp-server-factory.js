@@ -216,11 +216,13 @@ export function createMcpServer(projectPath) {
     server.tool("get_task", "タスクの詳細情報を取得します", {
         taskId: z.string().describe("タスクID（例: 076, 076-1）"),
         includeSubtasks: z.boolean().optional().describe("サブタスクも含めるか（デフォルト: false）"),
-    }, async ({ taskId, includeSubtasks }) => {
+        summaryOnly: z.boolean().optional().describe("軽量版（id, title, status, priority, assignees, parentId, category のみ）を返却（デフォルト: false）"),
+    }, async ({ taskId, includeSubtasks, summaryOnly }) => {
         try {
             const result = await executeGetTask(projectPath, {
                 taskId,
                 includeSubtasks,
+                summaryOnly,
             });
             if (!result.task) {
                 return {
@@ -265,7 +267,8 @@ export function createMcpServer(projectPath) {
         offset: z.number().optional().describe("スキップ件数（ページネーション用）"),
         sortField: z.enum(["createdAt", "priority", "status", "id"]).optional().describe("ソートフィールド"),
         sortOrder: z.enum(["asc", "desc"]).optional().describe("ソート順序（デフォルト: desc）"),
-    }, async ({ status, assignee, parentId, category, limit, offset, sortField, sortOrder }) => {
+        summaryOnly: z.boolean().optional().describe("軽量版（id, title, status, priority, assignees, parentId, category のみ）を返却（デフォルト: false）"),
+    }, async ({ status, assignee, parentId, category, limit, offset, sortField, sortOrder, summaryOnly }) => {
         try {
             const result = await executeListTasks(projectPath, {
                 status: status,
@@ -276,6 +279,7 @@ export function createMcpServer(projectPath) {
                 offset,
                 sortField,
                 sortOrder,
+                summaryOnly,
             });
             return {
                 content: [{

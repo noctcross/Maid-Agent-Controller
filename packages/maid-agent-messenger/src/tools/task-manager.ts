@@ -108,12 +108,17 @@ export function registerGetTask(server: McpServer): void {
         .boolean()
         .optional()
         .describe("サブタスクも含めるか（デフォルト: false）"),
+      summaryOnly: z
+        .boolean()
+        .optional()
+        .describe("軽量版（id, title, status, priority, assignees, parentId, category のみ）を返却（デフォルト: false）"),
     },
-    async ({ taskId, includeSubtasks }) => {
+    async ({ taskId, includeSubtasks, summaryOnly }) => {
       try {
         const result = await executeGetTask(getProjectPath(), {
           taskId,
           includeSubtasks,
+          summaryOnly,
         });
 
         if (!result.task) {
@@ -196,8 +201,12 @@ export function registerListTasks(server: McpServer): void {
         .enum(["asc", "desc"])
         .optional()
         .describe("ソート順序（デフォルト: desc）"),
+      summaryOnly: z
+        .boolean()
+        .optional()
+        .describe("軽量版（id, title, status, priority, assignees, parentId, category のみ）を返却（デフォルト: false）"),
     },
-    async ({ status, assignee, parentId, limit, offset, sortField, sortOrder }) => {
+    async ({ status, assignee, parentId, limit, offset, sortField, sortOrder, summaryOnly }) => {
       try {
         const result = await executeListTasks(getProjectPath(), {
           status: status as TaskStatus[] | undefined,
@@ -207,6 +216,7 @@ export function registerListTasks(server: McpServer): void {
           offset,
           sortField,
           sortOrder,
+          summaryOnly,
         });
 
         return {

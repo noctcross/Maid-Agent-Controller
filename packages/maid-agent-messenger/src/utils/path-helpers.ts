@@ -18,3 +18,14 @@ export function getCurrentReportsPath(projectPath: string): string {
 export function getArchiveReportsPath(projectPath: string): string {
   return path.join(projectPath, ".maid-agent", "master", "reports");
 }
+
+// グローバルデータディレクトリ: ~/.maid-agent/system/data/
+export function getGlobalDataPath(): string {
+  const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+  return path.join(homeDir, ".maid-agent", "system", "data");
+}
+
+// プロジェクトレジストリファイル: ~/.maid-agent/system/data/projects.json
+export function getProjectRegistryPath(): string {
+  return path.join(getGlobalDataPath(), "projects.json");
+}

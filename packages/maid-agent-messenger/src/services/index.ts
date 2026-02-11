@@ -24,6 +24,7 @@ export {
   type UpdateTaskParams,
   type UpdateTaskResult,
   type Task,
+  type TaskSummary,
   type TaskStatus,
   type Assignee,
   type TasksData,

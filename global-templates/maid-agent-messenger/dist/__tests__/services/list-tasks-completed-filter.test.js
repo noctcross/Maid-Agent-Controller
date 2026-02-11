@@ -372,3 +372,112 @@ describe("compareTaskIds ヘルパー", () => {
         expect(compareTaskIds("048-1-1", "048-1")).toBeGreaterThan(0);
     });
 });
+describe("executeListTasks - sortField='completedAt' ソート", () => {
+    it("completedAt降順で最新の完了タスクが先頭に来る", async () => {
+        // テストデータの completedAt:
+        // 048:    2026-02-05T11:00:00+09:00
+        // 048-1:  2026-02-05T11:10:00+09:00
+        // 048-2:  2026-02-05T11:20:00+09:00
+        // 048-10: 2026-02-05T11:30:00+09:00
+        // 047:    2026-02-05T10:00:00+09:00
+        const result = await executeListTasks(PROJECT_PATH, {
+            status: ["completed"],
+            sortField: "completedAt",
+            sortOrder: "desc",
+        });
+        expect(result.tasks.map((t) => t.id)).toEqual([
+            "048-10", // 11:30 (最新)
+            "048-2", // 11:20
+            "048-1", // 11:10
+            "048", // 11:00
+            "047", // 10:00 (最古)
+        ]);
+    });
+    it("completedAt昇順で最古の完了タスクが先頭に来る", async () => {
+        const result = await executeListTasks(PROJECT_PATH, {
+            status: ["completed"],
+            sortField: "completedAt",
+            sortOrder: "asc",
+        });
+        expect(result.tasks.map((t) => t.id)).toEqual([
+            "047", // 10:00 (最古)
+            "048", // 11:00
+            "048-1", // 11:10
+            "048-2", // 11:20
+            "048-10", // 11:30 (最新)
+        ]);
+    });
+    it("completedAtがnullのタスクはdesc時に末尾に配置される", async () => {
+        // completedAt=null のタスクを含むデータ
+        const dataWithNull = {
+            lastTaskNumber: 3,
+            tasks: [
+                {
+                    id: "001",
+                    parentId: null,
+                    title: "完了済み（古い）",
+                    description: "",
+                    priority: "medium",
+                    status: "completed",
+                    substatus: null,
+                    category: "task",
+                    assignees: [],
+                    createdAt: "2026-02-05T09:00:00Z",
+                    updatedAt: "2026-02-05T10:00:00Z",
+                    assignedAt: null,
+                    startedAt: null,
+                    completedAt: "2026-02-05T10:00:00Z",
+                    reportPaths: [],
+                    summary: null,
+                },
+                {
+                    id: "002",
+                    parentId: null,
+                    title: "完了済み（completedAt欠損）",
+                    description: "",
+                    priority: "medium",
+                    status: "completed",
+                    substatus: null,
+                    category: "task",
+                    assignees: [],
+                    createdAt: "2026-02-05T09:30:00Z",
+                    updatedAt: "2026-02-05T10:30:00Z",
+                    assignedAt: null,
+                    startedAt: null,
+                    completedAt: null,
+                    reportPaths: [],
+                    summary: null,
+                },
+                {
+                    id: "003",
+                    parentId: null,
+                    title: "完了済み（新しい）",
+                    description: "",
+                    priority: "medium",
+                    status: "completed",
+                    substatus: null,
+                    category: "task",
+                    assignees: [],
+                    createdAt: "2026-02-05T10:00:00Z",
+                    updatedAt: "2026-02-05T11:00:00Z",
+                    assignedAt: null,
+                    startedAt: null,
+                    completedAt: "2026-02-05T11:00:00Z",
+                    reportPaths: [],
+                    summary: null,
+                },
+            ],
+        };
+        mockedReadFile.mockResolvedValue(stringify(dataWithNull));
+        const result = await executeListTasks(PROJECT_PATH, {
+            status: ["completed"],
+            sortField: "completedAt",
+            sortOrder: "desc",
+        });
+        expect(result.tasks.map((t) => t.id)).toEqual([
+            "003", // 11:00 (最新)
+            "001", // 10:00
+            "002", // null → desc時は末尾
+        ]);
+    });
+});

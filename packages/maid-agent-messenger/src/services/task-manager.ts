@@ -56,6 +56,19 @@ export interface Task {
   escalatedAt?: string | null;   // エスカレーション日時
 }
 
+/**
+ * 軽量版タスク（summaryOnly: true 時に返却）
+ */
+export interface TaskSummary {
+  id: string;
+  parentId: string | null;
+  title: string;
+  status: TaskStatus;
+  priority: "high" | "medium" | "low";
+  category: TaskCategory;
+  assignees: Assignee[];
+}
+
 export interface TasksData {
   lastTaskNumber: number;
   tasks: Task[];
@@ -244,11 +257,27 @@ export async function executeCreateTask(
 export interface GetTaskParams {
   taskId: string;
   includeSubtasks?: boolean;
+  summaryOnly?: boolean;  // true: 軽量版（TaskSummary）を返却
 }
 
 export interface GetTaskResult {
-  task: Task | null;
-  subtasks?: Task[];
+  task: Task | TaskSummary | null;
+  subtasks?: (Task | TaskSummary)[];
+}
+
+/**
+ * Task を TaskSummary に変換
+ */
+function toTaskSummary(task: Task): TaskSummary {
+  return {
+    id: task.id,
+    parentId: task.parentId,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    category: task.category,
+    assignees: task.assignees,
+  };
 }
 
 /**
@@ -259,11 +288,20 @@ export async function executeGetTask(
   params: GetTaskParams
 ): Promise<GetTaskResult> {
   const data = await loadTasksReadOnly(projectPath);
-  const task = data.tasks.find((t) => t.id === params.taskId) || null;
+  const fullTask = data.tasks.find((t) => t.id === params.taskId) || null;
 
-  let subtasks: Task[] | undefined;
-  if (task && params.includeSubtasks) {
-    subtasks = data.tasks.filter((t) => t.parentId === params.taskId);
+  if (!fullTask) {
+    return { task: null };
+  }
+
+  const task = params.summaryOnly ? toTaskSummary(fullTask) : fullTask;
+
+  let subtasks: (Task | TaskSummary)[] | undefined;
+  if (params.includeSubtasks) {
+    const fullSubtasks = data.tasks.filter((t) => t.parentId === params.taskId);
+    subtasks = params.summaryOnly
+      ? fullSubtasks.map(toTaskSummary)
+      : fullSubtasks;
   }
 
   return { task, subtasks };
@@ -280,10 +318,11 @@ export interface ListTasksParams {
   offset?: number;
   sortField?: "createdAt" | "completedAt" | "priority" | "status" | "id" | "updatedAt";
   sortOrder?: "asc" | "desc";
+  summaryOnly?: boolean;  // true: 軽量版（TaskSummary[]）を返却
 }
 
 export interface ListTasksResult {
-  tasks: Task[];
+  tasks: (Task | TaskSummary)[];
   total: number;
   hasMore: boolean;
 }
@@ -370,7 +409,7 @@ export async function executeListTasks(
   tasks = tasks.slice(offset, offset + limit);
 
   return {
-    tasks,
+    tasks: params.summaryOnly ? tasks.map(toTaskSummary) : tasks,
     total,
     hasMore: offset + tasks.length < total,
   };

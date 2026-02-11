@@ -184,7 +184,7 @@ describe("executeListTasks - reviewed/starred フィルタ", () => {
       expect(result.tasks.map((t) => t.id)).toEqual(
         expect.arrayContaining(["048", "048-1"])
       );
-      result.tasks.forEach((t) => {
+      (result.tasks as any[]).forEach((t) => {
         expect(t.reviewed).toBe(true);
       });
     });
@@ -199,7 +199,7 @@ describe("executeListTasks - reviewed/starred フィルタ", () => {
       expect(result.tasks.map((t) => t.id)).toEqual(
         expect.arrayContaining(["048-2", "048-10", "047"])
       );
-      result.tasks.forEach((t) => {
+      (result.tasks as any[]).forEach((t) => {
         expect(t.reviewed).not.toBe(true);
       });
     });
@@ -224,7 +224,7 @@ describe("executeListTasks - reviewed/starred フィルタ", () => {
       expect(result.tasks.map((t) => t.id)).toEqual(
         expect.arrayContaining(["048", "048-2"])
       );
-      result.tasks.forEach((t) => {
+      (result.tasks as any[]).forEach((t) => {
         expect(t.starred).toBe(true);
       });
     });
@@ -239,7 +239,7 @@ describe("executeListTasks - reviewed/starred フィルタ", () => {
       expect(result.tasks.map((t) => t.id)).toEqual(
         expect.arrayContaining(["048-1", "048-10", "047"])
       );
-      result.tasks.forEach((t) => {
+      (result.tasks as any[]).forEach((t) => {
         expect(t.starred).not.toBe(true);
       });
     });

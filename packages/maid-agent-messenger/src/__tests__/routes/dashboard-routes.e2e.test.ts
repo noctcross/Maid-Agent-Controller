@@ -42,6 +42,10 @@ jest.unstable_mockModule("../../utils/path-helpers.js", () => ({
   getQueueMaidPath: (p: string) => `${p}/.maid-agent/system/data/maid`,
 }));
 
+jest.unstable_mockModule("../../services/project-registry.js", () => ({
+  recordProjectAccess: jest.fn<any>().mockResolvedValue(undefined),
+}));
+
 // --- ダイナミックインポート ---
 const express = (await import("express")).default;
 const supertest = (await import("supertest")).default;
@@ -82,11 +86,21 @@ beforeEach(() => {
 // GET /dashboard
 // ===========================================
 describe("GET /dashboard", () => {
+  it("project未指定かつヘッダーなしの場合はトップページにリダイレクト", async () => {
+    // リダイレクト確認（モックは不要）
+    const res = await supertest(app)
+      .get("/dashboard")
+      .expect(302);
+
+    expect(res.headers.location).toBe("/");
+  });
+
   it("HTMLダッシュボードを返す", async () => {
     setupDashboardMocks();
 
     const res = await supertest(app)
       .get("/dashboard")
+      .set("X-Maid-Project-Path", TEST_PROJECT_PATH)
       .expect(200)
       .expect("Content-Type", /html/);
 
@@ -113,6 +127,7 @@ describe("GET /dashboard", () => {
 
     await supertest(app)
       .get("/dashboard?editor=cursor")
+      .set("X-Maid-Project-Path", TEST_PROJECT_PATH)
       .expect(200);
 
     expect(stubGenerateDashboardHtml).toHaveBeenCalledWith(
@@ -124,7 +139,10 @@ describe("GET /dashboard", () => {
   it("サービスエラー時にエラーHTMLを返す", async () => {
     mockExecuteListTasks.mockRejectedValue(new Error("Service error"));
 
-    const res = await supertest(app).get("/dashboard").expect(500);
+    const res = await supertest(app)
+      .get("/dashboard")
+      .set("X-Maid-Project-Path", TEST_PROJECT_PATH)
+      .expect(500);
 
     expect(res.text).toContain("Error");
     expect(res.text).toContain("Service error");

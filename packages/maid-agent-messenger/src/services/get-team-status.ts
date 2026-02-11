@@ -89,7 +89,7 @@ export async function executeGetTeamStatus(
         sortField: "createdAt",
         sortOrder: "desc",
       });
-      recentCompleted = completedResult.tasks;
+      recentCompleted = completedResult.tasks as Task[];
     } catch {
       // tasks.yaml が存在しない場合などはスキップ
       recentCompleted = [];

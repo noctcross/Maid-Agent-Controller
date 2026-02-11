@@ -144,14 +144,35 @@ export async function executeCreateTask(projectPath, params) {
     });
 }
 /**
+ * Task を TaskSummary に変換
+ */
+function toTaskSummary(task) {
+    return {
+        id: task.id,
+        parentId: task.parentId,
+        title: task.title,
+        status: task.status,
+        priority: task.priority,
+        category: task.category,
+        assignees: task.assignees,
+    };
+}
+/**
  * タスク取得
  */
 export async function executeGetTask(projectPath, params) {
     const data = await loadTasksReadOnly(projectPath);
-    const task = data.tasks.find((t) => t.id === params.taskId) || null;
+    const fullTask = data.tasks.find((t) => t.id === params.taskId) || null;
+    if (!fullTask) {
+        return { task: null };
+    }
+    const task = params.summaryOnly ? toTaskSummary(fullTask) : fullTask;
     let subtasks;
-    if (task && params.includeSubtasks) {
-        subtasks = data.tasks.filter((t) => t.parentId === params.taskId);
+    if (params.includeSubtasks) {
+        const fullSubtasks = data.tasks.filter((t) => t.parentId === params.taskId);
+        subtasks = params.summaryOnly
+            ? fullSubtasks.map(toTaskSummary)
+            : fullSubtasks;
     }
     return { task, subtasks };
 }
@@ -227,7 +248,7 @@ export async function executeListTasks(projectPath, params = {}) {
     const limit = params.limit || 50;
     tasks = tasks.slice(offset, offset + limit);
     return {
-        tasks,
+        tasks: params.summaryOnly ? tasks.map(toTaskSummary) : tasks,
         total,
         hasMore: offset + tasks.length < total,
     };

@@ -182,7 +182,7 @@ describe("executeGetTask", () => {
 
     expect(result.task).not.toBeNull();
     expect(result.task!.id).toBe("001");
-    expect(result.task!.description).toBe("テストタスク");
+    expect((result.task as any).description).toBe("テストタスク");
   });
 
   it("should include subtasks when requested", async () => {

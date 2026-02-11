@@ -7,7 +7,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import { fileExists } from "../utils/yaml-helper.js";
-import { executeGetTask } from "./task-manager.js";
+import { executeGetTask, type Task } from "./task-manager.js";
 
 export interface GetReportParams {
   taskId: string;
@@ -81,7 +81,7 @@ export async function executeGetReport(
     };
   }
 
-  const { reportPaths } = taskResult.task;
+  const { reportPaths } = taskResult.task as Task;
 
   if (!reportPaths || reportPaths.length === 0) {
     return {

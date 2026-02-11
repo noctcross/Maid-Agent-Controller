@@ -9,12 +9,18 @@ import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { executeListTasks, executeGetTeamStatus, executeUpdateTask, } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { recordProjectAccess } from "../services/project-registry.js";
 export function createDashboardRoutes(deps) {
     const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml } = deps;
     const router = Router();
     // GET /dashboard - HTMLダッシュボード（ブラウザ用）
     router.get("/dashboard", async (req, res) => {
         try {
+            // project未指定時 → トップページにリダイレクト
+            if (!req.query.project && !req.headers["x-maid-project-path"]) {
+                res.redirect("/");
+                return;
+            }
             // クエリパラメータからプロジェクトパスを取得（?project=/path/to/project）
             const projectPath = req.query.project
                 ? req.query.project
@@ -31,7 +37,7 @@ export function createDashboardRoutes(deps) {
                 executeListTasks(projectPath, { status: ["pending"] }),
                 executeListTasks(projectPath, { status: ["working", "assigned"] }),
                 executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
-                executeListTasks(projectPath, { status: ["completed"], limit: 100 }), // 本日完了カウント用
+                executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }), // 本日完了カウント用
                 executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
@@ -67,6 +73,8 @@ export function createDashboardRoutes(deps) {
                 },
                 serverUrl: getServerUrl(config),
             }, editorScheme);
+            // アクセス記録（非同期、レスポンスをブロックしない）
+            recordProjectAccess(projectPath).catch((err) => console.error("Failed to record project access:", err));
             res.setHeader("Content-Type", "text/html; charset=utf-8");
             res.send(html);
         }
@@ -148,7 +156,7 @@ export function createDashboardRoutes(deps) {
                     sortField: completedSortField,
                     sortOrder: "desc",
                 }),
-                executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
+                executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }),
                 executeListTasks(projectPath, { category: ["action_required"], status: ACTIVE_STATUSES }),
                 executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
@@ -228,7 +236,7 @@ export function createDashboardRoutes(deps) {
                         executeListTasks(projectPath, { status: ["pending"] }),
                         executeListTasks(projectPath, { status: ["working", "assigned"] }),
                         executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
-                        executeListTasks(projectPath, { status: ["completed"], limit: 100 }),
+                        executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }),
                         executeListTasks(projectPath, { category: ["action_required"], status: sseActiveStatuses }),
                         executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
                         executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),

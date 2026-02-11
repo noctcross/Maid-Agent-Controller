@@ -36,6 +36,18 @@ export interface Task {
     escalation?: boolean;
     escalatedAt?: string | null;
 }
+/**
+ * 軽量版タスク（summaryOnly: true 時に返却）
+ */
+export interface TaskSummary {
+    id: string;
+    parentId: string | null;
+    title: string;
+    status: TaskStatus;
+    priority: "high" | "medium" | "low";
+    category: TaskCategory;
+    assignees: Assignee[];
+}
 export interface TasksData {
     lastTaskNumber: number;
     tasks: Task[];
@@ -59,10 +71,11 @@ export declare function executeCreateTask(projectPath: string, params: CreateTas
 export interface GetTaskParams {
     taskId: string;
     includeSubtasks?: boolean;
+    summaryOnly?: boolean;
 }
 export interface GetTaskResult {
-    task: Task | null;
-    subtasks?: Task[];
+    task: Task | TaskSummary | null;
+    subtasks?: (Task | TaskSummary)[];
 }
 /**
  * タスク取得
@@ -77,11 +90,12 @@ export interface ListTasksParams {
     starred?: boolean;
     limit?: number;
     offset?: number;
-    sortField?: "createdAt" | "priority" | "status" | "id" | "updatedAt";
+    sortField?: "createdAt" | "completedAt" | "priority" | "status" | "id" | "updatedAt";
     sortOrder?: "asc" | "desc";
+    summaryOnly?: boolean;
 }
 export interface ListTasksResult {
-    tasks: Task[];
+    tasks: (Task | TaskSummary)[];
     total: number;
     hasMore: boolean;
 }

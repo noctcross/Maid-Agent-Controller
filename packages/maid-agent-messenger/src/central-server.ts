@@ -22,11 +22,13 @@ import { createMcpRoutes } from "./routes/mcp-routes.js";
 import legacyRoutes from "./routes/legacy-routes.js";
 import taskApiRoutes from "./routes/task-api-routes.js";
 import { createDashboardRoutes } from "./routes/dashboard-routes.js";
+import { createTopPageRoutes } from "./routes/top-page-routes.js";
 import fileRoutes from "./routes/file-routes.js";
 import imageRoutes from "./routes/image-routes.js";
 
 // ビュー
 import { generateDashboardHtml } from "./views/dashboard-html.js";
+import { generateTopPageHtml } from "./views/top-page-html.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js";
 
 // MCPサーバーファクトリ
@@ -78,6 +80,7 @@ async function main(): Promise<void> {
   // 公開エンドポイント（LAN公開OK）を先にマウント
   // ※ loopbackOnly付きルートを先にマウントすると、パス指定なしの
   //    app.use(loopbackOnly, router) が全リクエストをブロックしてしまうため
+  app.use(createTopPageRoutes({ generateTopPageHtml }));  // トップページ（プロジェクト一覧）
   app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml }));
   app.use(fileRoutes);
   app.use(imageRoutes);

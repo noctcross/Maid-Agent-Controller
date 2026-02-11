@@ -11,10 +11,12 @@ import {
   executeListTasks,
   executeGetTeamStatus,
   executeUpdateTask,
+  type Task,
 } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import type { DashboardData } from "../views/dashboard-html.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { recordProjectAccess } from "../services/project-registry.js";
 
 // DashboardData型を再エクスポート
 export type { DashboardData };
@@ -32,6 +34,12 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
   // GET /dashboard - HTMLダッシュボード（ブラウザ用）
   router.get("/dashboard", async (req: Request, res: Response) => {
     try {
+      // project未指定時 → トップページにリダイレクト
+      if (!req.query.project && !req.headers["x-maid-project-path"]) {
+        res.redirect("/");
+        return;
+      }
+
       // クエリパラメータからプロジェクトパスを取得（?project=/path/to/project）
       const projectPath = req.query.project
         ? (req.query.project as string)
@@ -61,7 +69,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
       ]);
 
       // 本日完了タスクをカウント
-      const completedTodayCount = completedAll.tasks.filter((task) => {
+      const completedTodayCount = (completedAll.tasks as Task[]).filter((task) => {
         if (!task.completedAt) return false;
         const completedDate = new Date(task.completedAt);
         return completedDate >= today;
@@ -72,23 +80,28 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
       const html = generateDashboardHtml({
         projectPath,
         timestamp: getJstTimestamp(),
-        pending: pending.tasks,
-        working: working.tasks,
-        recentCompleted: completed.tasks,
+        pending: pending.tasks as Task[],
+        working: working.tasks as Task[],
+        recentCompleted: completed.tasks as Task[],
         completedTotal: completed.total,
-        masterWaiting: masterWaiting.tasks,
-        masterReview: masterReview.tasks,
-        skillCandidates: skillCandidates.tasks,
-        improvements: improvements.tasks,
+        masterWaiting: masterWaiting.tasks as Task[],
+        masterReview: masterReview.tasks as Task[],
+        skillCandidates: skillCandidates.tasks as Task[],
+        improvements: improvements.tasks as Task[],
         teamStatus: teamStatus.agents,
         stats: {
-          pendingCount: pending.tasks.filter((t: any) => !t.category || !SPECIAL_CATEGORIES.includes(t.category)).length,
+          pendingCount: (pending.tasks as Task[]).filter((t) => !t.category || !SPECIAL_CATEGORIES.includes(t.category)).length,
           workingCount: working.total,
           masterWaitingCount: masterWaiting.total + masterReview.total,
           completedTodayCount,
         },
         serverUrl: getServerUrl(config),
       }, editorScheme);
+
+      // アクセス記録（非同期、レスポンスをブロックしない）
+      recordProjectAccess(projectPath).catch((err) =>
+        console.error("Failed to record project access:", err)
+      );
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(html);
@@ -189,7 +202,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
       ]);
 
-      const completedTodayCount = completedAll.tasks.filter((task) => {
+      const completedTodayCount = (completedAll.tasks as Task[]).filter((task) => {
         if (!task.completedAt) return false;
         const completedDate = new Date(task.completedAt);
         return completedDate >= today;
@@ -280,7 +293,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
             executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
           ]);
 
-          const completedTodayCount = completedAll.tasks.filter((task) => {
+          const completedTodayCount = (completedAll.tasks as Task[]).filter((task) => {
             if (!task.completedAt) return false;
             const completedDate = new Date(task.completedAt);
             return completedDate >= today;

@@ -87,11 +87,16 @@ export function registerGetTask(server) {
             .boolean()
             .optional()
             .describe("サブタスクも含めるか（デフォルト: false）"),
-    }, async ({ taskId, includeSubtasks }) => {
+        summaryOnly: z
+            .boolean()
+            .optional()
+            .describe("軽量版（id, title, status, priority, assignees, parentId, category のみ）を返却（デフォルト: false）"),
+    }, async ({ taskId, includeSubtasks, summaryOnly }) => {
         try {
             const result = await executeGetTask(getProjectPath(), {
                 taskId,
                 includeSubtasks,
+                summaryOnly,
             });
             if (!result.task) {
                 return {
@@ -167,7 +172,11 @@ export function registerListTasks(server) {
             .enum(["asc", "desc"])
             .optional()
             .describe("ソート順序（デフォルト: desc）"),
-    }, async ({ status, assignee, parentId, limit, offset, sortField, sortOrder }) => {
+        summaryOnly: z
+            .boolean()
+            .optional()
+            .describe("軽量版（id, title, status, priority, assignees, parentId, category のみ）を返却（デフォルト: false）"),
+    }, async ({ status, assignee, parentId, limit, offset, sortField, sortOrder, summaryOnly }) => {
         try {
             const result = await executeListTasks(getProjectPath(), {
                 status: status,
@@ -177,6 +186,7 @@ export function registerListTasks(server) {
                 offset,
                 sortField,
                 sortOrder,
+                summaryOnly,
             });
             return {
                 content: [

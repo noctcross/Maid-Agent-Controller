@@ -4,9 +4,12 @@
  */
 
 import { describe, it, expect } from "@jest/globals";
+import * as os from "os";
+import * as path from "path";
 import { generateTaskHtml, composeMasterWaitingHtml, generateReportLinksHtml } from "../../views/task-html.js";
 
-const PROJECT_PATH = "/mnt/c/Users/noct/Development/TestProject";
+// テスト用定数（環境非依存）
+const PROJECT_PATH = path.join(os.tmpdir(), "TestProject");
 
 describe("generateTaskHtml - report links", () => {
   const completedTask = {
@@ -39,10 +42,11 @@ describe("generateTaskHtml - report links", () => {
     expect(html).not.toContain("report-link");
   });
 
-  it("報告書リンクのonclickパスがWSLパスのまま（Windows変換されない）", () => {
+  it("報告書リンクのonclickパスがそのまま（Windows変換されない）", () => {
     const html = generateTaskHtml([completedTask], "completed", PROJECT_PATH);
-    // WSLパスがそのまま使われること
-    expect(html).toContain("/mnt/c/Users/noct/Development/TestProject/.maid-agent/system/data/reports/current_lily.md");
+    // プロジェクトパスがそのまま使われること（結合されたフルパス）
+    const expectedPath = path.join(PROJECT_PATH, ".maid-agent/system/data/reports/current_lily.md");
+    expect(html).toContain(expectedPath);
     // Windowsパスに変換されていないこと
     expect(html).not.toContain("C:/Users/noct");
   });
@@ -183,7 +187,7 @@ describe("generateTaskHtml - action_required セクション（統一仕様）",
 });
 
 describe("generateReportLinksHtml - 報告書リンク共通関数", () => {
-  const PROJECT_PATH = "/mnt/c/Users/noct/Development/TestProject";
+  // 共通のPROJECT_PATHを使用（ファイル先頭で定義）
 
   it("空配列の場合は空文字列を返す", () => {
     expect(generateReportLinksHtml([], PROJECT_PATH)).toBe("");
@@ -198,7 +202,8 @@ describe("generateReportLinksHtml - 報告書リンク共通関数", () => {
       [".maid-agent/master/reports/task-001.md"],
       PROJECT_PATH
     );
-    expect(html).toContain(`/mnt/c/Users/noct/Development/TestProject/.maid-agent/master/reports/task-001.md`);
+    const expectedPath = path.join(PROJECT_PATH, ".maid-agent/master/reports/task-001.md");
+    expect(html).toContain(expectedPath);
   });
 
   it("絶対パス（WSL）はそのまま使用される", () => {

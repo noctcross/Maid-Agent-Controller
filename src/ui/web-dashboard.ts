@@ -543,12 +543,10 @@ async function fetchRenderedFileHtml(ctx: ViewContext, filePath: string): Promis
  * @returns HTML文字列、またはファイルが見つからない場合は null
  */
 function renderFileLocally(filePath: string, fileName: string, workspaceRoot?: string): string | null {
-    // Windowsパス（C:/...）をWSLパスに変換
-    let normalizedPath = filePath;
-    if (CURRENT_ENV === 'wsl' && /^[A-Z]:\//i.test(filePath)) {
-        const driveLetter = filePath[0].toLowerCase();
-        normalizedPath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
-    }
+    // Windowsパス（C:/...）をWSLパスに変換（WSL環境のみ）
+    const normalizedPath = CURRENT_ENV === 'wsl'
+        ? windowsToWslPath(filePath)
+        : filePath;
 
     // パストラバーサル防止（#116-1: 環境を考慮した比較）
     if (workspaceRoot && !isPathWithinRootCrossEnv(normalizedPath, workspaceRoot, CURRENT_ENV)) {

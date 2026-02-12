@@ -4,6 +4,8 @@
  */
 
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import * as os from "os";
+import * as path from "path";
 
 // ESMモック: agent-image ユーティリティ
 const mockFindAgentImages = jest.fn<() => Promise<string[]>>();
@@ -83,7 +85,8 @@ describe("handleAgentImage", () => {
 
   it("findAgentImagesに正しいimagesDirが渡される", async () => {
     mockFindAgentImages.mockResolvedValue(["lily_1.png"]);
-    const { req, res } = createMockReqRes({ agent: "lily", project: "/mnt/c/Project" });
+    const testProject = path.join(os.tmpdir(), "Project");
+    const { req, res } = createMockReqRes({ agent: "lily", project: testProject });
     await handleAgentImage(req, res);
     expect(mockFindAgentImages).toHaveBeenCalledWith(
       expect.stringContaining(".maid-agent/system/resources/images"),

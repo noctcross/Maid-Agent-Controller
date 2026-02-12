@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as os from 'os';
+import * as path from 'path';
 
 // fs モック
 vi.mock('fs', () => ({
@@ -26,8 +28,11 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { generateMcpJson, checkAndUpdateMcpJsonPath } from '../mcp-claude-setup';
 
+// テスト用定数（環境非依存）
+const TEST_PROJECT_PATH = path.join(os.tmpdir(), 'test-project');
+
 const mockCtx = {
-  workspaceRoot: '/mnt/c/Users/test/project',
+  workspaceRoot: TEST_PROJECT_PATH,
   log: vi.fn(),
 };
 
@@ -147,7 +152,7 @@ describe('checkAndUpdateMcpJsonPath', () => {
   it('ハードコードパス=現在のワークスペースでダイアログが表示される', async () => {
     // mockCtx.workspaceRoot と一致するパス
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(makeConfig('/mnt/c/Users/test/project')));
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(makeConfig(TEST_PROJECT_PATH)));
     vi.mocked(vscode.window.showInformationMessage).mockResolvedValue('スキップ' as any);
 
     await checkAndUpdateMcpJsonPath(mockCtx as any);
@@ -162,7 +167,7 @@ describe('checkAndUpdateMcpJsonPath', () => {
 
   it('一致パスで「更新」選択時に ${CLAUDE_PROJECT_DIR} に書き換えられる', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(makeConfig('/mnt/c/Users/test/project')));
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(makeConfig(TEST_PROJECT_PATH)));
     vi.mocked(vscode.window.showInformationMessage).mockResolvedValue('${CLAUDE_PROJECT_DIR} に更新' as any);
 
     await checkAndUpdateMcpJsonPath(mockCtx as any);
@@ -176,7 +181,7 @@ describe('checkAndUpdateMcpJsonPath', () => {
 
   it('一致パスで「スキップ」選択時にファイル変更なし', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(makeConfig('/mnt/c/Users/test/project')));
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(makeConfig(TEST_PROJECT_PATH)));
     vi.mocked(vscode.window.showInformationMessage).mockResolvedValue('スキップ' as any);
 
     await checkAndUpdateMcpJsonPath(mockCtx as any);
@@ -224,7 +229,7 @@ describe('checkAndUpdateMcpJsonPath', () => {
     const [, content] = vi.mocked(fs.writeFileSync).mock.calls[0];
     const updated = JSON.parse(content as string);
     expect(updated.mcpServers['maid-agent-messenger'].headers['X-Maid-Project-Path'])
-      .toBe('/mnt/c/Users/test/project');
+      .toBe(TEST_PROJECT_PATH);
   });
 
   it('不一致パスで「スキップ」選択時にファイル変更なし', async () => {

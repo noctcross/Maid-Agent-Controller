@@ -4,6 +4,8 @@
  */
 
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import * as os from "os";
+import * as path from "path";
 
 // ESMモック: fs/promises をモック化
 const mockReaddir = jest.fn<() => Promise<string[]>>();
@@ -232,7 +234,8 @@ describe("generateAgentBackgroundSnippet", () => {
   });
 
   it("画像URLが正しくsrc属性に設定される", () => {
-    const url = "/agent-image?agent=emma&project=/mnt/c/test";
+    const testProject = path.join(os.tmpdir(), "test");
+    const url = `/agent-image?agent=emma&project=${encodeURIComponent(testProject)}`;
     const { bodyHtml } = generateAgentBackgroundSnippet(url);
     expect(bodyHtml).toContain(`src="${url}"`);
   });

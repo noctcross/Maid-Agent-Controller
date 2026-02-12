@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as os from 'os';
+import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { MaidConfig } from '../types';
 import { CURRENT_ENV } from './environment';
@@ -25,7 +26,22 @@ export function getGlobalMaidAgentPath(): string {
             const distro = distroRaw.replace(/\0/g, '').split('\n')[0].trim();
             // スラッシュをバックスラッシュに変換してパスを構築
             const windowsHome = wslHome.replace(/\//g, '\\');
-            return `\\\\wsl$\\${distro}${windowsHome}\\${GLOBAL_MAID_AGENT_DIR}`;
+
+            // Windows 11 (Build 22000+) では \\wsl.localhost\ を優先、フォールバックで \\wsl$\
+            const win11Path = `\\\\wsl.localhost\\${distro}${windowsHome}\\${GLOBAL_MAID_AGENT_DIR}`;
+            const win10Path = `\\\\wsl$\\${distro}${windowsHome}\\${GLOBAL_MAID_AGENT_DIR}`;
+
+            // フォールバック方式: wsl.localhost を先に試行、存在しなければ wsl$ を使用
+            try {
+                // 親ディレクトリの存在で UNC プレフィックスの有効性を確認
+                const win11Parent = `\\\\wsl.localhost\\${distro}${windowsHome}`;
+                if (fs.existsSync(win11Parent)) {
+                    return win11Path;
+                }
+            } catch {
+                // win11 パスへのアクセス失敗時は win10 にフォールバック
+            }
+            return win10Path;
         } catch {
             // フォールバック: Windowsのホームディレクトリ
             return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);

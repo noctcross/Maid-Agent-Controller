@@ -314,6 +314,7 @@ export interface ListTasksParams {
   category?: TaskCategory[];
   reviewed?: boolean;
   starred?: boolean;
+  search?: string;        // テキスト検索（id, title, description を部分一致検索）
   limit?: number;
   offset?: number;
   sortField?: "createdAt" | "completedAt" | "priority" | "status" | "id" | "updatedAt";
@@ -377,6 +378,16 @@ export async function executeListTasks(
     tasks = tasks.filter((t) =>
       params.starred ? t.starred === true : !t.starred
     );
+  }
+  // テキスト検索（id, title, description を部分一致検索）
+  if (params.search) {
+    const searchLower = params.search.toLowerCase();
+    tasks = tasks.filter((t) => {
+      const idMatch = t.id.toLowerCase().includes(searchLower);
+      const titleMatch = t.title.toLowerCase().includes(searchLower);
+      const descMatch = t.description?.toLowerCase().includes(searchLower) || false;
+      return idMatch || titleMatch || descMatch;
+    });
   }
 
   // ソート

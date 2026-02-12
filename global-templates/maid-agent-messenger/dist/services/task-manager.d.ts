@@ -88,6 +88,7 @@ export interface ListTasksParams {
     category?: TaskCategory[];
     reviewed?: boolean;
     starred?: boolean;
+    search?: string;
     limit?: number;
     offset?: number;
     sortField?: "createdAt" | "completedAt" | "priority" | "status" | "id" | "updatedAt";

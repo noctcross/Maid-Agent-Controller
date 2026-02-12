@@ -217,6 +217,16 @@ export async function executeListTasks(projectPath, params = {}) {
     if (params.starred !== undefined) {
         tasks = tasks.filter((t) => params.starred ? t.starred === true : !t.starred);
     }
+    // テキスト検索（id, title, description を部分一致検索）
+    if (params.search) {
+        const searchLower = params.search.toLowerCase();
+        tasks = tasks.filter((t) => {
+            const idMatch = t.id.toLowerCase().includes(searchLower);
+            const titleMatch = t.title.toLowerCase().includes(searchLower);
+            const descMatch = t.description?.toLowerCase().includes(searchLower) || false;
+            return idMatch || titleMatch || descMatch;
+        });
+    }
     // ソート
     if (params.sortField) {
         const order = params.sortOrder || "desc";

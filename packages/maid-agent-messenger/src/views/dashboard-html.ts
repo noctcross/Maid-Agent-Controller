@@ -619,6 +619,10 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       if (sortState.completed !== 'id') {
         filterParams += '&completedSortField=' + sortState.completed;
       }
+      // テキスト検索パラメータを追加
+      if (completedSearchTerm) {
+        filterParams += '&search=' + encodeURIComponent(completedSearchTerm);
+      }
 
       if (_vscodeApi) {
         _vscodeApi.postMessage({
@@ -628,6 +632,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           reviewed: completedFilterReview !== 'all' ? completedFilterReview : undefined,
           starred: completedFilterStar !== 'all' ? completedFilterStar : undefined,
           completedSortField: sortState.completed !== 'id' ? sortState.completed : undefined,
+          search: completedSearchTerm || undefined,
         });
         // 表示設定をextensionに送信（ポーリング時に使用）
         syncCompletedViewState();
@@ -906,13 +911,26 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
     const priorityFilter = document.getElementById('priorityFilter');
     const assigneeFilter = document.getElementById('assigneeFilter');
 
+    // デバウンス関数（サーバーサイド検索用）
+    function debounce(func, wait) {
+      let timeoutId = null;
+      return function(...args) {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
+    // 完了タスクの検索状態
+    var completedSearchTerm = '';
+
     function filterTasks() {
       const searchTerm = searchBox.value.toLowerCase();
       const priority = priorityFilter.value;
       const assignee = assigneeFilter.value;
 
+      // 進行中タスクはクライアントサイドでフィルタ
       document.querySelectorAll('.task-item').forEach(item => {
-        // 完了タスクはサーバーサイドフィルタで管理するためスキップ
+        // 完了タスクはサーバーサイド検索で処理
         if (item.closest('.completed-tasks-container')) return;
         const id = item.querySelector('.task-id')?.textContent?.toLowerCase() || '';
         const desc = item.querySelector('.task-desc')?.textContent?.toLowerCase() || '';
@@ -925,7 +943,20 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
 
         item.style.display = (matchesSearch && matchesPriority && matchesAssignee) ? '' : 'none';
       });
+
+      // 完了タスクはサーバーサイド検索（デバウンスで呼び出し）
+      debouncedCompletedSearch(searchTerm);
     }
+
+    // 完了タスクのサーバーサイド検索
+    function searchCompletedTasks(searchTerm) {
+      if (completedSearchTerm === searchTerm) return; // 変化なしならスキップ
+      completedSearchTerm = searchTerm;
+      completedCurrentPage = 0; // 検索時はページをリセット
+      requestCompletedPage();
+    }
+
+    var debouncedCompletedSearch = debounce(searchCompletedTasks, 300);
 
     searchBox?.addEventListener('input', filterTasks);
     priorityFilter?.addEventListener('change', filterTasks);
@@ -970,6 +1001,7 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       if (completedFilterStar !== 'all') completedParams += '&completedStarred=' + completedFilterStar;
       if (completedHash) completedParams += '&completedHash=' + completedHash;
       if (sortState.completed !== 'id') completedParams += '&completedSortField=' + sortState.completed;
+      if (completedSearchTerm) completedParams += '&completedSearch=' + encodeURIComponent(completedSearchTerm);
 
       var url = serverBaseUrl + '/dashboard/data?project=' + projectPath + completedParams;
       fetch(url)

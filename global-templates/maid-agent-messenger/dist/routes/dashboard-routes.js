@@ -100,12 +100,15 @@ export function createDashboardRoutes(deps) {
             const starred = starredParam === "yes" ? true : starredParam === "no" ? false : undefined;
             // 完了セクションのソート設定を取得
             const completedSortField = req.query.completedSortField === "updatedAt" ? "updatedAt" : "id";
+            // テキスト検索パラメータ
+            const search = req.query.search || undefined;
             const completed = await executeListTasks(projectPath, {
                 status: ["completed"],
                 limit,
                 offset,
                 reviewed,
                 starred,
+                search,
                 sortField: completedSortField,
                 sortOrder: "desc",
             });
@@ -141,6 +144,8 @@ export function createDashboardRoutes(deps) {
             const clientCompletedHash = req.query.completedHash;
             // 完了セクションのソート設定を取得
             const completedSortField = req.query.completedSortField === "updatedAt" ? "updatedAt" : "id";
+            // テキスト検索パラメータ
+            const completedSearch = req.query.completedSearch || undefined;
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const ACTIVE_STATUSES = ["pending", "assigned", "working", "blocked"];
@@ -153,6 +158,7 @@ export function createDashboardRoutes(deps) {
                     offset: completedOffset,
                     reviewed: completedReviewed,
                     starred: completedStarred,
+                    search: completedSearch,
                     sortField: completedSortField,
                     sortOrder: "desc",
                 }),

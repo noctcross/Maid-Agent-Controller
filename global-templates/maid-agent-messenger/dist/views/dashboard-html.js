@@ -215,22 +215,24 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         gap: 4px;
       }
       .completed-header-left {
-        flex: 1;
+        width: 100%;
         justify-content: flex-start;
       }
       .completed-header-center {
-        flex-shrink: 0;
+        flex-shrink: 1;
+        min-width: 0;
       }
       .completed-header-right {
-        width: 100%;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+        display: flex;
+        justify-content: flex-end;
         gap: 6px;
+        flex-shrink: 0;
       }
       .sort-toggle-group,
       .completed-filter-group {
         display: flex;
         gap: 3px;
+        flex-shrink: 0;
       }
     }
     .card-action-required { border-left: 3px solid var(--error-color); }

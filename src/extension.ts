@@ -222,6 +222,14 @@ export function activate(context: vscode.ExtensionContext) {
                 console.error('[Maid Agent] promoteRuleToGlobal:', error);
             }
         }),
+        vscode.commands.registerCommand('multiAgent.cleanup', async () => {
+            try {
+                await controller.showCleanup();
+            } catch (error) {
+                vscode.window.showErrorMessage(`クリーンアップに失敗しました: ${error}`);
+                console.error('[Maid Agent] cleanup:', error);
+            }
+        }),
     ];
 
     context.subscriptions.push(...commands);

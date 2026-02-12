@@ -4,6 +4,8 @@
  * タスクのレポート内容取得機能を検証
  */
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
+import * as os from "os";
+import * as path from "path";
 // ESMモード: jest.unstable_mockModule + dynamic import パターン
 jest.unstable_mockModule("../../services/task-manager.js", () => ({
     executeGetTask: jest.fn(),
@@ -23,7 +25,8 @@ const { readFile } = await import("fs/promises");
 const mockedExecuteGetTask = executeGetTask;
 const mockedFileExists = fileExists;
 const mockedReadFile = readFile;
-const PROJECT_PATH = "/mnt/c/Users/noct/Development/02_Projects/MaidsHouse";
+// テスト用定数（環境非依存）
+const PROJECT_PATH = path.join(os.tmpdir(), "MaidsHouse-test");
 beforeEach(() => {
     jest.clearAllMocks();
 });
@@ -189,7 +192,7 @@ describe("executeGetReport", () => {
             expect(result.reports[0].truncated).toBe(false);
         });
         it("絶対パスのreportPathもそのまま読み込む", async () => {
-            const absoluteReportPath = "/mnt/c/Users/noct/Development/02_Projects/MaidsHouse/.maid-agent/master/reports/task-045-report.md";
+            const absoluteReportPath = path.join(PROJECT_PATH, ".maid-agent/master/reports/task-045-report.md");
             mockedExecuteGetTask.mockResolvedValue({
                 task: {
                     id: "045",

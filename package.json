@@ -141,6 +141,11 @@
         "command": "multiAgent.promoteRuleToGlobal",
         "title": "Promote Rule - ルールをグローバルに昇格",
         "category": "Maid Agent"
+      },
+      {
+        "command": "multiAgent.cleanup",
+        "title": "Cleanup - クリーンアップ",
+        "category": "Maid Agent"
       }
     ],
     "views": {

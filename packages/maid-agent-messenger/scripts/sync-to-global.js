@@ -16,6 +16,7 @@ const targetDir = path.resolve(__dirname, '../../../global-templates/maid-agent-
 // コピーするファイル/フォルダ
 const itemsToCopy = [
   'dist',
+  'bin',
   'package.json',
   'package-lock.json',
   'ecosystem.config.cjs',

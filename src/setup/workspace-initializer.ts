@@ -11,6 +11,73 @@ import { generateMcpJson, setupClaudeSettings, checkAndUpdateMcpJsonPath } from 
 import { parseRuleModules, parseGlobalSkills, showRuleSelectionUI, showSkillSelectionUI, copySelectedRules, copySelectedSkills } from './rules-skills';
 
 /**
+ * instructionsの差分をチェックし、変更があればバックアップして更新
+ * @returns 更新されたファイル名の配列
+ */
+export function updateInstructionsWithBackup(
+    ctx: SetupContext,
+    templateInstructionsPath: string,
+    projectInstructionsPath: string
+): string[] {
+    const updatedFiles: string[] = [];
+
+    if (!fs.existsSync(templateInstructionsPath)) {
+        ctx.log('[Instructions] テンプレートが見つかりません');
+        return updatedFiles;
+    }
+
+    // バックアップフォルダを作成
+    const backupDir = path.join(projectInstructionsPath, 'backup');
+
+    const timestamp = new Date().toISOString()
+        .replace(/[-:]/g, '')
+        .replace('T', '_')
+        .slice(0, 15); // YYYYMMDD_HHmmss
+
+    const templateFiles = fs.readdirSync(templateInstructionsPath, { withFileTypes: true });
+
+    for (const entry of templateFiles) {
+        if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+
+        const templateFilePath = path.join(templateInstructionsPath, entry.name);
+        const projectFilePath = path.join(projectInstructionsPath, entry.name);
+
+        // 既存ファイルがなければ単純コピー
+        if (!fs.existsSync(projectFilePath)) {
+            fs.copyFileSync(templateFilePath, projectFilePath);
+            ctx.log(`[Instructions] 新規作成: ${entry.name}`);
+            continue;
+        }
+
+        // 差分チェック
+        const templateContent = fs.readFileSync(templateFilePath, 'utf-8');
+        const projectContent = fs.readFileSync(projectFilePath, 'utf-8');
+
+        if (templateContent === projectContent) {
+            ctx.log(`[Instructions] 変更なし: ${entry.name}`);
+            continue;
+        }
+
+        // 差分あり → バックアップして更新
+        if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, { recursive: true });
+        }
+
+        const baseName = entry.name.replace('.md', '');
+        const backupFileName = `${baseName}_${timestamp}.md`;
+        const backupFilePath = path.join(backupDir, backupFileName);
+
+        fs.copyFileSync(projectFilePath, backupFilePath);
+        fs.copyFileSync(templateFilePath, projectFilePath);
+
+        ctx.log(`[Instructions] 更新: ${entry.name} (バックアップ: backup/${backupFileName})`);
+        updatedFiles.push(entry.name);
+    }
+
+    return updatedFiles;
+}
+
+/**
  * ワークスペースを初期化（.maid-agentディレクトリ作成）
  */
 export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
@@ -20,9 +87,9 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
     }
 
     const maidAgentPath = path.join(ctx.workspaceRoot, MAID_AGENT_DIR);
-    let preserveInstructions = false;
+    const isReInit = fs.existsSync(maidAgentPath);
 
-    if (fs.existsSync(maidAgentPath)) {
+    if (isReInit) {
         // 上書きされるフォルダを確認（binのみ常に上書き）
         const alwaysOverwriteDirs = ['bin'];
         const existingOverwriteDirs = alwaysOverwriteDirs.filter(dir =>
@@ -32,7 +99,8 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
 
         let message = `.maid-agent ディレクトリは既に存在します。再初期化しますか？`;
         if (existingOverwriteDirs.length > 0) {
-            message += `\n\n⚠️ system/bin/ は最新版に上書きされます`;
+            message += `\n\n⚠️ system/bin/ と agents/instructions/ は最新版に更新されます`;
+            message += `\n（カスタム設定は instructions/backup/ に保存されます）`;
         }
 
         const choice = await vscode.window.showWarningMessage(
@@ -42,21 +110,6 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
         );
         if (choice !== '再初期化') {
             return false;
-        }
-
-        // instructions の上書き確認（カスタマイズ対応）
-        const instructionsPath = path.join(maidAgentPath, 'agents', 'instructions');
-        if (fs.existsSync(instructionsPath)) {
-            const instructionsChoice = await vscode.window.showWarningMessage(
-                'agents/instructions/ を上書きしますか？\n\n' +
-                '⚠️ カスタマイズしている場合は「保持」を選択してください。',
-                { modal: true },
-                '上書き', '保持'
-            );
-            preserveInstructions = instructionsChoice === '保持';
-            if (preserveInstructions) {
-                ctx.log('[初期化] instructions/ は既存を保持');
-            }
         }
     }
 
@@ -80,8 +133,20 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
             ctx.log(`[初期化] templates/system/resources/images内容: ${imageFiles.join(', ')}`);
         }
 
-        // ディレクトリ構造を作成
-        copyDirectorySync(ctx, templatesPath, maidAgentPath, true, { preserveInstructions });
+        // ディレクトリ構造を作成（instructionsは一旦スキップ）
+        copyDirectorySync(ctx, templatesPath, maidAgentPath, true, { preserveInstructions: isReInit });
+
+        // instructions の差分更新（再初期化時のみ）
+        const templateInstructionsPath = path.join(templatesPath, 'agents', 'instructions');
+        const projectInstructionsPath = path.join(maidAgentPath, 'agents', 'instructions');
+        let updatedInstructions: string[] = [];
+
+        if (isReInit) {
+            // 再初期化: 差分があればバックアップして更新
+            updatedInstructions = updateInstructionsWithBackup(ctx, templateInstructionsPath, projectInstructionsPath);
+        } else {
+            // 新規初期化: そのままコピー（copyDirectorySyncで処理済み）
+        }
 
         // コピー後の確認
         const destImagesPath = path.join(maidAgentPath, 'system', 'resources', 'images');
@@ -119,6 +184,17 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
         await setupClaudeSettings(ctx);
 
         ctx.log('[初期化] .maid-agent ディレクトリを作成しました');
+
+        // 更新された instructions の通知
+        if (updatedInstructions.length > 0) {
+            const fileList = updatedInstructions.join(', ');
+            vscode.window.showWarningMessage(
+                `📝 instructions が更新されました: ${fileList}\n` +
+                `カスタム設定を適用するには agents/instructions/backup/ を参照してください`,
+                { modal: false }
+            );
+        }
+
         vscode.window.showInformationMessage('🎩 Maid Agent の初期化が完了しました');
 
         return true;
@@ -168,6 +244,9 @@ export async function initializeGlobalSettings(ctx: SetupContext): Promise<boole
             ctx.log(`[グローバル] global-templates存在: ${fs.existsSync(globalTemplatesPath)}`);
 
             progress.report({ message: 'フォルダを作成中...' });
+
+            // Global は常に最新で上書き（テンプレート置き場として使用するため）
+            // ユーザーカスタマイズはプロジェクト側で行う
 
             // global-templates からコピー（maid-agent-messenger の dist を含む）
             if (fs.existsSync(globalTemplatesPath)) {

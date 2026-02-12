@@ -1,6 +1,6 @@
 # Maid-Agent ユーザーガイド（取扱説明書）
 
-> 最終更新: 2026-02-11
+> 最終更新: 2026-02-12
 > 対象バージョン: Maid-Agent v1.x
 
 本ガイドは2部構成です:
@@ -89,6 +89,8 @@ VSCode コマンドパレット（`Ctrl+Shift+P`）から `Maid Agent: Init Glob
 プロジェクトフォルダを開いた状態で、コマンドパレットから `Maid Agent: Init Project` を実行。
 
 このコマンドで以下が作成される:
+
+> **再初期化時の動作**: 既存の `.maid-agent/` がある場合、`agents/instructions/` は自動的に最新版に更新されます。カスタマイズしていた場合は `instructions/backup/` にバックアップが保存されるため、新旧を比較してカスタム設定を再適用できます。
 
 ```
 .maid-agent/
@@ -401,6 +403,32 @@ VALID_TARGETS="butler chief emma sophia lily rose alice may flora luna new_maid"
 
 **カスタマイズ**: 指示書を編集することでエージェントの振る舞いを変更できる。ただし、MCPツールの使い方やステータス遷移に関する記述を変更するとシステムが正常に動作しなくなる可能性があるため、注意が必要。
 
+### 3-6. 指示書の自動更新とバックアップ
+
+`Init Project` を再実行すると、指示書は自動的に最新版に更新される。
+
+**バックアップの仕組み**:
+
+1. テンプレートと既存ファイルを比較
+2. 差分があれば `instructions/backup/{filename}_YYYYMMDD_HHmmss.md` に保存
+3. 最新版で上書き
+4. 更新通知を表示
+
+**カスタム設定の再適用**:
+
+```bash
+# バックアップファイルを確認
+ls .maid-agent/agents/instructions/backup/
+
+# 差分を確認（例: butler.md）
+diff .maid-agent/agents/instructions/butler.md \
+     .maid-agent/agents/instructions/backup/butler_20260212_143052.md
+
+# 必要な部分を手動でマージ
+```
+
+**注意**: バックアップは自動削除されないため、不要になったら手動で削除してください。
+
 ---
 
 ## 4. 外観・UI
@@ -645,7 +673,44 @@ log:
 | `.maid-agent/agents/` | 中 | 指示書・ペルソナ・スキル |
 | `.maid-agent/master/reports/` | 低 | 報告書アーカイブ |
 
-### 6-5. アンインストール
+### 6-5. バージョンアップ手順
+
+拡張機能をアップデートする際の手順です。
+
+#### Step 1: 新しい VSIX をインストール
+
+1. [Releases ページ](https://github.com/noctcross/Maid-Agent-Controller/releases) から最新の `.vsix` をダウンロード
+2. VSCode コマンドパレット → `Extensions: Install from VSIX...`
+3. VSCode を再読み込み（`Developer: Reload Window`）
+
+#### Step 2: グローバル設定を更新
+
+コマンドパレットで `Init Global` を実行:
+
+```
+Maid Agent: Init Global
+```
+
+MCPサーバーが最新版に更新され、PM2 で再起動されます。
+
+#### Step 3: プロジェクト設定を更新
+
+各プロジェクトで `Init` を実行:
+
+```
+Maid Agent: Init
+```
+
+**指示書の自動更新**: `agents/instructions/` が最新版に更新されます。カスタマイズしていた場合は `instructions/backup/` にバックアップが保存されるため、新旧を比較してカスタム設定を再適用してください。
+
+#### 注意事項
+
+- **IDE再起動**: VSIX インストール後は必ず VSCode を再読み込み（`Developer: Reload Window`）または再起動してください。再起動しないと新機能が反映されません
+- **MCP再接続**: MCPサーバー更新後、稼働中のエージェントは MCP 再接続が必要です
+- **バックアップ確認**: カスタマイズした指示書がある場合、更新前に差分を確認してください
+- **CHANGELOG**: [CHANGELOG.md](../CHANGELOG.md) で変更内容を確認できます
+
+### 6-6. アンインストール
 
 > **詳細な手順**: [アンインストール手順書](アンインストール手順書.md) を参照してください。
 

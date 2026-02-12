@@ -242,16 +242,14 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       }
       .completed-header-row {
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 4px;
       }
       .completed-header-left {
-        width: 100%;
-        justify-content: center;
+        flex: 1;
+        justify-content: flex-start;
       }
       .completed-header-center {
-        width: 100%;
-        justify-content: center;
-        order: 3;
+        flex-shrink: 0;
       }
       .completed-header-right {
         width: 100%;
@@ -261,7 +259,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       }
       .sort-toggle-group,
       .completed-filter-group {
-        justify-content: center;
+        display: flex;
+        gap: 3px;
       }
     }
     .card-action-required { border-left: 3px solid var(--error-color); }

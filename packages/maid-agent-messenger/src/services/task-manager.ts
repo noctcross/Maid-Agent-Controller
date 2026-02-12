@@ -383,8 +383,8 @@ export async function executeListTasks(
   if (params.search) {
     const searchLower = params.search.toLowerCase();
     tasks = tasks.filter((t) => {
-      const idMatch = t.id.toLowerCase().includes(searchLower);
-      const titleMatch = t.title.toLowerCase().includes(searchLower);
+      const idMatch = t.id?.toLowerCase().includes(searchLower) || false;
+      const titleMatch = t.title?.toLowerCase().includes(searchLower) || false;
       const descMatch = t.description?.toLowerCase().includes(searchLower) || false;
       return idMatch || titleMatch || descMatch;
     });

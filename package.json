@@ -2,7 +2,7 @@
   "name": "multi-agent-controller",
   "displayName": "Maid Agent Controller",
   "description": "VSCode extension for multi-agent Claude Code orchestration with hierarchical maid system",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "noctcross",
   "keywords": [
     "multi-agent",

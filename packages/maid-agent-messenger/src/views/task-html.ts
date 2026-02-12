@@ -18,11 +18,9 @@ export function generateReportLinksHtml(
   if (!reportPaths || reportPaths.length === 0) return "";
 
   return reportPaths.map((p: string) => {
-    const fileName = p.split("/").pop() || p;
-    // 相対パスを絶対パスに変換（WSLパスはそのまま保持）
-    const absolutePath = p.startsWith("/") || p.startsWith("C:") || p.startsWith("c:")
-      ? p
-      : path.join(projectPath, p);
+    const fileName = path.basename(p);
+    // 相対パスを絶対パスに変換（クロスプラットフォーム対応）
+    const absolutePath = path.isAbsolute(p) ? p : path.join(projectPath, p);
     // ブラウザ用: /file?path=... エンドポイント（&project= で報告書内パスリンク化を有効化）
     const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
     // VSCode Webview用: addEventListenerでpostMessage、ブラウザではhref遷移

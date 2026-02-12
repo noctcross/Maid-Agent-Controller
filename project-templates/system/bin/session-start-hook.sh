@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # === Maid Agent SessionStart Hook ===
 # tmux環境 + エージェント名一致時のみコンテキスト注入
 # 通常のClaude Code利用（tmux外）には影響しない

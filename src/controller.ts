@@ -644,7 +644,8 @@ export class MultiAgentController {
 
 
             // reports/*.md が更新されたらメイド長への報告チェック
-            if (uri.fsPath.includes('/reports/') && fileName.endsWith('.md') && fileName !== '.gitkeep') {
+            const reportsDir = `${path.sep}reports${path.sep}`;
+            if (uri.fsPath.includes(reportsDir) && fileName.endsWith('.md') && fileName !== '.gitkeep') {
                 const maidName = fileName.replace('.md', '');
                 this.checkMaidReportToChief(maidName);
             }

@@ -315,9 +315,9 @@ export async function executeUpdateTask(projectPath, params) {
         }
         if (params.reportPath) {
             // ファイル名で重複チェック（絶対パス/相対パスの違いを吸収）
-            const newFileName = params.reportPath.split("/").pop() || params.reportPath;
+            const newFileName = path.basename(params.reportPath);
             const isDuplicate = task.reportPaths.some((existing) => {
-                const existingFileName = existing.split("/").pop() || existing;
+                const existingFileName = path.basename(existing);
                 return existingFileName === newFileName;
             });
             if (!isDuplicate) {
@@ -354,9 +354,9 @@ export async function executeUpdateTask(projectPath, params) {
                     await withTasksLock(projectPath, async (data) => {
                         const task = data.tasks.find((t) => t.id === params.taskId);
                         if (task) {
-                            const newFileName = sideEffects.archivePath.split("/").pop() || sideEffects.archivePath;
+                            const newFileName = path.basename(sideEffects.archivePath);
                             const isDuplicate = task.reportPaths.some((existing) => {
-                                const existingFileName = existing.split("/").pop() || existing;
+                                const existingFileName = path.basename(existing);
                                 return existingFileName === newFileName;
                             });
                             if (!isDuplicate) {

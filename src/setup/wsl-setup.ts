@@ -8,6 +8,12 @@ import { CURRENT_ENV } from '../utils/environment';
  * @returns true: WSL準備完了、false: 再起動等が必要
  */
 export async function checkAndSetupWsl(ctx: SetupContext): Promise<boolean> {
+    // Mac/Linux環境では即座にtrue（WSLチェック不要）
+    if (CURRENT_ENV !== 'windows-native') {
+        ctx.log('[WSL] 非Windows環境のためスキップ');
+        return true;
+    }
+
     ctx.log('[WSL] チェック開始');
 
     // 1. WSL2がインストールされているかチェック

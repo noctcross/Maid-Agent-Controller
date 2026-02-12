@@ -55,7 +55,8 @@ function loadPm2Config() {
   }
 
   // グローバル設定パス
-  const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+  const os = require('os');
+  const homeDir = os.homedir();
   configPaths.push(
     path.join(homeDir, ".maid-agent", "system", "config", "mcp-server.yaml")
   );

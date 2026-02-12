@@ -4,6 +4,7 @@
  * .maid-agent/config/mcp-server.yaml から設定を読み込む
  */
 import * as fs from "fs/promises";
+import * as os from "os";
 import * as path from "path";
 import * as yaml from "yaml";
 const DEFAULT_CONFIG = {
@@ -53,7 +54,7 @@ function getConfigPath() {
         return process.env.MAID_MCP_CONFIG;
     }
     // グローバル設定: ~/.maid-agent/system/config/mcp-server.yaml
-    const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+    const homeDir = os.homedir();
     return path.join(homeDir, ".maid-agent", "system", "config", "mcp-server.yaml");
 }
 /**

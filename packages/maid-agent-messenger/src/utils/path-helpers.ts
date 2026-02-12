@@ -3,6 +3,7 @@
  * プロジェクトパスから各種ディレクトリパスを構築する
  */
 
+import os from "os";
 import path from "path";
 
 export function getQueueMaidPath(projectPath: string): string {
@@ -21,7 +22,7 @@ export function getArchiveReportsPath(projectPath: string): string {
 
 // グローバルデータディレクトリ: ~/.maid-agent/system/data/
 export function getGlobalDataPath(): string {
-  const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+  const homeDir = os.homedir();
   return path.join(homeDir, ".maid-agent", "system", "data");
 }
 

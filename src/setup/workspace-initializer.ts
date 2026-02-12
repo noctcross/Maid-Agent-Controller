@@ -457,6 +457,16 @@ export function copyDirectorySync(ctx: SetupContext, src: string, dest: string, 
                 continue;
             }
             fs.copyFileSync(srcPath, destPath);
+
+            // Mac/Linux環境でbin/ディレクトリ内のファイルに実行権限を付与
+            if (CURRENT_ENV !== 'windows-native' && srcPath.includes('/bin/')) {
+                try {
+                    fs.chmodSync(destPath, 0o755);
+                    ctx.log(`[初期化] 実行権限付与: ${entry.name}`);
+                } catch (e) {
+                    ctx.log(`[初期化] chmod失敗: ${entry.name}`);
+                }
+            }
         }
     }
 }

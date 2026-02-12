@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # maid-notify - エージェント間通知CLIツール（直接send-keys方式）
 # 使用法: maid-notify <target> "<message>"
 #         maid-notify --mcp-reconnect <target> [server-name]

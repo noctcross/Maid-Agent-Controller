@@ -255,8 +255,8 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       }
       .completed-header-right {
         width: 100%;
-        justify-content: center;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         gap: 6px;
       }
       .sort-toggle-group,

@@ -10,6 +10,7 @@ import { AgentPanelProvider } from './ui/agent-panel-provider';
 import * as WorkspaceInit from './setup/workspace-initializer';
 import * as WslSetup from './setup/wsl-setup';
 import * as RulesSkills from './setup/rules-skills';
+import * as Cleanup from './setup/cleanup';
 import * as AgentLifecycle from './agents/agent-lifecycle';
 import * as AgentComm from './agents/agent-communication';
 import * as AgentStartup from './agents/agent-startup';
@@ -509,7 +510,22 @@ export class MultiAgentController {
         });
         terminal.show();
 
-        const installCmd = 'sudo apt-get update && sudo apt-get install -y tmux';
+        // OS別のインストールコマンドを決定
+        let installCmd: string;
+        if (CURRENT_ENV === 'macos') {
+            // macOS: Homebrew使用
+            installCmd = 'brew install tmux';
+        } else if (CURRENT_ENV === 'linux') {
+            // Linux: パッケージマネージャを自動検出
+            installCmd = 'if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y tmux; ' +
+                'elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y tmux; ' +
+                'elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm tmux; ' +
+                'elif command -v zypper >/dev/null 2>&1; then sudo zypper install -y tmux; ' +
+                'else echo "対応するパッケージマネージャが見つかりません"; fi';
+        } else {
+            // Windows (WSL): apt-get使用
+            installCmd = 'sudo apt-get update && sudo apt-get install -y tmux';
+        }
         terminal.sendText(installCmd);
 
         const result = await vscode.window.showInformationMessage(
@@ -883,6 +899,16 @@ ${agentList || '  (なし)'}
     // =========================================================================
     // クリーンアップ
     // =========================================================================
+
+    /**
+     * クリーンアップダイアログを表示
+     */
+    public async showCleanup(): Promise<void> {
+        return Cleanup.showCleanupQuickPick(
+            this.workspaceRoot,
+            (msg: string) => this.log(msg)
+        );
+    }
 
     /**
      * ターミナルが閉じられた時の処理

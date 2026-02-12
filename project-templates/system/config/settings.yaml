@@ -70,12 +70,16 @@ skills:
   # プロジェクト固有のスキル保存先
   local_path: ".maid-agent/agents/skills/"
 
-# スクリーンショット設定（WSL環境用）
+# スクリーンショット設定（OS別）
 screenshot:
   # Windows側のパス（参考用）
   windows_path: "C:\\Users\\{{USERNAME}}\\Pictures\\Screenshots"
   # WSLからアクセスするパス
   wsl_path: "/mnt/c/Users/{{USERNAME}}/Pictures/Screenshots"
+  # macOS（デスクトップがデフォルト保存先）
+  macos_path: "~/Desktop"
+  # Linux（一般的なスクリーンショット保存先）
+  linux_path: "~/Pictures/Screenshots"
 
 # ログ設定
 log:

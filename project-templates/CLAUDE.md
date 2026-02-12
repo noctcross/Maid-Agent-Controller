@@ -269,7 +269,10 @@ agents/rules/
 
 ## タイムスタンプ
 
-日時は必ず `date -Iseconds` コマンドで取得。推測禁止。
+日時は以下のコマンドで取得（推測禁止）:
+
+- Linux/WSL: `date -Iseconds`
+- macOS: `date -u +%Y-%m-%dT%H:%M:%S%z` または `gdate -Iseconds`（要 `brew install coreutils`）
 
 ## ご主人様への確認事項（🚨 要対応）
 

@@ -239,7 +239,10 @@ MCPツール（`get_team_status`等）で「Server not initialized」エラー�
 
 ## タイムスタンプ
 
-日時は必ず `date -Iseconds` コマンドで取得。推測禁止。
+日時は以下のコマンドで取得（推測禁止）:
+
+- Linux/WSL: `date -Iseconds`
+- macOS: `date -u +%Y-%m-%dT%H:%M:%S%z` または `gdate -Iseconds`（要 `brew install coreutils`）
 
 ## コンパクション対策
 

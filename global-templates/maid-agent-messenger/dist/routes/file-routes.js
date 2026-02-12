@@ -19,8 +19,10 @@ router.get("/file", async (req, res) => {
         }
         // URLデコード
         filePath = decodeURIComponent(filePath);
-        // Windowsパス（C:/...）をWSLパス（/mnt/c/...）に変換
-        if (/^[A-Z]:\//i.test(filePath)) {
+        // WSL環境でのみWindowsパス（C:/...）をWSLパス（/mnt/c/...）に変換
+        // Mac/Linuxでは変換不要
+        const isWslEnvironment = process.platform === 'linux' && process.env.WSL_DISTRO_NAME;
+        if (isWslEnvironment && /^[A-Z]:\//i.test(filePath)) {
             const driveLetter = filePath[0].toLowerCase();
             filePath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
         }

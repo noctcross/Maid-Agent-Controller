@@ -135,12 +135,16 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
 export async function initializeGlobalSettings(ctx: SetupContext): Promise<boolean> {
     ctx.log(`[グローバル] 初期化開始`);
 
-    // Windows環境ではWSL2のチェックを行う
+    // Windows環境ではWSL2のチェックを行う（Mac/Linuxでは不要）
     if (CURRENT_ENV === 'windows-native') {
         const wslReady = await checkAndSetupWsl(ctx);
         if (!wslReady) {
             return false; // WSL未設定、再起動が必要
         }
+    }
+    // Mac/Linux環境のログ出力
+    if (CURRENT_ENV === 'macos' || CURRENT_ENV === 'linux') {
+        ctx.log(`[グローバル] 環境: ${CURRENT_ENV}（ネイティブ実行）`);
     }
 
     const globalPath = getGlobalMaidAgentPath();
@@ -206,7 +210,8 @@ export async function initializeGlobalSettings(ctx: SetupContext): Promise<boole
             ctx.log(`[グローバル] 設定フォルダを初期化: ${globalPath}`);
 
             // MCPサーバー (maid-agent-messenger) のセットアップ
-            if (CURRENT_ENV === 'windows-native') {
+            // Windows (WSL), macOS, Linux のいずれでも実行
+            if (CURRENT_ENV === 'windows-native' || CURRENT_ENV === 'macos' || CURRENT_ENV === 'linux') {
                 progress.report({ message: 'MCPサーバーをセットアップ中...' });
                 await setupMcpServer(ctx);
             }

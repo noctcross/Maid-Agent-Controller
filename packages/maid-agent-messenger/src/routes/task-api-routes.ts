@@ -30,6 +30,7 @@ router.get("/api/tasks", async (req: Request, res: Response) => {
       offset?: number;
       sortField?: "createdAt" | "priority" | "status" | "id";
       sortOrder?: "asc" | "desc";
+      summaryOnly?: boolean;
     } = {};
 
     if (req.query.status) {
@@ -53,6 +54,9 @@ router.get("/api/tasks", async (req: Request, res: Response) => {
     if (req.query.sortOrder) {
       filter.sortOrder = req.query.sortOrder as "asc" | "desc";
     }
+    if (req.query.summary === "true") {
+      filter.summaryOnly = true;
+    }
 
     const result = await executeListTasks(projectPath, filter);
     res.json(result);
@@ -67,10 +71,12 @@ router.get("/api/tasks/:id", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
     const includeSubtasks = req.query.includeSubtasks === "true";
+    const summaryOnly = req.query.summary === "true";
 
     const result = await executeGetTask(projectPath, {
       taskId: req.params.id,
       includeSubtasks,
+      summaryOnly,
     });
 
     if (!result.task) {

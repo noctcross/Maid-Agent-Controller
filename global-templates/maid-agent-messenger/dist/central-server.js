@@ -18,6 +18,7 @@ import { sessions, cleanupIdleSessions } from "./middleware/session-manager.js";
 import { createMcpRoutes } from "./routes/mcp-routes.js";
 import legacyRoutes from "./routes/legacy-routes.js";
 import taskApiRoutes from "./routes/task-api-routes.js";
+import cliApiRoutes from "./routes/cli-api-routes.js";
 import { createDashboardRoutes } from "./routes/dashboard-routes.js";
 import { createTopPageRoutes } from "./routes/top-page-routes.js";
 import fileRoutes from "./routes/file-routes.js";
@@ -74,6 +75,7 @@ async function main() {
     app.use(loopbackOnly, createMcpRoutes({ sessions, createMcpServer, keepAliveManager }));
     app.use(loopbackOnly, legacyRoutes);
     app.use(loopbackOnly, taskApiRoutes);
+    app.use(loopbackOnly, cliApiRoutes);
     // ========================================
     app.use((err, _req, res, _next) => {
         console.error("Server error:", err);

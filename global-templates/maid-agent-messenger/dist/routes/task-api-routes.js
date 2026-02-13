@@ -34,6 +34,9 @@ router.get("/api/tasks", async (req, res) => {
         if (req.query.sortOrder) {
             filter.sortOrder = req.query.sortOrder;
         }
+        if (req.query.summary === "true") {
+            filter.summaryOnly = true;
+        }
         const result = await executeListTasks(projectPath, filter);
         res.json(result);
     }
@@ -47,9 +50,11 @@ router.get("/api/tasks/:id", async (req, res) => {
     try {
         const projectPath = getProjectPathFromRequest(req);
         const includeSubtasks = req.query.includeSubtasks === "true";
+        const summaryOnly = req.query.summary === "true";
         const result = await executeGetTask(projectPath, {
             taskId: req.params.id,
             includeSubtasks,
+            summaryOnly,
         });
         if (!result.task) {
             res.status(404).json({ error: "Task not found", taskId: req.params.id });

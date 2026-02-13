@@ -451,9 +451,9 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
     );
 
     if (choice === 'はい（自動設定）') {
+        ctx.log('[PATH設定] 自動設定を開始します');
         try {
             let alreadyExists = false;
-            let setupCommand: string;
 
             if (CURRENT_ENV === 'windows-native') {
                 // Windows: WSL経由で設定
@@ -465,7 +465,7 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
 
                 if (!alreadyExists) {
                     // PATH追記
-                    setupCommand = `wsl bash -c "echo '${pathExport}' >> ~/${rcFileName}"`;
+                    const setupCommand = `wsl bash -c "echo '${pathExport}' >> ~/${rcFileName}"`;
                     await execAsync(setupCommand);
                 }
             } else {
@@ -494,15 +494,24 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
                     `✅ PATH を ${rcFilePath} に追加しました。新しいターミナルで maidctl が使用できます。`
                 );
             }
+            // 自動設定成功時はここで終了（手動ガイダンスは表示しない）
+            return;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             ctx.log(`[PATH設定] 自動設定に失敗: ${message}`);
             // 失敗時は手動設定ガイダンスを表示
             showPathGuidance(ctx, globalPath);
+            return;
         }
-    } else {
+    }
+
+    if (choice === 'いいえ（手動設定）') {
         // 手動設定ガイダンスを表示
+        ctx.log('[PATH設定] 手動設定を選択しました');
         showPathGuidance(ctx, globalPath);
+    } else {
+        // ダイアログを閉じた場合（choice === undefined）は何もしない
+        ctx.log('[PATH設定] 設定をスキップしました');
     }
 }
 

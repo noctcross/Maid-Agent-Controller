@@ -99,10 +99,8 @@ improvement_proposal:
 
 /**
  * maid yaml を tasks.yaml の内容で同期する
- *
- * executeCreateTask（assignees指定時）からも呼び出されるためエクスポート
  */
-export async function syncMaidYaml(
+async function syncMaidYaml(
   projectPath: string,
   task: Task,
   params: UpdateTaskParams,

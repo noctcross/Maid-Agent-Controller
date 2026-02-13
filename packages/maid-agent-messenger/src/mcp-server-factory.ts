@@ -218,25 +218,24 @@ export function createMcpServer(projectPath: string): McpServer {
   ]);
 
   // create_task ツール
+  // Note: assigneesはcreate_taskでは指定不可。assign_taskで別途アサインする設計。
   server.tool(
     "create_task",
-    "新規タスクまたはサブタスクを作成します",
+    "新規タスクまたはサブタスクを作成します（担当者指定はassign_taskを使用）",
     {
       title: z.string().describe("タスクタイトル（短い概要）"),
       description: z.string().optional().describe("タスク説明（詳細、省略可）"),
       priority: z.enum(["high", "medium", "low"]).optional().describe("優先度（デフォルト: medium）"),
       parentId: z.string().optional().describe("親タスクID（サブタスク作成時に指定）"),
-      assignees: z.array(z.enum(MAID_IDS)).optional().describe("担当者リスト"),
       category: z.enum(["task", "action_required", "skill_candidate", "improvement"]).optional().describe("カテゴリ（デフォルト: task）"),
     },
-    async ({ title, description, priority, parentId, assignees, category }) => {
+    async ({ title, description, priority, parentId, category }) => {
       try {
         const result = await executeCreateTask(projectPath, {
           title,
           description,
           priority,
           parentId,
-          assignees,
           category,
         });
 

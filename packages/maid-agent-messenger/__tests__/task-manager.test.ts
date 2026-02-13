@@ -139,18 +139,31 @@ describe("executeCreateTask", () => {
     expect(sub2.taskId).toBe("001-2");
   });
 
-  it("should set assignees and status when provided", async () => {
-    const result = await executeCreateTask(TEST_PROJECT_PATH, {
+  it("should set assignees via executeUpdateTask", async () => {
+    // create_taskはassignees不可、executeUpdateTaskで設定
+    const created = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "割り当て済みタスク",
       description: "割り当て済みタスク",
-      assignees: ["alice", "luna"],
     });
 
-    expect(result.task.status).toBe("assigned");
-    expect(result.task.assignees).toHaveLength(2);
-    expect(result.task.assignees[0].agentId).toBe("alice");
-    expect(result.task.assignees[1].agentId).toBe("luna");
-    expect(result.task.assignedAt).toBeTruthy();
+    expect(created.task.status).toBe("pending");
+    expect(created.task.assignees).toHaveLength(0);
+
+    // executeUpdateTaskでassigneesを設定
+    const updated = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: created.taskId,
+      status: "assigned",
+      assignees: [
+        { agentId: "alice", role: null, subTaskId: null },
+        { agentId: "luna", role: null, subTaskId: null },
+      ],
+    });
+
+    expect(updated.task?.status).toBe("assigned");
+    expect(updated.task?.assignees).toHaveLength(2);
+    expect(updated.task?.assignees[0].agentId).toBe("alice");
+    expect(updated.task?.assignees[1].agentId).toBe("luna");
+    expect(updated.task?.assignedAt).toBeTruthy();
   });
 
   it("should use default priority when not specified", async () => {
@@ -256,11 +269,15 @@ describe("executeListTasks", () => {
   it("should filter by status (pending vs assigned)", async () => {
     // pending タスク
     await executeCreateTask(TEST_PROJECT_PATH, { title: "未割当タスク", description: "未割当タスク" });
-    // assigned タスク（assigneesを指定するとassignedになる）
-    await executeCreateTask(TEST_PROJECT_PATH, {
+    // assigned タスク（executeUpdateTaskでassigneesを設定）
+    const task2 = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "割当済タスク",
       description: "割当済タスク",
-      assignees: ["alice"],
+    });
+    await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: task2.taskId,
+      status: "assigned",
+      assignees: [{ agentId: "alice", role: null, subTaskId: null }],
     });
 
     const pending = await executeListTasks(TEST_PROJECT_PATH, {
@@ -278,10 +295,14 @@ describe("executeListTasks", () => {
 
   it("should filter by multiple statuses", async () => {
     await executeCreateTask(TEST_PROJECT_PATH, { title: "未割当タスク", description: "未割当タスク" });
-    await executeCreateTask(TEST_PROJECT_PATH, {
+    const task2 = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "割当済タスク",
       description: "割当済タスク",
-      assignees: ["alice"],
+    });
+    await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: task2.taskId,
+      status: "assigned",
+      assignees: [{ agentId: "alice", role: null, subTaskId: null }],
     });
 
     const result = await executeListTasks(TEST_PROJECT_PATH, {
@@ -292,15 +313,23 @@ describe("executeListTasks", () => {
   });
 
   it("should filter by assignee", async () => {
-    await executeCreateTask(TEST_PROJECT_PATH, {
+    // create_taskはassignees不可、executeUpdateTaskで設定
+    const task1 = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "アリスのタスク",
       description: "アリスのタスク",
-      assignees: ["alice"],
     });
-    await executeCreateTask(TEST_PROJECT_PATH, {
+    await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: task1.taskId,
+      assignees: [{ agentId: "alice", role: null, subTaskId: null }],
+    });
+
+    const task2 = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "ルナのタスク",
       description: "ルナのタスク",
-      assignees: ["luna"],
+    });
+    await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: task2.taskId,
+      assignees: [{ agentId: "luna", role: null, subTaskId: null }],
     });
 
     const aliceTasks = await executeListTasks(TEST_PROJECT_PATH, {

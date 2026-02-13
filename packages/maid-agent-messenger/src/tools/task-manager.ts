@@ -47,23 +47,18 @@ export function registerCreateTask(server: McpServer): void {
         .string()
         .optional()
         .describe("親タスクID（サブタスク作成時に指定）"),
-      assignees: z
-        .array(z.enum(MAID_IDS))
-        .optional()
-        .describe("担当者リスト"),
       category: z
         .enum(["task", "action_required", "skill_candidate", "improvement"])
         .optional()
         .describe("カテゴリ（デフォルト: task）"),
     },
-    async ({ title, description, priority, parentId, assignees, category }) => {
+    async ({ title, description, priority, parentId, category }) => {
       try {
         const result = await executeCreateTask(getProjectPath(), {
           title,
           description,
           priority,
           parentId,
-          assignees,
           category,
         });
 

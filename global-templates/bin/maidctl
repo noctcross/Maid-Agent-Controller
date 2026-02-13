@@ -26,6 +26,22 @@ EXIT_CONNECTION_ERROR=4
 EXIT_INVALID_ARGS=5
 
 # =============================================================================
+# エージェントID自動取得（tmuxウィンドウ名から）
+# =============================================================================
+
+get_agent_id_from_tmux() {
+  if [ -n "${TMUX_PANE:-}" ]; then
+    local window_name
+    window_name=$(tmux display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || echo "")
+    if echo "$VALID_AGENTS" | grep -qw "$window_name"; then
+      echo "$window_name"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# =============================================================================
 # プロジェクトルート検出
 # =============================================================================
 
@@ -539,7 +555,10 @@ cmd_my_task() {
       --summary) summary=true; shift ;;
       --json) json_output=true; shift ;;
       --help|-h)
-        echo "使用法: maidctl my-task <agent-id> [オプション]"
+        echo "使用法: maidctl my-task [agent-id] [オプション]"
+        echo ""
+        echo "引数:"
+        echo "  agent-id   エージェントID（省略時はtmuxウィンドウ名から自動取得）"
         echo ""
         echo "オプション:"
         echo "  --summary  軽量版レスポンス"
@@ -561,9 +580,13 @@ cmd_my_task() {
     esac
   done
 
+  # エージェントIDが未指定の場合、tmuxから自動取得
   if [ -z "$agent_id" ]; then
-    echo "エラー: エージェントIDを指定してください" >&2
-    exit $EXIT_INVALID_ARGS
+    agent_id=$(get_agent_id_from_tmux) || {
+      echo "エラー: エージェントIDを指定してください" >&2
+      echo "（tmuxウィンドウ名からの自動取得に失敗しました）" >&2
+      exit $EXIT_INVALID_ARGS
+    }
   fi
 
   # エージェントIDの検証
@@ -603,7 +626,11 @@ cmd_my_status() {
       --escalation) escalation=true; shift ;;
       --json) json_output=true; shift ;;
       --help|-h)
-        echo "使用法: maidctl my-status <agent-id> <status> [オプション]"
+        echo "使用法: maidctl my-status [agent-id] <status> [オプション]"
+        echo ""
+        echo "引数:"
+        echo "  agent-id   エージェントID（省略時はtmuxウィンドウ名から自動取得）"
+        echo "  status     ステータス（必須）"
         echo ""
         echo "オプション:"
         echo "  --summary, -m TEXT  サマリメッセージ"
@@ -629,9 +656,24 @@ cmd_my_status() {
     esac
   done
 
+  # 引数の解釈ロジック:
+  # - maidctl my-status working           → agent_id=working, status=""
+  # - maidctl my-status luna working      → agent_id=luna, status=working
+  # - maidctl my-status working --summary → agent_id=working, status=""
+  #
+  # agent_idがステータス値で、statusが空の場合は入れ替える
+  if echo "$VALID_STATUSES" | grep -qw "$agent_id" && [ -z "$status" ]; then
+    status="$agent_id"
+    agent_id=""  # 後でtmuxから取得
+  fi
+
+  # エージェントIDが未指定の場合、tmuxから自動取得
   if [ -z "$agent_id" ]; then
-    echo "エラー: エージェントIDを指定してください" >&2
-    exit $EXIT_INVALID_ARGS
+    agent_id=$(get_agent_id_from_tmux) || {
+      echo "エラー: エージェントIDを指定してください" >&2
+      echo "（tmuxウィンドウ名からの自動取得に失敗しました）" >&2
+      exit $EXIT_INVALID_ARGS
+    }
   fi
 
   if [ -z "$status" ]; then

@@ -25,10 +25,15 @@ export async function executeGetMyTask(params) {
     }
     // YAML読み込み
     const task = await readYamlFile(filePath);
-    // 必要な情報のみ抽出（トークン削減）
+    // 必要な情報のみ抽出
+    // summaryOnly=true: 1行目のみ（トークン削減）
+    // summaryOnly=false/undefined: 全文返す（詳細な指示が必要な場合）
+    const description = params.summaryOnly
+        ? getFirstLine(task.description)
+        : (task.description || null);
     return {
         task_id: task.task_id || null,
-        description: getFirstLine(task.description), // 1行目のみ
+        description,
         target_path: task.target_path || null,
         status: task.status || "idle",
         assigned_at: task.assigned_at || null,

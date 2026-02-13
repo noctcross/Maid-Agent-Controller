@@ -462,11 +462,15 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
                     `wsl bash -c "grep -q 'maid-agent/bin' ~/${rcFileName} 2>/dev/null && echo 'exists' || echo 'not_exists'"`
                 );
                 alreadyExists = checkResult.stdout.trim() === 'exists';
+                ctx.log(`[PATH設定] 既存設定チェック結果: ${alreadyExists ? '存在' : '未設定'}`);
 
                 if (!alreadyExists) {
-                    // PATH追記
-                    const setupCommand = `wsl bash -c "echo '${pathExport}' >> ~/${rcFileName}"`;
-                    await execAsync(setupCommand);
+                    // PATH追記（printfを使用してより安全に追記）
+                    // シングルクォート内では$は展開されない
+                    const appendCmd = `wsl bash -c 'printf "\\n# Maid Agent CLI\\nexport PATH=\\"\\$HOME/.maid-agent/bin:\\$PATH\\"\\n" >> ~/${rcFileName}'`;
+                    ctx.log(`[PATH設定] 実行コマンド: ${appendCmd}`);
+                    const result = await execAsync(appendCmd);
+                    ctx.log(`[PATH設定] 実行結果: stdout=${result.stdout}, stderr=${result.stderr}`);
                 }
             } else {
                 // Mac/Linux: 直接設定

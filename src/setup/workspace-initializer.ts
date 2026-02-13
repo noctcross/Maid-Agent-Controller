@@ -295,6 +295,15 @@ export async function initializeGlobalSettings(ctx: SetupContext): Promise<boole
                 await setupMcpServer(ctx);
             }
 
+            // maidctl CLIツールの配置確認
+            progress.report({ message: 'maidctl CLIを配置中...' });
+            const maidctlDeployed = deployMaidctl(ctx, globalPath);
+
+            // PATH設定ガイダンスを表示（maidctl配置成功時のみ）
+            if (maidctlDeployed) {
+                showPathGuidance(ctx, globalPath);
+            }
+
             return true;
         });
     } catch (error) {
@@ -303,6 +312,83 @@ export async function initializeGlobalSettings(ctx: SetupContext): Promise<boole
         vscode.window.showErrorMessage(`グローバル設定の初期化に失敗しました: ${message}`);
         return false;
     }
+}
+
+/**
+ * maidctl CLIツールを配置（確認とログ出力）
+ * @returns 配置が成功したかどうか
+ */
+export function deployMaidctl(ctx: SetupContext, globalPath: string): boolean {
+    const binDir = path.join(globalPath, 'bin');
+    const maidctlPath = path.join(binDir, 'maidctl');
+
+    // maidctl の存在確認
+    if (!fs.existsSync(maidctlPath)) {
+        ctx.log('[maidctl] maidctl が見つかりません（global-templates/bin/ にない可能性）');
+        return false;
+    }
+
+    // 実行権限の確認・付与（Unix系のみ）
+    if (CURRENT_ENV !== 'windows-native') {
+        try {
+            const stats = fs.statSync(maidctlPath);
+            const isExecutable = (stats.mode & 0o111) !== 0;
+
+            if (!isExecutable) {
+                fs.chmodSync(maidctlPath, 0o755);
+                ctx.log('[maidctl] 実行権限を付与しました');
+            }
+        } catch (e) {
+            ctx.log(`[maidctl] 実行権限の確認/付与に失敗: ${e}`);
+        }
+    }
+
+    ctx.log(`[maidctl] CLIツールを配置しました: ${maidctlPath}`);
+    return true;
+}
+
+/**
+ * PATH設定ガイダンスを表示
+ */
+export function showPathGuidance(ctx: SetupContext, globalPath: string): void {
+    const binPath = path.join(globalPath, 'bin');
+
+    // シェル設定ファイルを推定
+    const shell = process.env.SHELL || '/bin/bash';
+    const rcFile = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
+
+    // Windows環境ではWSL内のパスを表示
+    let pathCommand: string;
+    if (CURRENT_ENV === 'windows-native') {
+        // WSL内のパス（~/.maid-agent/bin）
+        pathCommand = `echo 'export PATH="$HOME/.maid-agent/bin:$PATH"' >> ${rcFile}`;
+    } else {
+        // Mac/Linux環境
+        pathCommand = `echo 'export PATH="${binPath}:$PATH"' >> ${rcFile}`;
+    }
+
+    const guidance = `
+┌─────────────────────────────────────────────────────────────┐
+│  maidctl CLI を使用するには PATH を設定してください         │
+├─────────────────────────────────────────────────────────────┤
+│  ${pathCommand}
+│  source ${rcFile}
+└─────────────────────────────────────────────────────────────┘`;
+
+    ctx.log(guidance);
+
+    // VSCode通知でも表示
+    vscode.window.showInformationMessage(
+        '🛠️ maidctl CLI を使用するには PATH を設定してください。詳細は出力パネルを確認してください。',
+        'PATHの設定方法を表示'
+    ).then(selection => {
+        if (selection === 'PATHの設定方法を表示') {
+            vscode.window.showInformationMessage(
+                `以下のコマンドを実行してください:\n\n${pathCommand}\nsource ${rcFile}`,
+                { modal: true }
+            );
+        }
+    });
 }
 
 /**

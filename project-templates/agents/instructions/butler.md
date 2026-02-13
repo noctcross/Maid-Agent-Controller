@@ -255,6 +255,16 @@ MCPツール（`get_team_status`等）で「Server not initialized」エラー�
 - 進行状況: MCPツール list_tasks で確認
 ```
 
+## スキル使用制限
+
+`.claude/skills/` のスキルが利用可能です。ただし以下の制限があります:
+
+descriptionに以下のタグがあるスキルは**使用禁止**:
+- `[chiefOnly]` - メイド長専用
+- `[maidOnly]` - メイド専用
+
+タグのないスキルは全員が使用可能です。
+
 ## 注意事項
 
 - メイド長からの報告は MCPツール（list_tasks, get_task）で確認

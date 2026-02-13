@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { SetupContext } from '../types';
 import { MAID_AGENT_DIR, MAIDS } from '../constants';
 import { getGlobalMaidAgentPath } from '../utils/helpers';
@@ -9,6 +11,8 @@ import { checkAndSetupWsl } from './wsl-setup';
 import { setupMcpServer } from './pm2-setup';
 import { generateMcpJson, setupClaudeSettings, checkAndUpdateMcpJsonPath } from './mcp-claude-setup';
 import { parseRuleModules, parseGlobalSkills, showRuleSelectionUI, showSkillSelectionUI, copySelectedRules, copySelectedSkills } from './rules-skills';
+
+const execAsync = promisify(exec);
 
 /**
  * instructionsの差分をチェックし、変更があればバックアップして更新
@@ -75,6 +79,82 @@ export function updateInstructionsWithBackup(
     }
 
     return updatedFiles;
+}
+
+/**
+ * Skills統合: .claude/skills をセットアップ
+ * .maid-agent/agents/skills へのジャンクション（Windows）/シンボリックリンク（Mac/Linux）を作成
+ */
+export async function setupSkillsIntegration(ctx: SetupContext, maidAgentPath: string): Promise<void> {
+    if (!ctx.workspaceRoot) {
+        ctx.log('[Skills統合] workspaceRootが未設定のためスキップ');
+        return;
+    }
+
+    const claudeDir = path.join(ctx.workspaceRoot, '.claude');
+    const skillsPath = path.join(claudeDir, 'skills');
+    const skillsTarget = path.join(maidAgentPath, 'agents', 'skills');
+
+    // スキルターゲットディレクトリが存在しない場合は作成
+    if (!fs.existsSync(skillsTarget)) {
+        fs.mkdirSync(skillsTarget, { recursive: true });
+        ctx.log('[Skills統合] スキルターゲットディレクトリを作成しました');
+    }
+
+    // .claude ディレクトリ作成（なければ）
+    if (!fs.existsSync(claudeDir)) {
+        fs.mkdirSync(claudeDir, { recursive: true });
+        ctx.log('[Skills統合] .claudeディレクトリを作成しました');
+    }
+
+    // 既にジャンクション/シンボリックリンクなら何もしない
+    if (fs.existsSync(skillsPath)) {
+        try {
+            const stats = fs.lstatSync(skillsPath);
+            if (stats.isSymbolicLink()) {
+                ctx.log('[Skills統合] 既にシンボリックリンクが存在します');
+                return;
+            }
+            // 通常ディレクトリ（既存スキル）の場合はマージ
+            if (stats.isDirectory()) {
+                ctx.log('[Skills統合] 既存スキルをMaidAgent側にマージします');
+                mergeDirectorySync(ctx, skillsPath, skillsTarget);
+                fs.rmSync(skillsPath, { recursive: true });
+                ctx.log('[Skills統合] 既存スキルをマージ後、元ディレクトリを削除しました');
+            }
+        } catch (statError) {
+            const message = statError instanceof Error ? statError.message : String(statError);
+            ctx.log(`[Skills統合] 既存ディレクトリの確認に失敗: ${message}`);
+            // 続行可能な場合は続行
+        }
+    }
+
+    // ジャンクション/シンボリックリンク作成
+    try {
+        if (CURRENT_ENV === 'windows-native') {
+            // Windows: ジャンクション（PowerShell経由）
+            // パス区切りをWindowsスタイルに変換
+            const winSkillsPath = skillsPath.replace(/\//g, '\\');
+            const winSkillsTarget = skillsTarget.replace(/\//g, '\\');
+            await execAsync(
+                `powershell.exe -Command "New-Item -ItemType Junction -Path '${winSkillsPath}' -Target '${winSkillsTarget}' -Force"`
+            );
+            ctx.log('[Skills統合] Windowsジャンクションを作成しました');
+        } else {
+            // Mac/Linux: シンボリックリンク（相対パス）
+            const relativeTarget = path.relative(claudeDir, skillsTarget);
+            fs.symlinkSync(relativeTarget, skillsPath, 'dir');
+            ctx.log('[Skills統合] シンボリックリンクを作成しました');
+        }
+        ctx.log(`[Skills統合] .claude/skills → ${skillsTarget}`);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.log(`[Skills統合] リンク作成に失敗: ${message}`);
+        // エラーを投げずにログのみ（Skills統合は必須ではない）
+        vscode.window.showWarningMessage(
+            `Skills統合の設定に失敗しました。手動で設定してください: ${message}`
+        );
+    }
 }
 
 /**
@@ -173,6 +253,9 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
 
         // グローバル設定のマージ（ルール・スキルの選択）
         await mergeGlobalSettings(ctx, maidAgentPath);
+
+        // Skills統合（.claude/skills シンボリックリンク作成）
+        await setupSkillsIntegration(ctx, maidAgentPath);
 
         // 既存の .mcp.json にハードコードパスがある場合、更新を提案
         await checkAndUpdateMcpJsonPath(ctx);

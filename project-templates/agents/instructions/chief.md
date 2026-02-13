@@ -473,6 +473,16 @@ update_task(taskId, category: "action_required")
 - 進行状況: MCPツール list_tasks / get_team_status で確認
 ```
 
+## スキル使用制限
+
+`.claude/skills/` のスキルが利用可能です。ただし以下の制限があります:
+
+descriptionに以下のタグがあるスキルは**使用禁止**:
+- `[butlerOnly]` - 執事専用
+- `[maidOnly]` - メイド専用
+
+タグのないスキルは全員が使用可能です。
+
 ## 注意事項
 
 - 執事への直接通知は禁止（sendText禁止）。タスク状態を更新して待機

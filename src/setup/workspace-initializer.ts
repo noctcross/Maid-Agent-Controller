@@ -382,9 +382,9 @@ export async function initializeGlobalSettings(ctx: SetupContext): Promise<boole
             progress.report({ message: 'maidctl CLIを配置中...' });
             const maidctlDeployed = deployMaidctl(ctx, globalPath);
 
-            // PATH設定ガイダンスを表示（maidctl配置成功時のみ）
+            // PATH設定（確認付き自動設定）（maidctl配置成功時のみ）
             if (maidctlDeployed) {
-                showPathGuidance(ctx, globalPath);
+                await setupPathWithConfirmation(ctx, globalPath);
             }
 
             return true;
@@ -431,7 +431,83 @@ export function deployMaidctl(ctx: SetupContext, globalPath: string): boolean {
 }
 
 /**
- * PATH設定ガイダンスを表示
+ * PATH設定を確認付きで自動設定
+ */
+export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: string): Promise<void> {
+    // シェル設定ファイルを推定
+    const shell = process.env.SHELL || '/bin/bash';
+    const rcFileName = shell.includes('zsh') ? '.zshrc' : '.bashrc';
+    const rcFilePath = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
+
+    // PATH追記内容
+    const pathExport = 'export PATH="$HOME/.maid-agent/bin:$PATH"';
+
+    // 確認ダイアログを表示
+    const choice = await vscode.window.showInformationMessage(
+        '🛠️ maidctl を使用するために PATH 設定を追加してよろしいですか？',
+        { modal: false },
+        'はい（自動設定）',
+        'いいえ（手動設定）'
+    );
+
+    if (choice === 'はい（自動設定）') {
+        try {
+            let alreadyExists = false;
+            let setupCommand: string;
+
+            if (CURRENT_ENV === 'windows-native') {
+                // Windows: WSL経由で設定
+                // 既存設定チェック
+                const checkResult = await execAsync(
+                    `wsl bash -c "grep -q 'maid-agent/bin' ~/${rcFileName} 2>/dev/null && echo 'exists' || echo 'not_exists'"`
+                );
+                alreadyExists = checkResult.stdout.trim() === 'exists';
+
+                if (!alreadyExists) {
+                    // PATH追記
+                    setupCommand = `wsl bash -c "echo '${pathExport}' >> ~/${rcFileName}"`;
+                    await execAsync(setupCommand);
+                }
+            } else {
+                // Mac/Linux: 直接設定
+                const homeDir = process.env.HOME || '';
+                const rcFullPath = path.join(homeDir, rcFileName);
+
+                // 既存設定チェック
+                if (fs.existsSync(rcFullPath)) {
+                    const content = fs.readFileSync(rcFullPath, 'utf-8');
+                    alreadyExists = content.includes('maid-agent/bin');
+                }
+
+                if (!alreadyExists) {
+                    // PATH追記
+                    fs.appendFileSync(rcFullPath, `\n# Maid Agent CLI\n${pathExport}\n`);
+                }
+            }
+
+            if (alreadyExists) {
+                ctx.log('[PATH設定] 既に設定済みです');
+                vscode.window.showInformationMessage('✅ PATH は既に設定されています。');
+            } else {
+                ctx.log(`[PATH設定] ${rcFilePath} に追記しました`);
+                vscode.window.showInformationMessage(
+                    `✅ PATH を ${rcFilePath} に追加しました。新しいターミナルで maidctl が使用できます。`
+                );
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            ctx.log(`[PATH設定] 自動設定に失敗: ${message}`);
+            // 失敗時は手動設定ガイダンスを表示
+            showPathGuidance(ctx, globalPath);
+        }
+    } else {
+        // 手動設定ガイダンスを表示
+        showPathGuidance(ctx, globalPath);
+    }
+}
+
+/**
+ * PATH設定ガイダンスを表示（手動設定用）
  */
 export function showPathGuidance(ctx: SetupContext, globalPath: string): void {
     const binPath = path.join(globalPath, 'bin');

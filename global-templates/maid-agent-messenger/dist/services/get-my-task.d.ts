@@ -7,6 +7,7 @@ import type { GetMyTaskOutput } from "../types/index.js";
 export interface GetMyTaskParams {
     queueMaidPath: string;
     agentId: string;
+    summaryOnly?: boolean;
 }
 export interface GetMyTaskResult extends GetMyTaskOutput {
     message?: string;

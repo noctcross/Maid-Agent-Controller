@@ -122,6 +122,7 @@ router.get("/api/agents/:id/task", async (req, res) => {
     try {
         const projectPath = getProjectPathFromRequest(req);
         const agentId = req.params.id;
+        const summaryOnly = req.query.summary === "true";
         // バリデーション
         if (!MAID_IDS.includes(agentId)) {
             res.status(400).json({
@@ -134,6 +135,7 @@ router.get("/api/agents/:id/task", async (req, res) => {
         const result = await executeGetMyTask({
             queueMaidPath: paths.queueMaidPath,
             agentId,
+            summaryOnly,
         });
         res.json(result);
     }
@@ -206,6 +208,9 @@ router.get("/api/team/status", async (req, res) => {
         }
         if (req.query.includeCompleted) {
             filter.includeCompleted = parseInt(req.query.includeCompleted, 10);
+        }
+        if (req.query.summary === "true") {
+            filter.summaryOnly = true;
         }
         const result = await executeGetTeamStatus({
             queueMaidPath: paths.queueMaidPath,

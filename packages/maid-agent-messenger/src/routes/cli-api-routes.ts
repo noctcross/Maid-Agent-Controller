@@ -142,6 +142,7 @@ router.get("/api/agents/:id/task", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
     const agentId = req.params.id;
+    const summaryOnly = req.query.summary === "true";
 
     // バリデーション
     if (!MAID_IDS.includes(agentId as typeof MAID_IDS[number])) {
@@ -157,6 +158,7 @@ router.get("/api/agents/:id/task", async (req: Request, res: Response) => {
     const result = await executeGetMyTask({
       queueMaidPath: paths.queueMaidPath,
       agentId,
+      summaryOnly,
     });
 
     res.json(result);
@@ -231,6 +233,7 @@ router.get("/api/team/status", async (req: Request, res: Response) => {
       status?: string[];
       agentId?: string;
       includeCompleted?: number;
+      summaryOnly?: boolean;
     } = {};
 
     if (req.query.status) {
@@ -241,6 +244,9 @@ router.get("/api/team/status", async (req: Request, res: Response) => {
     }
     if (req.query.includeCompleted) {
       filter.includeCompleted = parseInt(req.query.includeCompleted as string, 10);
+    }
+    if (req.query.summary === "true") {
+      filter.summaryOnly = true;
     }
 
     const result = await executeGetTeamStatus({

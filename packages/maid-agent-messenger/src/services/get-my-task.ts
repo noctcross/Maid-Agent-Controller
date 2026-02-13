@@ -11,6 +11,7 @@ import { readYamlFile, getFirstLine, fileExists } from "../utils/yaml-helper.js"
 export interface GetMyTaskParams {
   queueMaidPath: string;
   agentId: string;
+  summaryOnly?: boolean;  // true: 軽量版（現在の実装は常に軽量版）
 }
 
 export interface GetMyTaskResult extends GetMyTaskOutput {

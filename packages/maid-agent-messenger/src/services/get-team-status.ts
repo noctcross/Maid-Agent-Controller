@@ -17,6 +17,7 @@ export interface GetTeamStatusParams {
     status?: string[];
     agentId?: string;
     includeCompleted?: number;  // 直近N件の完了タスクを含む
+    summaryOnly?: boolean;  // true: 軽量版（recentCompletedを省略）
   };
 }
 

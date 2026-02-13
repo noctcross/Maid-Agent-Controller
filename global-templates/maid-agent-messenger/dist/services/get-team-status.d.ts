@@ -12,6 +12,7 @@ export interface GetTeamStatusParams {
         status?: string[];
         agentId?: string;
         includeCompleted?: number;
+        summaryOnly?: boolean;
     };
 }
 export interface ExtendedGetTeamStatusOutput extends GetTeamStatusOutput {

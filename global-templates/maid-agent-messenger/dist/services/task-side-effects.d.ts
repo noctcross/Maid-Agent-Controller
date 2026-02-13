@@ -10,6 +10,12 @@
  */
 import type { Task, Assignee, UpdateTaskParams, SideEffectResults } from "./task-manager.js";
 /**
+ * maid yaml を tasks.yaml の内容で同期する
+ *
+ * executeCreateTask（assignees指定時）からも呼び出されるためエクスポート
+ */
+export declare function syncMaidYaml(projectPath: string, task: Task, params: UpdateTaskParams, prevAssignees: Assignee[]): Promise<boolean>;
+/**
  * 全副作用を実行する
  *
  * executeUpdateTask の withTasksLock 外で呼び出される。

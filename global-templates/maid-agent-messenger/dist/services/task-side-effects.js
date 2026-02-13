@@ -77,8 +77,10 @@ improvement_proposal:
 }
 /**
  * maid yaml を tasks.yaml の内容で同期する
+ *
+ * executeCreateTask（assignees指定時）からも呼び出されるためエクスポート
  */
-async function syncMaidYaml(projectPath, task, params, prevAssignees) {
+export async function syncMaidYaml(projectPath, task, params, prevAssignees) {
     const maidDataDir = path.join(projectPath, ".maid-agent", "system", "data", "maid");
     let synced = false;
     // 現在の assignees に対して同期

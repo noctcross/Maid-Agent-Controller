@@ -205,12 +205,15 @@ export interface CreateTaskResult {
 
 /**
  * タスク作成
+ *
+ * assignees 指定時は maid yaml も同期する（副作用）
  */
 export async function executeCreateTask(
   projectPath: string,
   params: CreateTaskParams
 ): Promise<CreateTaskResult> {
-  return withTasksLock(projectPath, async (data) => {
+  // Phase 1: tasks.yaml にタスク追加（ロック内）
+  const result = await withTasksLock(projectPath, async (data) => {
     // 新しいタスクID生成
     let taskId: string;
     if (params.parentId) {
@@ -252,6 +255,21 @@ export async function executeCreateTask(
     data.tasks.push(newTask);
     return { data, result: { taskId, task: newTask } };
   });
+
+  // Phase 2: assignees 指定時は maid yaml を同期（ロック外）
+  if (params.assignees?.length && result.task) {
+    try {
+      const { syncMaidYaml } = await import("./task-side-effects.js");
+      await syncMaidYaml(projectPath, result.task, {
+        taskId: result.taskId,
+        description: params.description,
+      }, []);
+    } catch {
+      // maid yaml 同期失敗は握りつぶす（タスク作成自体は成功）
+    }
+  }
+
+  return result;
 }
 
 export interface GetTaskParams {

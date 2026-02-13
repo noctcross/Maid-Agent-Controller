@@ -66,6 +66,8 @@ export interface CreateTaskResult {
 }
 /**
  * タスク作成
+ *
+ * assignees 指定時は maid yaml も同期する（副作用）
  */
 export declare function executeCreateTask(projectPath: string, params: CreateTaskParams): Promise<CreateTaskResult>;
 export interface GetTaskParams {

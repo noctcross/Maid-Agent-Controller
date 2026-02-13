@@ -1,0 +1,943 @@
+#!/usr/bin/env bash
+# maidctl - Maid Agent CLI Tool
+# REST API経由でmaid-agent-messengerを操作するCLIツール
+
+set -euo pipefail
+
+# =============================================================================
+# 定数定義
+# =============================================================================
+
+VERSION="1.0.0"
+API_BASE="http://localhost:3100"
+
+# 有効なエージェントID
+VALID_AGENTS="emma sophia lily rose alice may flora luna"
+
+# 有効なステータス
+VALID_STATUSES="working completed blocked"
+
+# 終了コード
+EXIT_SUCCESS=0
+EXIT_PROJECT_NOT_FOUND=1
+EXIT_API_CLIENT_ERROR=2
+EXIT_API_SERVER_ERROR=3
+EXIT_CONNECTION_ERROR=4
+EXIT_INVALID_ARGS=5
+
+# =============================================================================
+# プロジェクトルート検出
+# =============================================================================
+
+find_project_root() {
+  local dir="$PWD"
+  while [ "$dir" != "/" ]; do
+    if [ -d "$dir/.maid-agent" ]; then
+      echo "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  echo "エラー: .maid-agent ディレクトリが見つかりません" >&2
+  echo "プロジェクトルート配下で実行してください" >&2
+  return 1
+}
+
+PROJECT_ROOT=""
+
+# =============================================================================
+# 依存チェック
+# =============================================================================
+
+check_dependencies() {
+  if ! command -v curl &> /dev/null; then
+    echo "エラー: curl がインストールされていません" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+}
+
+check_jq() {
+  command -v jq &> /dev/null
+}
+
+# =============================================================================
+# HTTPリクエスト
+# =============================================================================
+
+api_request() {
+  local method="$1"
+  local endpoint="$2"
+  local data="${3:-}"
+
+  [ -z "$PROJECT_ROOT" ] && PROJECT_ROOT=$(find_project_root)
+
+  local args=(
+    -s -w "\n%{http_code}"
+    -X "$method"
+    -H "Content-Type: application/json"
+    -H "X-Maid-Project-Path: $PROJECT_ROOT"
+  )
+
+  if [ -n "$data" ]; then
+    args+=(-d "$data")
+  fi
+
+  local response
+  response=$(curl "${args[@]}" "${API_BASE}${endpoint}" 2>&1) || {
+    echo "エラー: サーバーに接続できません (${API_BASE})" >&2
+    exit $EXIT_CONNECTION_ERROR
+  }
+
+  # レスポンスとHTTPステータスを分離
+  local http_code
+  http_code=$(echo "$response" | tail -n 1)
+  local body
+  body=$(echo "$response" | sed '$d')
+
+  # HTTPステータスコードに応じたエラーハンドリング
+  case "$http_code" in
+    2*)
+      echo "$body"
+      return 0
+      ;;
+    4*)
+      local error_msg
+      if check_jq; then
+        error_msg=$(echo "$body" | jq -r '.error // "Unknown error"' 2>/dev/null || echo "$body")
+      else
+        error_msg="$body"
+      fi
+      echo "エラー: $error_msg" >&2
+      exit $EXIT_API_CLIENT_ERROR
+      ;;
+    5*)
+      echo "サーバーエラー: $body" >&2
+      exit $EXIT_API_SERVER_ERROR
+      ;;
+    *)
+      echo "エラー: 予期しないHTTPステータス $http_code" >&2
+      exit $EXIT_API_SERVER_ERROR
+      ;;
+  esac
+}
+
+# =============================================================================
+# 出力フォーマット
+# =============================================================================
+
+# タスク一覧をテーブル表示
+format_task_list() {
+  local json="$1"
+
+  if ! check_jq; then
+    echo "$json"
+    return
+  fi
+
+  local total
+  total=$(echo "$json" | jq -r '.total // 0')
+
+  printf "%-8s %-40s %-10s %-8s %-10s\n" "ID" "TITLE" "STATUS" "PRIORITY" "ASSIGNEE"
+  printf "%-8s %-40s %-10s %-8s %-10s\n" "--------" "----------------------------------------" "----------" "--------" "----------"
+
+  echo "$json" | jq -r '.tasks[]? | [.id, (.title // "-" | .[0:40]), (.status // "-"), (.priority // "-"), ((.assignees // []) | join(",") | if . == "" then "-" else . end)] | @tsv' | \
+  while IFS=$'\t' read -r id title status priority assignee; do
+    printf "%-8s %-40s %-10s %-8s %-10s\n" "$id" "$title" "$status" "$priority" "$assignee"
+  done
+
+  echo ""
+  echo "Total: $total tasks"
+}
+
+# タスク詳細をフォーマット
+format_task_detail() {
+  local json="$1"
+
+  if ! check_jq; then
+    echo "$json"
+    return
+  fi
+
+  echo "$json" | jq -r '
+    .task // . |
+    "ID: \(.id // "-")",
+    "Title: \(.title // "-")",
+    "Status: \(.status // "-")",
+    "Priority: \(.priority // "-")",
+    "Category: \(.category // "-")",
+    "Description: \(.description // "-")",
+    "Assignees: \((.assignees // []) | join(", ") | if . == "" then "-" else . end)",
+    "Created: \(.createdAt // "-")",
+    "Updated: \(.updatedAt // "-")"
+  '
+}
+
+# エージェント状況をテーブル表示
+format_team_status() {
+  local json="$1"
+
+  if ! check_jq; then
+    echo "$json"
+    return
+  fi
+
+  printf "%-10s %-12s %-15s %-20s\n" "AGENT" "STATUS" "TASK_ID" "STARTED_AT"
+  printf "%-10s %-12s %-15s %-20s\n" "----------" "------------" "---------------" "--------------------"
+
+  echo "$json" | jq -r '.agents[]? | [.id, (.status // "-"), (.task_id // "-"), (.started_at // "-" | .[0:19])] | @tsv' | \
+  while IFS=$'\t' read -r id status task_id started; do
+    printf "%-10s %-12s %-15s %-20s\n" "$id" "$status" "$task_id" "$started"
+  done
+
+  echo ""
+  echo "$json" | jq -r '.summary | to_entries | map("\(.key): \(.value)") | "Summary: " + join(", ")'
+}
+
+# 自分のタスクをフォーマット
+format_my_task() {
+  local json="$1"
+
+  if ! check_jq; then
+    echo "$json"
+    return
+  fi
+
+  echo "$json" | jq -r '
+    "Task ID: \(.task_id // "-")",
+    "Status: \(.status // "-")",
+    "Description: \(.description // "-")",
+    "Target Path: \(.target_path // "-")",
+    "Assigned At: \(.assigned_at // "-")",
+    "Started At: \(.started_at // "-")"
+  '
+}
+
+# =============================================================================
+# task サブコマンド
+# =============================================================================
+
+cmd_task_list() {
+  local query=""
+  local json_output=false
+  local summary=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --status) query="${query}&status=$2"; shift 2 ;;
+      --assignee) query="${query}&assignee=$2"; shift 2 ;;
+      --parent) query="${query}&parentId=$2"; shift 2 ;;
+      --limit) query="${query}&limit=$2"; shift 2 ;;
+      --summary) summary=true; shift ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl task list [オプション]"
+        echo ""
+        echo "オプション:"
+        echo "  --status STATUS   ステータスでフィルタ（カンマ区切り可）"
+        echo "  --assignee AGENT  担当者でフィルタ"
+        echo "  --parent ID       親タスクIDでフィルタ"
+        echo "  --limit N         取得件数上限"
+        echo "  --summary         軽量版レスポンス"
+        echo "  --json            JSON出力"
+        return 0
+        ;;
+      *) shift ;;
+    esac
+  done
+
+  [ "$summary" = true ] && query="${query}&summary=true"
+  query="${query#&}"  # 先頭の&を削除
+
+  local result
+  result=$(api_request GET "/api/tasks?${query}")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    format_task_list "$result"
+  fi
+}
+
+cmd_task_get() {
+  local task_id=""
+  local json_output=false
+  local include_subtasks=false
+  local summary=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --subtasks) include_subtasks=true; shift ;;
+      --summary) summary=true; shift ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl task get <task-id> [オプション]"
+        echo ""
+        echo "オプション:"
+        echo "  --subtasks  サブタスクを含める"
+        echo "  --summary   軽量版レスポンス"
+        echo "  --json      JSON出力"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$task_id" ]; then
+          task_id="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$task_id" ]; then
+    echo "エラー: タスクIDを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  local query=""
+  [ "$include_subtasks" = true ] && query="${query}&includeSubtasks=true"
+  [ "$summary" = true ] && query="${query}&summary=true"
+  query="${query#&}"
+
+  local result
+  result=$(api_request GET "/api/tasks/${task_id}?${query}")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    format_task_detail "$result"
+  fi
+}
+
+cmd_task_create() {
+  local title=""
+  local description=""
+  local priority="medium"
+  local parent_id=""
+  local category="task"
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --title|-t) title="$2"; shift 2 ;;
+      --description|-d) description="$2"; shift 2 ;;
+      --priority|-p) priority="$2"; shift 2 ;;
+      --parent) parent_id="$2"; shift 2 ;;
+      --category|-c) category="$2"; shift 2 ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl task create --title TITLE [オプション]"
+        echo ""
+        echo "オプション:"
+        echo "  --title, -t TITLE       タスクタイトル（必須）"
+        echo "  --description, -d DESC  説明"
+        echo "  --priority, -p PRIORITY 優先度 (high/medium/low)"
+        echo "  --parent ID             親タスクID"
+        echo "  --category, -c CAT      カテゴリ (task/action_required/skill_candidate/improvement)"
+        echo "  --json                  JSON出力"
+        return 0
+        ;;
+      *)
+        # 引数としてタイトルを受け付ける
+        if [ -z "$title" ]; then
+          title="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$title" ]; then
+    echo "エラー: タイトルを指定してください (--title または第1引数)" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # JSONデータを構築
+  local data
+  data=$(cat <<EOF
+{
+  "title": "$title",
+  "priority": "$priority",
+  "category": "$category"
+EOF
+)
+
+  [ -n "$description" ] && data="${data%\}}, \"description\": \"$description\"}"
+  [ -n "$parent_id" ] && data="${data%\}}, \"parentId\": \"$parent_id\"}"
+  data="${data%\}}}"  # 最後の閉じ括弧
+
+  local result
+  result=$(api_request POST "/api/tasks" "$data")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    if check_jq; then
+      local task_id
+      task_id=$(echo "$result" | jq -r '.taskId // "-"')
+      echo "タスクを作成しました: #$task_id"
+    else
+      echo "$result"
+    fi
+  fi
+}
+
+cmd_task_update() {
+  local task_id=""
+  local status=""
+  local substatus=""
+  local summary=""
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --status|-s) status="$2"; shift 2 ;;
+      --substatus) substatus="$2"; shift 2 ;;
+      --summary) summary="$2"; shift 2 ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl task update <task-id> [オプション]"
+        echo ""
+        echo "オプション:"
+        echo "  --status, -s STATUS  ステータス"
+        echo "  --substatus SUB      サブステータス"
+        echo "  --summary TEXT       サマリ"
+        echo "  --json               JSON出力"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$task_id" ]; then
+          task_id="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$task_id" ]; then
+    echo "エラー: タスクIDを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # JSONデータを構築
+  local data="{"
+  local first=true
+
+  if [ -n "$status" ]; then
+    data="${data}\"status\": \"$status\""
+    first=false
+  fi
+  if [ -n "$substatus" ]; then
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"substatus\": \"$substatus\""
+    first=false
+  fi
+  if [ -n "$summary" ]; then
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"summary\": \"$summary\""
+  fi
+  data="${data}}"
+
+  local result
+  result=$(api_request PATCH "/api/tasks/${task_id}" "$data")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    echo "タスク #$task_id を更新しました"
+  fi
+}
+
+cmd_task_assign() {
+  local task_id=""
+  local target_agent=""
+  local title=""
+  local description=""
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --to|-a) target_agent="$2"; shift 2 ;;
+      --title|-t) title="$2"; shift 2 ;;
+      --description|-d) description="$2"; shift 2 ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl task assign <task-id> --to AGENT [オプション]"
+        echo ""
+        echo "オプション:"
+        echo "  --to, -a AGENT        割り当て先エージェント（必須）"
+        echo "  --title, -t TITLE     サブタスクタイトル"
+        echo "  --description, -d DESC 説明"
+        echo "  --json                JSON出力"
+        echo ""
+        echo "有効なエージェント: $VALID_AGENTS"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$task_id" ]; then
+          task_id="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$task_id" ]; then
+    echo "エラー: タスクIDを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  if [ -z "$target_agent" ]; then
+    echo "エラー: 割り当て先を指定してください (--to)" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # エージェントIDの検証
+  if ! echo "$VALID_AGENTS" | grep -qw "$target_agent"; then
+    echo "エラー: 無効なエージェント: $target_agent" >&2
+    echo "有効なエージェント: $VALID_AGENTS" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # JSONデータを構築
+  local data="{\"targetAgent\": \"$target_agent\""
+  [ -n "$title" ] && data="${data}, \"title\": \"$title\""
+  [ -n "$description" ] && data="${data}, \"description\": \"$description\""
+  data="${data}}"
+
+  local result
+  result=$(api_request POST "/api/tasks/${task_id}/assign" "$data")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    echo "タスク #$task_id を $target_agent に割り当てました"
+  fi
+}
+
+# =============================================================================
+# my-task サブコマンド
+# =============================================================================
+
+cmd_my_task() {
+  local agent_id=""
+  local json_output=false
+  local summary=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --summary) summary=true; shift ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl my-task <agent-id> [オプション]"
+        echo ""
+        echo "オプション:"
+        echo "  --summary  軽量版レスポンス"
+        echo "  --json     JSON出力"
+        echo ""
+        echo "有効なエージェント: $VALID_AGENTS"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$agent_id" ]; then
+          agent_id="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$agent_id" ]; then
+    echo "エラー: エージェントIDを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # エージェントIDの検証
+  if ! echo "$VALID_AGENTS" | grep -qw "$agent_id"; then
+    echo "エラー: 無効なエージェント: $agent_id" >&2
+    echo "有効なエージェント: $VALID_AGENTS" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  local query=""
+  [ "$summary" = true ] && query="?summary=true"
+
+  local result
+  result=$(api_request GET "/api/agents/${agent_id}/task${query}")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    format_my_task "$result"
+  fi
+}
+
+# =============================================================================
+# my-status サブコマンド
+# =============================================================================
+
+cmd_my_status() {
+  local agent_id=""
+  local status=""
+  local summary=""
+  local escalation=false
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --summary|-m) summary="$2"; shift 2 ;;
+      --escalation) escalation=true; shift ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl my-status <agent-id> <status> [オプション]"
+        echo ""
+        echo "オプション:"
+        echo "  --summary, -m TEXT  サマリメッセージ"
+        echo "  --escalation        エスカレーションフラグ"
+        echo "  --json              JSON出力"
+        echo ""
+        echo "有効なステータス: $VALID_STATUSES"
+        echo "有効なエージェント: $VALID_AGENTS"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$agent_id" ]; then
+          agent_id="$1"
+        elif [ -z "$status" ]; then
+          status="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$agent_id" ]; then
+    echo "エラー: エージェントIDを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  if [ -z "$status" ]; then
+    echo "エラー: ステータスを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # エージェントIDの検証
+  if ! echo "$VALID_AGENTS" | grep -qw "$agent_id"; then
+    echo "エラー: 無効なエージェント: $agent_id" >&2
+    echo "有効なエージェント: $VALID_AGENTS" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # ステータスの検証
+  if ! echo "$VALID_STATUSES" | grep -qw "$status"; then
+    echo "エラー: 無効なステータス: $status" >&2
+    echo "有効なステータス: $VALID_STATUSES" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # JSONデータを構築
+  local data="{\"status\": \"$status\""
+  [ -n "$summary" ] && data="${data}, \"summary\": \"$summary\""
+  [ "$escalation" = true ] && data="${data}, \"escalation\": true"
+  data="${data}}"
+
+  local result
+  result=$(api_request PATCH "/api/agents/${agent_id}/status" "$data")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    echo "ステータスを更新しました: $agent_id -> $status"
+  fi
+}
+
+# =============================================================================
+# team サブコマンド
+# =============================================================================
+
+cmd_team_status() {
+  local json_output=false
+  local summary=false
+  local status_filter=""
+  local agent_filter=""
+  local include_completed=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --status) status_filter="$2"; shift 2 ;;
+      --agent) agent_filter="$2"; shift 2 ;;
+      --completed) include_completed="$2"; shift 2 ;;
+      --summary) summary=true; shift ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl team status [オプション]"
+        echo ""
+        echo "オプション:"
+        echo "  --status STATUS    ステータスでフィルタ（カンマ区切り可）"
+        echo "  --agent AGENT      エージェントIDでフィルタ"
+        echo "  --completed N      直近N件の完了タスクを含める"
+        echo "  --summary          軽量版レスポンス"
+        echo "  --json             JSON出力"
+        return 0
+        ;;
+      *) shift ;;
+    esac
+  done
+
+  local query=""
+  [ -n "$status_filter" ] && query="${query}&status=$status_filter"
+  [ -n "$agent_filter" ] && query="${query}&agentId=$agent_filter"
+  [ -n "$include_completed" ] && query="${query}&includeCompleted=$include_completed"
+  [ "$summary" = true ] && query="${query}&summary=true"
+  query="${query#&}"
+
+  local result
+  result=$(api_request GET "/api/team/status?${query}")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    format_team_status "$result"
+  fi
+}
+
+cmd_team_report() {
+  local task_id=""
+  local limit=""
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --limit|-l) limit="$2"; shift 2 ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl team report <task-id> [オプション]"
+        echo ""
+        echo "オプション:"
+        echo "  --limit, -l N  出力行数制限"
+        echo "  --json         JSON出力"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$task_id" ]; then
+          task_id="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$task_id" ]; then
+    echo "エラー: タスクIDを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  local query=""
+  [ -n "$limit" ] && query="?limit=$limit"
+
+  local result
+  result=$(api_request GET "/api/tasks/${task_id}/report${query}")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    if check_jq; then
+      echo "$result" | jq -r '.content // "レポートがありません"'
+    else
+      echo "$result"
+    fi
+  fi
+}
+
+# =============================================================================
+# notify サブコマンド
+# =============================================================================
+
+cmd_notify() {
+  local target=""
+  local message=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --help|-h)
+        echo "使用法: maidctl notify <target> \"<message>\""
+        echo ""
+        echo "有効なターゲット: butler chief $VALID_AGENTS"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$target" ]; then
+          target="$1"
+        elif [ -z "$message" ]; then
+          message="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$target" ] || [ -z "$message" ]; then
+    echo "エラー: ターゲットとメッセージを指定してください" >&2
+    echo "使用法: maidctl notify <target> \"<message>\"" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # maid-notifyを呼び出し
+  [ -z "$PROJECT_ROOT" ] && PROJECT_ROOT=$(find_project_root)
+  local notify_path="${PROJECT_ROOT}/.maid-agent/system/bin/maid-notify"
+
+  if [ ! -x "$notify_path" ]; then
+    echo "エラー: maid-notify が見つかりません: $notify_path" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  exec "$notify_path" "$target" "$message"
+}
+
+# =============================================================================
+# ヘルプ表示
+# =============================================================================
+
+show_help() {
+  cat <<EOF
+maidctl - Maid Agent CLI Tool v${VERSION}
+
+使用法: maidctl <command> [options]
+
+コマンド:
+  task list      タスク一覧を取得
+  task get       タスク詳細を取得
+  task create    タスクを作成
+  task update    タスクを更新
+  task assign    タスクを割り当て
+
+  my-task        自分のタスクを取得（メイド用）
+  my-status      ステータスを更新（メイド用）
+
+  team status    チーム状況を取得
+  team report    タスクのレポートを取得
+
+  notify         他のエージェントに通知
+
+オプション:
+  --help, -h     ヘルプを表示
+  --version, -v  バージョンを表示
+
+例:
+  maidctl task list --status pending
+  maidctl task create --title "新しいタスク" --priority high
+  maidctl task assign 173 --to emma
+  maidctl my-task emma
+  maidctl my-status emma working --summary "作業中"
+  maidctl team status --status working
+  maidctl notify chief "タスク完了しました"
+EOF
+}
+
+# =============================================================================
+# メイン
+# =============================================================================
+
+main() {
+  check_dependencies
+
+  case "${1:-}" in
+    task)
+      shift
+      case "${1:-}" in
+        list) shift; cmd_task_list "$@" ;;
+        get) shift; cmd_task_get "$@" ;;
+        create) shift; cmd_task_create "$@" ;;
+        update) shift; cmd_task_update "$@" ;;
+        assign) shift; cmd_task_assign "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl task <subcommand>"
+          echo ""
+          echo "サブコマンド:"
+          echo "  list    タスク一覧を取得"
+          echo "  get     タスク詳細を取得"
+          echo "  create  タスクを作成"
+          echo "  update  タスクを更新"
+          echo "  assign  タスクを割り当て"
+          ;;
+        "")
+          echo "エラー: サブコマンドを指定してください"
+          echo "使用法: maidctl task <list|get|create|update|assign>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明なサブコマンド: $1"
+          echo "使用法: maidctl task <list|get|create|update|assign>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    my-task) shift; cmd_my_task "$@" ;;
+    my-status) shift; cmd_my_status "$@" ;;
+    team)
+      shift
+      case "${1:-}" in
+        status) shift; cmd_team_status "$@" ;;
+        report) shift; cmd_team_report "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl team <subcommand>"
+          echo ""
+          echo "サブコマンド:"
+          echo "  status  チーム状況を取得"
+          echo "  report  タスクのレポートを取得"
+          ;;
+        "")
+          echo "エラー: サブコマンドを指定してください"
+          echo "使用法: maidctl team <status|report>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明なサブコマンド: $1"
+          echo "使用法: maidctl team <status|report>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    notify) shift; cmd_notify "$@" ;;
+    --help|-h) show_help ;;
+    --version|-v) echo "maidctl version $VERSION" ;;
+    "")
+      show_help
+      exit $EXIT_INVALID_ARGS
+      ;;
+    *)
+      echo "エラー: 不明なコマンド: $1"
+      echo ""
+      show_help
+      exit $EXIT_INVALID_ARGS
+      ;;
+  esac
+}
+
+main "$@"

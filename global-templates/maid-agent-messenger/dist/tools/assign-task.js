@@ -31,7 +31,11 @@ export function registerAssignTask(server) {
             .string()
             .optional()
             .describe("作業対象パス（オプション）"),
-    }, async ({ task_id, target_agent, title, description, target_path }) => {
+        force: z
+            .boolean()
+            .optional()
+            .describe("既存の割り当てを上書きする場合は true"),
+    }, async ({ task_id, target_agent, title, description, target_path, force }) => {
         try {
             const result = await executeAssignTask({
                 queueMaidPath: PATHS.MAID_STATUS,
@@ -42,6 +46,7 @@ export function registerAssignTask(server) {
                 title,
                 description,
                 targetPath: target_path,
+                force: force || false,
             });
             return {
                 content: [

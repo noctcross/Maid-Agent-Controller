@@ -70,7 +70,7 @@ router.post("/api/tasks/:id/assign", async (req, res) => {
     try {
         const projectPath = getProjectPathFromRequest(req);
         const taskId = req.params.id;
-        const { targetAgent, title, description, targetPath } = req.body;
+        const { targetAgent, title, description, targetPath, force } = req.body;
         // バリデーション
         if (!targetAgent || typeof targetAgent !== "string") {
             res.status(400).json({ error: "targetAgent is required" });
@@ -93,6 +93,7 @@ router.post("/api/tasks/:id/assign", async (req, res) => {
             title: title || "",
             description: description || undefined,
             targetPath: targetPath || undefined,
+            force: force || false,
         });
         if (!result.success) {
             res.status(400).json({

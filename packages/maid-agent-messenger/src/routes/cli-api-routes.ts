@@ -84,7 +84,7 @@ router.post("/api/tasks/:id/assign", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
     const taskId = req.params.id;
-    const { targetAgent, title, description, targetPath } = req.body;
+    const { targetAgent, title, description, targetPath, force } = req.body;
 
     // バリデーション
     if (!targetAgent || typeof targetAgent !== "string") {
@@ -111,6 +111,7 @@ router.post("/api/tasks/:id/assign", async (req: Request, res: Response) => {
       title: title || "",
       description: description || undefined,
       targetPath: targetPath || undefined,
+      force: force || false,
     });
 
     if (!result.success) {

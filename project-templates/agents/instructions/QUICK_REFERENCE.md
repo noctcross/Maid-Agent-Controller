@@ -26,7 +26,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 | `update_task` | タスク状態更新 | taskId, status | メイド長 |
 | `get_my_task` | 自分のタスク取得 | agent_id | メイド |
 | `update_status` | ステータス更新 | agent_id, status | メイド |
-| `assign_task` | タスク割り当て | task_id, target_agent, title(必須) | メイド長 |
+| `assign_task` | タスク割り当て | task_id, target_agent, title(必須), force(省略可) | メイド長 |
 | `get_team_status` | チーム状況一覧 | - | メイド長・執事 |
 
 ※ メイド長のcreate_task使用は🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生のみ

@@ -475,6 +475,7 @@ cmd_task_assign() {
   local target_agent=""
   local title=""
   local description=""
+  local force=false
   local json_output=false
 
   while [[ $# -gt 0 ]]; do
@@ -482,6 +483,7 @@ cmd_task_assign() {
       --to|-a) target_agent="$2"; shift 2 ;;
       --title|-t) title="$2"; shift 2 ;;
       --description|-d) description="$2"; shift 2 ;;
+      --force|-f) force=true; shift ;;
       --json) json_output=true; shift ;;
       --help|-h)
         echo "使用法: maidctl task assign <task-id> --to AGENT [オプション]"
@@ -490,6 +492,7 @@ cmd_task_assign() {
         echo "  --to, -a AGENT        割り当て先エージェント（必須）"
         echo "  --title, -t TITLE     サブタスクタイトル"
         echo "  --description, -d DESC 説明"
+        echo "  --force, -f           既存の割り当てを上書き"
         echo "  --json                JSON出力"
         echo ""
         echo "有効なエージェント: $VALID_AGENTS"
@@ -529,6 +532,7 @@ cmd_task_assign() {
   local data="{\"targetAgent\": \"$target_agent\""
   [ -n "$title" ] && data="${data}, \"title\": \"$title\""
   [ -n "$description" ] && data="${data}, \"description\": \"$description\""
+  [ "$force" = true ] && data="${data}, \"force\": true"
   data="${data}}"
 
   local result

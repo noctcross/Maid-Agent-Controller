@@ -57,7 +57,6 @@ export interface CreateTaskParams {
     description?: string;
     priority?: "high" | "medium" | "low";
     parentId?: string;
-    assignees?: string[];
     category?: TaskCategory;
 }
 export interface CreateTaskResult {
@@ -67,7 +66,8 @@ export interface CreateTaskResult {
 /**
  * タスク作成
  *
- * assignees 指定時は maid yaml も同期する（副作用）
+ * Note: assigneesはcreate_taskでは指定不可。assign_taskで別途アサインする。
+ * 理由: 作業中メイドへのアサインを防ぐガード条件がassign_taskにあるため。
  */
 export declare function executeCreateTask(projectPath: string, params: CreateTaskParams): Promise<CreateTaskResult>;
 export interface GetTaskParams {

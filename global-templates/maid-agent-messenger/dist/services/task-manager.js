@@ -100,11 +100,11 @@ async function loadTasksReadOnly(projectPath) {
 /**
  * タスク作成
  *
- * assignees 指定時は maid yaml も同期する（副作用）
+ * Note: assigneesはcreate_taskでは指定不可。assign_taskで別途アサインする。
+ * 理由: 作業中メイドへのアサインを防ぐガード条件がassign_taskにあるため。
  */
 export async function executeCreateTask(projectPath, params) {
-    // Phase 1: tasks.yaml にタスク追加（ロック内）
-    const result = await withTasksLock(projectPath, async (data) => {
+    return withTasksLock(projectPath, async (data) => {
         // 新しいタスクID生成
         let taskId;
         if (params.parentId) {
@@ -125,18 +125,14 @@ export async function executeCreateTask(projectPath, params) {
             title: params.title,
             description: params.description || "",
             priority: params.priority || "medium",
-            status: params.assignees?.length ? "assigned" : "pending",
+            status: "pending",
             substatus: null,
             category: params.category || "task",
-            assignees: (params.assignees || []).map((agentId) => ({
-                agentId,
-                role: null,
-                subTaskId: null,
-            })),
+            assignees: [],
             targetPath: null,
             createdAt: now,
             updatedAt: now,
-            assignedAt: params.assignees?.length ? now : null,
+            assignedAt: null,
             startedAt: null,
             completedAt: null,
             reportPaths: [],
@@ -145,20 +141,6 @@ export async function executeCreateTask(projectPath, params) {
         data.tasks.push(newTask);
         return { data, result: { taskId, task: newTask } };
     });
-    // Phase 2: assignees 指定時は maid yaml を同期（ロック外）
-    if (params.assignees?.length && result.task) {
-        try {
-            const { syncMaidYaml } = await import("./task-side-effects.js");
-            await syncMaidYaml(projectPath, result.task, {
-                taskId: result.taskId,
-                description: params.description,
-            }, []);
-        }
-        catch {
-            // maid yaml 同期失敗は握りつぶす（タスク作成自体は成功）
-        }
-    }
-    return result;
 }
 /**
  * Task を TaskSummary に変換

@@ -76,6 +76,30 @@ check_jq() {
   command -v jq &> /dev/null
 }
 
+# JSONエスケープ関数
+# 文字列をJSON文字列として安全に埋め込めるようエスケープする
+json_escape() {
+  local value="$1"
+  if check_jq; then
+    # jq -Rs: 入力を文字列として読み込み、JSONエスケープして出力
+    # 出力は "..." 形式なので、前後のクォートを削除
+    printf '%s' "$value" | jq -Rs '.' | sed 's/^"//;s/"$//'
+  else
+    # jq がない場合は基本的なエスケープのみ
+    # バックスラッシュを先に処理（他のエスケープに影響するため）
+    value="${value//\\/\\\\}"
+    # ダブルクォート
+    value="${value//\"/\\\"}"
+    # 改行
+    value="${value//$'\n'/\\n}"
+    # タブ
+    value="${value//$'\t'/\\t}"
+    # キャリッジリターン
+    value="${value//$'\r'/\\r}"
+    printf '%s' "$value"
+  fi
+}
+
 # =============================================================================
 # HTTPリクエスト
 # =============================================================================
@@ -370,17 +394,22 @@ cmd_task_create() {
     exit $EXIT_INVALID_ARGS
   fi
 
-  # JSONデータを構築
+  # JSONデータを構築（特殊文字をエスケープ）
+  local escaped_title escaped_description
+  escaped_title=$(json_escape "$title")
   local data
   data=$(cat <<EOF
 {
-  "title": "$title",
+  "title": "$escaped_title",
   "priority": "$priority",
   "category": "$category"
 EOF
 )
 
-  [ -n "$description" ] && data="${data%\}}, \"description\": \"$description\"}"
+  if [ -n "$description" ]; then
+    escaped_description=$(json_escape "$description")
+    data="${data%\}}, \"description\": \"$escaped_description\"}"
+  fi
   [ -n "$parent_id" ] && data="${data%\}}, \"parentId\": \"$parent_id\"}"
   data="${data%\}}}"  # 最後の閉じ括弧
 
@@ -441,7 +470,7 @@ cmd_task_update() {
     exit $EXIT_INVALID_ARGS
   fi
 
-  # JSONデータを構築
+  # JSONデータを構築（特殊文字をエスケープ）
   local data="{"
   local first=true
 
@@ -455,8 +484,10 @@ cmd_task_update() {
     first=false
   fi
   if [ -n "$summary" ]; then
+    local escaped_summary
+    escaped_summary=$(json_escape "$summary")
     [ "$first" = false ] && data="${data}, "
-    data="${data}\"summary\": \"$summary\""
+    data="${data}\"summary\": \"$escaped_summary\""
   fi
   data="${data}}"
 
@@ -528,10 +559,18 @@ cmd_task_assign() {
     exit $EXIT_INVALID_ARGS
   fi
 
-  # JSONデータを構築
+  # JSONデータを構築（特殊文字をエスケープ）
   local data="{\"targetAgent\": \"$target_agent\""
-  [ -n "$title" ] && data="${data}, \"title\": \"$title\""
-  [ -n "$description" ] && data="${data}, \"description\": \"$description\""
+  if [ -n "$title" ]; then
+    local escaped_title
+    escaped_title=$(json_escape "$title")
+    data="${data}, \"title\": \"$escaped_title\""
+  fi
+  if [ -n "$description" ]; then
+    local escaped_description
+    escaped_description=$(json_escape "$description")
+    data="${data}, \"description\": \"$escaped_description\""
+  fi
   [ "$force" = true ] && data="${data}, \"force\": true"
   data="${data}}"
 
@@ -699,9 +738,13 @@ cmd_my_status() {
     exit $EXIT_INVALID_ARGS
   fi
 
-  # JSONデータを構築
+  # JSONデータを構築（特殊文字をエスケープ）
   local data="{\"status\": \"$status\""
-  [ -n "$summary" ] && data="${data}, \"summary\": \"$summary\""
+  if [ -n "$summary" ]; then
+    local escaped_summary
+    escaped_summary=$(json_escape "$summary")
+    data="${data}, \"summary\": \"$escaped_summary\""
+  fi
   [ "$escalation" = true ] && data="${data}, \"escalation\": true"
   data="${data}}"
 

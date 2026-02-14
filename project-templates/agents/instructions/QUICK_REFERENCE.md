@@ -15,48 +15,59 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 - `chief` → メイド長
 - その他 → メイド
 
-## MCPツール早見表（maid-agent-messenger）
+## CLIツール早見表（maidctl）
 
-| ツール名 | 用途 | 主要パラメータ | 使用者 |
-|---------|------|---------------|-------|
-| `create_task` | 新規タスク作成 | title(必須), description(省略可) | 執事・メイド長（※） |
-| `list_tasks` | タスク一覧取得 | status, assignee, limit | 執事・メイド長 |
-| `get_task` | タスク詳細取得 | taskId | 全員 |
-| `get_report` | レポート内容取得 | taskId, limit(省略可) | 執事・メイド長 |
-| `update_task` | タスク状態更新 | taskId, status | メイド長 |
-| `get_my_task` | 自分のタスク取得 | agent_id | メイド |
-| `update_status` | ステータス更新 | agent_id, status | メイド |
-| `assign_task` | タスク割り当て | task_id, target_agent, title(必須), force(省略可) | メイド長 |
-| `get_team_status` | チーム状況一覧 | - | メイド長・執事 |
+| コマンド | 用途 | 主要オプション | 使用者 |
+|----------|------|---------------|-------|
+| `maidctl task create` | 新規タスク作成 | --title(必須), --description | 執事・メイド長（※） |
+| `maidctl task list` | タスク一覧取得 | --status, --assignee, --summary | 執事・メイド長 |
+| `maidctl task get TASK_ID` | タスク詳細取得 | --summary | 全員 |
+| `maidctl team report TASK_ID` | レポート内容取得 | - | 執事・メイド長 |
+| `maidctl task update TASK_ID` | タスク状態更新 | --status, --summary | メイド長 |
+| `maidctl my-task` | 自分のタスク取得 | - | メイド |
+| `maidctl my-status STATUS` | ステータス更新 | --summary | メイド |
+| `maidctl task assign TASK_ID` | タスク割り当て | --to, --title(必須) | メイド長 |
+| `maidctl team status` | チーム状況一覧 | - | メイド長・執事 |
+| `maidctl notify TARGET "MSG"` | 通知送信 | - | 全員 |
 
-※ メイド長のcreate_task使用は🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生のみ
+※ メイド長のtask create使用は🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生のみ
+
+## 共通運用ルール
+
+- 【必須】--status, --assignee, --summary で絞り込んでから取得
+- 【禁止】フィルタなしで全件取得（トークン浪費）
+- 【禁止】ポーリング（通知駆動で待機）
+
+詳細は `/skill maidctl-reference` 参照。
 
 ## 役割別操作早見表
 
 ### 執事 (Butler)
 ```
-タスク作成: MCPツール create_task
-状況確認: MCPツール list_tasks / get_team_status
+タスク作成: maidctl task create --title "タイトル"
+状況確認: maidctl task list --status pending --summary
+         maidctl team status
 通知:     maidctl notify chief "メッセージ"
 禁止:     自分でタスク実行、ポーリング
 ```
 
 ### メイド長 (Chief)
 ```
-タスク確認: MCPツール list_tasks
-タスク割当: MCPツール assign_task
-タスク作成: MCPツール create_task（※ご主人様向けのみ）
-状況確認: MCPツール get_team_status
-状態更新: MCPツール update_task
-通知:     maidctl notify {maid_id} "メッセージ"
+タスク確認: maidctl task list --status pending --summary
+タスク割当: maidctl task assign TASK_ID --to emma
+タスク作成: maidctl task create（※ご主人様向けのみ）
+状況確認: maidctl team status
+状態更新: maidctl task update TASK_ID --status completed
+通知:     maidctl notify emma "メッセージ"
 禁止:     自分でタスク実行、執事への通知、ポーリング
 ```
-※ create_task対象: 🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生
+※ task create対象: 🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生
 
 ### メイド (Maid)
 ```
-タスク確認: MCPツール get_my_task
-ステータス: MCPツール update_status（working → completed）
+タスク確認: maidctl my-task
+ステータス: maidctl my-status working
+         maidctl my-status completed --summary "完了"
 報告:     .maid-agent/system/data/reports/current_{自分のID}.md を更新
 通知:     maidctl notify chief "メッセージ"
 禁止:     他メイドへの直接通知、butler への直接通知、ポーリング
@@ -74,12 +85,12 @@ maidctl notify emma "新しいタスクがあります"
 ```
 
 **利用可能なターゲット**:
-- `chief` - メイド長ビオラ（執事からのみ）
+- `chief` - メイド長ビオラ（執事・メイドから）
 - `emma`, `sophia`, `lily`, `rose`, `alice`, `may`, `flora`, `luna` - メイド（メイド長からのみ）
 
-### MCP再接続オプション
+### MCP再接続オプション（Phase 2）
 
-MCPツール使用時に「Server not initialized」エラーが発生した場合:
+maidctl 使用時にエラーが発生した場合:
 
 ```bash
 # 自分自身のMCP接続をリセット（バックグラウンド実行必須）
@@ -99,11 +110,11 @@ maidctl notify --mcp-reconnect emma
 ## 通信の流れ
 
 ```
-執事 → create_task (MCP) → maidctl notify chief → メイド長
-メイド長 → list_tasks (MCP) → assign_task (MCP) → maidctl notify {maid} → メイド
-メイド → get_my_task (MCP) → タスク実行 → update_status (MCP)
+執事 → maidctl task create → maidctl notify chief → メイド長
+メイド長 → maidctl task list → maidctl task assign → maidctl notify {maid} → メイド
+メイド → maidctl my-task → タスク実行 → maidctl my-status completed
 メイド → .maid-agent/system/data/reports/current_{name}.md → maidctl notify chief → メイド長が収集
-メイド長 → update_task (MCP) → ダッシュボードに反映
+メイド長 → maidctl task update → ダッシュボードに反映
 ```
 
 ## 迷ったら

@@ -30,13 +30,12 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 ## セッション開始時（必須）
 
 ```
-1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
-2. .maid-agent/agents/context/ でプロジェクト固有情報を確認
-3. .maid-agent/agents/instructions/{role}.md で自分の役割を確認
-4. .maid-agent/agents/instructions/QUICK_REFERENCE.md で通信方法を確認
-5. .maid-agent/agents/rules/common/ と rules/{role}/ でルールを確認
-6. .maid-agent/agents/skills/ で利用可能なスキルを確認（メイドのみ）
-7. MCPツール（list_tasks, get_team_status）で現在の状況を把握
+1. .maid-agent/agents/context/ でプロジェクト固有情報を確認
+2. .maid-agent/agents/instructions/{role}.md で自分の役割を確認
+3. .maid-agent/agents/instructions/QUICK_REFERENCE.md で通信方法を確認
+4. .maid-agent/agents/rules/common/ と rules/{role}/ でルールを確認
+5. .maid-agent/agents/skills/ で利用可能なスキルを確認（メイドのみ）
+6. MCPツール（list_tasks, get_team_status）で現在の状況を把握
 ```
 
 > ⚠️ **コンパクション後**: 必ず手順3-4を再実行すること
@@ -132,14 +131,6 @@ pending → assigned → working → completed
 | `blocked` | 問題発生・判断待ち | メイド |
 
 ---
-
-### Memory MCP（知識永続化）※未実装
-
-セッションをまたいだ知識の永続化を担当。
-
-- ご主人様の好み・過去の決定事項
-- プロジェクト固有の知識
-- 過去のタスクで得た教訓
 
 ### send-keys 2段階プロトコル（maid-notify内部）
 

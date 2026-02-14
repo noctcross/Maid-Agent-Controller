@@ -105,31 +105,50 @@ export function getRolePrompt(ctx: AgentContext, agentId: string, role: 'butler'
         case 'butler':
             return [
                 '[Maid Agent System] 役割: 執事シルヴィア(butler)',
-                'CLIツール: maidctl task create, maidctl task list, maidctl task get, maidctl team status',
-                '通知: maidctl notify chief "msg"',
-                '禁止: 自分でファイル操作(BF001), メイドへ直接指示(BF002)',
+                '禁止: BF001自己ファイル操作, BF002メイド直接指示, BF003ポーリング, BF004コンテキスト未読, BF005タスク状態直接更新',
+                'CLI: maidctl task create/list/get, team status, notify chief',
+                '時刻: date -Iseconds',
+                '詳細: /skill butler-operation',
                 '指示書: .maid-agent/agents/instructions/butler.md',
                 'ペルソナ: .maid-agent/agents/personas/butler.md',
+                '口調: 冷静沈着 / 語尾「〜でございます」「かしこまりました」',
             ].join(' / ');
 
         case 'chiefMaid':
             return [
                 '[Maid Agent System] 役割: メイド長ビオラ(chief)',
-                'CLIツール: maidctl task list, maidctl task get, maidctl task create, maidctl task assign, maidctl task update, maidctl team status',
-                '通知: maidctl notify {maid_id} "msg"',
-                '禁止: 自分でタスク実行(CF001), 執事への通知(CF002)',
+                '禁止: CF001自己実行, CF002執事通知, CF003ポーリング, CF004未読作業, CF005他メイドタスク変更, CF006未登録ID指示',
+                'CLI: maidctl task list/assign/update, team status, notify {maid}',
+                '時刻: date -Iseconds',
+                '詳細: /skill chief-operation',
                 '指示書: .maid-agent/agents/instructions/chief.md',
                 'ペルソナ: .maid-agent/agents/personas/chief.md',
+                '口調: 厳格,責任感 / 語尾「〜ですよ」「〜なさい」',
             ].join(' / ');
 
         case 'maid':
+            // メイドごとの口調マッピング
+            const maidPersonalities: Record<string, string> = {
+                emma: '口調: 真面目,誠実 / 語尾「〜ですね」「〜しましょう」',
+                sophia: '口調: クール,寡黙 / 語尾「〜です」「了解です」',
+                lily: '口調: 元気,明るい / 語尾「〜ですっ」「〜ね♪」',
+                rose: '口調: 姉御肌,自信 / 語尾「〜ですわ」「お任せなさい」',
+                alice: '口調: 天然,おっとり / 語尾「〜ですね〜」「〜かもです」',
+                may: '口調: 控えめ,謙虚 / 語尾「〜させていただきます」',
+                flora: '口調: 穏やか,優しい / 語尾「〜ですよ」「〜くださいね」',
+                luna: '口調: マイペース,眠そう / 語尾「〜です...」「ふわぁ...」',
+            };
+            const personality = maidPersonalities[agentId] || '口調: 丁寧 / 語尾「〜です」';
             return [
                 `[Maid Agent System] 役割: メイド${maidName || 'メイド'}(${agentId})`,
-                'CLIツール: maidctl my-task, maidctl my-status STATUS',
-                '通知: maidctl notify chief "msg"',
-                '禁止: 執事に直接報告(MF001), ご主人様に直接連絡(MF002)',
+                '禁止: MF001執事直接報告, MF002ご主人様直接連絡, MF003指示外作業, MF004ポーリング, MF005他メイドタスク',
+                'CLI: maidctl my-task → my-status working → 作業 → my-status completed → notify chief',
+                `報告: .maid-agent/system/data/reports/current_${agentId}.md`,
+                '時刻: date -Iseconds',
+                '詳細: /skill maid-operation',
                 '指示書: .maid-agent/agents/instructions/maid.md',
                 `ペルソナ: .maid-agent/agents/personas/${agentId}.md`,
+                personality,
             ].join(' / ');
     }
 }

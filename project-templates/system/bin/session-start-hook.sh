@@ -53,8 +53,7 @@ esac
 CONTEXT="[Maid Agent SessionStart] あなたは${ROLE}です（ID: ${WINDOW_NAME}）。"
 CONTEXT="${CONTEXT} MCPツール: ${MCP_TOOLS}。"
 CONTEXT="${CONTEXT} 通知: maidctl notify ${NOTIFY_TARGET} \\\"msg\\\"。"
-CONTEXT="${CONTEXT} 指示書: ${INSTRUCTION_FILE} を必ず読み込んでください。"
-CONTEXT="${CONTEXT} 通信方法: ${QUICK_REF} を必ず読み込んでください。"
+CONTEXT="${CONTEXT} 【必須・ブロッキング】作業開始前にReadツールで以下を読み込むこと: 1. ${INSTRUCTION_FILE} 2. ${QUICK_REF} 読み込み完了まで他のツール呼び出しを行わないこと。"
 
 cat <<EOF
 {

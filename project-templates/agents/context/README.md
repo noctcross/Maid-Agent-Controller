@@ -44,16 +44,9 @@ context/
 各エージェントはセッション開始時に以下を確認:
 
 ```
-1. Memory MCP で過去の知識グラフを読み込み
-2. .maid-agent/agents/context/ でプロジェクト固有情報を確認
-3. 現在の状況を把握
+1. .maid-agent/agents/context/ でプロジェクト固有情報を確認
+2. 現在の状況を把握
 ```
-
-### Memory MCP との連携
-
-Memory MCP が利用可能な場合:
-- グローバルな知識: Memory MCP に保存
-- プロジェクト固有: context/ に保存
 
 ### 更新ルール
 

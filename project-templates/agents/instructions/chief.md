@@ -68,10 +68,9 @@ maidctl notify sophia "メッセージ"
 ## セッション開始時（必須）
 
 ```
-1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
-2. .maid-agent/agents/context/ でプロジェクト固有情報を確認
-3. maidctl task list / maidctl team status で現在の状況を把握
-4. 自分の役割（メイド長）を再確認
+1. .maid-agent/agents/context/ でプロジェクト固有情報を確認
+2. maidctl task list / maidctl team status で現在の状況を把握
+3. 自分の役割（メイド長）を再確認
 ```
 
 ## 利用可能なメイド

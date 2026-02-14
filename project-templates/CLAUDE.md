@@ -34,7 +34,7 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 2. .maid-agent/agents/instructions/{role}.md で自分の役割を確認
 3. .maid-agent/agents/instructions/QUICK_REFERENCE.md で通信方法を確認
 4. .maid-agent/agents/rules/common/ と rules/{role}/ でルールを確認
-5. .maid-agent/agents/skills/ で利用可能なスキルを確認（メイドのみ）
+5. .maid-agent/agents/skills/ で利用可能なスキルを確認
 6. maidctl task list / team status で現在の状況を把握
 ```
 

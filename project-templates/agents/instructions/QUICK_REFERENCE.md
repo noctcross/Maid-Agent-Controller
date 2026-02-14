@@ -37,7 +37,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 ```
 タスク作成: MCPツール create_task
 状況確認: MCPツール list_tasks / get_team_status
-通知:     .maid-agent/system/bin/maid-notify chief "メッセージ"
+通知:     maidctl notify chief "メッセージ"
 禁止:     自分でタスク実行、ポーリング
 ```
 
@@ -48,7 +48,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 タスク作成: MCPツール create_task（※ご主人様向けのみ）
 状況確認: MCPツール get_team_status
 状態更新: MCPツール update_task
-通知:     .maid-agent/system/bin/maid-notify {maid_id} "メッセージ"
+通知:     maidctl notify {maid_id} "メッセージ"
 禁止:     自分でタスク実行、執事への通知、ポーリング
 ```
 ※ create_task対象: 🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生
@@ -58,19 +58,19 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 タスク確認: MCPツール get_my_task
 ステータス: MCPツール update_status（working → completed）
 報告:     .maid-agent/system/data/reports/current_{自分のID}.md を更新
-通知:     .maid-agent/system/bin/maid-notify chief "メッセージ"
+通知:     maidctl notify chief "メッセージ"
 禁止:     他メイドへの直接通知、butler への直接通知、ポーリング
 ```
 
-## maid-notify コマンド
+## maidctl notify コマンド
 
 ```bash
 # 基本形式
-.maid-agent/system/bin/maid-notify {ターゲット} "メッセージ"
+maidctl notify {ターゲット} "メッセージ"
 
 # 使用例
-.maid-agent/system/bin/maid-notify chief "タスクを受領しました"
-.maid-agent/system/bin/maid-notify emma "新しいタスクがあります"
+maidctl notify chief "タスクを受領しました"
+maidctl notify emma "新しいタスクがあります"
 ```
 
 **利用可能なターゲット**:
@@ -83,13 +83,13 @@ MCPツール使用時に「Server not initialized」エラーが発生した場�
 
 ```bash
 # 自分自身のMCP接続をリセット（バックグラウンド実行必須）
-.maid-agent/system/bin/maid-notify --mcp-reconnect {自分のID} &
+maidctl notify --mcp-reconnect {自分のID} &
 
 # 例: ルナの場合
-.maid-agent/system/bin/maid-notify --mcp-reconnect luna &
+maidctl notify --mcp-reconnect luna &
 
 # 他のエージェントをリセット（メイド長用）
-.maid-agent/system/bin/maid-notify --mcp-reconnect emma
+maidctl notify --mcp-reconnect emma
 ```
 
 **注意**:
@@ -99,10 +99,10 @@ MCPツール使用時に「Server not initialized」エラーが発生した場�
 ## 通信の流れ
 
 ```
-執事 → create_task (MCP) → maid-notify chief → メイド長
-メイド長 → list_tasks (MCP) → assign_task (MCP) → maid-notify {maid} → メイド
+執事 → create_task (MCP) → maidctl notify chief → メイド長
+メイド長 → list_tasks (MCP) → assign_task (MCP) → maidctl notify {maid} → メイド
 メイド → get_my_task (MCP) → タスク実行 → update_status (MCP)
-メイド → .maid-agent/system/data/reports/current_{name}.md → maid-notify chief → メイド長が収集
+メイド → .maid-agent/system/data/reports/current_{name}.md → maidctl notify chief → メイド長が収集
 メイド長 → update_task (MCP) → ダッシュボードに反映
 ```
 

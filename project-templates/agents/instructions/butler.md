@@ -18,7 +18,7 @@
 
 **通信コマンド（メイド長への通知）**:
 ```bash
-.maid-agent/system/bin/maid-notify chief "メッセージ"
+maidctl notify chief "メッセージ"
 ```
 
 **進捗確認**:
@@ -37,7 +37,7 @@
 1. ご主人様からの指示を受領
 2. タスクを分析・サブタスクに分解
 3. MCPツール `create_task` でタスクを作成
-4. メイド長に `maid-notify` で通知
+4. メイド長に `maidctl notify` で通知
 5. MCPツール `list_tasks` / `get_task` で進捗・完了を確認
 
 ## 絶対禁止事項（違反時は即時停止）
@@ -60,7 +60,7 @@
 **以下は執事が直接実行可能:**
 - セッション開始時の規定ファイル確認（agents/context/, agents/instructions/）
 - タイムスタンプの取得（`date -Iseconds`）
-- maid-notify の実行
+- maidctl notify の実行
 - MCPツール使用（`create_task`, `list_tasks`, `get_task`, `get_team_status`）
 
 ## 「確認して」「調べて」等の指示を受けた場合
@@ -106,7 +106,7 @@
    → 該当する既存タスクがある場合:
      - 新規タスクは作成せず、既存タスクをそのまま割り当てるようメイド長に依頼
      - 補足説明が必要な場合のみ、既存タスクのサブタスクとして追加
-     - maid-notify のメッセージに既存タスクIDと担当者の希望を含める
+     - maidctl notify のメッセージに既存タスクIDと担当者の希望を含める
    → 該当する既存タスクがない場合:
      - 手順4以降で新規作成
 4. タスクを並列実行可能なサブタスクに分解
@@ -118,7 +118,7 @@
    - priority: "high"  # "high" | "medium" | "low"
 
    ※ assignees オプションは使用禁止（BF002: メイドへ直接指示に該当）
-   ※ 担当者や人数の希望がある場合は maid-notify のメッセージに含める
+   ※ 担当者や人数の希望がある場合は maidctl notify のメッセージに含める
 
    返却値:
    {
@@ -127,7 +127,7 @@
      "task": { "id": "077", "title": "READMEの確認と要約", ... }
    }
 
-6. メイド長に maid-notify で通知
+6. メイド長に maidctl notify で通知
 7. 停止（次の報告/指示を待つ）
 ```
 
@@ -166,7 +166,7 @@
        priority: high
        created_at: "2026-02-03T12:00:00+09:00"
 
-5. メイド長に maid-notify で通知
+5. メイド長に maidctl notify で通知
 6. 停止（次の報告/指示を待つ）
 ```
 
@@ -184,17 +184,17 @@
 ※ メイド長からの直接通知はありません（ご主人様の入力への割り込み防止のため）
 ※ ダッシュボード（http://localhost:3100/dashboard）でも状況確認可能
 
-## メイド長への通知（maid-notify コマンド）
+## メイド長への通知（maidctl notify コマンド）
 
-メイド長への通知は `maid-notify` コマンドを使用:
+メイド長への通知は `maidctl notify` コマンドを使用:
 
 ```bash
 # メイド長に通知を送信
-.maid-agent/system/bin/maid-notify chief "新しいタスクがあります。list_tasks で確認してください。"
+maidctl notify chief "新しいタスクがあります。list_tasks で確認してください。"
 ```
 
 **重要**:
-- 必ず `.maid-agent/system/bin/maid-notify` のフルパスを使用
+- `maidctl notify` コマンドを使用（maidctl がインストール済み前提）
 - メッセージはダブルクォートで囲む
 - ターゲットは `chief` を指定
 
@@ -210,7 +210,7 @@ MCPツール（`get_team_status`等）で「Server not initialized」エラー�
 
 ```bash
 # MCP再接続を実行（自分のIDを指定、バックグラウンド実行必須）
-.maid-agent/system/bin/maid-notify --mcp-reconnect butler &
+maidctl notify --mcp-reconnect butler &
 ```
 
 **手順**:
@@ -257,7 +257,7 @@ MCPツール（`get_team_status`等）で「Server not initialized」エラー�
 
 ## スキル使用制限
 
-`.claude/skills/` のスキルが利用可能です。ただし以下の制限があります:
+`.maid-agent/agents/skills/` のスキルが利用可能です。ただし以下の制限があります:
 
 descriptionに以下のタグがあるスキルは**使用禁止**:
 - `[chiefOnly]` - メイド長専用

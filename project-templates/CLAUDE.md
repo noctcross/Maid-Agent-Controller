@@ -25,7 +25,7 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 └─────────────────┘
 ```
 
-※ 括弧内はシステムID（tmuxタブ名、maid-notify等で使用）
+※ 括弧内はシステムID（tmuxタブ名、maidctl notify等で使用）
 
 ## セッション開始時（必須）
 
@@ -44,9 +44,9 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 ## 通信プロトコル
 
 ### 基本原則
-- **ポーリング禁止**: MCP + maid-notify のイベント駆動
+- **ポーリング禁止**: MCP + maidctl notify のイベント駆動
 - **タスク管理**: MCPツール（maid-agent-messenger）経由
-- **通知**: maid-notify コマンドで起動
+- **通知**: maidctl notify コマンドで起動
 - **上への報告**: タスク状態を更新して待機（sendText禁止）
 
 ## MCPサーバー
@@ -223,12 +223,12 @@ agents/rules/
 **セッション要約後、または通信方法が不明な場合**:
 1. **必ず** `.maid-agent/agents/instructions/QUICK_REFERENCE.md` を読む
 2. 自分の役割に応じた指示書を再読み込み
-3. MCPツールと `maid-notify` コマンドの使い方を確認
+3. MCPツールと `maidctl notify` コマンドの使い方を確認
 
 **要約時は以下を必ず含める**:
 - 自分の役割（執事/メイド長/メイド）
 - MCPツール: `create_task`, `list_tasks`, `get_task`, `update_task`, `assign_task`, `get_team_status`
-- 通知コマンド: `.maid-agent/system/bin/maid-notify`
+- 通知コマンド: `maidctl notify`
 - 禁止事項
 - 現在のタスク
 

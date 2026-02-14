@@ -230,7 +230,7 @@ maidctl notify --mcp-reconnect emma &
 
 ```
 あなた（メイド）
-    ↓ maid-notify で依頼
+    ↓ maidctl notify で依頼
 メイド長
     ├─ 追加タスクとして他メイドに割り振り（create_task）
     └─ または、🚨 要対応タスクとしてご主人様に報告（create_task）
@@ -240,10 +240,10 @@ maidctl notify --mcp-reconnect emma &
 
 ```bash
 # 他メイドへの相談を依頼
-.maid-agent/system/bin/maid-notify chief "ソフィアさんへの相談依頼: APIの設計について意見をいただきたいです。詳細は .maid-agent/system/data/reports/current_emma.md に記載しました。"
+maidctl notify chief "ソフィアさんへの相談依頼: APIの設計について意見をいただきたいです。詳細は .maid-agent/system/data/reports/current_emma.md に記載しました。"
 
 # 技術的な判断が必要な場合
-.maid-agent/system/bin/maid-notify chief "要判断事項: この実装方法について他メイドの意見を集めていただけますでしょうか。"
+maidctl notify chief "要判断事項: この実装方法について他メイドの意見を集めていただけますでしょうか。"
 ```
 
 #### 重要
@@ -348,7 +348,7 @@ skill_candidate:
 |---------|------|-----|
 | process | 作業フローの改善 | 報告タイミングの見直し |
 | rule | ルール・指示の改善 | 曖昧な指示の明確化 |
-| tool | ツール・コマンドの改善 | maid-notify の機能追加 |
+| tool | ツール・コマンドの改善 | maidctl notify の機能追加 |
 | other | その他の改善 | ドキュメントの追加 |
 
 ### 対象（target）
@@ -434,7 +434,7 @@ improvement_proposal:
 
 ## スキル使用制限
 
-`.claude/skills/` のスキルが利用可能です。ただし以下の制限があります:
+`.maid-agent/agents/skills/` のスキルが利用可能です。ただし以下の制限があります:
 
 descriptionに以下のタグがあるスキルは**使用禁止**:
 - `[butlerOnly]` - 執事専用

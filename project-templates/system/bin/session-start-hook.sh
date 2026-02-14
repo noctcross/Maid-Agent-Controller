@@ -52,7 +52,7 @@ esac
 # 8. additionalContextとしてJSON出力
 CONTEXT="[Maid Agent SessionStart] あなたは${ROLE}です（ID: ${WINDOW_NAME}）。"
 CONTEXT="${CONTEXT} MCPツール: ${MCP_TOOLS}。"
-CONTEXT="${CONTEXT} 通知: .maid-agent/system/bin/maid-notify ${NOTIFY_TARGET} \\\"msg\\\"。"
+CONTEXT="${CONTEXT} 通知: maidctl notify ${NOTIFY_TARGET} \\\"msg\\\"。"
 CONTEXT="${CONTEXT} 指示書: ${INSTRUCTION_FILE} を必ず読み込んでください。"
 CONTEXT="${CONTEXT} 通信方法: ${QUICK_REF} を必ず読み込んでください。"
 

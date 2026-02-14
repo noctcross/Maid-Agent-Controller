@@ -105,8 +105,8 @@ export function getRolePrompt(ctx: AgentContext, agentId: string, role: 'butler'
         case 'butler':
             return [
                 '[Maid Agent System] 役割: 執事シルヴィア(butler)',
-                'MCPツール: create_task, list_tasks, get_task, get_team_status',
-                '通知: .maid-agent/system/bin/maid-notify chief "msg"',
+                'CLIツール: maidctl task create, maidctl task list, maidctl task get, maidctl team status',
+                '通知: maidctl notify chief "msg"',
                 '禁止: 自分でファイル操作(BF001), メイドへ直接指示(BF002)',
                 '指示書: .maid-agent/agents/instructions/butler.md',
                 'ペルソナ: .maid-agent/agents/personas/butler.md',
@@ -115,8 +115,8 @@ export function getRolePrompt(ctx: AgentContext, agentId: string, role: 'butler'
         case 'chiefMaid':
             return [
                 '[Maid Agent System] 役割: メイド長ビオラ(chief)',
-                'MCPツール: list_tasks, get_task, create_task, assign_task, update_task, get_team_status',
-                '通知: .maid-agent/system/bin/maid-notify {maid_id} "msg"',
+                'CLIツール: maidctl task list, maidctl task get, maidctl task create, maidctl task assign, maidctl task update, maidctl team status',
+                '通知: maidctl notify {maid_id} "msg"',
                 '禁止: 自分でタスク実行(CF001), 執事への通知(CF002)',
                 '指示書: .maid-agent/agents/instructions/chief.md',
                 'ペルソナ: .maid-agent/agents/personas/chief.md',
@@ -125,8 +125,8 @@ export function getRolePrompt(ctx: AgentContext, agentId: string, role: 'butler'
         case 'maid':
             return [
                 `[Maid Agent System] 役割: メイド${maidName || 'メイド'}(${agentId})`,
-                'MCPツール: get_my_task, update_status',
-                '通知: .maid-agent/system/bin/maid-notify chief "msg"',
+                'CLIツール: maidctl my-task, maidctl my-status STATUS',
+                '通知: maidctl notify chief "msg"',
                 '禁止: 執事に直接報告(MF001), ご主人様に直接連絡(MF002)',
                 '指示書: .maid-agent/agents/instructions/maid.md',
                 `ペルソナ: .maid-agent/agents/personas/${agentId}.md`,

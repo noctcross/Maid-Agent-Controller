@@ -32,9 +32,11 @@ extraction_check:
 skill_candidate:
   found: false
   # found: true の場合は以下を記載
-  # name: ""           # スキル名（例: api-endpoint-creator）
-  # description: ""    # スキルの説明
-  # reason: ""         # なぜスキル化すべきか
+  # type: ""           # "new_skill" または "pattern_add"
+  # target_skill: ""   # pattern_add の場合: 親スキル名（例: debugging, code-review）
+  # name: ""           # スキル/パターン名（例: api-endpoint-creator, mcp-server-diagnostics）
+  # description: ""    # スキル/パターンの説明
+  # reason: ""         # なぜスキル化/パターン追加すべきか
 
 ## 改善提案
 improvement_proposal:

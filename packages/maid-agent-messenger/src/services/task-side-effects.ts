@@ -21,6 +21,7 @@ import {
   sanitizeDescription,
 } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
+import { loadConfig } from "../utils/config-loader.js";
 import type { TaskYaml, TaskStatus as MaidTaskStatus } from "../types/index.js";
 
 // メイド名マッピング（日本語表示用）
@@ -188,7 +189,9 @@ async function archiveReport(
   const currentPath = path.join(
     projectPath, ".maid-agent", "system", "data", "reports", `current_${agentId}.md`
   );
-  const titleForFilename = sanitizeDescription(task.title);
+  const config = await loadConfig();
+  const maxLength = config.formatter.sanitize_description_max_length;
+  const titleForFilename = sanitizeDescription(task.title, maxLength);
   const archivePath = path.join(
     projectPath, ".maid-agent", "master", "reports",
     `task-${task.id}-${agentId}-${titleForFilename}.md`

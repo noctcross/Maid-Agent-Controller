@@ -53,6 +53,10 @@ export interface Pm2Config {
   watch: boolean;              // デフォルト: false
 }
 
+export interface FormatterConfig {
+  sanitize_description_max_length: number;  // デフォルト: 15
+}
+
 export interface McpServerConfig {
   server: ServerConfig;
   central: CentralConfig;
@@ -60,6 +64,7 @@ export interface McpServerConfig {
   dashboard: DashboardConfig;
   keepalive: KeepAliveConfig;
   pm2: Pm2Config;
+  formatter: FormatterConfig;
 }
 
 const DEFAULT_CONFIG: McpServerConfig = {
@@ -97,6 +102,9 @@ const DEFAULT_CONFIG: McpServerConfig = {
     instances: 1,
     autorestart: true,
     watch: false,
+  },
+  formatter: {
+    sanitize_description_max_length: 15,
   },
 };
 
@@ -139,6 +147,7 @@ export async function loadConfig(): Promise<McpServerConfig> {
       dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
       keepalive: { ...DEFAULT_CONFIG.keepalive, ...(parsed as Record<string, unknown>).keepalive as Partial<KeepAliveConfig> },
       pm2: { ...DEFAULT_CONFIG.pm2, ...(parsed as Record<string, unknown>).pm2 as Partial<Pm2Config> },
+      formatter: { ...DEFAULT_CONFIG.formatter, ...(parsed as Record<string, unknown>).formatter as Partial<FormatterConfig> },
     };
 
     return cachedConfig;

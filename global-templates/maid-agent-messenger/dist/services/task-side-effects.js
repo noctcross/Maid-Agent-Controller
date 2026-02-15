@@ -12,6 +12,7 @@ import * as path from "path";
 import * as fs from "fs/promises";
 import { readYamlFile, writeYamlFile, fileExists, copyFile, writeTextFile, sanitizeDescription, } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
+import { loadConfig } from "../utils/config-loader.js";
 // メイド名マッピング（日本語表示用）
 const MAID_NAMES = {
     emma: "エマ",
@@ -145,7 +146,9 @@ async function syncMaidYaml(projectPath, task, params, prevAssignees) {
  */
 async function archiveReport(projectPath, task, agentId) {
     const currentPath = path.join(projectPath, ".maid-agent", "system", "data", "reports", `current_${agentId}.md`);
-    const titleForFilename = sanitizeDescription(task.title);
+    const config = await loadConfig();
+    const maxLength = config.formatter.sanitize_description_max_length;
+    const titleForFilename = sanitizeDescription(task.title, maxLength);
     const archivePath = path.join(projectPath, ".maid-agent", "master", "reports", `task-${task.id}-${agentId}-${titleForFilename}.md`);
     if (await fileExists(currentPath)) {
         const copied = await copyFile(currentPath, archivePath);

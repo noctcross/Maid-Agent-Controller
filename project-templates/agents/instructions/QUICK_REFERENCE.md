@@ -30,7 +30,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 | `maidctl team status` | チーム状況一覧 | - | メイド長・執事 |
 | `maidctl notify TARGET "MSG"` | 通知送信 | - | 全員 |
 
-※ メイド長のtask create使用は🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生のみ
+※ メイド長のtask create使用は🔄フォローアップ/🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生のみ
 
 ## 共通運用ルール
 
@@ -61,7 +61,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 通知:     maidctl notify emma "メッセージ"
 禁止:     自分でタスク実行、執事への通知、ポーリング
 ```
-※ task create対象: 🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生
+※ task create対象: 🔄フォローアップ/🚨要対応/📚スキル候補/💡改善提案/エスカレーション派生
 
 ### メイド (Maid)
 ```

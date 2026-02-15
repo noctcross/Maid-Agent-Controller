@@ -7,7 +7,7 @@ import { SetupContext } from '../types';
 import { MAID_AGENT_DIR, MAIDS } from '../constants';
 import { getGlobalMaidAgentPath } from '../utils/helpers';
 import { CURRENT_ENV } from '../utils/environment';
-import { checkAndSetupWsl } from './wsl-setup';
+import { checkAndSetupWsl, checkAndInstallJq } from './wsl-setup';
 import { setupMcpServer } from './pm2-setup';
 import { generateMcpJson, setupClaudeSettings, checkAndUpdateMcpJsonPath } from './mcp-claude-setup';
 import { parseRuleModules, parseGlobalSkills, showRuleSelectionUI, showSkillSelectionUI, copySelectedRules, copySelectedSkills } from './rules-skills';
@@ -370,6 +370,10 @@ export async function initializeGlobalSettings(ctx: SetupContext): Promise<boole
             }
 
             ctx.log(`[グローバル] 設定フォルダを初期化: ${globalPath}`);
+
+            // jqのチェックとインストール（maidctlの出力パースに必要）
+            progress.report({ message: 'jq (JSONパーサー) を確認中...' });
+            await checkAndInstallJq(ctx);
 
             // MCPサーバー (maid-agent-messenger) のセットアップ
             // Windows (WSL), macOS, Linux のいずれでも実行

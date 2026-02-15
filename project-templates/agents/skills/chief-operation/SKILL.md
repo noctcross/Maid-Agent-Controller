@@ -18,6 +18,7 @@ patterns: ["task-distribution", "report-collection", "escalation-handling", "ski
 - メイドからblocked/エスカレーションを受けた時
 - スキル候補や改善提案を集約する時
 - ご主人様向けタスクを作成する時
+- フォローアップタスク（レビュー・修正・追加作業）を発行する時
 
 ## Prerequisites
 

@@ -147,10 +147,13 @@ router.get("/file", async (req: Request, res: Response) => {
   </div>
   ${agentBgHtml}
   <script>
-    // linkifyProjectPaths() が生成するonclickハンドラ用フォールバック
-    // ファイルビューアではVSCode APIが使えないため、デフォルトリンク動作に委譲
-    // falseを返すとリンク遷移がブロックされるので、何も返さない（undefined → デフォルト動作）
-    if (typeof openFile === "undefined") { window.openFile = function() {}; }
+    // path-link のクリックハンドラ（addEventListenerパターン、CSP対応）
+    // ファイルビューアではVSCode APIが使えないため、デフォルトリンク動作（href遷移）に委譲
+    document.querySelectorAll('.path-link').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        // ブラウザ環境: デフォルトのhref遷移をそのまま使用（何もしない）
+      });
+    });
   </script>
 </body>
 </html>`;

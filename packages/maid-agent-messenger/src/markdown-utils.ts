@@ -204,10 +204,9 @@ export function linkifyProjectPaths(
   result = result.replace(pathRegex, (match) => {
     const absolutePath = resolveToAbsolutePath(match, projectPath);
     const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
-    // onclick: VSCode Webviewでは openFile() でpostMessage、ブラウザではデフォルトリンク動作
-    // シングルクォートのエスケープ
-    const escapedPath = absolutePath.replace(/'/g, "\\'");
-    return `<a href="${fileViewUrl}" class="path-link" onclick="return openFile(this, '${escapedPath}')" title="${match}">${match}</a>`;
+    // data-path属性: addEventListenerで使用（CSP対応）
+    const escapedPath = absolutePath.replace(/"/g, "&quot;");
+    return `<a href="${fileViewUrl}" class="path-link" data-path="${escapedPath}" title="${match}">${match}</a>`;
   });
 
   // Step 3: プレースホルダーを復元

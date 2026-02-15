@@ -880,6 +880,16 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           // ブラウザではデフォルトのhref遷移を許可
         });
       });
+      // C-1.5: パスリンク (openFile) - CSP対応でonclick→addEventListenerに移行
+      item.querySelectorAll('.path-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+          if (_vscodeApi) {
+            e.preventDefault();
+            _vscodeApi.postMessage({ command: 'openFile', path: this.dataset.path });
+          }
+          // ブラウザではデフォルトのhref遷移を許可
+        });
+      });
       // C-2: レビューボタン (toggleReview)
       item.querySelectorAll('.review-btn').forEach(function(btn) {
         btn.addEventListener('click', function(e) {

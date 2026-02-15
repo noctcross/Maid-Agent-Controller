@@ -91,18 +91,20 @@ describe("linkifyProjectPaths", () => {
     expect(result).toContain(`&project=${encodeURIComponent(PROJECT_PATH)}`);
   });
 
-  it("リンクにopenFile onclickハンドラが含まれる", () => {
+  it("リンクにdata-path属性が含まれる（CSP対応）", () => {
     const input = "<p>docs/a.md</p>";
     const result = linkifyProjectPaths(input, PROJECT_PATH);
-    expect(result).toContain('onclick="return openFile(this,');
+    expect(result).toContain('data-path="');
+    // onclickは使用しない（CSP違反回避）
+    expect(result).not.toContain('onclick=');
   });
 
-  it("onclickハンドラのパスがそのまま（Windows変換されない）", () => {
+  it("data-path属性のパスがそのまま（Windows変換されない）", () => {
     const input = "<p>docs/a.md</p>";
     const result = linkifyProjectPaths(input, PROJECT_PATH);
     // プロジェクトパスがそのまま使われること
     const expectedPath = path.join(PROJECT_PATH, "docs/a.md");
-    expect(result).toContain(expectedPath);
+    expect(result).toContain(`data-path="${expectedPath}"`);
     // Windowsパスに変換されていないこと
     expect(result).not.toContain("C:/Users/noct");
   });

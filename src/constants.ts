@@ -8,6 +8,7 @@ export const MAID_AGENT_DIR = '.maid-agent';
 export const GLOBAL_MAID_AGENT_DIR = '.maid-agent';  // ~/.maid-agent/
 export const TMUX_SESSION_PREFIX = 'maid-agent';  // tmuxセッション名のプレフィックス
 export const WEB_DASHBOARD_POLLING_INTERVAL = 10000;  // Webダッシュボード自動更新間隔（10秒）
+export const DASHBOARD_MAX_CONSECUTIVE_FAILURES = 3;  // エラー画面表示までの連続失敗回数
 export const DASHBOARD_SERVER_PORT = 3100;
 export const DASHBOARD_SERVER_URL = `http://localhost:${DASHBOARD_SERVER_PORT}`;
 

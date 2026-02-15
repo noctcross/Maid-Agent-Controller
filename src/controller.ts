@@ -43,6 +43,7 @@ export class MultiAgentController {
     private dashboardPanel: vscode.WebviewPanel | undefined;
     private dashboardPollingInterval: NodeJS.Timeout | undefined;
     private dashboardInitialized = false;
+    private dashboardConsecutiveFailures = 0;  // ダッシュボード接続の連続失敗回数
     private completedViewState: CompletedViewState = { limit: 10, offset: 0, reviewed: undefined, starred: undefined, hash: '', completedSortField: undefined };
     private reportViewerPanel: vscode.WebviewPanel | undefined;
     private settings: MaidAgentSettings | undefined;
@@ -340,6 +341,8 @@ export class MultiAgentController {
             set dashboardInitialized(v) { controller.dashboardInitialized = v; },
             get dashboardPollingInterval() { return controller.dashboardPollingInterval; },
             set dashboardPollingInterval(v) { controller.dashboardPollingInterval = v; },
+            get dashboardConsecutiveFailures() { return controller.dashboardConsecutiveFailures; },
+            set dashboardConsecutiveFailures(v) { controller.dashboardConsecutiveFailures = v; },
             get completedViewState() { return controller.completedViewState; },
             set completedViewState(v) { controller.completedViewState = v; },
             get reportViewerPanel() { return controller.reportViewerPanel; },

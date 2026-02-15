@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ViewContext } from '../types';
-import { WEB_DASHBOARD_POLLING_INTERVAL, DASHBOARD_SERVER_URL } from '../constants';
+import { WEB_DASHBOARD_POLLING_INTERVAL, DASHBOARD_SERVER_URL, DASHBOARD_MAX_CONSECUTIVE_FAILURES } from '../constants';
 import { CURRENT_ENV, windowsToWslPath } from '../utils/environment';
 import { simpleMarkdownToHtml } from '../utils/markdown';
 import { isPathWithinRoot, isPathWithinRootCrossEnv, normalizePathForValidation } from '../utils/path-validator';
@@ -89,6 +89,21 @@ function setupDashboardMessageHandler(ctx: ViewContext, panel: vscode.WebviewPan
 }
 
 /**
+ * エラーからエラーコードを抽出
+ * Node.jsのシステムエラー（ECONNREFUSED, ETIMEDOUT等）を識別
+ */
+function extractErrorCode(error: unknown): string | undefined {
+    if (error && typeof error === 'object') {
+        const err = error as { code?: string; cause?: { code?: string } };
+        // 直接のエラーコード
+        if (err.code) return err.code;
+        // fetch の TypeError の cause にエラーコードがある場合
+        if (err.cause?.code) return err.cause.code;
+    }
+    return undefined;
+}
+
+/**
  * ダッシュボードを更新
  */
 export async function updateDashboard(ctx: ViewContext): Promise<void> {
@@ -142,48 +157,72 @@ export async function updateDashboard(ctx: ViewContext): Promise<void> {
         } else {
             await updateDashboardData(ctx, serverUrl, normalizedPath);
         }
+        // 成功時は失敗カウンターをリセット
+        ctx.dashboardConsecutiveFailures = 0;
     } catch (error) {
+        // 連続失敗をカウント
+        ctx.dashboardConsecutiveFailures = (ctx.dashboardConsecutiveFailures || 0) + 1;
+
         const message = error instanceof Error ? error.message : 'Unknown error';
-        ctx.dashboardPanel.webview.html = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>
-                    body {
-                        font-family: -apple-system, sans-serif;
-                        background: #1e1e1e;
-                        color: #cccccc;
-                        padding: 40px;
-                        text-align: center;
-                    }
-                    .error-icon { font-size: 4rem; margin-bottom: 20px; }
-                    .error-title { font-size: 1.5rem; color: #f14c4c; margin-bottom: 10px; }
-                    .error-message { color: #808080; margin-bottom: 20px; }
-                    .btn {
-                        background: #569cd6;
-                        color: white;
-                        border: none;
-                        padding: 10px 20px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-size: 1rem;
-                    }
-                    .hint { margin-top: 30px; font-size: 0.9rem; color: #808080; }
-                    code { background: #333; padding: 2px 6px; border-radius: 3px; }
-                </style>
-            </head>
-            <body>
-                <div class="error-icon">⚠️</div>
-                <div class="error-title">MCPサーバーに接続できません</div>
-                <div class="error-message">${escapeHtml(message)}</div>
-                <button class="btn" onclick="location.reload()">🔄 再試行</button>
-                <div class="hint">
-                    <p>MCPサーバーが起動していることを確認してください:</p>
-                    <code>pm2 status maid-agent-messenger</code>
-                </div>
-            </body>
-            </html>
-        `;
+        const errorCode = extractErrorCode(error);
+
+        // エラー種類による判定
+        const isPermanentError = errorCode === 'ECONNREFUSED';
+        const shouldShowError = isPermanentError || ctx.dashboardConsecutiveFailures >= DASHBOARD_MAX_CONSECUTIVE_FAILURES;
+
+        ctx.log(`[Dashboard] 接続失敗 (${ctx.dashboardConsecutiveFailures}/${DASHBOARD_MAX_CONSECUTIVE_FAILURES}): ${errorCode || message}`);
+
+        if (shouldShowError) {
+            const failureInfo = isPermanentError
+                ? 'サーバーが停止しています'
+                : `${ctx.dashboardConsecutiveFailures}回連続で接続に失敗しました`;
+
+            ctx.dashboardPanel.webview.html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body {
+                            font-family: -apple-system, sans-serif;
+                            background: #1e1e1e;
+                            color: #cccccc;
+                            padding: 40px;
+                            text-align: center;
+                        }
+                        .error-icon { font-size: 4rem; margin-bottom: 20px; }
+                        .error-title { font-size: 1.5rem; color: #f14c4c; margin-bottom: 10px; }
+                        .error-message { color: #808080; margin-bottom: 20px; }
+                        .failure-info { color: #ffc107; margin-bottom: 15px; font-size: 0.9rem; }
+                        .btn {
+                            background: #569cd6;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 1rem;
+                        }
+                        .hint { margin-top: 30px; font-size: 0.9rem; color: #808080; }
+                        code { background: #333; padding: 2px 6px; border-radius: 3px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-title">MCPサーバーに接続できません</div>
+                    <div class="failure-info">${escapeHtml(failureInfo)}</div>
+                    <div class="error-message">${escapeHtml(message)}</div>
+                    <button class="btn" onclick="location.reload()">🔄 再試行</button>
+                    <div class="hint">
+                        <p>MCPサーバーが起動していることを確認してください:</p>
+                        <code>pm2 status maid-agent-messenger</code>
+                    </div>
+                </body>
+                </html>
+            `;
+            // エラー画面表示後はカウンターをリセット（再試行時に再度カウント開始）
+            ctx.dashboardConsecutiveFailures = 0;
+        }
+        // shouldShowError=false の場合は何もしない（次のポーリングで再試行）
     }
 }
 
@@ -271,6 +310,7 @@ export async function initializeDashboard(ctx: ViewContext, serverUrl: string, p
 
     ctx.dashboardPanel.webview.html = html;
     ctx.log('[Dashboard] 初回HTML設定完了（postMessageリスナー追加済み）');
+    ctx.dashboardConsecutiveFailures = 0;
 }
 
 /**

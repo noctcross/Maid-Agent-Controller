@@ -143,6 +143,7 @@ export interface ViewContext {
     dashboardPanel: vscode.WebviewPanel | undefined;
     dashboardInitialized: boolean;
     dashboardPollingInterval: NodeJS.Timeout | undefined;
+    dashboardConsecutiveFailures: number;  // ダッシュボード接続の連続失敗回数
     completedViewState: CompletedViewState;
     reportViewerPanel: vscode.WebviewPanel | undefined;
     statusBarItem: vscode.StatusBarItem | undefined;

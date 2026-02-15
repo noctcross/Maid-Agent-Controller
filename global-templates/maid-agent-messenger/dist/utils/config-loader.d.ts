@@ -38,6 +38,9 @@ export interface Pm2Config {
     autorestart: boolean;
     watch: boolean;
 }
+export interface FormatterConfig {
+    sanitize_description_max_length: number;
+}
 export interface McpServerConfig {
     server: ServerConfig;
     central: CentralConfig;
@@ -45,6 +48,7 @@ export interface McpServerConfig {
     dashboard: DashboardConfig;
     keepalive: KeepAliveConfig;
     pm2: Pm2Config;
+    formatter: FormatterConfig;
 }
 /**
  * 設定ファイルを読み込む

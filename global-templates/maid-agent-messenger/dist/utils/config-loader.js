@@ -43,6 +43,9 @@ const DEFAULT_CONFIG = {
         autorestart: true,
         watch: false,
     },
+    formatter: {
+        sanitize_description_max_length: 15,
+    },
 };
 let cachedConfig = null;
 /**
@@ -78,6 +81,7 @@ export async function loadConfig() {
             dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
             keepalive: { ...DEFAULT_CONFIG.keepalive, ...parsed.keepalive },
             pm2: { ...DEFAULT_CONFIG.pm2, ...parsed.pm2 },
+            formatter: { ...DEFAULT_CONFIG.formatter, ...parsed.formatter },
         };
         return cachedConfig;
     }

@@ -90,11 +90,16 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
   const skillCandidatesHtml = generateTaskHtml(skillCandidates, "skill_candidate", projectPath);
   const improvementsHtml = generateTaskHtml(improvements, "improvement", projectPath);
 
+  // WebSocket接続用のCSPホスト生成
+  const serverHost = new URL(data.serverUrl).host;
+  const cspConnectSrc = `ws://localhost:3100 wss://localhost:3100 http://localhost:3100 https://localhost:3100 ws://${serverHost} wss://${serverHost} http://${serverHost} https://${serverHost}`;
+
   return `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src ${cspConnectSrc}; img-src data: http: https:;">
   <title>Maid Agent Dashboard</title>
   <style>
     :root {
@@ -978,6 +983,108 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
     priorityFilter?.addEventListener('change', filterTasks);
     assigneeFilter?.addEventListener('change', filterTasks);
 
+    // ========================================
+    // WebSocket 接続管理
+    // ========================================
+
+    let ws = null;
+    let wsReconnectAttempts = 0;
+    const WS_MAX_RECONNECT_ATTEMPTS = 5;
+    const WS_RECONNECT_DELAY = 3000;
+    const WS_BACKOFF_FACTOR = 1.5;
+
+    // WebSocket URL を構築
+    function getWebSocketUrl() {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = serverBaseUrl.replace(/^https?:\\/\\//, '');
+      return wsProtocol + '//' + wsHost + '/dashboard/ws?project=' + encodeURIComponent('${escapeHtml(projectPath)}');
+    }
+
+    function connectWebSocket() {
+      try {
+        const wsUrl = getWebSocketUrl();
+        console.log('[WS] Connecting to:', wsUrl);
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function() {
+          console.log('[WS] Connected');
+          wsReconnectAttempts = 0;
+          stopPolling();  // ポーリング停止
+        };
+
+        ws.onmessage = function(event) {
+          try {
+            const data = JSON.parse(event.data);
+            handleWebSocketEvent(data);
+          } catch (e) {
+            console.error('[WS] Parse error:', e);
+          }
+        };
+
+        ws.onclose = function(event) {
+          console.log('[WS] Disconnected:', event.code, event.reason);
+          ws = null;
+          startPolling();  // フォールバック
+          scheduleReconnect();
+        };
+
+        ws.onerror = function(error) {
+          console.error('[WS] Error:', error);
+        };
+      } catch (e) {
+        console.error('[WS] Connection failed:', e);
+        startPolling();
+        scheduleReconnect();
+      }
+    }
+
+    function scheduleReconnect() {
+      if (wsReconnectAttempts >= WS_MAX_RECONNECT_ATTEMPTS) {
+        console.log('[WS] Max reconnect attempts reached, using polling');
+        return;
+      }
+
+      wsReconnectAttempts++;
+      const delay = WS_RECONNECT_DELAY * Math.pow(WS_BACKOFF_FACTOR, wsReconnectAttempts - 1);
+      console.log('[WS] Reconnecting in', delay, 'ms (attempt', wsReconnectAttempts, ')');
+      setTimeout(connectWebSocket, delay);
+    }
+
+    function handleWebSocketEvent(event) {
+      switch (event.type) {
+        case 'connected':
+          console.log('[WS] Session ID:', event.sessionId);
+          break;
+
+        case 'stats':
+          updateStats(event.data);
+          break;
+
+        case 'tasks':
+          updateTaskListsWithMeta(event.data, null);
+          break;
+
+        case 'taskUpdated':
+          // 個別タスク更新（将来拡張用）
+          console.log('[WS] Task updated:', event.taskId, event.field);
+          break;
+
+        case 'ping':
+          // Pong 返信
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'pong' }));
+          }
+          break;
+
+        case 'error':
+          console.error('[WS] Server error:', event.message);
+          break;
+
+        default:
+          console.log('[WS] Unknown event:', event.type);
+      }
+    }
+
     // Phase 3: ポーリングによるリアルタイム更新（表示設定を送信可能）
     let pollingIntervalId = null;
     const POLLING_INTERVAL = 10000; // 10秒
@@ -1257,17 +1364,18 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       });
     }
 
-    // ポーリング開始（VSCode Webviewでは無効 - extension.tsがポーリング担当）
+    // WebSocket接続を優先、フォールバックでポーリング
     // VSCode WebviewではacquireVsCodeApiが存在するので、それで判定
     const isVSCodeWebview = typeof acquireVsCodeApi !== 'undefined';
-    if (!isVSCodeWebview) {
-      try {
+
+    // WebSocket接続を試行（ブラウザ/VSCode両方で）
+    try {
+      connectWebSocket();
+    } catch (e) {
+      console.log('[WS] WebSocket not available, falling back to polling:', e);
+      if (!isVSCodeWebview) {
         startPolling();
-      } catch (e) {
-        console.log('Polling not available:', e);
       }
-    } else {
-      console.log('VSCode Webview detected - polling disabled, extension handles updates');
     }
 
     // 初期表示: ページネーションとフィルターを初期化

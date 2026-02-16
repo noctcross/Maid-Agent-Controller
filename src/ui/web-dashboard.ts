@@ -34,8 +34,8 @@ export function showDashboard(ctx: ViewContext): void {
         stopDashboardPolling(ctx);
     });
 
-    // 自動更新ポーリングを開始
-    startDashboardPolling(ctx);
+    // WebSocket で更新されるため、ポーリングは不要
+    // startDashboardPolling(ctx);
 
     setupDashboardMessageHandler(ctx, ctx.dashboardPanel);
 
@@ -836,8 +836,8 @@ export function restoreDashboardPanel(ctx: ViewContext, panel: vscode.WebviewPan
         stopDashboardPolling(ctx);
     });
 
-    // 自動更新ポーリングを開始
-    startDashboardPolling(ctx);
+    // WebSocket で更新されるため、ポーリングは不要
+    // startDashboardPolling(ctx);
 
     // メッセージハンドラを再設定
     setupDashboardMessageHandler(ctx, panel);

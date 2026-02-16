@@ -58,10 +58,10 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
     // 楽観的に非表示にしたタスクIDを記憶（DOM更新後に再適用するため）
     var optimisticallyHiddenTasks = new Set();
 
-    // HTMLを表示前に現在のフィルタ条件を適用する（ちらつき防止）
-    function applyFiltersToHtml(html) {
-      // フィルタ条件がなく、楽観的非表示もなければそのまま返す
-      if (completedFilterReview === 'all' && completedFilterStar === 'all' && optimisticallyHiddenTasks.size === 0) {
+    // HTMLを表示前に楽観的非表示を適用する（ちらつき防止）
+    // ※フィルタ条件はサーバー側で適用済み。ここでは楽観的非表示のみ処理
+    function applyOptimisticHidesToHtml(html) {
+      if (optimisticallyHiddenTasks.size === 0) {
         return html;
       }
 
@@ -70,49 +70,12 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
 
       temp.querySelectorAll('.task-item').forEach(function(item) {
         var taskId = item.dataset.taskId;
-
-        // 1. 楽観的非表示のタスクを非表示
         if (taskId && optimisticallyHiddenTasks.has(taskId)) {
           item.style.display = 'none';
-          return;
-        }
-
-        // 2. 現在のフィルタ条件に合わないタスクを非表示
-        var reviewBtn = item.querySelector('.review-btn');
-        var starBtn = item.querySelector('.star-btn');
-        var isReviewed = reviewBtn && reviewBtn.classList.contains('active');
-        var isStarred = starBtn && starBtn.classList.contains('active');
-
-        // レビューフィルタ
-        if (completedFilterReview === 'yes' && !isReviewed) {
-          item.style.display = 'none';
-          return;
-        }
-        if (completedFilterReview === 'no' && isReviewed) {
-          item.style.display = 'none';
-          return;
-        }
-
-        // スターフィルタ
-        if (completedFilterStar === 'yes' && !isStarred) {
-          item.style.display = 'none';
-          return;
-        }
-        if (completedFilterStar === 'no' && isStarred) {
-          item.style.display = 'none';
-          return;
         }
       });
 
       return temp.innerHTML;
-    }
-
-    // DOM更新後に楽観的非表示を再適用（後方互換用）
-    function reapplyOptimisticHides() {
-      optimisticallyHiddenTasks.forEach(function(taskId) {
-        var item = document.querySelector('.task-item[data-task-id="' + taskId + '"]');
-        if (item) item.style.display = 'none';
-      });
     }
 
     // VSCode Webview用: ファイルをプレビュー付きで開く
@@ -426,7 +389,7 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
       var container = document.querySelector('.completed-tasks-container');
       if (container) {
         // 表示前に楽観的非表示を適用（ちらつき防止）
-        container.innerHTML = applyFiltersToHtml(html);
+        container.innerHTML = applyOptimisticHidesToHtml(html);
         attachTaskItemListeners();
         restoreExpandedStates();
       }
@@ -789,7 +752,7 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
           // 変更あり: HTMLを更新（表示前に楽観的非表示を適用）
           var completedContainer = document.querySelector('.completed-tasks-container');
           if (completedContainer) {
-            completedContainer.innerHTML = applyFiltersToHtml(tasks.completed);
+            completedContainer.innerHTML = applyOptimisticHidesToHtml(tasks.completed);
             attachTaskItemListeners();
             restoreExpandedStates();
           }
@@ -894,7 +857,7 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
           // デフォルト表示: 通常通り完了セクションを更新（表示前に楽観的非表示を適用）
           var completedContainer = document.querySelector('.completed-tasks-container');
           if (completedContainer) {
-            completedContainer.innerHTML = applyFiltersToHtml(tasks.completed);
+            completedContainer.innerHTML = applyOptimisticHidesToHtml(tasks.completed);
           } else {
             updateTaskSection('[data-section="completed"]', tasks.completed);
           }
@@ -963,8 +926,6 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
           }
         }
       }
-      // 楽観的非表示を再適用
-      reapplyOptimisticHides();
     }
 
     function attachTaskItemListeners() {

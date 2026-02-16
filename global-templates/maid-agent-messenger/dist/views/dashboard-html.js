@@ -62,7 +62,7 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
     const improvementsHtml = generateTaskHtml(improvements, "improvement", projectPath);
     // WebSocket接続用のCSPホスト生成
     const serverHost = new URL(data.serverUrl).host;
-    const cspConnectSrc = `ws://localhost:3100 wss://localhost:3100 http://localhost:3100 https://localhost:3100 ws://${serverHost} wss://${serverHost} http://${serverHost} https://${serverHost}`;
+    const cspConnectSrc = `ws://localhost:3100 wss://localhost:3100 http://localhost:3100 https://localhost:3100 ws://127.0.0.1:3100 wss://127.0.0.1:3100 http://127.0.0.1:3100 https://127.0.0.1:3100 ws://${serverHost} wss://${serverHost} http://${serverHost} https://${serverHost}`;
     return `<!DOCTYPE html>
 <html lang="ja">
 <head>

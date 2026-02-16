@@ -11,7 +11,7 @@ import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 export function createDashboardRoutes(deps) {
-    const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml } = deps;
+    const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, wsServer } = deps;
     const router = Router();
     // GET /dashboard - HTMLダッシュボード（ブラウザ用）
     router.get("/dashboard", async (req, res) => {
@@ -305,6 +305,15 @@ export function createDashboardRoutes(deps) {
                 res.status(404).json({ error: "Task not found", taskId: req.params.id });
                 return;
             }
+            // WebSocket通知: タスク更新をリアルタイム配信
+            if (wsServer) {
+                wsServer.broadcast(projectPath, {
+                    type: "taskUpdated",
+                    taskId: req.params.id,
+                    field: "reviewed",
+                    value: result.task?.reviewed,
+                });
+            }
             res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
         }
         catch (error) {
@@ -324,6 +333,15 @@ export function createDashboardRoutes(deps) {
             if (!result.success) {
                 res.status(404).json({ error: "Task not found", taskId: req.params.id });
                 return;
+            }
+            // WebSocket通知: タスク更新をリアルタイム配信
+            if (wsServer) {
+                wsServer.broadcast(projectPath, {
+                    type: "taskUpdated",
+                    taskId: req.params.id,
+                    field: "starred",
+                    value: result.task?.starred,
+                });
             }
             res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });
         }

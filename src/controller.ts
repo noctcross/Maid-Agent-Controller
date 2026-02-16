@@ -41,7 +41,6 @@ export class MultiAgentController {
     private statusBarItem: vscode.StatusBarItem | undefined;  // ステータスバー通知用
     private statusBarResetTimeout: NodeJS.Timeout | undefined;  // ステータスバー表示リセット用
     private dashboardPanel: vscode.WebviewPanel | undefined;
-    private dashboardPollingInterval: NodeJS.Timeout | undefined;
     private dashboardInitialized = false;
     private dashboardConsecutiveFailures = 0;  // ダッシュボード接続の連続失敗回数
     private completedViewState: CompletedViewState = { limit: 10, offset: 0, reviewed: undefined, starred: undefined, hash: '', completedSortField: undefined };
@@ -108,14 +107,6 @@ export class MultiAgentController {
 
     private async updateDashboard(): Promise<void> {
         return Dashboard.updateDashboard(this.createViewContext());
-    }
-
-    private startDashboardPolling(): void {
-        Dashboard.startDashboardPolling(this.createViewContext());
-    }
-
-    private stopDashboardPolling(): void {
-        Dashboard.stopDashboardPolling(this.createViewContext());
     }
 
     public openDashboardInBrowser(): void {
@@ -339,8 +330,6 @@ export class MultiAgentController {
             set dashboardPanel(v) { controller.dashboardPanel = v; },
             get dashboardInitialized() { return controller.dashboardInitialized; },
             set dashboardInitialized(v) { controller.dashboardInitialized = v; },
-            get dashboardPollingInterval() { return controller.dashboardPollingInterval; },
-            set dashboardPollingInterval(v) { controller.dashboardPollingInterval = v; },
             get dashboardConsecutiveFailures() { return controller.dashboardConsecutiveFailures; },
             set dashboardConsecutiveFailures(v) { controller.dashboardConsecutiveFailures = v; },
             get completedViewState() { return controller.completedViewState; },
@@ -366,8 +355,6 @@ export class MultiAgentController {
             openFileWithPreview: (filePath: string) => this.openFileWithPreview(filePath),
             openDashboardInBrowser: () => this.openDashboardInBrowser(),
             showStatusBarNotification: (icon: string, message: string) => this.showStatusBarNotification(icon, message),
-            startDashboardPolling: () => this.startDashboardPolling(),
-            stopDashboardPolling: () => this.stopDashboardPolling(),
         };
     }
 
@@ -937,7 +924,6 @@ ${agentList || '  (なし)'}
 
         // ポーリングを停止
         this.stopTmuxWindowPolling();
-        this.stopDashboardPolling();
 
         // ステータスバー通知タイマーを停止
         if (this.statusBarResetTimeout) {

@@ -120,7 +120,7 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src ${cspConnectSrc}; img-src data: http: https:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self' ${cspConnectSrc}; img-src data: http: https:;">
   <title>Maid Agent Dashboard</title>
   <style>
 ${getDashboardStyles()}

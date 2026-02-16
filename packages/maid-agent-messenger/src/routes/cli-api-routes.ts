@@ -21,8 +21,15 @@ import {
 } from "../services/index.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 import { MAID_IDS, type UpdatableStatus } from "../types/index.js";
+import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 
-const router = Router();
+export interface CliApiRoutesDeps {
+  wsServer?: DashboardWebSocketServer;
+}
+
+export function createCliApiRoutes(deps: CliApiRoutesDeps = {}): Router {
+  const { wsServer } = deps;
+  const router = Router();
 
 // =============================================================================
 // 内部パス定数
@@ -65,6 +72,15 @@ router.post("/api/tasks", async (req: Request, res: Response) => {
       parentId: parentId || undefined,
       category: category || "task",
     });
+
+    // WebSocket通知: タスク作成をリアルタイム配信
+    if (wsServer) {
+      wsServer.broadcast(projectPath, {
+        type: "taskCreated",
+        taskId: result.taskId,
+        task: result.task,
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -121,6 +137,15 @@ router.post("/api/tasks/:id/assign", async (req: Request, res: Response) => {
         targetAgent,
       });
       return;
+    }
+
+    // WebSocket通知: タスク割り当てをリアルタイム配信
+    if (wsServer) {
+      wsServer.broadcast(projectPath, {
+        type: "taskAssigned",
+        taskId: result.task_id,
+        assignee: result.assigned_to,
+      });
     }
 
     res.json({
@@ -209,6 +234,15 @@ router.patch("/api/agents/:id/status", async (req: Request, res: Response) => {
       escalation: escalation || false,
     });
 
+    // WebSocket通知: ステータス更新をリアルタイム配信
+    if (wsServer) {
+      wsServer.broadcast(projectPath, {
+        type: "statusUpdated",
+        agentId,
+        status,
+      });
+    }
+
     res.json({
       success: result.success,
       updated_fields: result.updated_fields,
@@ -267,4 +301,8 @@ router.get("/api/team/status", async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+  return router;
+}
+
+// 後方互換性のためデフォルトエクスポートを維持
+export default createCliApiRoutes();

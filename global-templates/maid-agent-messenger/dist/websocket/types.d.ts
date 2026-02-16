@@ -28,8 +28,21 @@ export type DashboardEvent = {
 } | {
     type: "taskUpdated";
     taskId: string;
-    field: string;
-    value: unknown;
+    field?: string;
+    value?: unknown;
+    task?: unknown;
+} | {
+    type: "taskCreated";
+    taskId: string;
+    task?: unknown;
+} | {
+    type: "taskAssigned";
+    taskId: string;
+    assignee: string;
+} | {
+    type: "statusUpdated";
+    agentId: string;
+    status: string;
 } | {
     type: "ping";
 } | {

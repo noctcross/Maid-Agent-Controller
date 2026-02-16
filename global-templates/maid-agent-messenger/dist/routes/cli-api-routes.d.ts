@@ -9,5 +9,11 @@
  * - PATCH /api/agents/:id/status - ステータス更新
  * - GET /api/team/status - チーム状況
  */
-declare const router: import("express-serve-static-core").Router;
-export default router;
+import { Router } from "express";
+import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
+export interface CliApiRoutesDeps {
+    wsServer?: DashboardWebSocketServer;
+}
+export declare function createCliApiRoutes(deps?: CliApiRoutesDeps): Router;
+declare const _default: Router;
+export default _default;

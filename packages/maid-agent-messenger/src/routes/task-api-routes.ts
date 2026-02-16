@@ -13,8 +13,15 @@ import {
 } from "../services/index.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 
-const router = Router();
+export interface TaskApiRoutesDeps {
+  wsServer?: DashboardWebSocketServer;
+}
+
+export function createTaskApiRoutes(deps: TaskApiRoutesDeps = {}): Router {
+  const { wsServer } = deps;
+  const router = Router();
 
 // GET /api/tasks - タスク一覧
 router.get("/api/tasks", async (req: Request, res: Response) => {
@@ -110,6 +117,15 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       return;
     }
 
+    // WebSocket通知: タスク更新をリアルタイム配信
+    if (wsServer) {
+      wsServer.broadcast(projectPath, {
+        type: "taskUpdated",
+        taskId: req.params.id,
+        task: result.task,
+      });
+    }
+
     res.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -156,6 +172,16 @@ router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
       return;
     }
 
+    // WebSocket通知: タスク更新をリアルタイム配信
+    if (wsServer) {
+      wsServer.broadcast(projectPath, {
+        type: "taskUpdated",
+        taskId: req.params.id,
+        field: "reviewed",
+        value: result.task?.reviewed,
+      });
+    }
+
     res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -177,6 +203,16 @@ router.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
     if (!result.success) {
       res.status(404).json({ error: "Task not found", taskId: req.params.id });
       return;
+    }
+
+    // WebSocket通知: タスク更新をリアルタイム配信
+    if (wsServer) {
+      wsServer.broadcast(projectPath, {
+        type: "taskUpdated",
+        taskId: req.params.id,
+        field: "starred",
+        value: result.task?.starred,
+      });
     }
 
     res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });
@@ -215,4 +251,8 @@ router.get("/api/dashboard", async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+  return router;
+}
+
+// 後方互換性のためデフォルトエクスポートを維持
+export default createTaskApiRoutes();

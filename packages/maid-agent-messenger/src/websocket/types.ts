@@ -23,7 +23,10 @@ export type DashboardEvent =
   | { type: "connected"; sessionId: string }
   | { type: "stats"; data: DashboardStats }
   | { type: "tasks"; data: TasksHtml }
-  | { type: "taskUpdated"; taskId: string; field: string; value: unknown }
+  | { type: "taskUpdated"; taskId: string; field?: string; value?: unknown; task?: unknown }
+  | { type: "taskCreated"; taskId: string; task?: unknown }
+  | { type: "taskAssigned"; taskId: string; assignee: string }
+  | { type: "statusUpdated"; agentId: string; status: string }
   | { type: "ping" }
   | { type: "pong" }
   | { type: "error"; message: string };

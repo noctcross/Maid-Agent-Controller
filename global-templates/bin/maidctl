@@ -76,6 +76,62 @@ check_jq() {
   command -v jq &> /dev/null
 }
 
+# =============================================================================
+# jqユーティリティ関数
+# =============================================================================
+
+# assignees配列からagentIdリストを取得
+# 用途: オブジェクト配列のassigneesからagentIdを抽出してカンマ区切りに
+jq_get_assignee_ids() {
+  local json="$1"
+  local sep="${2:-,}"
+  if [ -z "$json" ]; then
+    echo "-"
+    return 0
+  fi
+  echo "$json" | jq -r --arg sep "$sep" \
+    '(.assignees // []) | map(.agentId) | join($sep) | if . == "" then "-" else . end'
+}
+
+# フィールドの安全な取得（nullや欠損時のデフォルト値）
+jq_get_field() {
+  local json="$1"
+  local field="$2"
+  local default="${3:--}"
+  if [ -z "$json" ]; then
+    echo "$default"
+    return 0
+  fi
+  echo "$json" | jq -r --arg default "$default" ".${field} // \$default"
+}
+
+# 配列フィールドをカンマ区切り文字列に変換
+jq_join_array() {
+  local json="$1"
+  local field="$2"
+  local sep="${3:-,}"
+  if [ -z "$json" ]; then
+    echo "-"
+    return 0
+  fi
+  echo "$json" | jq -r --arg sep "$sep" --arg field "$field" \
+    '(.[$field] // []) | join($sep) | if . == "" then "-" else . end'
+}
+
+
+
+# jqコマンドの安全なラッパー
+# エラー発生時はデフォルト値を返し、ゼロ終了する
+safe_jq() {
+  local default="${SAFE_JQ_DEFAULT:--}"
+  local result
+  result=$(jq "$@" 2>/dev/null) || {
+    echo "$default"
+    return 0
+  }
+  echo "$result"
+}
+
 # JSONエスケープ関数
 # 文字列をJSON文字列として安全に埋め込めるようエスケープする
 json_escape() {
@@ -180,7 +236,7 @@ format_task_list() {
   printf "%-8s %-40s %-10s %-8s %-10s\n" "ID" "TITLE" "STATUS" "PRIORITY" "ASSIGNEE"
   printf "%-8s %-40s %-10s %-8s %-10s\n" "--------" "----------------------------------------" "----------" "--------" "----------"
 
-  echo "$json" | jq -r '.tasks[]? | [.id, (.title // "-" | .[0:40]), (.status // "-"), (.priority // "-"), ((.assignees // []) | join(",") | if . == "" then "-" else . end)] | @tsv' | \
+  echo "$json" | jq -r '.tasks[]? | [.id, (.title // "-" | .[0:40]), (.status // "-"), (.priority // "-"), ((.assignees // []) | map(.agentId) | join(",") | if . == "" then "-" else . end)] | @tsv' | \
   while IFS=$'\t' read -r id title status priority assignee; do
     printf "%-8s %-40s %-10s %-8s %-10s\n" "$id" "$title" "$status" "$priority" "$assignee"
   done
@@ -206,7 +262,7 @@ format_task_detail() {
     "Priority: \(.priority // "-")",
     "Category: \(.category // "-")",
     "Description: \(.description // "-")",
-    "Assignees: \((.assignees // []) | join(", ") | if . == "" then "-" else . end)",
+    "Assignees: \((.assignees // []) | map(.agentId) | join(", ") | if . == "" then "-" else . end)",
     "Created: \(.createdAt // "-")",
     "Updated: \(.updatedAt // "-")"
   '

@@ -553,19 +553,33 @@ async function fetchRenderedFileHtml(ctx: ViewContext, filePath: string): Promis
 
         let html = await response.text();
 
-        // VSCode Webview用: openFile()ハンドラを注入（サーバーのフォールバックを上書き）
-        // パスリンクのonclickからpostMessageでextensionに通知し、ネストしたファイルも開ける
+        // VSCode Webview用: path-link/report-link のクリックハンドラを注入
+        // addEventListenerでpostMessageを使い、extensionに通知してファイルを開く
         const vscodeOpenFileScript = `
     <script>
         var _vscodeApi = null;
         try { if (typeof acquireVsCodeApi !== 'undefined') { _vscodeApi = acquireVsCodeApi(); } } catch (e) {}
-        window.openFile = function(element, filePath) {
-            if (_vscodeApi) {
-                _vscodeApi.postMessage({ command: 'openFile', path: filePath });
-                return false;
-            }
-            return true;
-        };
+
+        // path-link のクリックハンドラ（VSCode Webview用）
+        document.querySelectorAll('.path-link').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                if (_vscodeApi) {
+                    e.preventDefault();
+                    _vscodeApi.postMessage({ command: 'openFile', path: this.dataset.path });
+                }
+                // ブラウザではデフォルトのhref遷移を許可
+            });
+        });
+
+        // report-link のクリックハンドラ（念のため）
+        document.querySelectorAll('.report-link').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                if (_vscodeApi) {
+                    e.preventDefault();
+                    _vscodeApi.postMessage({ command: 'openFile', path: this.dataset.path });
+                }
+            });
+        });
     </script>`;
         html = html.replace('</body>', vscodeOpenFileScript + '\n</body>');
 

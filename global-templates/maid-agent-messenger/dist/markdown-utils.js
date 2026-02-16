@@ -16,8 +16,14 @@ export function escapeHtml(str) {
  * 簡易マークダウン→HTML変換
  */
 export function convertMarkdownToHtml(markdown) {
+    // 後方互換: 旧形式（\\n）で保存されたデータ用のフォールバック
+    // YAML ダブルクォート文字列内の改行が \\n として保存されていたため、
+    // 実際の改行文字に変換する。#219-3 で根本修正（リテラルブロック形式）済みだが、
+    // 外部データや古いデータの読み込みに対応するため削除しない。
+    // @see docs/plans/task-219-1-yaml-newline-fix.md
+    let html = markdown.replace(/\\n/g, '\n');
     // 改行コードを統一（Windows CRLF対応）
-    let html = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    html = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     html = escapeHtml(html);
     // コードブロック（```）
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang, code) => {
@@ -163,14 +169,14 @@ export function linkifyProjectPaths(html, projectPath, pathPrefixes = DEFAULT_PA
         return `\x00PLACEHOLDER_${placeholders.length - 1}\x00`;
     });
     // Step 2: パス検出と置換
-    const pathRegex = new RegExp(`(?:${pathPrefixes.join("|")})(?:/[\\w\\-.\\u3000-\\u9FFF]+)+(?:\\.\\w+)?`, "g");
+    // #223: #, (), 全角括弧（）を追加
+    const pathRegex = new RegExp(`(?:${pathPrefixes.join("|")})(?:/[\\w\\-.#()\\u3000-\\u9FFF\\uFF08\\uFF09]+)+(?:\\.\\w+)?`, "g");
     result = result.replace(pathRegex, (match) => {
         const absolutePath = resolveToAbsolutePath(match, projectPath);
         const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
-        // onclick: VSCode Webviewでは openFile() でpostMessage、ブラウザではデフォルトリンク動作
-        // シングルクォートのエスケープ
-        const escapedPath = absolutePath.replace(/'/g, "\\'");
-        return `<a href="${fileViewUrl}" class="path-link" onclick="return openFile(this, '${escapedPath}')" title="${match}">${match}</a>`;
+        // data-path属性: addEventListenerで使用（CSP対応）
+        const escapedPath = absolutePath.replace(/"/g, "&quot;");
+        return `<a href="${fileViewUrl}" class="path-link" data-path="${escapedPath}" title="${match}">${match}</a>`;
     });
     // Step 3: プレースホルダーを復元
     result = result.replace(/\x00PLACEHOLDER_(\d+)\x00/g, (_, idx) => placeholders[parseInt(idx)]);

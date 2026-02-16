@@ -17,6 +17,7 @@ jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   readYamlFile: jest.fn(),
   writeYamlFile: jest.fn(),
   writeTextFile: jest.fn(),
+  stringifyYaml: jest.fn((data: unknown) => JSON.stringify(data)),
 }));
 
 // file-lock をモック

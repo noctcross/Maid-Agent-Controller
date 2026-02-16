@@ -22,6 +22,7 @@ jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
     writeYamlFile: jest.fn(),
     sanitizeDescription: jest.fn((s) => s),
     copyFile: jest.fn(),
+    stringifyYaml: jest.fn((data) => stringify(data)),
 }));
 jest.unstable_mockModule("../../utils/file-lock.js", () => ({
     withFileLock: jest.fn(),

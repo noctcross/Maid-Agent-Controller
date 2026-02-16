@@ -393,6 +393,21 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
       }
     } catch (e) {}
 
+    // デバウンス関数（連続操作を制御）
+    function debounce(func, wait) {
+      let timeoutId = null;
+      return function(...args) {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
+    // チェック操作後のリフレッシュをデバウンス化（300ms）
+    // requestCompletedPage は後で定義されるため、関数呼び出しでラップ
+    var debouncedRefreshCompletedPage = debounce(function() {
+      requestCompletedPage();
+    }, 300);
+
     // VSCode Webview用: ファイルをプレビュー付きで開く
     // ブラウザでは通常のリンク動作（/file?path=...）にフォールバック
     function openFile(element, filePath) {
@@ -414,8 +429,8 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
           headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}' },
           body: JSON.stringify({ reviewed: newValue })
         }).then(function() {
-          // サーバーサイドフィルタで現在ページを再取得
-          requestCompletedPage();
+          // サーバーサイドフィルタで現在ページを再取得（デバウンス化）
+          debouncedRefreshCompletedPage();
         });
       }
     }
@@ -430,8 +445,8 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
           headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}' },
           body: JSON.stringify({ starred: newValue })
         }).then(function() {
-          // サーバーサイドフィルタで現在ページを再取得
-          requestCompletedPage();
+          // サーバーサイドフィルタで現在ページを再取得（デバウンス化）
+          debouncedRefreshCompletedPage();
         });
       }
     }
@@ -850,6 +865,16 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
           // ブラウザではデフォルトのhref遷移を許可
         });
       });
+      // C-1.5: パスリンク (openFile) - CSP対応でonclick→addEventListenerに移行
+      item.querySelectorAll('.path-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+          if (_vscodeApi) {
+            e.preventDefault();
+            _vscodeApi.postMessage({ command: 'openFile', path: this.dataset.path });
+          }
+          // ブラウザではデフォルトのhref遷移を許可
+        });
+      });
       // C-2: レビューボタン (toggleReview)
       item.querySelectorAll('.review-btn').forEach(function(btn) {
         btn.addEventListener('click', function(e) {
@@ -881,16 +906,7 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
     const priorityFilter = document.getElementById('priorityFilter');
     const assigneeFilter = document.getElementById('assigneeFilter');
 
-    // デバウンス関数（サーバーサイド検索用）
-    function debounce(func, wait) {
-      let timeoutId = null;
-      return function(...args) {
-        if (timeoutId) clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => func.apply(this, args), wait);
-      };
-    }
-
-    // 完了タスクの検索状態
+    // 完了タスクの検索状態（debounce関数は冒頭で定義済み）
     var completedSearchTerm = '';
 
     function filterTasks() {

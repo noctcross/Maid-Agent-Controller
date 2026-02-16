@@ -36,6 +36,7 @@ jest.unstable_mockModule("../../utils/config-loader.js", () => ({
 
 jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   getJstTimestamp: () => "2026-02-09 00:00:00",
+  stringifyYaml: (data: unknown) => JSON.stringify(data),
 }));
 
 jest.unstable_mockModule("../../utils/path-helpers.js", () => ({

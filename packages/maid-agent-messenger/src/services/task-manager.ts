@@ -8,9 +8,9 @@
 import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import * as path from "path";
-import { parse, stringify } from "yaml";
+import { parse } from "yaml";
 import { withFileLock } from "../utils/file-lock.js";
-import { getTimestamp, fileExists } from "../utils/yaml-helper.js";
+import { getTimestamp, fileExists, stringifyYaml } from "../utils/yaml-helper.js";
 
 // === 型定義 ===
 
@@ -148,7 +148,7 @@ async function withTasksLock<T>(
 
   // ファイルが存在しない場合は初期ファイル作成
   if (!(await fileExists(filePath))) {
-    const initialContent = stringify(createInitialData(), { lineWidth: 120 });
+    const initialContent = stringifyYaml(createInitialData());
     await fs.writeFile(filePath, initialContent, "utf-8");
   }
 
@@ -163,8 +163,8 @@ async function withTasksLock<T>(
       // 操作実行
       const { data: newData, result } = await operation(data);
 
-      // 書き込み
-      const yamlContent = stringify(newData, { lineWidth: 120 });
+      // 書き込み（統一設定: stringifyYaml 使用）
+      const yamlContent = stringifyYaml(newData);
       await fs.writeFile(filePath, yamlContent, "utf-8");
 
       return result;

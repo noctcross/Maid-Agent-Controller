@@ -15,6 +15,7 @@ jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   fileExists: jest.fn(),
   copyFile: jest.fn(),
   sanitizeDescription: jest.fn((s: string) => s),
+  stringifyYaml: jest.fn((data: unknown) => JSON.stringify(data)),
 }));
 
 jest.unstable_mockModule("../../services/task-manager.js", () => ({

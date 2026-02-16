@@ -14,6 +14,7 @@ jest.unstable_mockModule("../../middleware/session-manager.js", () => ({
 
 jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   getTimestamp: () => "2026-02-09T00:00:00+09:00",
+  stringifyYaml: (data: unknown) => JSON.stringify(data),
 }));
 
 // --- ダイナミックインポート ---

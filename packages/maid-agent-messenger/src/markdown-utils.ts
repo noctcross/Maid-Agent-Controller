@@ -19,8 +19,15 @@ export function escapeHtml(str: string): string {
  * 簡易マークダウン→HTML変換
  */
 export function convertMarkdownToHtml(markdown: string): string {
+  // 後方互換: 旧形式（\\n）で保存されたデータ用のフォールバック
+  // YAML ダブルクォート文字列内の改行が \\n として保存されていたため、
+  // 実際の改行文字に変換する。#219-3 で根本修正（リテラルブロック形式）済みだが、
+  // 外部データや古いデータの読み込みに対応するため削除しない。
+  // @see docs/plans/task-219-1-yaml-newline-fix.md
+  let html = markdown.replace(/\\n/g, '\n');
+
   // 改行コードを統一（Windows CRLF対応）
-  let html = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  html = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   html = escapeHtml(html);
 
@@ -196,8 +203,9 @@ export function linkifyProjectPaths(
   );
 
   // Step 2: パス検出と置換
+  // #223: #, (), 全角括弧（）を追加
   const pathRegex = new RegExp(
-    `(?:${pathPrefixes.join("|")})(?:/[\\w\\-.\\u3000-\\u9FFF]+)+(?:\\.\\w+)?`,
+    `(?:${pathPrefixes.join("|")})(?:/[\\w\\-.#()\\u3000-\\u9FFF\\uFF08\\uFF09]+)+(?:\\.\\w+)?`,
     "g",
   );
 

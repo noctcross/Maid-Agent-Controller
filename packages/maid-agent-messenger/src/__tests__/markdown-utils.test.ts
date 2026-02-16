@@ -178,6 +178,26 @@ describe("linkifyProjectPaths", () => {
     expect(Array.isArray(DEFAULT_PATH_PREFIXES)).toBe(true);
     expect(DEFAULT_PATH_PREFIXES.length).toBeGreaterThan(0);
   });
+
+  // --- 特殊文字を含むパス（#223対応） ---
+
+  it("#を含むパスをリンク化する", () => {
+    const input = "<p>.maid-agent/master/reports/task-221-rose-#221_バグ調査.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">.maid-agent/master/reports/task-221-rose-#221_バグ調査.md</a>");
+  });
+
+  it("半角括弧を含むパスをリンク化する", () => {
+    const input = "<p>docs/design/機能追加(v2).md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/design/機能追加(v2).md</a>");
+  });
+
+  it("全角括弧を含むパスをリンク化する", () => {
+    const input = "<p>docs/設計（詳細）/overview.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/設計（詳細）/overview.md</a>");
+  });
 });
 
 describe("convertMarkdownToHtml", () => {
@@ -246,6 +266,27 @@ describe("convertMarkdownToHtml", () => {
     expect(result).toContain("Paragraph");
     // \r が残っていないこと
     expect(result).not.toContain("\r");
+  });
+
+  // --- エスケープされた改行の変換（#219対応） ---
+
+  it("エスケープされた改行(\\\\n)を実際の改行に変換する", () => {
+    // YAML ダブルクォート文字列で \\n と書かれたものがリテラル \n として読み込まれるケースに対応
+    const input = "## 背景\\n説明文";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("<h2>");
+    expect(result).toContain("背景");
+    // \\n がリテラルとして残っていないこと
+    expect(result).not.toContain("\\n");
+  });
+
+  it("複数のエスケープされた改行を変換する", () => {
+    const input = "行1\\n行2\\n\\n行4";
+    const result = convertMarkdownToHtml(input);
+    // 単一改行は<br>に、二重改行は段落区切りに
+    expect(result).toContain("<br>");
+    expect(result).toContain("</p><p>");
+    expect(result).not.toContain("\\n");
   });
 
   // --- 既存機能の回帰テスト ---

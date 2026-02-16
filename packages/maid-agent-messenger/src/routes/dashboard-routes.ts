@@ -17,6 +17,7 @@ import { getQueueMaidPath } from "../utils/path-helpers.js";
 import type { DashboardData } from "../views/dashboard-html.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 import { recordProjectAccess } from "../services/project-registry.js";
+import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 
 // DashboardData型を再エクスポート
 export type { DashboardData };
@@ -25,10 +26,11 @@ export interface DashboardRoutesDeps {
   generateDashboardHtml: (data: DashboardData, editorScheme?: string) => string;
   generateTaskHtml: (tasks: any[], type: string, projectPath: string, scheme?: string) => string;
   composeMasterWaitingHtml: (masterWaitingTasks: any[], masterReviewTasks: any[], projectPath: string, scheme?: string) => string;
+  wsServer?: DashboardWebSocketServer; // WebSocket サーバー（オプション）
 }
 
 export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
-  const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml } = deps;
+  const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, wsServer } = deps;
   const router = Router();
 
   // GET /dashboard - HTMLダッシュボード（ブラウザ用）
@@ -364,6 +366,16 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         return;
       }
 
+      // WebSocket通知: タスク更新をリアルタイム配信
+      if (wsServer) {
+        wsServer.broadcast(projectPath, {
+          type: "taskUpdated",
+          taskId: req.params.id,
+          field: "reviewed",
+          value: result.task?.reviewed,
+        });
+      }
+
       res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -385,6 +397,16 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
       if (!result.success) {
         res.status(404).json({ error: "Task not found", taskId: req.params.id });
         return;
+      }
+
+      // WebSocket通知: タスク更新をリアルタイム配信
+      if (wsServer) {
+        wsServer.broadcast(projectPath, {
+          type: "taskUpdated",
+          taskId: req.params.id,
+          field: "starred",
+          value: result.task?.starred,
+        });
       }
 
       res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });

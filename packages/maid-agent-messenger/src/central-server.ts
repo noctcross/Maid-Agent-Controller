@@ -11,6 +11,7 @@
  */
 
 import express, { Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import { loadConfig, getServerUrl } from "./utils/config-loader.js";
 import { getTimestamp } from "./utils/yaml-helper.js";
 
@@ -36,6 +37,7 @@ import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js
 import { createMcpServer } from "./mcp-server-factory.js";
 import { KeepAliveManager } from "./middleware/keepalive-manager.js";
 import { loopbackOnly } from "./middleware/loopback-only.js";
+import { DashboardWebSocketServer } from "./websocket/dashboard-ws.js";
 
 const app = express();
 app.use(express.json());
@@ -75,6 +77,15 @@ async function main(): Promise<void> {
     : undefined;
 
   // ========================================
+  // HTTPサーバー・WebSocketサーバー作成
+  // ========================================
+  const server = createServer(app);
+  const wsServer = new DashboardWebSocketServer(server, {
+    pingInterval: config.keepalive.ping_interval || 30000,
+    pongTimeout: 10000,
+  });
+
+  // ========================================
   // ルートマウント
   // ========================================
 
@@ -82,7 +93,7 @@ async function main(): Promise<void> {
   // ※ loopbackOnly付きルートを先にマウントすると、パス指定なしの
   //    app.use(loopbackOnly, router) が全リクエストをブロックしてしまうため
   app.use(createTopPageRoutes({ generateTopPageHtml }));  // トップページ（プロジェクト一覧）
-  app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml }));
+  app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, wsServer }));
   app.use(fileRoutes);
   app.use(imageRoutes);
   // 非公開エンドポイント（loopbackのみ）
@@ -98,13 +109,14 @@ async function main(): Promise<void> {
     res.status(500).json({ error: "Internal server error" });
   });
 
-  const server = app.listen(port, host, () => {
+  server.listen(port, host, () => {
     console.log(`Central MCP Server v4.1.0 running on ${getServerUrl(config)}`);
     console.log(`MCP endpoint: ${getServerUrl(config)}/mcp`);
     console.log(`Health check: ${getServerUrl(config)}/health`);
     console.log(`Mode: Streamable HTTP Transport (Multi-Project Support)`);
     console.log(`Note: Requires X-Maid-Project-Path header for project identification`);
     console.log(`Session GC: interval=${config.keepalive.gc_interval}ms, idle_timeout=${config.keepalive.session_idle_timeout}ms`);
+    console.log(`WebSocket endpoint: ws://${host}:${port}/dashboard/ws`);
   });
 
   // HTTP Keep-Alive タイムアウト設定
@@ -126,6 +138,7 @@ async function main(): Promise<void> {
     if (keepAliveManager) {
       keepAliveManager.stopAll();
     }
+    wsServer.close();
     server.close();
   };
 

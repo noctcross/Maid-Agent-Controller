@@ -80,8 +80,25 @@ export function getDashboardStyles(): string {
     .completed { opacity: 0.7; }
     .completed.reviewed { opacity: 0.5; }
     .task-actions { display: flex; gap: 4px; margin-left: auto; flex-shrink: 0; }
-    .task-action-btn { background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 0.85rem; opacity: 0.5; transition: opacity 0.2s; line-height: 1; }
+    .task-action-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 4px;
+      font-size: 0.85rem;
+      opacity: 0.7;
+      transition: opacity 0.2s, transform 0.1s;
+      line-height: 1;
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: rgba(86, 156, 214, 0.3);
+    }
     .task-action-btn:hover { opacity: 1; }
+    .task-action-btn:active { transform: scale(0.95); opacity: 1; }
     .task-action-btn.active { opacity: 1; }
     .task-action-btn.review-btn.active { color: var(--success-color); }
     .task-action-btn.star-btn.active { color: #f5c542; }
@@ -133,6 +150,29 @@ export function getDashboardStyles(): string {
     .special-section { grid-column: 1 / -1; }
     .special-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     @media (max-width: 768px) { .special-grid { grid-template-columns: 1fr; } }
+    /* タッチターゲット最適化: モバイル768px以下 */
+    @media (max-width: 768px) {
+      .task-action-btn,
+      .sort-toggle-btn,
+      .filter-toggle-btn,
+      .pagination-btn {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        touch-action: manipulation;
+      }
+      .sort-toggle-btn:active,
+      .filter-toggle-btn:active,
+      .pagination-btn:active {
+        transform: scale(0.95);
+      }
+      .task-actions { gap: 2px; }
+      .sort-toggle-group { gap: 2px; }
+      .completed-filter-group { gap: 2px; }
+    }
     /* モバイル対応: 500px以下でフィルタUIを縦並びに変更 */
     @media (max-width: 500px) {
       .controls-section {

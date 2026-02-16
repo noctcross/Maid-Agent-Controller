@@ -1375,6 +1375,14 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
     // 初期表示: ページネーションとフィルターを初期化
     initCompletedPagination();
 
+    // bfcache（Back/Forward Cache）からの復元時にデータを再取得
+    window.addEventListener('pageshow', function(event) {
+      if (event.persisted) {
+        console.log('[Dashboard] Restored from bfcache, refreshing data...');
+        refreshDashboard();
+      }
+    });
+
     // === addEventListener登録（インラインonclick置換） ===
 
     // A-1: ソートボタン

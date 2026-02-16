@@ -978,7 +978,6 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         ws.onopen = function() {
           console.log('[WS] Connected');
           wsReconnectAttempts = 0;
-          stopPolling();  // ポーリング停止
         };
 
         ws.onmessage = function(event) {
@@ -993,7 +992,6 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         ws.onclose = function(event) {
           console.log('[WS] Disconnected:', event.code, event.reason);
           ws = null;
-          startPolling();  // フォールバック
           scheduleReconnect();
         };
 
@@ -1002,14 +1000,13 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         };
       } catch (e) {
         console.error('[WS] Connection failed:', e);
-        startPolling();
         scheduleReconnect();
       }
     }
 
     function scheduleReconnect() {
       if (wsReconnectAttempts >= WS_MAX_RECONNECT_ATTEMPTS) {
-        console.log('[WS] Max reconnect attempts reached, using polling');
+        console.log('[WS] Max reconnect attempts reached, real-time updates disabled');
         return;
       }
 
@@ -1054,10 +1051,6 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
       }
     }
 
-    // Phase 3: ポーリングによるリアルタイム更新（表示設定を送信可能）
-    let pollingIntervalId = null;
-    const POLLING_INTERVAL = 10000; // 10秒
-
     // 展開状態を記憶するMap（taskId -> expanded）
     const expandedState = new Map();
 
@@ -1069,45 +1062,6 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
     const serverBaseUrl = (typeof acquireVsCodeApi !== 'undefined')
       ? '${data.serverUrl}'.replace('0.0.0.0', '127.0.0.1')
       : window.location.origin;
-
-    function startPolling() {
-      if (pollingIntervalId) return; // 既に開始済み
-      pollingIntervalId = setInterval(fetchDashboardData, POLLING_INTERVAL);
-    }
-
-    function stopPolling() {
-      if (pollingIntervalId) {
-        clearInterval(pollingIntervalId);
-        pollingIntervalId = null;
-      }
-    }
-
-    function fetchDashboardData() {
-      var projectPath = encodeURIComponent('${escapeHtml(projectPath)}');
-      var limit = getCompletedLimit();
-      var offset = completedCurrentPage * limit;
-
-      // フィルタパラメータを構築
-      var completedParams = '&completedLimit=' + limit + '&completedOffset=' + offset;
-      if (completedFilterReview !== 'all') completedParams += '&completedReviewed=' + completedFilterReview;
-      if (completedFilterStar !== 'all') completedParams += '&completedStarred=' + completedFilterStar;
-      if (completedHash) completedParams += '&completedHash=' + completedHash;
-      if (sortState.completed !== 'id') completedParams += '&completedSortField=' + sortState.completed;
-      if (completedSearchTerm) completedParams += '&completedSearch=' + encodeURIComponent(completedSearchTerm);
-
-      var url = serverBaseUrl + '/dashboard/data?project=' + projectPath + completedParams;
-      fetch(url)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          // 統計を更新
-          updateStats(data.stats);
-          // タスクリストを更新（completedMeta付き）
-          updateTaskListsWithMeta(data.tasks, data.completedMeta);
-        })
-        .catch(function(e) {
-          console.error('Polling error:', e);
-        });
-    }
 
     function updateTaskListsWithMeta(tasks, completedMeta) {
       if (!tasks) return;
@@ -1333,18 +1287,11 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
       });
     }
 
-    // WebSocket接続を優先、フォールバックでポーリング
-    // VSCode WebviewではacquireVsCodeApiが存在するので、それで判定
-    const isVSCodeWebview = typeof acquireVsCodeApi !== 'undefined';
-
-    // WebSocket接続を試行（ブラウザ/VSCode両方で）
+    // WebSocket接続を開始（ブラウザ/VSCode両方で）
     try {
       connectWebSocket();
     } catch (e) {
-      console.log('[WS] WebSocket not available, falling back to polling:', e);
-      if (!isVSCodeWebview) {
-        startPolling();
-      }
+      console.error('[WS] WebSocket initialization failed:', e);
     }
 
     // 初期表示: ページネーションとフィルターを初期化

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ViewContext } from '../types';
-import { WEB_DASHBOARD_POLLING_INTERVAL, DASHBOARD_SERVER_URL, DASHBOARD_MAX_CONSECUTIVE_FAILURES } from '../constants';
+import { DASHBOARD_SERVER_URL, DASHBOARD_MAX_CONSECUTIVE_FAILURES } from '../constants';
 import { CURRENT_ENV, windowsToWslPath } from '../utils/environment';
 import { simpleMarkdownToHtml } from '../utils/markdown';
 import { isPathWithinRoot, isPathWithinRootCrossEnv, normalizePathForValidation } from '../utils/path-validator';
@@ -31,11 +31,7 @@ export function showDashboard(ctx: ViewContext): void {
     ctx.dashboardPanel.onDidDispose(() => {
         ctx.dashboardPanel = undefined;
         ctx.dashboardInitialized = false;
-        stopDashboardPolling(ctx);
     });
-
-    // WebSocket で更新されるため、ポーリングは不要
-    // startDashboardPolling(ctx);
 
     setupDashboardMessageHandler(ctx, ctx.dashboardPanel);
 
@@ -223,34 +219,6 @@ export async function updateDashboard(ctx: ViewContext): Promise<void> {
             ctx.dashboardConsecutiveFailures = 0;
         }
         // shouldShowError=false の場合は何もしない（次のポーリングで再試行）
-    }
-}
-
-/**
- * ダッシュボードの自動更新ポーリングを開始
- */
-export function startDashboardPolling(ctx: ViewContext): void {
-    if (ctx.dashboardPollingInterval) return;
-
-    ctx.dashboardPollingInterval = setInterval(() => {
-        if (ctx.dashboardPanel) {
-            updateDashboard(ctx);
-        } else {
-            stopDashboardPolling(ctx);
-        }
-    }, WEB_DASHBOARD_POLLING_INTERVAL);
-
-    ctx.log('[Dashboard] 自動更新ポーリング開始（10秒間隔）');
-}
-
-/**
- * ダッシュボードの自動更新ポーリングを停止
- */
-export function stopDashboardPolling(ctx: ViewContext): void {
-    if (ctx.dashboardPollingInterval) {
-        clearInterval(ctx.dashboardPollingInterval);
-        ctx.dashboardPollingInterval = undefined;
-        ctx.log('[Dashboard] 自動更新ポーリング停止');
     }
 }
 
@@ -833,11 +801,7 @@ export function restoreDashboardPanel(ctx: ViewContext, panel: vscode.WebviewPan
     // パネル破棄時の処理を再設定
     panel.onDidDispose(() => {
         ctx.dashboardPanel = undefined;
-        stopDashboardPolling(ctx);
     });
-
-    // WebSocket で更新されるため、ポーリングは不要
-    // startDashboardPolling(ctx);
 
     // メッセージハンドラを再設定
     setupDashboardMessageHandler(ctx, panel);

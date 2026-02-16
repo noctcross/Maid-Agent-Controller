@@ -142,7 +142,6 @@ export interface ViewContext {
     controllerPanel: vscode.WebviewPanel | undefined;
     dashboardPanel: vscode.WebviewPanel | undefined;
     dashboardInitialized: boolean;
-    dashboardPollingInterval: NodeJS.Timeout | undefined;
     dashboardConsecutiveFailures: number;  // ダッシュボード接続の連続失敗回数
     completedViewState: CompletedViewState;
     reportViewerPanel: vscode.WebviewPanel | undefined;
@@ -164,6 +163,4 @@ export interface ViewContext {
     openFileWithPreview(filePath: string): Promise<void>;
     openDashboardInBrowser(): void;
     showStatusBarNotification(icon: string, message: string): void;
-    startDashboardPolling(): void;
-    stopDashboardPolling(): void;
 }

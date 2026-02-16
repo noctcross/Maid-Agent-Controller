@@ -1047,6 +1047,34 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
       setTimeout(connectWebSocket, delay);
     }
 
+    // タスク一覧を再取得（HTTP API経由）- ブラウザ用
+    function fetchTasks() {
+      var url = window.location.origin + '/dashboard/data?project=' + encodeURIComponent('${escapeHtml(projectPath)}');
+      fetch(url)
+        .then(function(response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return response.json();
+        })
+        .then(function(data) {
+          if (data.stats) updateStats(data.stats);
+          if (data.tasks) updateTaskListsWithMeta(data.tasks, data.completedMeta);
+        })
+        .catch(function(err) {
+          console.error('[fetchTasks] Error:', err);
+        });
+    }
+
+    // ダッシュボードデータを再取得（IDE/ブラウザ判定）
+    function refreshDashboard() {
+      if (_vscodeApi) {
+        // IDE Webview: extension側にデータ再取得を依頼（fetchがブロックされるため）
+        _vscodeApi.postMessage({ command: 'refreshDashboard' });
+      } else {
+        // ブラウザ: 直接API呼び出し
+        fetchTasks();
+      }
+    }
+
     function handleWebSocketEvent(event) {
       switch (event.type) {
         case 'connected':
@@ -1062,8 +1090,27 @@ export function generateDashboardHtml(data: DashboardData, editorScheme: string 
           break;
 
         case 'taskUpdated':
-          // 個別タスク更新（将来拡張用）
+          // タスク更新 → タスク一覧を再取得
           console.log('[WS] Task updated:', event.taskId, event.field);
+          refreshDashboard();
+          break;
+
+        case 'taskCreated':
+          // タスク作成 → タスク一覧を再取得
+          console.log('[WS] Task created:', event.taskId);
+          refreshDashboard();
+          break;
+
+        case 'taskAssigned':
+          // タスク割り当て → タスク一覧を再取得
+          console.log('[WS] Task assigned:', event.taskId, 'to', event.assignee);
+          refreshDashboard();
+          break;
+
+        case 'statusUpdated':
+          // ステータス更新 → タスク一覧を再取得
+          console.log('[WS] Status updated:', event.agentId, event.status);
+          refreshDashboard();
           break;
 
         case 'ping':

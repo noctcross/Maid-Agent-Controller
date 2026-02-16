@@ -77,11 +77,76 @@ function setupDashboardMessageHandler(ctx: ViewContext, panel: vscode.WebviewPan
                         completedSortField: message.completedSortField,
                     };
                     break;
+                case 'refreshDashboard':
+                    // WebSocketイベント受信時のデータ再取得（IDE Webview用）
+                    // fetchがブロックされるため、extension側でfetchしてpostMessageで返却
+                    refreshDashboardData(ctx, panel);
+                    break;
             }
         },
         undefined,
         ctx.context?.subscriptions
     );
+}
+
+/**
+ * WebSocketイベント受信時のデータ再取得（IDE Webview用）
+ * fetchがブロックされるため、extension側でfetchしてpostMessageで返却
+ */
+async function refreshDashboardData(ctx: ViewContext, panel: vscode.WebviewPanel): Promise<void> {
+    const serverUrl = DASHBOARD_SERVER_URL;
+    let projectPath = ctx.workspaceRoot;
+    if (!projectPath) {
+        projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    }
+    if (!projectPath) {
+        ctx.log('[Dashboard] refreshDashboardData: プロジェクトパスが取得できません');
+        return;
+    }
+
+    const normalizedPath = CURRENT_ENV === 'windows-native'
+        ? windowsToWslPath(projectPath)
+        : projectPath;
+
+    try {
+        // completedViewStateを使ってクエリパラメータを構築
+        const state = ctx.completedViewState;
+        let dataUrl = `${serverUrl}/dashboard/data?project=${encodeURIComponent(normalizedPath)}`;
+        dataUrl += `&completedLimit=${state.limit}`;
+        dataUrl += `&completedOffset=${state.offset}`;
+        if (state.reviewed) dataUrl += `&completedReviewed=${state.reviewed}`;
+        if (state.starred) dataUrl += `&completedStarred=${state.starred}`;
+        if (state.hash) dataUrl += `&completedHash=${state.hash}`;
+        if (state.completedSortField) dataUrl += `&completedSortField=${state.completedSortField}`;
+
+        const response = await fetch(dataUrl);
+        if (!response.ok) {
+            throw new Error(`Dashboard data fetch failed: ${response.status}`);
+        }
+
+        const data = await response.json() as {
+            stats: { pendingCount: number; workingCount: number; masterWaitingCount: number; completedTodayCount: number; timestamp: string };
+            tasks: { pending: string; working: string; masterWaiting: string; masterReview: string; completed?: string };
+            completedMeta?: { changed: boolean; hash: string; total: number };
+        };
+
+        // ハッシュを更新
+        if (data.completedMeta?.hash) {
+            ctx.completedViewState.hash = data.completedMeta.hash;
+        }
+
+        // postMessageでWebviewにデータを送信
+        panel.webview.postMessage({
+            type: 'dashboardUpdate',
+            stats: data.stats,
+            tasks: data.tasks,
+            completedMeta: data.completedMeta
+        });
+
+        ctx.log('[Dashboard] refreshDashboardData: データ更新送信');
+    } catch (error) {
+        ctx.log(`[Dashboard] refreshDashboardData error: ${error}`);
+    }
 }
 
 /**

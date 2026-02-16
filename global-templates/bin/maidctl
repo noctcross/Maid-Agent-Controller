@@ -909,7 +909,13 @@ cmd_team_report() {
     echo "$result"
   else
     if check_jq; then
-      echo "$result" | jq -r '.content // "レポートがありません"'
+      echo "$result" | jq -r '
+        if .reports and (.reports | length > 0) then
+          .reports[0].content // "レポート内容が空です"
+        else
+          .message // "レポートがありません"
+        end
+      '
     else
       echo "$result"
     fi

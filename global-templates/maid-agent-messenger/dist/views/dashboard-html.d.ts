@@ -1,6 +1,11 @@
 /**
  * ダッシュボードHTML生成
  * generateDashboardHtml() - メインダッシュボードのHTML生成
+ *
+ * CSS/JS/HTMLテンプレートを各モジュールに委譲する形式に変更。
+ * - dashboard-styles.ts: CSSスタイル定義
+ * - dashboard-scripts.ts: JavaScriptコード
+ * - dashboard-template.ts: HTMLボディテンプレート
  */
 import type { AgentStatus } from "../types/index.js";
 export interface DashboardData {
@@ -82,4 +87,11 @@ export interface DashboardData {
     };
     serverUrl: string;
 }
+/**
+ * ダッシュボードHTMLを生成
+ *
+ * @param data - ダッシュボードに表示するデータ
+ * @param editorScheme - エディタスキーム（デフォルト: "vscode"）
+ * @returns 完全なHTML文字列
+ */
 export declare function generateDashboardHtml(data: DashboardData, editorScheme?: string): string;

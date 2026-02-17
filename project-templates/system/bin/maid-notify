@@ -212,11 +212,12 @@ MESSAGE="$2"
 # ターゲット検証
 validate_target "$TARGET" || exit 1
 
-# 送信者を特定
+# 送信者を特定（$TMUX_PANEがない場合は取得できないため unknown）
 if [ -n "$TMUX_PANE" ]; then
     SENDER=$(tmux display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || echo "unknown")
 else
-    SENDER=$(tmux display-message -p '#{window_name}' 2>/dev/null || echo "unknown")
+    # $TMUX_PANEがない場合、アクティブウィンドウに依存するため unknown とする
+    SENDER="unknown"
 fi
 
 # タイムスタンプを取得

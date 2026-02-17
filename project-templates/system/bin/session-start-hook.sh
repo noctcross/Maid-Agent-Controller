@@ -6,8 +6,8 @@
 # 1. tmux環境チェック - tmux外ならスキップ
 [ -z "$TMUX" ] && exit 0
 
-# 2. tmux window name 取得
-WINDOW_NAME=$(tmux display-message -p '#{window_name}' 2>/dev/null)
+# 2. tmux window name 取得（実行中のペインのウィンドウ名を取得）
+WINDOW_NAME=$(tmux display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null)
 [ -z "$WINDOW_NAME" ] && exit 0
 
 # 3. エージェント名一覧と照合

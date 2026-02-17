@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as nodePath from 'path';
 import { execSync } from 'child_process';
 import { SetupContext } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { windowsToWslPath } from '../utils/environment';
 import { DASHBOARD_SERVER_URL } from '../constants';
 import { checkPasswordlessSudo, setupPasswordlessSudo, promptWslPassword, showPasswordHelp } from './wsl-setup';
+import { detectPackageManager, PM_CONFIG, PackageManager } from '../utils/package-manager';
 
 /**
  * WSLパスワードキャッシュ（モジュールスコープ）
@@ -16,6 +18,7 @@ let cachedWslPassword: string | undefined;
 
 /**
  * シェルコマンドを実行（OS環境に応じてWSL経由または直接実行）
+ * ログインシェル（-l）で実行することで、nvm/nodenv/Homebrew等のPATH設定を読み込む
  * @param command 実行するコマンド
  * @param options execSyncのオプション
  */
@@ -29,11 +32,22 @@ function runShellCommand(command: string, options?: { encoding?: BufferEncoding;
     };
 
     if (CURRENT_ENV === 'windows-native') {
-        // Windows: WSL経由で実行
-        return execSync(`wsl bash -c "${command.replace(/"/g, '\\"')}"`, execOptions);
+        // Windows: WSL経由でログインシェルとして実行
+        // -l: ログインシェル（.bash_profile/.profile を読み込む）
+        return execSync(`wsl bash -lc "${command.replace(/"/g, '\\"')}"`, execOptions);
     } else {
-        // Mac/Linux: 直接実行
-        return execSync(`bash -c "${command.replace(/"/g, '\\"')}"`, execOptions);
+        // Mac/Linux: ユーザーシェルをログインシェルとして実行
+        // macOS 2019〜 のデフォルトは zsh なので対応必須
+        const userShell = process.env.SHELL || '/bin/bash';
+        const shellName = nodePath.basename(userShell);
+
+        if (shellName === 'zsh' || shellName === 'bash') {
+            // zsh/bash: ユーザーシェルを使用
+            return execSync(`${userShell} -lc "${command.replace(/"/g, '\\"')}"`, execOptions);
+        } else {
+            // その他: bashにフォールバック
+            return execSync(`bash -lc "${command.replace(/"/g, '\\"')}"`, execOptions);
+        }
     }
 }
 
@@ -95,16 +109,17 @@ export async function setupMcpServer(ctx: SetupContext): Promise<void> {
                 }
             }
 
-            // 1. npm install
-            progress.report({ message: 'npm install 実行中...' });
+            // 1. 依存関係インストール
+            const pm = detectPackageManager(messengerPath);
+            progress.report({ message: `${PM_CONFIG[pm].displayName} install 実行中...` });
             try {
-                runShellCommand(`cd ${messengerPathForShell} && npm install`, {
+                runShellCommand(`cd ${messengerPathForShell} && ${PM_CONFIG[pm].install}`, {
                     timeout: 120000 // 2分タイムアウト
                 });
-                ctx.log('[MCP] npm install 完了');
+                ctx.log(`[MCP] ${PM_CONFIG[pm].displayName} install 完了`);
             } catch (error) {
-                ctx.log(`[MCP] npm install 失敗: ${error}`);
-                throw new Error('npm install に失敗しました');
+                ctx.log(`[MCP] ${PM_CONFIG[pm].displayName} install 失敗: ${error}`);
+                throw new Error(`${PM_CONFIG[pm].displayName} install に失敗しました`);
             }
 
             // 2. pm2 start
@@ -161,6 +176,8 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
     }
 
     // Windows (WSL) 環境の場合
+    const pm = detectPackageManager(getMcpServerPath());
+
     // パスワードレスsudoが設定されている場合
     if (checkPasswordlessSudo()) {
         try {
@@ -170,7 +187,7 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
                 cancellable: false
             }, async () => {
                 execSync(
-                    `wsl bash -c "sudo -n npm install -g pm2 2>&1"`,
+                    `wsl bash -lc "sudo -n ${PM_CONFIG[pm].globalInstall('pm2')} 2>&1"`,
                     { encoding: 'utf-8', timeout: 120000, stdio: 'pipe' }
                 );
             });
@@ -201,7 +218,7 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
                 cancellable: false
             }, async () => {
                 execSync(
-                    `wsl bash -c "sudo -S npm install -g pm2 2>&1"`,
+                    `wsl bash -lc "sudo -S ${PM_CONFIG[pm].globalInstall('pm2')} 2>&1"`,
                     { encoding: 'utf-8', timeout: 120000, input: password + '\n' }
                 );
             });
@@ -218,7 +235,7 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
     vscode.window.showErrorMessage(
         'pm2 のインストールに失敗しました。\n' +
         'WSL で以下を手動実行してください:\n' +
-        'sudo npm install -g pm2'
+        `sudo ${PM_CONFIG[pm].globalInstall('pm2')}`
     );
     return false;
 }
@@ -227,12 +244,13 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
  * pm2をMac/Linux環境でインストール
  */
 async function installPm2Native(ctx: SetupContext): Promise<boolean> {
+    const pm = detectPackageManager(getMcpServerPath());
     // ターミナルでインストール（sudoパスワード入力が必要な場合があるため）
     const terminal = vscode.window.createTerminal({
         name: '📦 pm2 インストール'
     });
     terminal.show();
-    terminal.sendText('sudo npm install -g pm2');
+    terminal.sendText(`sudo ${PM_CONFIG[pm].globalInstall('pm2')}`);
 
     const result = await vscode.window.showInformationMessage(
         'pm2のインストールを開始しました。\n' +

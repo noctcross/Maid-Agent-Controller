@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { execSync } from 'child_process';
 import { SetupContext } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
+import { generateSudoersContent } from '../utils/package-manager';
 
 /**
  * WSL2の状態をチェックし、必要に応じてセットアップを案内
@@ -269,13 +270,9 @@ export async function setupPasswordlessSudo(ctx: SetupContext): Promise<boolean>
     const username = getWslUsername();
     ctx.log(`[Sudo] WSLユーザー名: ${username}`);
 
-    // sudoersファイルの内容
+    // sudoersファイルの内容（npm/pnpm/yarn全対応）
     // 注意: visudoを通さずに直接書き込むため、構文エラーに注意
-    const sudoersContent = `# Maid Agent - Passwordless sudo for pm2 operations
-# Created by VSCode Maid Agent Extension
-${username} ALL=(ALL) NOPASSWD: /usr/bin/npm install -g pm2
-${username} ALL=(ALL) NOPASSWD: /usr/bin/env *
-`;
+    const sudoersContent = generateSudoersContent(username);
 
     const MAX_ATTEMPTS = 3;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {

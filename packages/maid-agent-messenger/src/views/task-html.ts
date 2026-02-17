@@ -67,15 +67,22 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
       </div>`;
     } else if (type === "working") {
       const elapsedTime = task.startedAt ? formatRelativeTime(task.startedAt) : "";
-      return `<div class="task-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}" data-updated="${task.updatedAt || task.createdAt}">
+      const isBlocked = task.status === "blocked";
+      const blockedClass = isBlocked ? " blocked-item" : "";
+      const statusIcon = isBlocked ? "🚫" : "🕐";
+      const substatusHtml = isBlocked && task.substatus
+        ? `<div class="task-substatus">⚠️ ${escapeHtml(task.substatus)}</div>`
+        : "";
+      return `<div class="task-item${blockedClass}" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}" data-updated="${task.updatedAt || task.createdAt}">
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
-        ${elapsedTime ? `<span class="task-date">🕐 ${elapsedTime}</span>` : ""}
+        ${elapsedTime ? `<span class="task-date">${statusIcon} ${elapsedTime}</span>` : (isBlocked ? `<span class="task-date">${statusIcon} blocked</span>` : "")}
+        ${substatusHtml}
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
-          <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
+          <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}${isBlocked && task.substatus ? ` - ${escapeHtml(task.substatus)}` : ""}</span></div>
         </div>
       </div>`;
     } else if (type === "completed") {

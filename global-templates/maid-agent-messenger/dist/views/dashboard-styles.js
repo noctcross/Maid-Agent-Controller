@@ -177,7 +177,7 @@ export function getDashboardStyles() {
     .card-skill { border-left: 3px solid #9b59b6; }
     .card-improvement { border-left: 3px solid #f39c12; }
     .action-required-item { border-left: 3px solid var(--error-color); }
-    .blocked-item { border-left: 3px solid #ff6b6b; }
+    .blocked-item { border-left: 3px solid #ff6b6b; background: rgba(241, 76, 76, 0.15); }
     .skill-item { border-left: 3px solid #9b59b6; }
     .improvement-item { border-left: 3px solid #f39c12; }
     .task-main-row { display: flex; gap: 8px; align-items: center; width: 100%; }

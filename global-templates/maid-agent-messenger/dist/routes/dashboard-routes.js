@@ -35,7 +35,7 @@ export function createDashboardRoutes(deps) {
             const completedSortField = req.query.completedSortField === "updatedAt" ? "updatedAt" : "id";
             const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, teamStatus] = await Promise.all([
                 executeListTasks(projectPath, { status: ["pending"] }),
-                executeListTasks(projectPath, { status: ["working", "assigned"] }),
+                executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
                 executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
                 executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }), // 本日完了カウント用
                 executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
@@ -151,7 +151,7 @@ export function createDashboardRoutes(deps) {
             const ACTIVE_STATUSES = ["pending", "assigned", "working", "blocked"];
             const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements] = await Promise.all([
                 executeListTasks(projectPath, { status: ["pending"] }),
-                executeListTasks(projectPath, { status: ["working", "assigned"] }),
+                executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
                 executeListTasks(projectPath, {
                     status: ["completed"],
                     limit: completedLimit,
@@ -240,7 +240,7 @@ export function createDashboardRoutes(deps) {
                     const sseActiveStatuses = ["pending", "assigned", "working", "blocked"];
                     const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements] = await Promise.all([
                         executeListTasks(projectPath, { status: ["pending"] }),
-                        executeListTasks(projectPath, { status: ["working", "assigned"] }),
+                        executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
                         executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
                         executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }),
                         executeListTasks(projectPath, { category: ["action_required"], status: sseActiveStatuses }),

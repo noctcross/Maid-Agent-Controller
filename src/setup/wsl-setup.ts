@@ -4,6 +4,98 @@ import { SetupContext } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { generateSudoersContent } from '../utils/package-manager';
 
+// =============================================================================
+// Phase 1: 事前調査関数
+// =============================================================================
+
+/**
+ * WSLステータスの調査結果
+ */
+export interface WslStatus {
+    needsWslInstall: boolean;       // WSL未インストール
+    needsUbuntuInstall: boolean;    // Ubuntu未インストール
+    needsPasswordlessSudo: boolean; // パスワードレスsudo未設定
+    isReady: boolean;               // WSL準備完了
+}
+
+/**
+ * WSLの状態を調査（ダイアログなし、調査のみ）
+ */
+export function checkWslStatus(): WslStatus {
+    // Mac/Linux環境では即座に準備完了
+    if (CURRENT_ENV !== 'windows-native') {
+        return {
+            needsWslInstall: false,
+            needsUbuntuInstall: false,
+            needsPasswordlessSudo: false,
+            isReady: true
+        };
+    }
+
+    // 1. WSL2がインストールされているかチェック
+    try {
+        execSync('wsl.exe --version', { encoding: 'utf-8', stdio: 'pipe' });
+    } catch {
+        return {
+            needsWslInstall: true,
+            needsUbuntuInstall: true,
+            needsPasswordlessSudo: true,
+            isReady: false
+        };
+    }
+
+    // 2. Ubuntuディストロがインストールされているかチェック
+    try {
+        const distros = execSync('wsl.exe -l -q', { encoding: 'utf-8' })
+            .replace(/\0/g, '')
+            .split('\n')
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+
+        if (distros.length === 0) {
+            return {
+                needsWslInstall: false,
+                needsUbuntuInstall: true,
+                needsPasswordlessSudo: true,
+                isReady: false
+            };
+        }
+    } catch {
+        return {
+            needsWslInstall: false,
+            needsUbuntuInstall: true,
+            needsPasswordlessSudo: true,
+            isReady: false
+        };
+    }
+
+    // 3. WSLが正常に動作するかチェック
+    try {
+        execSync("wsl bash -c 'echo ok'", { encoding: 'utf-8', stdio: 'pipe' });
+    } catch {
+        return {
+            needsWslInstall: false,
+            needsUbuntuInstall: false,
+            needsPasswordlessSudo: true,
+            isReady: false
+        };
+    }
+
+    // 4. パスワードレスsudoが設定されているかチェック
+    const needsPasswordlessSudo = !checkPasswordlessSudo();
+
+    return {
+        needsWslInstall: false,
+        needsUbuntuInstall: false,
+        needsPasswordlessSudo,
+        isReady: true
+    };
+}
+
+// =============================================================================
+// 既存関数
+// =============================================================================
+
 /**
  * WSL2の状態をチェックし、必要に応じてセットアップを案内
  * @returns true: WSL準備完了、false: 再起動等が必要
@@ -309,6 +401,44 @@ export async function setupPasswordlessSudo(ctx: SetupContext): Promise<boolean>
 
     vscode.window.showErrorMessage('パスワードレスsudoの設定に失敗しました。');
     return false;
+}
+
+/**
+ * パスワードレスsudoを設定（パスワードを引数で受け取る版）
+ * @param password 事前に取得したパスワード
+ * @returns 成功したらtrue
+ */
+export async function setupPasswordlessSudoWithPassword(
+    ctx: SetupContext,
+    password: string
+): Promise<void> {
+    // 既に設定済みならスキップ
+    if (checkPasswordlessSudo()) {
+        ctx.log('[Sudo] パスワードレスsudo 既に設定済み');
+        return;
+    }
+
+    const username = getWslUsername();
+    ctx.log(`[Sudo] WSLユーザー名: ${username}`);
+
+    const sudoersContent = generateSudoersContent(username);
+    const escapedContent = sudoersContent
+        .replace(/'/g, "'\\''")
+        .replace(/\n/g, '\\n');
+
+    // sudoers.d に設定ファイルを作成
+    execSync(
+        `wsl bash -c "sudo -S bash -c 'echo -e \\"${escapedContent}\\" > /etc/sudoers.d/maid-agent && chmod 440 /etc/sudoers.d/maid-agent'"`,
+        { encoding: 'utf-8', timeout: 30000, input: password + '\n' }
+    );
+
+    // 設定の検証
+    execSync(
+        `wsl bash -c "sudo -n true 2>/dev/null"`,
+        { encoding: 'utf-8', stdio: 'pipe' }
+    );
+
+    ctx.log('[Sudo] パスワードレスsudo 設定完了');
 }
 
 /**

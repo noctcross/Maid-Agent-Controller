@@ -3,11 +3,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as nodePath from 'path';
 import { execSync } from 'child_process';
-import { SetupContext } from '../types';
+import { SetupContext, SetupItem } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { windowsToWslPath } from '../utils/environment';
 import { DASHBOARD_SERVER_URL } from '../constants';
-import { checkPasswordlessSudo, setupPasswordlessSudo, promptWslPassword, showPasswordHelp } from './wsl-setup';
+import { checkPasswordlessSudo, setupPasswordlessSudo, promptWslPassword, showPasswordHelp, setupPasswordlessSudoWithPassword } from './wsl-setup';
 import { detectPackageManager, PM_CONFIG, PackageManager } from '../utils/package-manager';
 
 /**
@@ -85,6 +85,58 @@ function runShellCommand(command: string, options?: { encoding?: BufferEncoding;
             // その他: bashにフォールバック
             return execSync(`bash -lc "${command.replace(/"/g, '\\"')}"`, execOptions);
         }
+    }
+}
+
+// =============================================================================
+// Phase 1: 事前調査関数
+// =============================================================================
+
+/**
+ * pm2がインストールされているか確認
+ */
+export function checkPm2Installed(): boolean {
+    try {
+        runShellCommand('which pm2', { stdio: 'pipe' });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * pm2 startupが設定されているか確認
+ */
+export function checkPm2StartupConfigured(): boolean {
+    try {
+        let output: string;
+        if (CURRENT_ENV === 'windows-native') {
+            try {
+                output = execSync(`wsl bash -c "pm2 startup 2>&1"`, { encoding: 'utf-8' });
+            } catch (execError: unknown) {
+                if (execError && typeof execError === 'object' && 'stdout' in execError) {
+                    output = (execError as { stdout: string }).stdout || '';
+                } else if (execError && typeof execError === 'object' && 'message' in execError) {
+                    output = (execError as Error).message;
+                } else {
+                    return false;
+                }
+            }
+        } else {
+            try {
+                output = runShellCommand('pm2 startup 2>&1');
+            } catch (execError: unknown) {
+                if (execError && typeof execError === 'object' && 'stdout' in execError) {
+                    output = (execError as { stdout: string }).stdout || '';
+                } else {
+                    return false;
+                }
+            }
+        }
+        // 'already' が含まれていれば設定済み
+        return output.includes('already');
+    } catch {
+        return false;
     }
 }
 
@@ -686,4 +738,213 @@ export async function ensureMcpServerRunning(ctx: SetupContext): Promise<void> {
     } catch (error) {
         ctx.log(`[MCP] ヘルスチェックエラー: ${error}`);
     }
+}
+
+// =============================================================================
+// Phase 3: パスワード引数版関数（統一入力フロー用）
+// =============================================================================
+
+/**
+ * pm2をインストール（パスワードを引数で受け取る版）
+ * @param password 事前に取得したパスワード（undefined の場合はパスワードレス実行を試みる）
+ */
+export async function installPm2WithPassword(
+    ctx: SetupContext,
+    password?: string
+): Promise<void> {
+    const pm = detectPackageManager(getMcpServerPath());
+    const installCmd = PM_CONFIG[pm].globalInstall('pm2');
+
+    // パスワードレスsudo が利用可能な場合
+    if (!password) {
+        if (CURRENT_ENV === 'windows-native') {
+            if (checkPasswordlessSudo()) {
+                execSync(
+                    `wsl bash -lc "sudo -n ${installCmd} 2>&1"`,
+                    { encoding: 'utf-8', timeout: 120000, stdio: 'pipe' }
+                );
+                ctx.log('[MCP] pm2 インストール完了（パスワードレス）');
+                return;
+            }
+        } else {
+            if (checkPasswordlessSudoNative()) {
+                execSync(`sudo -n ${installCmd} 2>&1`, {
+                    encoding: 'utf-8',
+                    timeout: 120000,
+                    stdio: 'pipe'
+                });
+                ctx.log('[MCP] pm2 インストール完了（パスワードレス・ネイティブ）');
+                return;
+            }
+        }
+        throw new Error('パスワードレスsudoが利用できず、パスワードも提供されていません');
+    }
+
+    // パスワード付きで実行
+    if (CURRENT_ENV === 'windows-native') {
+        execSync(
+            `wsl bash -lc "sudo -S ${installCmd} 2>&1"`,
+            { encoding: 'utf-8', timeout: 120000, input: password + '\n' }
+        );
+    } else {
+        execSync(`sudo -S ${installCmd} 2>&1`, {
+            encoding: 'utf-8',
+            timeout: 120000,
+            input: password + '\n'
+        });
+    }
+    ctx.log('[MCP] pm2 インストール完了');
+}
+
+/**
+ * npm install を実行（パスワード不要）
+ */
+export async function runNpmInstallForMcp(ctx: SetupContext): Promise<void> {
+    const messengerPath = getMcpServerPath();
+    const messengerPathForShell = CURRENT_ENV === 'windows-native'
+        ? '~/.maid-agent/maid-agent-messenger'
+        : messengerPath;
+    const pm = detectPackageManager(messengerPath);
+
+    runShellCommand(`cd ${messengerPathForShell} && ${PM_CONFIG[pm].install}`, {
+        timeout: 120000
+    });
+    ctx.log(`[MCP] ${PM_CONFIG[pm].displayName} install 完了`);
+}
+
+/**
+ * pm2 start + save を実行（パスワード不要）
+ */
+export async function startPm2Server(ctx: SetupContext): Promise<void> {
+    const messengerPath = getMcpServerPath();
+    const messengerPathForShell = CURRENT_ENV === 'windows-native'
+        ? '~/.maid-agent/maid-agent-messenger'
+        : messengerPath;
+
+    // 既存のプロセスがあれば削除
+    try {
+        runShellCommand('pm2 delete maid-agent-messenger 2>/dev/null || true');
+    } catch { /* ignore */ }
+
+    runShellCommand(`cd ${messengerPathForShell} && pm2 start ecosystem.config.cjs`);
+    ctx.log('[MCP] pm2 start 完了');
+
+    // pm2 save
+    try {
+        runShellCommand('pm2 save');
+        ctx.log('[MCP] pm2 save 完了');
+    } catch (error) {
+        ctx.log(`[MCP] pm2 save 失敗: ${error}`);
+        // saveの失敗は致命的ではないので続行
+    }
+}
+
+/**
+ * pm2 startup を設定（パスワードを引数で受け取る版）
+ * @param password 事前に取得したパスワード（undefined の場合はパスワードレス実行を試みる）
+ */
+export async function setupPm2StartupWithPassword(
+    ctx: SetupContext,
+    password?: string
+): Promise<void> {
+    // pm2 startup コマンドを取得
+    let startupCommand: string;
+
+    if (CURRENT_ENV === 'windows-native') {
+        let output: string;
+        try {
+            output = execSync(`wsl bash -c "pm2 startup 2>&1"`, { encoding: 'utf-8' });
+        } catch (execError: unknown) {
+            if (execError && typeof execError === 'object' && 'stdout' in execError) {
+                output = (execError as { stdout: string }).stdout || '';
+            } else if (execError && typeof execError === 'object' && 'message' in execError) {
+                output = (execError as Error).message;
+            } else {
+                throw execError;
+            }
+        }
+
+        if (output.includes('already')) {
+            ctx.log('[MCP] pm2 startup 既に設定済み');
+            return;
+        }
+
+        const match = output.match(/sudo .+$/m);
+        if (!match) {
+            throw new Error('startup コマンドを取得できませんでした');
+        }
+        startupCommand = match[0]
+            .replace(/^sudo\s+/, '')
+            .replace(/env\s+PATH=[^\s]+\s+/, '');
+    } else {
+        let output: string;
+        try {
+            output = runShellCommand('pm2 startup 2>&1');
+        } catch (execError: unknown) {
+            if (execError && typeof execError === 'object' && 'stdout' in execError) {
+                output = (execError as { stdout: string }).stdout || '';
+            } else {
+                throw execError;
+            }
+        }
+
+        if (output.includes('already')) {
+            ctx.log('[MCP] pm2 startup 既に設定済み');
+            return;
+        }
+
+        const match = output.match(/sudo .+$/m);
+        if (!match) {
+            throw new Error('startup コマンドを取得できませんでした');
+        }
+        startupCommand = match[0];
+    }
+
+    // シェルメタ文字の拒否
+    const command = CURRENT_ENV === 'windows-native' ? startupCommand : startupCommand.replace(/^sudo\s+/, '');
+    if (/[;&|`$()\n\r<>]/.test(command)) {
+        throw new Error('自動起動コマンドに不正な文字が含まれています');
+    }
+
+    // パスワードレスsudo が利用可能な場合
+    if (!password) {
+        if (CURRENT_ENV === 'windows-native') {
+            if (checkPasswordlessSudo()) {
+                execSync(
+                    `wsl bash -c "sudo -n ${command}"`,
+                    { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' }
+                );
+                ctx.log('[MCP] pm2 startup 設定完了（パスワードレス）');
+                return;
+            }
+        } else {
+            if (checkPasswordlessSudoNative()) {
+                const cmdWithN = startupCommand.replace(/^sudo\s+/, 'sudo -n ');
+                execSync(`${cmdWithN} 2>&1`, {
+                    encoding: 'utf-8',
+                    timeout: 30000,
+                    stdio: 'pipe'
+                });
+                ctx.log('[MCP] pm2 startup 設定完了（パスワードレス・ネイティブ）');
+                return;
+            }
+        }
+        throw new Error('パスワードレスsudoが利用できず、パスワードも提供されていません');
+    }
+
+    // パスワード付きで実行
+    if (CURRENT_ENV === 'windows-native') {
+        execSync(
+            `wsl bash -c "sudo -S ${command}"`,
+            { encoding: 'utf-8', timeout: 30000, input: password + '\n' }
+        );
+    } else {
+        const cmdWithS = startupCommand.replace(/^sudo\s+/, 'sudo -S ');
+        execSync(`${cmdWithS} 2>&1`, {
+            encoding: 'utf-8',
+            timeout: 30000,
+            input: password + '\n'
+        });
+    }
+    ctx.log('[MCP] pm2 startup 設定完了');
 }

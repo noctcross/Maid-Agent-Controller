@@ -139,8 +139,9 @@ export function getDashboardHeadScript(params) {
           headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}', 'X-Transaction-Id': txId },
           body: JSON.stringify({ reviewed: newValue })
         }).then(function() {
-          // 成功したらSetから削除（サーバー状態と同期済み）
-          optimisticallyHiddenTasks.delete(taskId);
+          // 成功 - トランザクションIDをクリーンアップ
+          // 楽観的非表示は applyOptimisticHidesToHtml() で維持される
+          pendingTransactions.delete(txId);
           // サーバーサイドフィルタで現在ページを再取得（デバウンス化）
           debouncedRefreshCompletedPage();
         }).catch(function() {
@@ -191,8 +192,9 @@ export function getDashboardHeadScript(params) {
           headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}', 'X-Transaction-Id': txId },
           body: JSON.stringify({ starred: newValue })
         }).then(function() {
-          // 成功したらSetから削除（サーバー状態と同期済み）
-          optimisticallyHiddenTasks.delete(taskId);
+          // 成功 - トランザクションIDをクリーンアップ
+          // 楽観的非表示は applyOptimisticHidesToHtml() で維持される
+          pendingTransactions.delete(txId);
           // サーバーサイドフィルタで現在ページを再取得（デバウンス化）
           debouncedRefreshCompletedPage();
         }).catch(function() {

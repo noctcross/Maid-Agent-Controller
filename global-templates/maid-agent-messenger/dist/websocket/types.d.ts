@@ -16,16 +16,8 @@ export interface TasksHtml {
     skillCandidates: string;
     improvements: string;
 }
-export type DashboardEvent = {
-    type: "connected";
-    sessionId: string;
-} | {
-    type: "stats";
-    data: DashboardStats;
-} | {
-    type: "tasks";
-    data: TasksHtml;
-} | {
+/** デバウンス対象のイベント（バッチ化可能） */
+export type DebouncedEvent = {
     type: "taskUpdated";
     taskId: string;
     field?: string;
@@ -43,6 +35,20 @@ export type DashboardEvent = {
     type: "statusUpdated";
     agentId: string;
     status: string;
+};
+export type DashboardEvent = {
+    type: "connected";
+    sessionId: string;
+} | {
+    type: "stats";
+    data: DashboardStats;
+} | {
+    type: "tasks";
+    data: TasksHtml;
+} | DebouncedEvent | {
+    type: "tasksBatchUpdated";
+    events: DebouncedEvent[];
+    count: number;
 } | {
     type: "ping";
 } | {

@@ -19,14 +19,19 @@ export interface TasksHtml {
   improvements: string;
 }
 
+/** デバウンス対象のイベント（バッチ化可能） */
+export type DebouncedEvent =
+  | { type: "taskUpdated"; taskId: string; field?: string; value?: unknown; task?: unknown }
+  | { type: "taskCreated"; taskId: string; task?: unknown }
+  | { type: "taskAssigned"; taskId: string; assignee: string }
+  | { type: "statusUpdated"; agentId: string; status: string };
+
 export type DashboardEvent =
   | { type: "connected"; sessionId: string }
   | { type: "stats"; data: DashboardStats }
   | { type: "tasks"; data: TasksHtml }
-  | { type: "taskUpdated"; taskId: string; field?: string; value?: unknown; task?: unknown }
-  | { type: "taskCreated"; taskId: string; task?: unknown }
-  | { type: "taskAssigned"; taskId: string; assignee: string }
-  | { type: "statusUpdated"; agentId: string; status: string }
+  | DebouncedEvent
+  | { type: "tasksBatchUpdated"; events: DebouncedEvent[]; count: number }
   | { type: "ping" }
   | { type: "pong" }
   | { type: "error"; message: string };

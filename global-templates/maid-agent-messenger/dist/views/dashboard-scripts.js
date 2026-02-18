@@ -684,6 +684,12 @@ export function getDashboardMainScript(params) {
           debouncedRefreshDashboard();
           break;
 
+        case 'tasksBatchUpdated':
+          // バッチイベント: 複数タスクが一括更新された
+          console.log('[WS] Tasks batch updated:', event.count, 'events');
+          debouncedRefreshDashboard();
+          break;
+
         case 'ping':
           // Pong 返信
           if (ws && ws.readyState === WebSocket.OPEN) {

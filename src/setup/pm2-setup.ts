@@ -28,7 +28,7 @@ let cachedNativePassword: string | undefined;
  * @param command 実行するコマンド
  * @param options execSyncのオプション
  */
-function runShellCommand(command: string, options?: { encoding?: BufferEncoding; timeout?: number; stdio?: 'pipe' | 'inherit' | 'ignore'; input?: string; cwd?: string }): string {
+export function runShellCommand(command: string, options?: { encoding?: BufferEncoding; timeout?: number; stdio?: 'pipe' | 'inherit' | 'ignore'; input?: string; cwd?: string }): string {
     const execOptions = {
         encoding: options?.encoding ?? 'utf-8' as BufferEncoding,
         timeout: options?.timeout,
@@ -96,7 +96,7 @@ async function promptNativePassword(
 /**
  * MCPサーバーのパスを取得（OS環境に応じた形式）
  */
-function getMcpServerPath(): string {
+export function getMcpServerPath(): string {
     if (CURRENT_ENV === 'windows-native') {
         // Windows: WSL内のパス
         return '~/.maid-agent/maid-agent-messenger';

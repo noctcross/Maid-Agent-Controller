@@ -290,115 +290,17 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
 
 /**
  * グローバル設定を初期化（~/.maid-agentディレクトリ作成）
+ *
+ * 新しい4フェーズ構造に委譲:
+ * フェーズ1: 事前調査（自動）
+ * フェーズ2: 入力一括取得（ユーザー操作1回）
+ * フェーズ3: 自動実行（進捗表示のみ）
+ * フェーズ4: 結果表示
  */
 export async function initializeGlobalSettings(ctx: SetupContext): Promise<boolean> {
-    ctx.log(`[グローバル] 初期化開始`);
-
-    // Windows環境ではWSL2のチェックを行う（Mac/Linuxでは不要）
-    if (CURRENT_ENV === 'windows-native') {
-        const wslReady = await checkAndSetupWsl(ctx);
-        if (!wslReady) {
-            return false; // WSL未設定、再起動が必要
-        }
-    }
-    // Mac/Linux環境のログ出力
-    if (CURRENT_ENV === 'macos' || CURRENT_ENV === 'linux') {
-        ctx.log(`[グローバル] 環境: ${CURRENT_ENV}（ネイティブ実行）`);
-    }
-
-    const globalPath = getGlobalMaidAgentPath();
-    ctx.log(`[グローバル] globalPath: ${globalPath}`);
-
-    try {
-        // 進捗表示付きで実行
-        return await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: 'グローバル設定を初期化中...',
-            cancellable: false
-        }, async (progress) => {
-            // 拡張機能のパスを取得
-            const extensionPath = ctx.extensionPath;
-            if (!extensionPath) {
-                throw new Error('拡張機能のパスが取得できません');
-            }
-
-            const globalTemplatesPath = path.join(extensionPath, 'global-templates');
-            ctx.log(`[グローバル] globalTemplatesPath: ${globalTemplatesPath}`);
-            ctx.log(`[グローバル] global-templates存在: ${fs.existsSync(globalTemplatesPath)}`);
-
-            progress.report({ message: 'フォルダを作成中...' });
-
-            // Global は常に最新で上書き（テンプレート置き場として使用するため）
-            // ユーザーカスタマイズはプロジェクト側で行う
-
-            // global-templates からコピー（maid-agent-messenger の dist を含む）
-            if (fs.existsSync(globalTemplatesPath)) {
-                try {
-                    copyDirectorySync(ctx, globalTemplatesPath, globalPath, true, { includeDist: true });
-                    ctx.log(`[グローバル] global-templates からコピー完了`);
-                } catch (copyError) {
-                    const message = copyError instanceof Error ? copyError.message : String(copyError);
-                    ctx.log(`[ERROR] コピー失敗: ${message}`);
-                    vscode.window.showErrorMessage(`フォルダのコピーに失敗しました: ${message}`);
-                    throw copyError;
-                }
-            } else {
-                // フォールバック: 手動でディレクトリ構造を作成
-                ctx.log(`[グローバル] global-templates が見つからないため、手動で構造を作成`);
-                const dirs = [
-                    '',
-                    'rules',
-                    'rules/common',
-                    'rules/butler',
-                    'rules/chief',
-                    'rules/maid',
-                    'skills',
-                    'maid-agent-messenger'
-                ];
-
-                for (const dir of dirs) {
-                    const fullPath = path.join(globalPath, dir);
-                    if (!fs.existsSync(fullPath)) {
-                        fs.mkdirSync(fullPath, { recursive: true });
-                    }
-                }
-            }
-
-            // コピー後の検証
-            if (!fs.existsSync(globalPath)) {
-                throw new Error(`フォルダが作成されませんでした: ${globalPath}`);
-            }
-
-            ctx.log(`[グローバル] 設定フォルダを初期化: ${globalPath}`);
-
-            // jqのチェックとインストール（maidctlの出力パースに必要）
-            progress.report({ message: 'jq (JSONパーサー) を確認中...' });
-            await checkAndInstallJq(ctx);
-
-            // MCPサーバー (maid-agent-messenger) のセットアップ
-            // Windows (WSL), macOS, Linux のいずれでも実行
-            if (CURRENT_ENV === 'windows-native' || CURRENT_ENV === 'macos' || CURRENT_ENV === 'linux') {
-                progress.report({ message: 'MCPサーバーをセットアップ中...' });
-                await setupMcpServer(ctx);
-            }
-
-            // maidctl CLIツールの配置確認
-            progress.report({ message: 'maidctl CLIを配置中...' });
-            const maidctlDeployed = await deployMaidctl(ctx, globalPath);
-
-            // PATH設定（確認付き自動設定）（maidctl配置成功時のみ）
-            if (maidctlDeployed) {
-                await setupPathWithConfirmation(ctx, globalPath);
-            }
-
-            return true;
-        });
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        ctx.log(`[ERROR] グローバル設定の初期化に失敗: ${message}`);
-        vscode.window.showErrorMessage(`グローバル設定の初期化に失敗しました: ${message}`);
-        return false;
-    }
+    // 新しい4フェーズ構造に委譲
+    const { initializeGlobalSettingsNew } = await import('./global-init');
+    return initializeGlobalSettingsNew(ctx);
 }
 
 /**

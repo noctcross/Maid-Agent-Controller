@@ -134,3 +134,306 @@ export async function showSetupResult(result: SetupResult, nextSteps?: string[])
         );
     }
 }
+
+// =============================================================================
+// グローバル設定用の追加UI関数
+// =============================================================================
+
+import { GlobalRequirements } from './requirements-analyzer';
+
+/**
+ * グローバル設定用のユーザー入力
+ */
+export interface GlobalUserInput {
+    approved: boolean;
+    password?: string;
+    skipItems: string[];  // スキップする項目のID
+}
+
+/**
+ * グローバル設定確認用の項目
+ */
+export interface GlobalConfirmItem {
+    id: string;
+    label: string;
+    description: string;
+    required: boolean;
+    needsPassword: boolean;
+    defaultSelected: boolean;
+}
+
+/**
+ * スキップ時のアナウンスメッセージ定義
+ */
+const SKIP_ANNOUNCEMENTS: Record<string, { message: string; severity: 'low' | 'medium' | 'high' }> = {
+    passwordlessSudo: {
+        message: 'sudoパスワードを毎回入力する必要があります',
+        severity: 'low',
+    },
+    jqInstall: {
+        message: 'maidctlの一部機能（JSON出力）が利用できません',
+        severity: 'medium',
+    },
+    pm2Startup: {
+        message: '⚠️ PC起動時にMCPサーバーの手動起動が必要です\n   コマンド: pm2 start maid-agent-messenger',
+        severity: 'high',
+    },
+    pathSetup: {
+        message: '⚠️ maidctlを使用するにはPATH設定が必要です\n   追加: export PATH="$HOME/.maid-agent/bin:$PATH"',
+        severity: 'high',
+    },
+};
+
+/**
+ * 事前調査結果から確認項目を生成
+ */
+export function buildGlobalConfirmItems(requirements: GlobalRequirements): GlobalConfirmItem[] {
+    const items: GlobalConfirmItem[] = [];
+
+    // パスワードレスsudo（推奨）
+    if (requirements.needs.passwordlessSudo) {
+        items.push({
+            id: 'passwordlessSudo',
+            label: 'パスワードレスsudo設定（推奨）',
+            description: 'sudo実行時にパスワード入力を省略',
+            required: false,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // jqインストール
+    if (requirements.needs.jqInstall) {
+        items.push({
+            id: 'jqInstall',
+            label: 'jq インストール',
+            description: 'JSONパーサー（maidctlで使用）',
+            required: false,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // pm2インストール（必須）
+    if (requirements.needs.pm2Install) {
+        items.push({
+            id: 'pm2Install',
+            label: 'pm2 インストール（必須）',
+            description: 'MCPサーバープロセスマネージャー',
+            required: true,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // pm2 startup
+    if (requirements.needs.pm2Startup) {
+        items.push({
+            id: 'pm2Startup',
+            label: 'pm2 自動起動設定',
+            description: 'PC起動時にMCPサーバーを自動起動',
+            required: false,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // PATH設定
+    if (requirements.needs.pathSetup) {
+        items.push({
+            id: 'pathSetup',
+            label: 'PATH設定',
+            description: 'maidctlコマンドを使用可能にする',
+            required: false,
+            needsPassword: false,
+            defaultSelected: true,
+        });
+    }
+
+    return items;
+}
+
+/**
+ * グローバル設定の確認画面を表示
+ * @returns ユーザー入力またはundefined（キャンセル）
+ */
+export async function showGlobalConfirmation(
+    requirements: GlobalRequirements
+): Promise<GlobalUserInput | undefined> {
+    const items = buildGlobalConfirmItems(requirements);
+
+    if (items.length === 0) {
+        // 何も必要ない場合はそのまま承認
+        return {
+            approved: true,
+            skipItems: [],
+        };
+    }
+
+    // QuickPickアイテムを構築
+    const quickPickItems: vscode.QuickPickItem[] = items.map(item => ({
+        label: item.required ? `$(check) ${item.label}` : item.label,
+        description: item.needsPassword ? '🔐' : '',
+        detail: item.description,
+        picked: item.defaultSelected,
+    }));
+
+    // QuickPick表示
+    const selected = await vscode.window.showQuickPick(quickPickItems, {
+        title: '🔧 グローバル設定',
+        placeHolder: '実行する項目を選択してください（必須項目は解除できません）',
+        canPickMany: true,
+        ignoreFocusOut: true,
+    });
+
+    if (!selected) {
+        return undefined; // キャンセル
+    }
+
+    // 選択されたIDを抽出
+    const selectedIds = selected.map(sel => {
+        const item = items.find(i =>
+            sel.label.includes(i.label) || sel.label === `$(check) ${i.label}`
+        );
+        return item?.id ?? '';
+    }).filter(id => id !== '');
+
+    // 必須項目が選択されているか確認
+    const requiredItems = items.filter(i => i.required);
+    const missingRequired = requiredItems.filter(i => !selectedIds.includes(i.id));
+
+    if (missingRequired.length > 0) {
+        vscode.window.showWarningMessage(
+            `必須項目「${missingRequired.map(i => i.label).join('、')}」は解除できません`,
+            { modal: false }
+        );
+        return undefined;
+    }
+
+    // スキップ項目を計算
+    const skipItems = items
+        .filter(item => !selectedIds.includes(item.id))
+        .map(item => item.id);
+
+    // パスワード入力が必要か判定
+    const needsPassword = selectedIds.some(id => {
+        const item = items.find(i => i.id === id);
+        return item?.needsPassword;
+    });
+
+    let password: string | undefined;
+    if (needsPassword && requirements.needsSudoPassword) {
+        password = await promptGlobalPassword();
+        if (password === undefined) {
+            return undefined; // キャンセル
+        }
+    }
+
+    return {
+        approved: true,
+        password,
+        skipItems,
+    };
+}
+
+/**
+ * グローバル設定用のパスワード入力
+ */
+async function promptGlobalPassword(
+    attempt: number = 1,
+    maxAttempts: number = 3
+): Promise<string | undefined> {
+    const message = attempt > 1
+        ? `セットアップのためsudoパスワードを入力してください（${attempt}/${maxAttempts}回目）`
+        : 'セットアップのためsudoパスワードを入力してください';
+
+    return await vscode.window.showInputBox({
+        prompt: message,
+        password: true,
+        ignoreFocusOut: true,
+        placeHolder: 'パスワードを入力',
+    });
+}
+
+/**
+ * スキップ項目のアナウンスを生成
+ */
+export function buildSkipAnnouncements(skipItems: string[]): string[] {
+    return skipItems
+        .filter(id => SKIP_ANNOUNCEMENTS[id])
+        .sort((a, b) => {
+            const severityOrder = { high: 0, medium: 1, low: 2 };
+            return severityOrder[SKIP_ANNOUNCEMENTS[a].severity] -
+                   severityOrder[SKIP_ANNOUNCEMENTS[b].severity];
+        })
+        .map(id => SKIP_ANNOUNCEMENTS[id].message);
+}
+
+/**
+ * グローバル設定の最終結果を表示
+ */
+export async function showGlobalSetupResult(
+    successCount: number,
+    totalCount: number,
+    skipItems: string[],
+    errors: string[]
+): Promise<void> {
+    const hasFailure = errors.length > 0;
+    const hasSkip = skipItems.length > 0;
+
+    let icon: string;
+    let message: string;
+
+    if (!hasFailure && !hasSkip) {
+        icon = '✅';
+        message = 'グローバル設定が完了しました！';
+    } else if (!hasFailure && hasSkip) {
+        icon = '⚠️';
+        message = 'グローバル設定が完了しました（一部スキップ）';
+    } else {
+        icon = '❌';
+        message = 'グローバル設定で問題が発生しました';
+    }
+
+    // スキップアナウンス
+    const announcements = buildSkipAnnouncements(skipItems);
+
+    // 詳細メッセージ
+    const details: string[] = [];
+    details.push(`${successCount}/${totalCount} ステップ完了`);
+
+    if (announcements.length > 0) {
+        details.push('');
+        details.push('【スキップ項目の影響】');
+        details.push(...announcements);
+    }
+
+    if (errors.length > 0) {
+        details.push('');
+        details.push('【エラー】');
+        details.push(...errors);
+    }
+
+    const detailText = details.join('\n');
+
+    if (hasFailure) {
+        const choice = await vscode.window.showErrorMessage(
+            `${icon} ${message}`,
+            { modal: false },
+            '詳細を確認'
+        );
+        if (choice === '詳細を確認') {
+            vscode.window.showInformationMessage(detailText, { modal: true });
+        }
+    } else if (hasSkip) {
+        await vscode.window.showWarningMessage(
+            `${icon} ${message}\n\n${detailText}`,
+            { modal: false }
+        );
+    } else {
+        await vscode.window.showInformationMessage(
+            `${icon} ${message}`,
+            { modal: false }
+        );
+    }
+}

@@ -1,14 +1,15 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SetupContext } from '../types';
+import { SetupContext, GlobalRequirements, UnifiedUserInput, SetupResult, SetupItem } from '../types';
 import { MAID_AGENT_DIR, MAIDS } from '../constants';
 import { getGlobalMaidAgentPath } from '../utils/helpers';
 import { CURRENT_ENV } from '../utils/environment';
-import { checkAndSetupWsl } from './wsl-setup';
-import { setupMcpServer } from './pm2-setup';
+import { checkAndSetupWsl, checkWslStatus, checkPasswordlessSudo, setupPasswordlessSudoWithPassword } from './wsl-setup';
+import { setupMcpServer, checkPm2Installed, checkPm2StartupConfigured, installPm2WithPassword, runNpmInstallForMcp, startPm2Server, setupPm2StartupWithPassword } from './pm2-setup';
 import { generateMcpJson, setupClaudeSettings, checkAndUpdateMcpJsonPath } from './mcp-claude-setup';
 import { parseRuleModules, parseGlobalSkills, showRuleSelectionUI, showSkillSelectionUI, copySelectedRules, copySelectedSkills } from './rules-skills';
+import { collectUnifiedInput, showGlobalSetupResult } from './setup-ui';
 
 /**
  * instructionsの差分をチェックし、変更があればバックアップして更新
@@ -207,102 +208,252 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
 
 /**
  * グローバル設定を初期化（~/.maid-agentディレクトリ作成）
+ * 統一入力フロー: 事前調査 → 入力一括取得 → 自動実行 → 結果表示
  */
 export async function initializeGlobalSettings(ctx: SetupContext): Promise<boolean> {
     ctx.log(`[グローバル] 初期化開始`);
-
-    // Windows環境ではWSL2のチェックを行う（Mac/Linuxでは不要）
-    if (CURRENT_ENV === 'windows-native') {
-        const wslReady = await checkAndSetupWsl(ctx);
-        if (!wslReady) {
-            return false; // WSL未設定、再起動が必要
-        }
-    }
-    // Mac/Linux環境のログ出力
-    if (CURRENT_ENV === 'macos' || CURRENT_ENV === 'linux') {
-        ctx.log(`[グローバル] 環境: ${CURRENT_ENV}（ネイティブ実行）`);
-    }
-
-    const globalPath = getGlobalMaidAgentPath();
-    ctx.log(`[グローバル] globalPath: ${globalPath}`);
+    ctx.log(`[グローバル] 環境: ${CURRENT_ENV}`);
 
     try {
-        // 進捗表示付きで実行
-        return await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: 'グローバル設定を初期化中...',
-            cancellable: false
-        }, async (progress) => {
-            // 拡張機能のパスを取得
-            const extensionPath = ctx.extensionPath;
-            if (!extensionPath) {
-                throw new Error('拡張機能のパスが取得できません');
-            }
+        // Phase 1: 事前調査
+        const requirements = analyzeGlobalRequirements(ctx);
 
-            const globalTemplatesPath = path.join(extensionPath, 'global-templates');
-            ctx.log(`[グローバル] globalTemplatesPath: ${globalTemplatesPath}`);
-            ctx.log(`[グローバル] global-templates存在: ${fs.existsSync(globalTemplatesPath)}`);
-
-            progress.report({ message: 'フォルダを作成中...' });
-
-            // Global は常に最新で上書き（テンプレート置き場として使用するため）
-            // ユーザーカスタマイズはプロジェクト側で行う
-
-            // global-templates からコピー（maid-agent-messenger の dist を含む）
-            if (fs.existsSync(globalTemplatesPath)) {
-                try {
-                    copyDirectorySync(ctx, globalTemplatesPath, globalPath, true, { includeDist: true });
-                    ctx.log(`[グローバル] global-templates からコピー完了`);
-                } catch (copyError) {
-                    const message = copyError instanceof Error ? copyError.message : String(copyError);
-                    ctx.log(`[ERROR] コピー失敗: ${message}`);
-                    vscode.window.showErrorMessage(`フォルダのコピーに失敗しました: ${message}`);
-                    throw copyError;
-                }
-            } else {
-                // フォールバック: 手動でディレクトリ構造を作成
-                ctx.log(`[グローバル] global-templates が見つからないため、手動で構造を作成`);
-                const dirs = [
-                    '',
-                    'rules',
-                    'rules/common',
-                    'rules/butler',
-                    'rules/chief',
-                    'rules/maid',
-                    'skills',
-                    'maid-agent-messenger'
-                ];
-
-                for (const dir of dirs) {
-                    const fullPath = path.join(globalPath, dir);
-                    if (!fs.existsSync(fullPath)) {
-                        fs.mkdirSync(fullPath, { recursive: true });
-                    }
-                }
-            }
-
-            // コピー後の検証
-            if (!fs.existsSync(globalPath)) {
-                throw new Error(`フォルダが作成されませんでした: ${globalPath}`);
-            }
-
-            ctx.log(`[グローバル] 設定フォルダを初期化: ${globalPath}`);
-
-            // MCPサーバー (maid-agent-messenger) のセットアップ
-            // Windows (WSL), macOS, Linux のいずれでも実行
-            if (CURRENT_ENV === 'windows-native' || CURRENT_ENV === 'macos' || CURRENT_ENV === 'linux') {
-                progress.report({ message: 'MCPサーバーをセットアップ中...' });
-                await setupMcpServer(ctx);
-            }
-
+        // すべて設定済みの場合はフォルダコピーのみ実行
+        if (!requirements.needsAnyAction) {
+            ctx.log('[グローバル] MCPサーバー関連は設定済み、フォルダコピーのみ実行');
+            await copyGlobalTemplatesOnly(ctx);
+            vscode.window.showInformationMessage('✅ グローバル設定は既に完了しています');
             return true;
-        });
+        }
+
+        // Phase 2: 入力一括取得
+        const userInput = await collectUnifiedInput(ctx, requirements);
+        if (!userInput.approved) {
+            ctx.log('[グローバル] ユーザーがキャンセルしました');
+            return false;
+        }
+
+        // 再起動が必要な場合（WSL/Ubuntuインストール）
+        if (requirements.needsReboot) {
+            return await handleRebootFlow(ctx, requirements);
+        }
+
+        // Phase 3: 自動実行
+        const result = await executeGlobalSetup(ctx, requirements, userInput);
+
+        // Phase 4: 結果表示
+        showGlobalSetupResult(ctx, result, userInput.skippedItems);
+
+        return result.success;
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         ctx.log(`[ERROR] グローバル設定の初期化に失敗: ${message}`);
         vscode.window.showErrorMessage(`グローバル設定の初期化に失敗しました: ${message}`);
         return false;
     }
+}
+
+/**
+ * Phase 1: 事前調査 - 必要なアクションを特定
+ */
+function analyzeGlobalRequirements(ctx: SetupContext): GlobalRequirements {
+    ctx.log('[グローバル] Phase 1: 事前調査開始');
+
+    const isWindows = CURRENT_ENV === 'windows-native';
+    const isMac = CURRENT_ENV === 'macos';
+    const isLinux = CURRENT_ENV === 'linux';
+
+    // WSL関連のチェック（Windowsのみ）
+    let needsWslInstall = false;
+    let needsUbuntuInstall = false;
+    let needsPasswordlessSudo = false;
+
+    if (isWindows) {
+        const wslStatus = checkWslStatus();
+        needsWslInstall = wslStatus.needsWslInstall;
+        needsUbuntuInstall = wslStatus.needsUbuntuInstall;
+        needsPasswordlessSudo = wslStatus.needsPasswordlessSudo;
+        ctx.log(`[グローバル] WSLステータス: install=${needsWslInstall}, ubuntu=${needsUbuntuInstall}, sudo=${needsPasswordlessSudo}`);
+    }
+
+    // pm2関連のチェック
+    const needsPm2Install = !checkPm2Installed();
+    const needsPm2Startup = !checkPm2StartupConfigured();
+    ctx.log(`[グローバル] pm2ステータス: install=${needsPm2Install}, startup=${needsPm2Startup}`);
+
+    // パスワードが必要かどうか
+    // パスワードレスsudoが未設定で、かつpm2インストール/startup設定が必要な場合
+    let needsSudoPassword = false;
+    if (isWindows) {
+        needsSudoPassword = needsPasswordlessSudo && (needsPm2Install || needsPm2Startup);
+    } else {
+        // Mac/Linux: パスワードレスsudoをチェック
+        try {
+            const { execSync } = require('child_process');
+            execSync('sudo -n true 2>/dev/null', { stdio: 'pipe', timeout: 5000 });
+            needsSudoPassword = false;
+        } catch {
+            needsSudoPassword = needsPm2Install || needsPm2Startup;
+        }
+    }
+    ctx.log(`[グローバル] パスワード必要: ${needsSudoPassword}`);
+
+    const needsReboot = needsWslInstall || needsUbuntuInstall;
+    const needsAnyAction = needsPasswordlessSudo || needsPm2Install || needsPm2Startup || needsReboot;
+
+    ctx.log(`[グローバル] Phase 1完了: needsAnyAction=${needsAnyAction}, needsReboot=${needsReboot}`);
+
+    return {
+        isWindows,
+        isMac,
+        isLinux,
+        needsWslInstall,
+        needsUbuntuInstall,
+        needsPasswordlessSudo,
+        needsPm2Install,
+        needsPm2Startup,
+        needsSudoPassword,
+        needsAnyAction,
+        needsReboot
+    };
+}
+
+/**
+ * 再起動が必要な場合のフロー（WSL/Ubuntuインストール）
+ */
+async function handleRebootFlow(ctx: SetupContext, requirements: GlobalRequirements): Promise<boolean> {
+    // checkAndSetupWsl を使用してWSL/Ubuntuをインストール
+    const result = await checkAndSetupWsl(ctx);
+    return result;
+}
+
+/**
+ * Phase 3: 自動実行 - 進捗表示付きで各ステップを実行
+ */
+async function executeGlobalSetup(
+    ctx: SetupContext,
+    requirements: GlobalRequirements,
+    userInput: UnifiedUserInput
+): Promise<SetupResult> {
+    const completedSteps: string[] = [];
+    const globalPath = getGlobalMaidAgentPath();
+
+    return await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'グローバル設定を実行中...',
+        cancellable: false
+    }, async (progress) => {
+        try {
+            // Step 1: フォルダ作成・コピー
+            progress.report({ message: 'フォルダを作成中...', increment: 10 });
+            await copyGlobalTemplatesOnly(ctx);
+            completedSteps.push('フォルダ作成');
+
+            // Step 2: パスワードレスsudo設定（Windows、スキップされていない場合）
+            if (requirements.needsPasswordlessSudo &&
+                !userInput.skippedItems.includes('passwordlessSudo')) {
+                progress.report({ message: 'sudo設定中...', increment: 20 });
+                await setupPasswordlessSudoWithPassword(ctx, userInput.password!);
+                completedSteps.push('パスワードレスsudo');
+            }
+
+            // Step 3: pm2インストール（スキップされていない場合）
+            if (requirements.needsPm2Install &&
+                !userInput.skippedItems.includes('pm2Install')) {
+                progress.report({ message: 'pm2をインストール中...', increment: 20 });
+                await installPm2WithPassword(ctx, userInput.password);
+                completedSteps.push('pm2インストール');
+            }
+
+            // Step 4: npm install
+            progress.report({ message: '依存関係をインストール中...', increment: 20 });
+            await runNpmInstallForMcp(ctx);
+            completedSteps.push('npm install');
+
+            // Step 5: pm2 start/save
+            progress.report({ message: 'MCPサーバーを起動中...', increment: 10 });
+            await startPm2Server(ctx);
+            completedSteps.push('pm2起動');
+
+            // Step 6: pm2 startup（スキップされていない場合）
+            if (requirements.needsPm2Startup &&
+                !userInput.skippedItems.includes('pm2Startup')) {
+                progress.report({ message: '自動起動を設定中...', increment: 10 });
+                await setupPm2StartupWithPassword(ctx, userInput.password);
+                completedSteps.push('自動起動設定');
+            }
+
+            progress.report({ message: '完了', increment: 10 });
+            return { success: true, completedSteps };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            ctx.log(`[ERROR] 実行失敗: ${message}`);
+            return {
+                success: false,
+                completedSteps,
+                failedStep: getNextStep(completedSteps),
+                error: message
+            };
+        }
+    });
+}
+
+/**
+ * 次のステップ名を取得（エラー時のレポート用）
+ */
+function getNextStep(completedSteps: string[]): string {
+    const allSteps = ['フォルダ作成', 'パスワードレスsudo', 'pm2インストール', 'npm install', 'pm2起動', '自動起動設定'];
+    const lastCompleted = completedSteps[completedSteps.length - 1];
+    const lastIndex = allSteps.indexOf(lastCompleted);
+    return allSteps[lastIndex + 1] || '不明';
+}
+
+/**
+ * グローバルテンプレートのコピーのみ実行
+ */
+async function copyGlobalTemplatesOnly(ctx: SetupContext): Promise<void> {
+    const globalPath = getGlobalMaidAgentPath();
+    const extensionPath = ctx.extensionPath;
+
+    if (!extensionPath) {
+        throw new Error('拡張機能のパスが取得できません');
+    }
+
+    const globalTemplatesPath = path.join(extensionPath, 'global-templates');
+    ctx.log(`[グローバル] globalTemplatesPath: ${globalTemplatesPath}`);
+    ctx.log(`[グローバル] global-templates存在: ${fs.existsSync(globalTemplatesPath)}`);
+
+    if (fs.existsSync(globalTemplatesPath)) {
+        copyDirectorySync(ctx, globalTemplatesPath, globalPath, true, { includeDist: true });
+        ctx.log(`[グローバル] global-templates からコピー完了`);
+    } else {
+        // フォールバック: 手動でディレクトリ構造を作成
+        ctx.log(`[グローバル] global-templates が見つからないため、手動で構造を作成`);
+        const dirs = [
+            '',
+            'rules',
+            'rules/common',
+            'rules/butler',
+            'rules/chief',
+            'rules/maid',
+            'skills',
+            'maid-agent-messenger'
+        ];
+
+        for (const dir of dirs) {
+            const fullPath = path.join(globalPath, dir);
+            if (!fs.existsSync(fullPath)) {
+                fs.mkdirSync(fullPath, { recursive: true });
+            }
+        }
+    }
+
+    // コピー後の検証
+    if (!fs.existsSync(globalPath)) {
+        throw new Error(`フォルダが作成されませんでした: ${globalPath}`);
+    }
+
+    ctx.log(`[グローバル] 設定フォルダを初期化: ${globalPath}`);
 }
 
 /**

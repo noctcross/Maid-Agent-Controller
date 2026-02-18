@@ -126,6 +126,56 @@ export interface CompletedViewState {
     completedSortField: string | undefined;
 }
 
+// =============================================================================
+// グローバル設定関連の型定義
+// =============================================================================
+
+/**
+ * グローバル設定で実行可能なセットアップ項目
+ */
+export type SetupItem = 'passwordlessSudo' | 'pm2Install' | 'pm2Startup';
+
+/**
+ * 事前調査結果（Phase 1）
+ */
+export interface GlobalRequirements {
+    // 環境情報
+    isWindows: boolean;
+    isMac: boolean;
+    isLinux: boolean;
+
+    // 必要なアクション（事前調査結果）
+    needsWslInstall: boolean;        // Windows: WSL未インストール
+    needsUbuntuInstall: boolean;     // Windows: Ubuntu未インストール
+    needsPasswordlessSudo: boolean;  // Windows: sudoers未設定
+    needsPm2Install: boolean;        // 全環境: pm2未インストール
+    needsPm2Startup: boolean;        // 全環境: startup未設定
+
+    // 派生情報
+    needsSudoPassword: boolean;      // 上記いずれかがtrueでパスワードレス未設定
+    needsAnyAction: boolean;         // 何らかのアクションが必要
+    needsReboot: boolean;            // WSL/Ubuntuインストール時
+}
+
+/**
+ * ユーザー入力一括取得結果（Phase 2）
+ */
+export interface UnifiedUserInput {
+    approved: boolean;           // 全体の承認
+    password?: string;           // sudoパスワード（必要な場合）
+    skippedItems: SetupItem[];   // スキップする項目
+}
+
+/**
+ * セットアップ実行結果（Phase 3）
+ */
+export interface SetupResult {
+    success: boolean;
+    completedSteps: string[];
+    failedStep?: string;
+    error?: string;
+}
+
 /**
  * ビューシステム共通コンテキスト
  * UI関連メソッドをスタンドアロン関数に渡すためのインターフェース

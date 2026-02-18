@@ -390,8 +390,8 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
       if (container) {
         // 表示前に楽観的非表示を適用（ちらつき防止）
         container.innerHTML = applyOptimisticHidesToHtml(html);
-        attachTaskItemListeners();
         restoreExpandedStates();
+        attachTaskItemListeners();
       }
       completedTotalForPagination = total;
       // インラインページネーションUI更新
@@ -753,8 +753,8 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
           var completedContainer = document.querySelector('.completed-tasks-container');
           if (completedContainer) {
             completedContainer.innerHTML = applyOptimisticHidesToHtml(tasks.completed);
-            attachTaskItemListeners();
             restoreExpandedStates();
+            attachTaskItemListeners();
           }
           completedTotalForPagination = completedMeta.total;
           updateInlinePagination(completedMeta.total, completedCurrentPage * getCompletedLimit(), getCompletedLimit());
@@ -815,26 +815,31 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
       }
     }
 
-    // 展開状態を保存（閉じたタスクはMapから削除）
+    // 展開状態を保存（3値管理: 'open' / 'closed' / 未操作）
     function saveExpandedStates() {
       document.querySelectorAll('.task-item').forEach(item => {
         const taskId = item.dataset.id;
         if (!taskId) return;
         if (item.classList.contains('expanded')) {
-          expandedState.set(taskId, true);
+          expandedState.set(taskId, 'open');
         } else {
-          expandedState.delete(taskId);
+          expandedState.set(taskId, 'closed');
         }
       });
     }
 
-    // 展開状態を復元
+    // 展開状態を復元（3値管理: 'open' / 'closed' / 未操作）
     function restoreExpandedStates() {
       document.querySelectorAll('.task-item').forEach(item => {
         const taskId = item.dataset.id;
-        if (taskId && expandedState.has(taskId)) {
+        if (!taskId) return;
+        const state = expandedState.get(taskId);
+        if (state === 'open') {
           item.classList.add('expanded');
+        } else if (state === 'closed') {
+          item.classList.remove('expanded');
         }
+        // state === undefined の場合は何もしない（未操作 = 現状維持）
       });
     }
 
@@ -930,18 +935,18 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
 
     function attachTaskItemListeners() {
       document.querySelectorAll('.task-item').forEach(item => {
-        // 既存のリスナーを削除して重複を防ぐ
-        const newItem = item.cloneNode(true);
-        item.parentNode.replaceChild(newItem, item);
+        // 既にリスナーが設定済みならスキップ（重複防止）
+        if (item.dataset.hasListener === 'true') return;
+        item.dataset.hasListener = 'true';
 
-        newItem.addEventListener('click', function(e) {
+        item.addEventListener('click', function(e) {
           // フォーム要素やリンクのクリックでは展開/折りたたみしない
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
           if (e.target.closest('a') || e.target.closest('button')) return;
           this.classList.toggle('expanded');
         });
-        // cloneNodeでaddEventListenerが失われるため再設定
-        addTaskItemButtonListeners(newItem);
+
+        addTaskItemButtonListeners(item);
       });
     }
 

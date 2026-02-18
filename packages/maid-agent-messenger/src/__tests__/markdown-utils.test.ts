@@ -63,11 +63,11 @@ describe("linkifyProjectPaths", () => {
     expect(result).toContain(">src/views/dashboard-html.ts</a>");
   });
 
-  it("拡張子なしのディレクトリパスをリンク化する", () => {
+  it("拡張子なしのディレクトリパスはリンク化しない（#249: 拡張子必須）", () => {
     const input = "<p>src/routes/ を確認</p>";
     const result = linkifyProjectPaths(input, PROJECT_PATH);
-    // 正規表現は末尾スラッシュを含まないため src/routes までマッチ
-    expect(result).toContain(">src/routes</a>");
+    // #249: 拡張子必須に変更したため、ディレクトリパスはリンク化されない
+    expect(result).toBe(input);
   });
 
   it("複数パスを同時にリンク化する", () => {
@@ -197,6 +197,39 @@ describe("linkifyProjectPaths", () => {
     const input = "<p>docs/設計（詳細）/overview.md</p>";
     const result = linkifyProjectPaths(input, PROJECT_PATH);
     expect(result).toContain(">docs/設計（詳細）/overview.md</a>");
+  });
+
+  // --- パス終端の判定（#249対応） ---
+
+  it("パス終端の)を含めない", () => {
+    const input = "<p>(docs/plans/file.md)</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/plans/file.md</a>)");
+    expect(result).not.toContain(".md)</a>");
+  });
+
+  it("パス終端の」を含めない", () => {
+    const input = "<p>「docs/plans/file.md」</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/plans/file.md</a>」");
+  });
+
+  it("ファイル名内の()は正しくリンク化する", () => {
+    const input = "<p>docs/plans/file(draft).md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/plans/file(draft).md</a>");
+  });
+
+  it("ファイル名に.mdが含まれても最後の拡張子で終端する", () => {
+    const input = "<p>.maid-agent/master/reports/task-maid.mdの更新検討.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">.maid-agent/master/reports/task-maid.mdの更新検討.md</a>");
+  });
+
+  it("バージョン番号を含むパスを正しくリンク化する", () => {
+    const input = "<p>docs/v1.2.3/readme.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/v1.2.3/readme.md</a>");
   });
 });
 

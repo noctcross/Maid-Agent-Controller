@@ -15,6 +15,11 @@ export declare function convertMarkdownToHtml(markdown: string): string;
  */
 export declare const DEFAULT_PATH_PREFIXES: string[];
 /**
+ * パス終端判定に使用するファイル拡張子
+ * これらの拡張子で終わる位置をパスの終端とみなす
+ */
+export declare const FILE_EXTENSIONS: readonly ["md", "txt", "html", "htm", "ts", "tsx", "js", "jsx", "mjs", "cjs", "json", "yaml", "yml", "toml", "ini", "conf", "css", "scss", "sass", "less", "py", "rb", "php", "go", "rs", "java", "kt", "scala", "c", "cpp", "h", "hpp", "cs", "swift", "m", "vue", "svelte", "astro", "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd", "xml", "svg", "log"];
+/**
  * 相対パスを絶対パスに変換
  * WSLパスはWSLパスのまま、Windowsパスはそのまま返す
  * （WSL→Windows変換はしない: VSCode拡張がWSL上で動作するため、

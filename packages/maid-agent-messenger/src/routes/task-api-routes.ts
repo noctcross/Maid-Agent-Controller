@@ -103,6 +103,7 @@ router.get("/api/tasks/:id", async (req: Request, res: Response) => {
 router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
+    const txId = req.get("X-Transaction-Id");
     const { status, substatus, summary, reportPath } = req.body;
 
     const result = await executeUpdateTask(projectPath, {
@@ -124,6 +125,7 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
         type: "taskUpdated",
         taskId: req.params.id,
         task: result.task,
+        txId,
       });
     }
 
@@ -161,6 +163,7 @@ router.get("/api/tasks/:id/report", async (req: Request, res: Response) => {
 router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
+    const txId = req.get("X-Transaction-Id");
     const { reviewed } = req.body;
 
     const result = await executeUpdateTask(projectPath, {
@@ -180,6 +183,7 @@ router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
         taskId: req.params.id,
         field: "reviewed",
         value: result.task?.reviewed,
+        txId,
       });
     }
 
@@ -194,6 +198,7 @@ router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
 router.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
+    const txId = req.get("X-Transaction-Id");
     const { starred } = req.body;
 
     const result = await executeUpdateTask(projectPath, {
@@ -213,6 +218,7 @@ router.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
         taskId: req.params.id,
         field: "starred",
         value: result.task?.starred,
+        txId,
       });
     }
 

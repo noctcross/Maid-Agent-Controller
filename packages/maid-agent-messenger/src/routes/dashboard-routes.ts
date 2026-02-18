@@ -355,6 +355,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
   router.patch("/dashboard/tasks/:id/review", async (req: Request, res: Response) => {
     try {
       const projectPath = getProjectPathFromRequest(req);
+      const txId = req.get("X-Transaction-Id");
       const { reviewed } = req.body;
 
       const result = await executeUpdateTask(projectPath, {
@@ -374,6 +375,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           taskId: req.params.id,
           field: "reviewed",
           value: result.task?.reviewed,
+          txId,
         });
       }
 
@@ -388,6 +390,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
   router.patch("/dashboard/tasks/:id/star", async (req: Request, res: Response) => {
     try {
       const projectPath = getProjectPathFromRequest(req);
+      const txId = req.get("X-Transaction-Id");
       const { starred } = req.body;
 
       const result = await executeUpdateTask(projectPath, {
@@ -407,6 +410,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           taskId: req.params.id,
           field: "starred",
           value: result.task?.starred,
+          txId,
         });
       }
 

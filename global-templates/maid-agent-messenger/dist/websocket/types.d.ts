@@ -16,26 +16,30 @@ export interface TasksHtml {
     skillCandidates: string;
     improvements: string;
 }
+/** トランザクションID（クライアントが発行、自己/他者判定に使用） */
+interface TransactionIdentifier {
+    txId?: string;
+}
 /** デバウンス対象のイベント（バッチ化可能） */
-export type DebouncedEvent = {
+export type DebouncedEvent = ({
     type: "taskUpdated";
     taskId: string;
     field?: string;
     value?: unknown;
     task?: unknown;
-} | {
+} & TransactionIdentifier) | ({
     type: "taskCreated";
     taskId: string;
     task?: unknown;
-} | {
+} & TransactionIdentifier) | ({
     type: "taskAssigned";
     taskId: string;
     assignee: string;
-} | {
+} & TransactionIdentifier) | ({
     type: "statusUpdated";
     agentId: string;
     status: string;
-};
+} & TransactionIdentifier);
 export type DashboardEvent = {
     type: "connected";
     sessionId: string;
@@ -69,3 +73,4 @@ export interface WebSocketConfig {
     maxClients: number;
 }
 export declare const DEFAULT_WS_CONFIG: WebSocketConfig;
+export {};

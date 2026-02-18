@@ -74,6 +74,7 @@ export function createTaskApiRoutes(deps = {}) {
     router.patch("/api/tasks/:id", async (req, res) => {
         try {
             const projectPath = getProjectPathFromRequest(req);
+            const txId = req.get("X-Transaction-Id");
             const { status, substatus, summary, reportPath } = req.body;
             const result = await executeUpdateTask(projectPath, {
                 taskId: req.params.id,
@@ -92,6 +93,7 @@ export function createTaskApiRoutes(deps = {}) {
                     type: "taskUpdated",
                     taskId: req.params.id,
                     task: result.task,
+                    txId,
                 });
             }
             res.json(result);
@@ -125,6 +127,7 @@ export function createTaskApiRoutes(deps = {}) {
     router.patch("/api/tasks/:id/review", async (req, res) => {
         try {
             const projectPath = getProjectPathFromRequest(req);
+            const txId = req.get("X-Transaction-Id");
             const { reviewed } = req.body;
             const result = await executeUpdateTask(projectPath, {
                 taskId: req.params.id,
@@ -141,6 +144,7 @@ export function createTaskApiRoutes(deps = {}) {
                     taskId: req.params.id,
                     field: "reviewed",
                     value: result.task?.reviewed,
+                    txId,
                 });
             }
             res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
@@ -154,6 +158,7 @@ export function createTaskApiRoutes(deps = {}) {
     router.patch("/api/tasks/:id/star", async (req, res) => {
         try {
             const projectPath = getProjectPathFromRequest(req);
+            const txId = req.get("X-Transaction-Id");
             const { starred } = req.body;
             const result = await executeUpdateTask(projectPath, {
                 taskId: req.params.id,
@@ -170,6 +175,7 @@ export function createTaskApiRoutes(deps = {}) {
                     taskId: req.params.id,
                     field: "starred",
                     value: result.task?.starred,
+                    txId,
                 });
             }
             res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });

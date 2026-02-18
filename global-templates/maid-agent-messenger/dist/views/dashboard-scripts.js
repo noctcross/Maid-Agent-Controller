@@ -47,6 +47,31 @@ export function getDashboardHeadScript(params) {
       refreshDashboard();
     }, 300);
 
+    // --- トランザクションID方式 ---
+    // UUID生成（ブラウザ互換）
+    function generateUUID() {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      // フォールバック（VSCode Webview用）
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0;
+        var v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    // 保留中のトランザクションID
+    var pendingTransactions = new Set();
+    var TX_TIMEOUT = 5000; // 5秒後に自動クリーンアップ
+
+    function addPendingTransaction(txId) {
+      pendingTransactions.add(txId);
+      setTimeout(function() {
+        pendingTransactions.delete(txId);
+      }, TX_TIMEOUT);
+    }
+
     // 楽観的に非表示にしたタスクIDを記憶（DOM更新後に再適用するため）
     var optimisticallyHiddenTasks = new Set();
 
@@ -85,6 +110,8 @@ export function getDashboardHeadScript(params) {
       event.stopPropagation();
       var btn = event.target.closest('.review-btn');
       var taskItem = btn ? btn.closest('.task-item') : null;
+      var txId = generateUUID();
+      addPendingTransaction(txId);
 
       // 楽観的UI更新（ボタン）
       if (btn) {
@@ -105,11 +132,11 @@ export function getDashboardHeadScript(params) {
       }
 
       if (_vscodeApi) {
-        _vscodeApi.postMessage({ command: 'toggleReview', taskId: taskId, reviewed: newValue });
+        _vscodeApi.postMessage({ command: 'toggleReview', taskId: taskId, reviewed: newValue, txId: txId });
       } else {
         fetch('/dashboard/tasks/' + taskId + '/review', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}' },
+          headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}', 'X-Transaction-Id': txId },
           body: JSON.stringify({ reviewed: newValue })
         }).then(function() {
           // 成功したらSetから削除（サーバー状態と同期済み）
@@ -117,7 +144,8 @@ export function getDashboardHeadScript(params) {
           // サーバーサイドフィルタで現在ページを再取得（デバウンス化）
           debouncedRefreshCompletedPage();
         }).catch(function() {
-          // ロールバック
+          // ロールバック + pending削除
+          pendingTransactions.delete(txId);
           optimisticallyHiddenTasks.delete(taskId);
           if (btn) {
             btn.classList.toggle('active', !newValue);
@@ -134,6 +162,8 @@ export function getDashboardHeadScript(params) {
       event.stopPropagation();
       var btn = event.target.closest('.star-btn');
       var taskItem = btn ? btn.closest('.task-item') : null;
+      var txId = generateUUID();
+      addPendingTransaction(txId);
 
       // 楽観的UI更新（ボタン）
       if (btn) {
@@ -154,11 +184,11 @@ export function getDashboardHeadScript(params) {
       }
 
       if (_vscodeApi) {
-        _vscodeApi.postMessage({ command: 'toggleStar', taskId: taskId, starred: newValue });
+        _vscodeApi.postMessage({ command: 'toggleStar', taskId: taskId, starred: newValue, txId: txId });
       } else {
         fetch('/dashboard/tasks/' + taskId + '/star', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}' },
+          headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}', 'X-Transaction-Id': txId },
           body: JSON.stringify({ starred: newValue })
         }).then(function() {
           // 成功したらSetから削除（サーバー状態と同期済み）
@@ -166,7 +196,8 @@ export function getDashboardHeadScript(params) {
           // サーバーサイドフィルタで現在ページを再取得（デバウンス化）
           debouncedRefreshCompletedPage();
         }).catch(function() {
-          // ロールバック
+          // ロールバック + pending削除
+          pendingTransactions.delete(txId);
           optimisticallyHiddenTasks.delete(taskId);
           if (btn) {
             btn.classList.toggle('active', !newValue);
@@ -560,6 +591,8 @@ export function getDashboardMainScript(params) {
         ws.onopen = function() {
           console.log('[WS] Connected');
           wsReconnectAttempts = 0;
+          // 再接続時は保留中のトランザクションをクリア
+          pendingTransactions.clear();
         };
 
         ws.onmessage = function(event) {
@@ -661,33 +694,60 @@ export function getDashboardMainScript(params) {
           break;
 
         case 'taskUpdated':
-          // タスク更新 → タスク一覧を再取得（デバウンス化）
-          console.log('[WS] Task updated:', event.taskId, event.field);
+          // タスク更新 → トランザクションID判定
+          console.log('[WS] Task updated:', event.taskId, event.field, 'txId:', event.txId);
+          if (event.txId && pendingTransactions.has(event.txId)) {
+            // 自分の操作 → 楽観的更新済みなのでスキップ
+            console.log('[WS] Skipping own transaction:', event.txId);
+            pendingTransactions.delete(event.txId);
+            break;
+          }
           debouncedRefreshDashboard();
           break;
 
         case 'taskCreated':
-          // タスク作成 → タスク一覧を再取得（デバウンス化）
-          console.log('[WS] Task created:', event.taskId);
+          // タスク作成 → トランザクションID判定
+          console.log('[WS] Task created:', event.taskId, 'txId:', event.txId);
+          if (event.txId && pendingTransactions.has(event.txId)) {
+            pendingTransactions.delete(event.txId);
+            break;
+          }
           debouncedRefreshDashboard();
           break;
 
         case 'taskAssigned':
-          // タスク割り当て → タスク一覧を再取得（デバウンス化）
-          console.log('[WS] Task assigned:', event.taskId, 'to', event.assignee);
+          // タスク割り当て → トランザクションID判定
+          console.log('[WS] Task assigned:', event.taskId, 'to', event.assignee, 'txId:', event.txId);
+          if (event.txId && pendingTransactions.has(event.txId)) {
+            pendingTransactions.delete(event.txId);
+            break;
+          }
           debouncedRefreshDashboard();
           break;
 
         case 'statusUpdated':
-          // ステータス更新 → タスク一覧を再取得（デバウンス化）
-          console.log('[WS] Status updated:', event.agentId, event.status);
+          // ステータス更新 → トランザクションID判定
+          console.log('[WS] Status updated:', event.agentId, event.status, 'txId:', event.txId);
+          if (event.txId && pendingTransactions.has(event.txId)) {
+            pendingTransactions.delete(event.txId);
+            break;
+          }
           debouncedRefreshDashboard();
           break;
 
         case 'tasksBatchUpdated':
-          // バッチイベント: 複数タスクが一括更新された
+          // バッチイベント: 自分のtxIdが含まれるイベントを除外して判定
           console.log('[WS] Tasks batch updated:', event.count, 'events');
-          debouncedRefreshDashboard();
+          var hasOthersEvent = event.events && event.events.some(function(e) {
+            if (e.txId && pendingTransactions.has(e.txId)) {
+              pendingTransactions.delete(e.txId);
+              return false; // 自分のイベント
+            }
+            return true; // 他者のイベント
+          });
+          if (hasOthersEvent) {
+            debouncedRefreshDashboard();
+          }
           break;
 
         case 'ping':

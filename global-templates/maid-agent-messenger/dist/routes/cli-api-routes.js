@@ -42,6 +42,7 @@ export function createCliApiRoutes(deps = {}) {
     router.post("/api/tasks", async (req, res) => {
         try {
             const projectPath = getProjectPathFromRequest(req);
+            const txId = req.get("X-Transaction-Id");
             const { title, description, priority, parentId, category } = req.body;
             // バリデーション
             if (!title || typeof title !== "string") {
@@ -61,6 +62,7 @@ export function createCliApiRoutes(deps = {}) {
                     type: "taskCreated",
                     taskId: result.taskId,
                     task: result.task,
+                    txId,
                 });
             }
             res.status(201).json({
@@ -80,6 +82,7 @@ export function createCliApiRoutes(deps = {}) {
     router.post("/api/tasks/:id/assign", async (req, res) => {
         try {
             const projectPath = getProjectPathFromRequest(req);
+            const txId = req.get("X-Transaction-Id");
             const taskId = req.params.id;
             const { targetAgent, title, description, targetPath, force } = req.body;
             // バリデーション
@@ -120,6 +123,7 @@ export function createCliApiRoutes(deps = {}) {
                     type: "taskAssigned",
                     taskId: result.task_id,
                     assignee: result.assigned_to,
+                    txId,
                 });
             }
             res.json({
@@ -170,6 +174,7 @@ export function createCliApiRoutes(deps = {}) {
     router.patch("/api/agents/:id/status", async (req, res) => {
         try {
             const projectPath = getProjectPathFromRequest(req);
+            const txId = req.get("X-Transaction-Id");
             const agentId = req.params.id;
             const { status, summary, escalation } = req.body;
             // バリデーション: agentId
@@ -205,6 +210,7 @@ export function createCliApiRoutes(deps = {}) {
                     type: "statusUpdated",
                     agentId,
                     status,
+                    txId,
                 });
             }
             res.json({

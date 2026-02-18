@@ -58,6 +58,7 @@ function buildInternalPaths(projectPath: string) {
 router.post("/api/tasks", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
+    const txId = req.get("X-Transaction-Id");
     const { title, description, priority, parentId, category } = req.body;
 
     // バリデーション
@@ -80,6 +81,7 @@ router.post("/api/tasks", async (req: Request, res: Response) => {
         type: "taskCreated",
         taskId: result.taskId,
         task: result.task,
+        txId,
       });
     }
 
@@ -100,6 +102,7 @@ router.post("/api/tasks", async (req: Request, res: Response) => {
 router.post("/api/tasks/:id/assign", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
+    const txId = req.get("X-Transaction-Id");
     const taskId = req.params.id;
     const { targetAgent, title, description, targetPath, force } = req.body;
 
@@ -146,6 +149,7 @@ router.post("/api/tasks/:id/assign", async (req: Request, res: Response) => {
         type: "taskAssigned",
         taskId: result.task_id,
         assignee: result.assigned_to,
+        txId,
       });
     }
 
@@ -201,6 +205,7 @@ router.get("/api/agents/:id/task", async (req: Request, res: Response) => {
 router.patch("/api/agents/:id/status", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
+    const txId = req.get("X-Transaction-Id");
     const agentId = req.params.id;
     const { status, summary, escalation } = req.body;
 
@@ -241,6 +246,7 @@ router.patch("/api/agents/:id/status", async (req: Request, res: Response) => {
         type: "statusUpdated",
         agentId,
         status,
+        txId,
       });
     }
 

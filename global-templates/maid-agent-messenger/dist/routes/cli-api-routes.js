@@ -14,7 +14,6 @@ import { Router } from "express";
 import { executeCreateTask, executeAssignTask, executeGetMyTask, executeUpdateStatus, executeGetTeamStatus, } from "../services/index.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 import { MAID_IDS } from "../types/index.js";
-import { debouncedBroadcast } from "../websocket/broadcast-debouncer.js";
 export function createCliApiRoutes(deps = {}) {
     const { wsServer } = deps;
     const router = Router();
@@ -56,9 +55,9 @@ export function createCliApiRoutes(deps = {}) {
                 parentId: parentId || undefined,
                 category: category || "task",
             });
-            // WebSocket通知: タスク作成をリアルタイム配信（デバウンス）
+            // WebSocket通知: タスク作成をリアルタイム配信
             if (wsServer) {
-                debouncedBroadcast(wsServer, projectPath, {
+                wsServer.broadcast(projectPath, {
                     type: "taskCreated",
                     taskId: result.taskId,
                     task: result.task,
@@ -117,9 +116,9 @@ export function createCliApiRoutes(deps = {}) {
                 });
                 return;
             }
-            // WebSocket通知: タスク割り当てをリアルタイム配信（デバウンス）
+            // WebSocket通知: タスク割り当てをリアルタイム配信
             if (wsServer) {
-                debouncedBroadcast(wsServer, projectPath, {
+                wsServer.broadcast(projectPath, {
                     type: "taskAssigned",
                     taskId: result.task_id,
                     assignee: result.assigned_to,
@@ -204,9 +203,9 @@ export function createCliApiRoutes(deps = {}) {
                 summary: summary || undefined,
                 escalation: escalation || false,
             });
-            // WebSocket通知: ステータス更新をリアルタイム配信（デバウンス）
+            // WebSocket通知: ステータス更新をリアルタイム配信
             if (wsServer) {
-                debouncedBroadcast(wsServer, projectPath, {
+                wsServer.broadcast(projectPath, {
                     type: "statusUpdated",
                     agentId,
                     status,

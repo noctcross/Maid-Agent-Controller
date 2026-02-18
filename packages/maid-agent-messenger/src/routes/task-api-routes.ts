@@ -14,7 +14,6 @@ import {
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
-import { debouncedBroadcast } from "../websocket/broadcast-debouncer.js";
 
 export interface TaskApiRoutesDeps {
   wsServer?: DashboardWebSocketServer;
@@ -119,9 +118,9 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       return;
     }
 
-    // WebSocket通知: タスク更新をリアルタイム配信（デバウンス）
+    // WebSocket通知: タスク更新をリアルタイム配信
     if (wsServer) {
-      debouncedBroadcast(wsServer, projectPath, {
+      wsServer.broadcast(projectPath, {
         type: "taskUpdated",
         taskId: req.params.id,
         task: result.task,
@@ -176,9 +175,9 @@ router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
       return;
     }
 
-    // WebSocket通知: タスク更新をリアルタイム配信（デバウンス）
+    // WebSocket通知: タスク更新をリアルタイム配信
     if (wsServer) {
-      debouncedBroadcast(wsServer, projectPath, {
+      wsServer.broadcast(projectPath, {
         type: "taskUpdated",
         taskId: req.params.id,
         field: "reviewed",
@@ -211,9 +210,9 @@ router.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
       return;
     }
 
-    // WebSocket通知: タスク更新をリアルタイム配信（デバウンス）
+    // WebSocket通知: タスク更新をリアルタイム配信
     if (wsServer) {
-      debouncedBroadcast(wsServer, projectPath, {
+      wsServer.broadcast(projectPath, {
         type: "taskUpdated",
         taskId: req.params.id,
         field: "starred",

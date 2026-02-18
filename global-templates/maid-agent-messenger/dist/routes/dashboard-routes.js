@@ -10,7 +10,6 @@ import { executeListTasks, executeGetTeamStatus, executeUpdateTask, } from "../s
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 import { recordProjectAccess } from "../services/project-registry.js";
-import { debouncedBroadcast } from "../websocket/broadcast-debouncer.js";
 export function createDashboardRoutes(deps) {
     const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, wsServer } = deps;
     const router = Router();
@@ -307,9 +306,9 @@ export function createDashboardRoutes(deps) {
                 res.status(404).json({ error: "Task not found", taskId: req.params.id });
                 return;
             }
-            // WebSocket通知: タスク更新をリアルタイム配信（デバウンス）
+            // WebSocket通知: タスク更新をリアルタイム配信（即座にbroadcast）
             if (wsServer) {
-                debouncedBroadcast(wsServer, projectPath, {
+                wsServer.broadcast(projectPath, {
                     type: "taskUpdated",
                     taskId: req.params.id,
                     field: "reviewed",
@@ -338,9 +337,9 @@ export function createDashboardRoutes(deps) {
                 res.status(404).json({ error: "Task not found", taskId: req.params.id });
                 return;
             }
-            // WebSocket通知: タスク更新をリアルタイム配信（デバウンス）
+            // WebSocket通知: タスク更新をリアルタイム配信（即座にbroadcast）
             if (wsServer) {
-                debouncedBroadcast(wsServer, projectPath, {
+                wsServer.broadcast(projectPath, {
                     type: "taskUpdated",
                     taskId: req.params.id,
                     field: "starred",

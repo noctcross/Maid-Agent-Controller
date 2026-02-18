@@ -22,7 +22,6 @@ import {
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 import { MAID_IDS, type UpdatableStatus } from "../types/index.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
-import { debouncedBroadcast } from "../websocket/broadcast-debouncer.js";
 
 export interface CliApiRoutesDeps {
   wsServer?: DashboardWebSocketServer;
@@ -75,9 +74,9 @@ router.post("/api/tasks", async (req: Request, res: Response) => {
       category: category || "task",
     });
 
-    // WebSocket通知: タスク作成をリアルタイム配信（デバウンス）
+    // WebSocket通知: タスク作成をリアルタイム配信
     if (wsServer) {
-      debouncedBroadcast(wsServer, projectPath, {
+      wsServer.broadcast(projectPath, {
         type: "taskCreated",
         taskId: result.taskId,
         task: result.task,
@@ -143,9 +142,9 @@ router.post("/api/tasks/:id/assign", async (req: Request, res: Response) => {
       return;
     }
 
-    // WebSocket通知: タスク割り当てをリアルタイム配信（デバウンス）
+    // WebSocket通知: タスク割り当てをリアルタイム配信
     if (wsServer) {
-      debouncedBroadcast(wsServer, projectPath, {
+      wsServer.broadcast(projectPath, {
         type: "taskAssigned",
         taskId: result.task_id,
         assignee: result.assigned_to,
@@ -240,9 +239,9 @@ router.patch("/api/agents/:id/status", async (req: Request, res: Response) => {
       escalation: escalation || false,
     });
 
-    // WebSocket通知: ステータス更新をリアルタイム配信（デバウンス）
+    // WebSocket通知: ステータス更新をリアルタイム配信
     if (wsServer) {
-      debouncedBroadcast(wsServer, projectPath, {
+      wsServer.broadcast(projectPath, {
         type: "statusUpdated",
         agentId,
         status,

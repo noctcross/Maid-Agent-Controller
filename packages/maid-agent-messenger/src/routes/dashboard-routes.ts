@@ -18,7 +18,6 @@ import type { DashboardData } from "../views/dashboard-html.js";
 import { getProjectPathFromRequest } from "../middleware/session-manager.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
-import { debouncedBroadcast } from "../websocket/broadcast-debouncer.js";
 
 // DashboardData型を再エクスポート
 export type { DashboardData };
@@ -368,9 +367,9 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         return;
       }
 
-      // WebSocket通知: タスク更新をリアルタイム配信（デバウンス）
+      // WebSocket通知: タスク更新をリアルタイム配信（即座にbroadcast）
       if (wsServer) {
-        debouncedBroadcast(wsServer, projectPath, {
+        wsServer.broadcast(projectPath, {
           type: "taskUpdated",
           taskId: req.params.id,
           field: "reviewed",
@@ -403,9 +402,9 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         return;
       }
 
-      // WebSocket通知: タスク更新をリアルタイム配信（デバウンス）
+      // WebSocket通知: タスク更新をリアルタイム配信（即座にbroadcast）
       if (wsServer) {
-        debouncedBroadcast(wsServer, projectPath, {
+        wsServer.broadcast(projectPath, {
           type: "taskUpdated",
           taskId: req.params.id,
           field: "starred",

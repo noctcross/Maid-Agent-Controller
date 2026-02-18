@@ -33,43 +33,9 @@ function isDebouncedEvent(event) {
  * @param event ブロードキャストするイベント
  */
 export function debouncedBroadcast(wsServer, projectPath, event) {
-    // デバウンス対象外のイベントはそのままブロードキャスト
-    if (!isDebouncedEvent(event)) {
-        wsServer.broadcast(projectPath, event);
-        return;
-    }
-    const key = projectPath;
-    const pending = pendingBroadcasts.get(key);
-    if (pending) {
-        // 既存のタイマーをクリアし、イベントを追加
-        clearTimeout(pending.timer);
-        pending.events.push(event);
-    }
-    else {
-        // 新規エントリ
-        pendingBroadcasts.set(key, {
-            timer: null,
-            events: [event],
-        });
-    }
-    // タイマーを再設定
-    const newPending = pendingBroadcasts.get(key);
-    newPending.timer = setTimeout(() => {
-        const events = newPending.events;
-        pendingBroadcasts.delete(key);
-        if (events.length === 1) {
-            // 単一イベント: そのままブロードキャスト
-            wsServer.broadcast(projectPath, events[0]);
-        }
-        else {
-            // 複数イベント: バッチイベントとしてブロードキャスト
-            wsServer.broadcast(projectPath, {
-                type: "tasksBatchUpdated",
-                events: events,
-                count: events.length,
-            });
-        }
-    }, DEBOUNCE_DELAY);
+    // [DEBUG] デバウンス一時無効化 - 即座にbroadcast
+    console.log(`[DEBUG] WS broadcast immediate:`, JSON.stringify(event));
+    wsServer.broadcast(projectPath, event);
 }
 /**
  * 保留中のブロードキャストをすべてクリア（テスト用）

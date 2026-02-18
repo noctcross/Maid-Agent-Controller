@@ -77,7 +77,7 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
 
     // 保留中のトランザクションID
     var pendingTransactions = new Set();
-    var TX_TIMEOUT = 5000; // 5秒後に自動クリーンアップ
+    var TX_TIMEOUT = 10000; // 10秒後に自動クリーンアップ（サーバー遅延対策）
 
     function addPendingTransaction(txId) {
       pendingTransactions.add(txId);
@@ -154,10 +154,9 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
           body: JSON.stringify({ reviewed: newValue })
         }).then(function() {
           // 成功 - トランザクションIDをクリーンアップ
-          // 楽観的非表示は applyOptimisticHidesToHtml() で維持される
+          // 楽観的更新を信頼し、再取得しない（巻き戻り防止）
           pendingTransactions.delete(txId);
-          // サーバーサイドフィルタで現在ページを再取得（デバウンス化）
-          debouncedRefreshCompletedPage();
+          // debouncedRefreshCompletedPage() は削除 - WebSocketの他者操作時のみ再取得
         }).catch(function() {
           // ロールバック + pending削除
           pendingTransactions.delete(txId);
@@ -207,10 +206,9 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
           body: JSON.stringify({ starred: newValue })
         }).then(function() {
           // 成功 - トランザクションIDをクリーンアップ
-          // 楽観的非表示は applyOptimisticHidesToHtml() で維持される
+          // 楽観的更新を信頼し、再取得しない（巻き戻り防止）
           pendingTransactions.delete(txId);
-          // サーバーサイドフィルタで現在ページを再取得（デバウンス化）
-          debouncedRefreshCompletedPage();
+          // debouncedRefreshCompletedPage() は削除 - WebSocketの他者操作時のみ再取得
         }).catch(function() {
           // ロールバック + pending削除
           pendingTransactions.delete(txId);

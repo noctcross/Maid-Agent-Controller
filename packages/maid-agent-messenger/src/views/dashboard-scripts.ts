@@ -55,6 +55,12 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
       requestCompletedPage();
     }, 300);
 
+    // WebSocketイベント用のリフレッシュをデバウンス化（300ms）
+    // 複数タスク一括操作時の表示巻き戻り防止
+    var debouncedRefreshDashboard = debounce(function() {
+      refreshDashboard();
+    }, 300);
+
     // 楽観的に非表示にしたタスクIDを記憶（DOM更新後に再適用するため）
     var optimisticallyHiddenTasks = new Set();
 
@@ -670,27 +676,27 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
           break;
 
         case 'taskUpdated':
-          // タスク更新 → タスク一覧を再取得
+          // タスク更新 → タスク一覧を再取得（デバウンス化）
           console.log('[WS] Task updated:', event.taskId, event.field);
-          refreshDashboard();
+          debouncedRefreshDashboard();
           break;
 
         case 'taskCreated':
-          // タスク作成 → タスク一覧を再取得
+          // タスク作成 → タスク一覧を再取得（デバウンス化）
           console.log('[WS] Task created:', event.taskId);
-          refreshDashboard();
+          debouncedRefreshDashboard();
           break;
 
         case 'taskAssigned':
-          // タスク割り当て → タスク一覧を再取得
+          // タスク割り当て → タスク一覧を再取得（デバウンス化）
           console.log('[WS] Task assigned:', event.taskId, 'to', event.assignee);
-          refreshDashboard();
+          debouncedRefreshDashboard();
           break;
 
         case 'statusUpdated':
-          // ステータス更新 → タスク一覧を再取得
+          // ステータス更新 → タスク一覧を再取得（デバウンス化）
           console.log('[WS] Status updated:', event.agentId, event.status);
-          refreshDashboard();
+          debouncedRefreshDashboard();
           break;
 
         case 'ping':

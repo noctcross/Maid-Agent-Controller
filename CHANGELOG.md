@@ -5,6 +5,19 @@ All notable changes to the Maid Agent Controller extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-02-18
+
+### Fixed
+
+- **macOS/Linux Init Global セットアップ問題の修正** (Issue #1)
+  - 「完了」ボタン待ちの解消: ターミナル経由からバックグラウンド実行（execSync）に変更
+  - ユーザー入力の一括取得: pm2 インストール時のパスワードをキャッシュし、pm2 startup 設定時に再利用
+  - パスワードレス sudo 対応: `sudo -n` で自動実行可能な場合はユーザー入力なしで完了
+  - パスワード入力リトライ: 最大3回までリトライ、失敗時は手動実行コマンドを案内
+  - pm2 startup 設定の自動化: 確認ダイアログ後、バックグラウンドで自動実行
+
+---
+
 ## [1.1.0] - 2026-02-12
 
 ### Added

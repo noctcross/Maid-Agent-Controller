@@ -109,7 +109,7 @@ describe('Phase 3: dispose() timer cleanup', () => {
     });
 });
 
-describe('Phase 5: restoreDashboardPanel message handlers', () => {
+describe('Phase 5: setupDashboardMessageHandler message handlers', () => {
     const requiredHandlers = [
         'refresh',
         'openInBrowser',
@@ -121,10 +121,31 @@ describe('Phase 5: restoreDashboardPanel message handlers', () => {
         'updateCompletedViewState'
     ];
 
-    it('should have all 8 message handler cases in restoreDashboardPanel', () => {
+    it('should have all 8 message handler cases in setupDashboardMessageHandler', () => {
         const dashboardContent = fs.readFileSync(path.join(SRC_DIR, 'ui/web-dashboard.ts'), 'utf-8');
 
-        // restoreDashboardPanel関数を抽出
+        // setupDashboardMessageHandler関数を抽出（restoreDashboardPanelから呼ばれる共通ハンドラ）
+        const handlerFunctionMatch = dashboardContent.match(
+            /function setupDashboardMessageHandler\([^)]+\)[^{]*\{([\s\S]*?)(?=\n(?:export )?function|\n\/\/\s*=|$)/
+        );
+
+        expect(handlerFunctionMatch, 'setupDashboardMessageHandler function should exist').toBeTruthy();
+
+        if (handlerFunctionMatch) {
+            const handlerBody = handlerFunctionMatch[1];
+
+            // 各ハンドラケースが存在するか確認
+            requiredHandlers.forEach(handler => {
+                const casePattern = new RegExp(`case\\s+['"]${handler}['"]:`);
+                expect(handlerBody, `Should have case '${handler}'`).toMatch(casePattern);
+            });
+        }
+    });
+
+    it('should call setupDashboardMessageHandler from restoreDashboardPanel', () => {
+        const dashboardContent = fs.readFileSync(path.join(SRC_DIR, 'ui/web-dashboard.ts'), 'utf-8');
+
+        // restoreDashboardPanelがsetupDashboardMessageHandlerを呼んでいることを確認
         const restoreFunctionMatch = dashboardContent.match(
             /export function restoreDashboardPanel\([^)]+\)[^{]*\{([\s\S]*?)(?=\nexport|\n\/\/\s*=|$)/
         );
@@ -133,12 +154,7 @@ describe('Phase 5: restoreDashboardPanel message handlers', () => {
 
         if (restoreFunctionMatch) {
             const restoreBody = restoreFunctionMatch[1];
-
-            // 各ハンドラケースが存在するか確認
-            requiredHandlers.forEach(handler => {
-                const casePattern = new RegExp(`case\\s+['"]${handler}['"]:`);
-                expect(restoreBody, `Should have case '${handler}'`).toMatch(casePattern);
-            });
+            expect(restoreBody, 'Should call setupDashboardMessageHandler').toMatch(/setupDashboardMessageHandler\(/);
         }
     });
 });

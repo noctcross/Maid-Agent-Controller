@@ -44,7 +44,7 @@ describe('checkJqInstalled', () => {
 
     expect(result).toBe(true);
     expect(execSync).toHaveBeenCalledWith(
-      'wsl bash -c "which jq"',
+      'wsl bash -lc "which jq"',
       expect.any(Object)
     );
   });

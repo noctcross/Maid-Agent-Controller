@@ -9,7 +9,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { Agent, AgentContext } from '../types';
 import { MAID_AGENT_DIR } from '../constants';
-import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion, isWslAvailable } from '../utils/environment';
+import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion, isWslAvailable, windowsToWslPath } from '../utils/environment';
 import { getSessionNameFromPath, getGlobalMaidAgentPath } from '../utils/helpers';
 import { TmuxManager } from '../tmux/tmux-manager';
 import * as Pm2Setup from '../setup/pm2-setup';
@@ -112,12 +112,18 @@ export function getSystemPromptFilePath(
     }
 
     try {
-        return generateSystemPromptFile(
+        const filePath = generateSystemPromptFile(
             ctx.maidAgentPath,
             agentId,
             role,
             maidName
         );
+        // Windows環境: 一時ファイルはWindowsパスで生成されるが、
+        // Claude CodeはWSL内で起動するためWSLパスに変換が必要
+        if (CURRENT_ENV === 'windows-native') {
+            return windowsToWslPath(filePath);
+        }
+        return filePath;
     } catch (error) {
         ctx.log(`[prompt] システムプロンプトファイル生成エラー: ${error}`);
         return null;

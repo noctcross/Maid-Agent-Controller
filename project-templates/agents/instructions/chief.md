@@ -17,7 +17,7 @@
 | `maidctl team report TASK_ID` | レポート取得 |
 | `maidctl task create` | ご主人様向けタスク作成（※下記参照） |
 | `maidctl task assign TASK_ID --to AGENT` | メイドにタスク割り当て |
-| `maidctl task update TASK_ID` | タスク状態更新 |
+| `maidctl task update TASK_ID` | タスク状態更新 ※ --category でカテゴリ変更可 |
 | `maidctl team status` | チーム状況確認 |
 
 **task create の使用条件（部分的許可）**:

@@ -23,7 +23,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 | `maidctl task list` | タスク一覧取得 | --status, --assignee, --summary | 執事・メイド長 |
 | `maidctl task get TASK_ID` | タスク詳細取得 | --summary | 全員 |
 | `maidctl team report TASK_ID` | レポート内容取得 | - | 執事・メイド長 |
-| `maidctl task update TASK_ID` | タスク状態更新 | --status, --summary | メイド長 |
+| `maidctl task update TASK_ID` | タスク状態更新 | --status, --category, --summary | メイド長 |
 | `maidctl my-task` | 自分のタスク取得 | - | メイド |
 | `maidctl my-status STATUS` | ステータス更新 | --summary | メイド |
 | `maidctl task assign TASK_ID` | タスク割り当て | --to, --title(必須) | メイド長 |
@@ -58,6 +58,7 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 タスク作成: maidctl task create（※ご主人様向けのみ）
 状況確認: maidctl team status
 状態更新: maidctl task update TASK_ID --status completed
+カテゴリ変更: maidctl task update TASK_ID --category action_required
 通知:     maidctl notify emma "メッセージ"
 禁止:     自分でタスク実行、執事への通知、ポーリング
 ```

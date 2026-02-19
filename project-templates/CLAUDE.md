@@ -62,6 +62,8 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 | `skill_candidate` | 📚 スキル化候補 |
 | `improvement` | 💡 改善提案 |
 
+**カテゴリ変更**: `maidctl task update TASK_ID --category {カテゴリ}` で変更可能（メイド長）
+
 ### ステータス遷移
 
 ```

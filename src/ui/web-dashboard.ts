@@ -59,10 +59,10 @@ function setupDashboardMessageHandler(ctx: ViewContext, panel: vscode.WebviewPan
                     openFileWithPreview(ctx, message.path);
                     break;
                 case 'toggleReview':
-                    toggleTaskReview(ctx, message.taskId, message.reviewed);
+                    toggleTaskReview(ctx, message.taskId, message.reviewed, message.txId);
                     break;
                 case 'toggleStar':
-                    toggleTaskStar(ctx, message.taskId, message.starred);
+                    toggleTaskStar(ctx, message.taskId, message.starred, message.txId);
                     break;
                 case 'completedPage':
                     fetchCompletedPage(ctx, message.offset, message.limit, message.reviewed, message.starred, message.completedSortField);
@@ -396,7 +396,7 @@ export async function updateDashboardData(ctx: ViewContext, serverUrl: string, p
 /**
  * 完了タスクのレビュー済みフラグをトグル
  */
-export async function toggleTaskReview(ctx: ViewContext, taskId: string, reviewed: boolean): Promise<void> {
+export async function toggleTaskReview(ctx: ViewContext, taskId: string, reviewed: boolean, txId?: string): Promise<void> {
     const serverUrl = DASHBOARD_SERVER_URL;
     let projectPath = ctx.workspaceRoot;
     if (!projectPath) return;
@@ -404,13 +404,20 @@ export async function toggleTaskReview(ctx: ViewContext, taskId: string, reviewe
         ? windowsToWslPath(projectPath)
         : projectPath;
     try {
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'X-Maid-Project-Path': normalizedPath,
+        };
+        if (txId) {
+            headers['X-Transaction-Id'] = txId;
+        }
         await fetch(`${serverUrl}/dashboard/tasks/${taskId}/review`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': normalizedPath },
+            headers,
             body: JSON.stringify({ reviewed }),
         });
-        // PATCH成功後、webviewに完了ページ再取得シグナルを送信
-        ctx.dashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
+        // 楽観的更新を信頼し、再取得しない（Web版と同様）
+        // WebSocketの他者操作時のみ再取得される
     } catch (error) {
         ctx.log(`[Dashboard] Review toggle failed: ${error}`);
     }
@@ -419,7 +426,7 @@ export async function toggleTaskReview(ctx: ViewContext, taskId: string, reviewe
 /**
  * 完了タスクのスターフラグをトグル
  */
-export async function toggleTaskStar(ctx: ViewContext, taskId: string, starred: boolean): Promise<void> {
+export async function toggleTaskStar(ctx: ViewContext, taskId: string, starred: boolean, txId?: string): Promise<void> {
     const serverUrl = DASHBOARD_SERVER_URL;
     let projectPath = ctx.workspaceRoot;
     if (!projectPath) return;
@@ -427,13 +434,20 @@ export async function toggleTaskStar(ctx: ViewContext, taskId: string, starred: 
         ? windowsToWslPath(projectPath)
         : projectPath;
     try {
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'X-Maid-Project-Path': normalizedPath,
+        };
+        if (txId) {
+            headers['X-Transaction-Id'] = txId;
+        }
         await fetch(`${serverUrl}/dashboard/tasks/${taskId}/star`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': normalizedPath },
+            headers,
             body: JSON.stringify({ starred }),
         });
-        // PATCH成功後、webviewに完了ページ再取得シグナルを送信
-        ctx.dashboardPanel?.webview.postMessage({ type: 'refreshCompletedPage' });
+        // 楽観的更新を信頼し、再取得しない（Web版と同様）
+        // WebSocketの他者操作時のみ再取得される
     } catch (error) {
         ctx.log(`[Dashboard] Star toggle failed: ${error}`);
     }

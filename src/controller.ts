@@ -301,7 +301,8 @@ export class MultiAgentController {
             initializeTmuxSession: () => this.initializeTmuxSession(),
             saveSessionNameToFile: () => this.saveSessionNameToFile(),
             openTmuxViewer: () => this.openTmuxViewer(),
-            getRolePrompt: (agentId, role, maidName?) => this.getRolePrompt(agentId, role, maidName),
+            getSystemPromptFilePath: (agentId, role, maidName?) => this.getSystemPromptFilePath(agentId, role, maidName),
+            getFallbackRolePrompt: (agentId, role, maidName?) => this.getFallbackRolePrompt(agentId, role, maidName),
             launchClaudeWithRole: (agentId, role, maidName?) => this.launchClaudeWithRole(agentId, role, maidName),
             ensureInitialized: () => this.ensureInitialized(),
             checkExistingSessionAndPrompt: (agentId, agentName) => this.checkExistingSessionAndPrompt(agentId, agentName),
@@ -420,8 +421,12 @@ export class MultiAgentController {
         return AgentComm.captureAgentOutput(this.createAgentContext(), agentId, lines);
     }
 
-    private getRolePrompt(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string {
-        return AgentStartup.getRolePrompt(this.createAgentContext(), agentId, role, maidName);
+    private getSystemPromptFilePath(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string | null {
+        return AgentStartup.getSystemPromptFilePath(this.createAgentContext(), agentId, role, maidName);
+    }
+
+    private getFallbackRolePrompt(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string {
+        return AgentStartup.getFallbackRolePrompt(this.createAgentContext(), agentId, role, maidName);
     }
 
     public async launchClaudeWithRole(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {

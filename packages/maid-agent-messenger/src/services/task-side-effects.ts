@@ -24,6 +24,90 @@ import { withFileLock } from "../utils/file-lock.js";
 import { loadConfig } from "../utils/config-loader.js";
 import type { TaskYaml, TaskStatus as MaidTaskStatus } from "../types/index.js";
 
+/**
+ * 報告書ファイルからタスクIDを抽出
+ *
+ * @param reportPath - 報告書ファイルパス
+ * @returns タスクID（例: "task-171"）、見つからない場合は null
+ *
+ * 注: task- プレフィックスの有無を許容し、常に "task-XXX" 形式で返す
+ */
+export async function extractTaskIdFromReport(reportPath: string): Promise<string | null> {
+  try {
+    const content = await fs.readFile(reportPath, "utf-8");
+    // 報告書の task_id 行をパース
+    // - "task-171", "task-171-1" (プレフィックス付き)
+    // - "171", "171-1" (プレフィックスなし) どちらも許容
+    const match = content.match(/^- task_id:\s*(?:task-)?(\d+(?:-\d+)?)/m);
+    if (!match) return null;
+    // 常に "task-XXX" 形式に正規化して返す
+    return `task-${match[1]}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 報告書のアーカイブが必要かどうかを判定
+ *
+ * @param currentPath - 現在の報告書ファイルパス
+ * @param archivePath - アーカイブ先ファイルパス
+ * @param expectedTaskId - 期待するタスクID（例: "task-171"）
+ * @param skipTimestampCheck - タイムスタンプチェックをスキップ（初回completed時）
+ * @returns { shouldArchive, reason }
+ */
+async function shouldArchiveReport(
+  currentPath: string,
+  archivePath: string,
+  expectedTaskId: string,
+  skipTimestampCheck: boolean = false
+): Promise<{ shouldArchive: boolean; reason: string }> {
+  try {
+    // 現在の報告書が存在しない → アーカイブ不要
+    if (!await fileExists(currentPath)) {
+      return { shouldArchive: false, reason: "report_not_found" };
+    }
+
+    // タスクID一致確認
+    const reportTaskId = await extractTaskIdFromReport(currentPath);
+    if (reportTaskId !== expectedTaskId) {
+      return {
+        shouldArchive: false,
+        reason: "task_id_mismatch",  // 重要: 誤上書き防止
+      };
+    }
+
+    // 初回completedの場合はタイムスタンプチェックをスキップ
+    if (skipTimestampCheck) {
+      return { shouldArchive: true, reason: "first_complete" };
+    }
+
+    // アーカイブが存在しない → アーカイブ必要
+    if (!await fileExists(archivePath)) {
+      return { shouldArchive: true, reason: "archive_not_found" };
+    }
+
+    // 両方存在する場合 → 更新日時を比較
+    const [currentStat, archiveStat] = await Promise.all([
+      fs.stat(currentPath),
+      fs.stat(archivePath)
+    ]);
+
+    // 報告書がアーカイブより新しい場合のみアーカイブ
+    if (currentStat.mtime > archiveStat.mtime) {
+      return { shouldArchive: true, reason: "report_newer" };
+    }
+
+    return { shouldArchive: false, reason: "archive_up_to_date" };
+  } catch (error) {
+    // エラー時は安全側（アーカイブしない）
+    return {
+      shouldArchive: false,
+      reason: `error: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
 // メイド名マッピング（日本語表示用）
 const MAID_NAMES: Record<string, string> = {
   emma: "エマ",
@@ -47,7 +131,7 @@ async function loadAndFillTemplate(
   description: string
 ): Promise<string> {
   const templateFilePath = path.join(
-    projectPath, ".maid-agent", "master", "reports", "current_template.md"
+    projectPath, ".maid-agent", "system", "data", "reports", "current_template.md"
   );
   const maidName = MAID_NAMES[agentId] || agentId;
 
@@ -180,12 +264,23 @@ async function syncMaidYaml(
 
 /**
  * レポートをアーカイブする（completed時）
+ *
+ * @param projectPath - プロジェクトルートパス
+ * @param task - タスク情報
+ * @param agentId - エージェントID
+ * @param skipTimestampCheck - タイムスタンプチェックをスキップ（初回completed時）
  */
-async function archiveReport(
+export async function archiveReport(
   projectPath: string,
   task: Task,
-  agentId: string
-): Promise<{ archived: boolean; archivePath?: string }> {
+  agentId: string,
+  skipTimestampCheck: boolean = false
+): Promise<{
+  archived: boolean;
+  archivePath?: string;
+  skipped?: boolean;
+  reason?: string;
+}> {
   const currentPath = path.join(
     projectPath, ".maid-agent", "system", "data", "reports", `current_${agentId}.md`
   );
@@ -197,14 +292,31 @@ async function archiveReport(
     `task-${task.id}-${agentId}-${titleForFilename}.md`
   );
 
+  const expectedTaskId = `task-${task.id}`;
+  const checkResult = await shouldArchiveReport(
+    currentPath,
+    archivePath,
+    expectedTaskId,
+    skipTimestampCheck
+  );
+
+  if (!checkResult.shouldArchive) {
+    return {
+      archived: false,
+      archivePath,
+      skipped: true,
+      reason: checkResult.reason,
+    };
+  }
+
   if (await fileExists(currentPath)) {
     const copied = await copyFile(currentPath, archivePath);
     if (copied) {
-      return { archived: true, archivePath };
+      return { archived: true, archivePath, reason: checkResult.reason };
     }
   }
 
-  return { archived: false };
+  return { archived: false, reason: "copy_failed" };
 }
 
 /**
@@ -264,8 +376,10 @@ export async function executeSideEffects(
     }
   }
 
-  // 副作用2: archiveReport（status が completed に変更された場合）
-  if (params.status === "completed" && prevStatus !== "completed") {
+  // 副作用2: archiveReport（completed時）
+  if (params.status === "completed") {
+    const isFirstComplete = prevStatus !== "completed";
+
     try {
       // params.agentId があればそれを優先、なければ全 assignees
       const targetAgentIds = params.agentId
@@ -273,10 +387,22 @@ export async function executeSideEffects(
         : task.assignees.map((a) => a.agentId);
 
       for (const agentId of targetAgentIds) {
-        const archiveResult = await archiveReport(projectPath, task, agentId);
+        const archiveResult = await archiveReport(
+          projectPath,
+          task,
+          agentId,
+          isFirstComplete  // 初回はタイムスタンプチェックをスキップ
+        );
+
         if (archiveResult.archived) {
           result.reportArchived = true;
           result.archivePath = archiveResult.archivePath;
+        } else if (archiveResult.skipped) {
+          result.reportArchiveSkipped = true;
+          result.archiveSkipReason = archiveResult.reason;
+
+          // タスクID不一致の場合は警告（ログ出力）
+          // ログ: "報告書のタスクIDが一致しません。再アーカイブをスキップしました。"
         }
       }
     } catch {

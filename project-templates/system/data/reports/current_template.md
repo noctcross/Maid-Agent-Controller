@@ -1,13 +1,16 @@
 # 作業報告 - {{MAID_NAME}}
 
 ## タスク情報
+<!-- 自動生成: 編集禁止 -->
 - task_id: {{TASK_ID}}
 - title: {{TITLE}}
 - description: {{DESCRIPTION}}
+<!-- /自動生成 -->
 - status: (作業中)
 - completed_at:
 
 ## 作業内容
+<!-- ここから編集してください -->
 
 
 ## 変更ファイル

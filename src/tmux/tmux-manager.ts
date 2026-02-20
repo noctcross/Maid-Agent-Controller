@@ -186,8 +186,10 @@ export class TmuxManager {
      * 指定ウィンドウにキー入力を送信
      */
     sendKeys(windowName: string, keys: string, pressEnter: boolean = true): void {
+        // 改行を空白に置換（シェルコマンドとして実行する際に改行があると分断される）
+        const noNewlines = keys.replace(/\r?\n/g, ' ');
         // シングルクォートをエスケープ
-        const escapedKeys = keys.replace(/'/g, "'\\''");
+        const escapedKeys = noNewlines.replace(/'/g, "'\\''");
         const enterSuffix = pressEnter ? ' Enter' : '';
         this.exec(`send-keys -t ${this.sessionName}:${windowName} '${escapedKeys}'${enterSuffix}`);
     }

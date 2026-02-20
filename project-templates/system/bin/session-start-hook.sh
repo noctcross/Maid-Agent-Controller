@@ -21,38 +21,29 @@ case "$WINDOW_NAME" in
   *)      ROLE="メイド" ;;
 esac
 
-# 5. プロジェクトディレクトリ確認
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-INSTRUCTIONS_DIR="$PROJECT_DIR/.maid-agent/agents/instructions"
-QUICK_REF="$INSTRUCTIONS_DIR/QUICK_REFERENCE.md"
-
-# 6. 役割別の指示書パス
-case "$WINDOW_NAME" in
-  butler) INSTRUCTION_FILE="$INSTRUCTIONS_DIR/butler.md" ;;
-  chief)  INSTRUCTION_FILE="$INSTRUCTIONS_DIR/chief.md" ;;
-  *)      INSTRUCTION_FILE="$INSTRUCTIONS_DIR/maid.md" ;;
-esac
-
-# 7. 役割別CLIコマンドリマインド
+# 5. 役割別スキル参照
 case "$WINDOW_NAME" in
   butler)
-    CLI_COMMANDS="task create, task list, task get, team status"
+    SKILL_1="butler-operation"
+    SKILL_2="maidctl-reference"
     NOTIFY_TARGET="chief"
     ;;
   chief)
-    CLI_COMMANDS="task list, task get, task create, task assign, task update, team status"
+    SKILL_1="chief-operation"
+    SKILL_2="maidctl-reference"
     NOTIFY_TARGET="{maid_id}"
     ;;
   *)
-    CLI_COMMANDS="my-task, my-status"
+    SKILL_1="maid-operation"
+    SKILL_2="maidctl-reference"
     NOTIFY_TARGET="chief"
     ;;
 esac
 
-# 8. additionalContextとしてJSON出力
+# 6. additionalContextとしてJSON出力
 CONTEXT="[Maid Agent SessionStart] あなたは${ROLE}です（ID: ${WINDOW_NAME}）。"
 CONTEXT="${CONTEXT} 通知: maidctl notify ${NOTIFY_TARGET} \\\"msg\\\"。"
-CONTEXT="${CONTEXT} 【必須・ブロッキング】作業開始前にReadツールで以下を読み込むこと: 1. ${INSTRUCTION_FILE} 2. ${QUICK_REF} 読み込み完了まで他のツール呼び出しを行わないこと。"
+CONTEXT="${CONTEXT} 【必須】作業開始前にシステムプロンプトを確認し、自分の役割とルールを把握すること。"
 
 cat <<EOF
 {

@@ -12,7 +12,6 @@ import { MAID_AGENT_DIR } from '../constants';
 import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion, isWslAvailable, windowsToWslPath } from '../utils/environment';
 import { getSessionNameFromPath, getGlobalMaidAgentPath } from '../utils/helpers';
 import { TmuxManager } from '../tmux/tmux-manager';
-import * as Pm2Setup from '../setup/pm2-setup';
 import * as WslSetup from '../setup/wsl-setup';
 import { getModelForAgent } from '../utils/settings-loader';
 import { generateSystemPromptFile } from '../utils/prompt-loader';
@@ -456,27 +455,10 @@ export async function ensureInitialized(ctx: AgentContext): Promise<boolean> {
         return false;
     }
 
-    // MCPサーバーのヘルスチェック（Windows環境のみ）
-    if (CURRENT_ENV === 'windows-native') {
-        await ctx.ensureMcpServerRunning();
-    }
-
     // セッション数の警告チェック
     await ctx.checkSessionCountWarning();
 
     return true;
-}
-
-/**
- * MCPサーバーが起動しているか確認し、起動していなければ起動する
- */
-export async function ensureMcpServerRunning(ctx: AgentContext): Promise<void> {
-    const setupCtx = ctx.createSetupContext();
-    if (!setupCtx) {
-        ctx.log('[MCP] SetupContext未初期化のためMCPサーバー起動をスキップ');
-        return;
-    }
-    return Pm2Setup.ensureMcpServerRunning(setupCtx);
 }
 
 /**

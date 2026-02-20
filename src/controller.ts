@@ -307,7 +307,6 @@ export class MultiAgentController {
             ensureInitialized: () => this.ensureInitialized(),
             checkExistingSessionAndPrompt: (agentId, agentName) => this.checkExistingSessionAndPrompt(agentId, agentName),
             checkSessionCountWarning: () => this.checkSessionCountWarning(),
-            ensureMcpServerRunning: () => this.ensureMcpServerRunning(),
             ensureTmuxAvailable: () => this.ensureTmuxAvailable(),
             captureAgentOutput: (agentId, lines?) => this.captureAgentOutput(agentId, lines),
             resumeSessions: () => this.resumeSessions(),
@@ -479,10 +478,6 @@ export class MultiAgentController {
 
     private async ensureInitialized(): Promise<boolean> {
         return AgentStartup.ensureInitialized(this.createAgentContext());
-    }
-
-    private async ensureMcpServerRunning(): Promise<void> {
-        return AgentStartup.ensureMcpServerRunning(this.createAgentContext());
     }
 
     private async ensureTmuxAvailable(): Promise<boolean> {

@@ -61,7 +61,6 @@ function createMockCtx(agents: Map<string, Agent> = new Map()): AgentContext {
         ensureInitialized: vi.fn().mockResolvedValue(true),
         checkExistingSessionAndPrompt: vi.fn().mockResolvedValue('new'),
         checkSessionCountWarning: vi.fn().mockResolvedValue(undefined),
-        ensureMcpServerRunning: vi.fn().mockResolvedValue(undefined),
         ensureTmuxAvailable: vi.fn().mockResolvedValue(true),
         captureAgentOutput: vi.fn().mockReturnValue(''),
         resumeSessions: vi.fn().mockResolvedValue(undefined),

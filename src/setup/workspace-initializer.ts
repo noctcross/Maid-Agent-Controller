@@ -8,8 +8,7 @@ import { MAID_AGENT_DIR, MAIDS } from '../constants';
 import { getGlobalMaidAgentPath } from '../utils/helpers';
 import { CURRENT_ENV } from '../utils/environment';
 import { checkAndSetupWsl, checkAndInstallJq } from './wsl-setup';
-import { setupMcpServer } from './pm2-setup';
-import { generateMcpJson, setupClaudeSettings, checkAndUpdateMcpJsonPath } from './mcp-claude-setup';
+import { setupClaudeSettings } from './claude-settings-setup';
 import { parseRuleModules, parseGlobalSkills, showRuleSelectionUI, showSkillSelectionUI, copySelectedRules, copySelectedSkills } from './rules-skills';
 
 const execAsync = promisify(exec);
@@ -176,12 +175,6 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
         await mergeGlobalSettings(ctx, maidAgentPath);
 
         // 注: --add-dir方式ではルートCLAUDE.mdへの追記・シンボリックリンク作成は不要
-
-        // 既存の .mcp.json にハードコードパスがある場合、更新を提案
-        await checkAndUpdateMcpJsonPath(ctx);
-
-        // .mcp.json を生成（MCPサーバー接続設定）
-        await generateMcpJson(ctx);
 
         // .claude/settings.json を生成（SessionStart hook設定）
         await setupClaudeSettings(ctx);

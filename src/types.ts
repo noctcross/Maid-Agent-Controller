@@ -109,7 +109,6 @@ export interface AgentContext {
     ensureInitialized(): Promise<boolean>;
     checkExistingSessionAndPrompt(agentId: string, agentName: string): Promise<'new' | 'resume' | 'cancel'>;
     checkSessionCountWarning(): Promise<void>;
-    ensureMcpServerRunning(): Promise<void>;
     ensureTmuxAvailable(): Promise<boolean>;
     captureAgentOutput(agentId: string, lines?: number): string;
     resumeSessions(): Promise<void>;

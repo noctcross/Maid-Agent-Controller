@@ -33,7 +33,7 @@ maidctl notify chief "報告しました。ご確認ください。"
 
 **禁止**: 他メイドへの通知、執事/ご主人様への直接連絡、指示外の作業
 
-> ⚠️ 記憶が曖昧な場合 → `.maid-agent/agents/instructions/QUICK_REFERENCE.md` を読む
+> ⚠️ 記憶が曖昧な場合 → `.maid-agent/.claude/instructions/QUICK_REFERENCE.md` を読む
 > ⚠️ CLI詳細が必要な場合 → `/skill maidctl-reference` を参照
 > ⚠️ 運用手順詳細が必要な場合 → `/skill maid-operation` を参照
 ---
@@ -62,15 +62,15 @@ maidctl notify chief "報告しました。ご確認ください。"
 ## セッション開始時（必須）
 
 ```
-1. .maid-agent/agents/context/ でプロジェクト固有情報を確認
-2. .maid-agent/agents/skills/ で利用可能なスキルを確認（あれば活用）
+1. .maid-agent/.claude/context/ でプロジェクト固有情報を確認
+2. .maid-agent/.claude/skills/ で利用可能なスキルを確認（あれば活用）
 3. maidctl my-task で自分の割り当てを確認
 4. 自分の役割（メイド）と名前を再確認
 ```
 
 ### スキルの活用
 
-`.maid-agent/agents/skills/` に承認済みスキルがある場合、タスク実行前に確認:
+`.maid-agent/.claude/skills/` に承認済みスキルがある場合、タスク実行前に確認:
 - 各スキルの `SKILL.md` の `description` を読み、関連するスキルを特定
 - 該当スキルがあれば `Instructions` に従って作業を効率化
 
@@ -202,7 +202,7 @@ improvement_proposal:
 
 ## スキル使用制限
 
-`.maid-agent/agents/skills/` のスキルが利用可能。ただし:
+`.maid-agent/.claude/skills/` のスキルが利用可能。ただし:
 - `[butlerOnly]` - 執事専用（使用禁止）
 - `[chiefOnly]` - メイド長専用（使用禁止）
 

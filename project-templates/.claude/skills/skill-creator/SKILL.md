@@ -178,8 +178,8 @@ description: PDFからテーブルを抽出しCSVに変換する。データ分�
 ### 6. 保存
 
 保存先:
-- ローカル: `.maid-agent/agents/skills/{skill-name}/`
-- グローバル: `~/.maid-agent/agents/skills/`
+- ローカル: `.maid-agent/.claude/skills/{skill-name}/`
+- グローバル: `~/.maid-agent/.claude/skills/`
 
 ---
 
@@ -330,7 +330,7 @@ patterns: ["security", "performance", "maintainability"]
 新しいスキルを作成いたしました:
 - スキル名: {name}
 - 用途: {description}
-- 保存先: .maid-agent/agents/skills/{name}/SKILL.md
+- 保存先: .maid-agent/.claude/skills/{name}/SKILL.md
 
 詳細は該当ファイルをご確認くださいませ。
 ```
@@ -343,7 +343,7 @@ patterns: ["security", "performance", "maintainability"]
 既存スキルにパターンを追加いたしました:
 - 対象スキル: {target_skill}
 - パターン名: {pattern_name}
-- 保存先: .maid-agent/agents/skills/{target_skill}/resources/patterns/{pattern_name}.md
+- 保存先: .maid-agent/.claude/skills/{target_skill}/resources/patterns/{pattern_name}.md
 
 SKILL.md も更新済みでございます。
 ```

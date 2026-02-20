@@ -17,11 +17,11 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 ## セッション開始時（必須）
 
 ```
-1. .maid-agent/agents/context/ でプロジェクト固有情報を確認
-2. .maid-agent/agents/instructions/{role}.md で自分の役割を確認
-3. .maid-agent/agents/instructions/QUICK_REFERENCE.md で通信方法を確認
-4. .maid-agent/agents/rules/common/ と rules/{role}/ でルールを確認
-5. .maid-agent/agents/skills/ で利用可能なスキルを確認
+1. .maid-agent/.claude/context/ でプロジェクト固有情報を確認
+2. .maid-agent/.claude/instructions/{role}.md で自分の役割を確認
+3. .maid-agent/.claude/instructions/QUICK_REFERENCE.md で通信方法を確認
+4. .maid-agent/.claude/rules/common/ と rules/{role}/ でルールを確認
+5. .maid-agent/.claude/skills/ で利用可能なスキルを確認
 6. maidctl task list / team status で現在の状況を把握
 ```
 
@@ -78,14 +78,14 @@ pending → assigned → working → completed
 ├── master/              # 👑 ご主人様エリア
 │   ├── NOTES.md         # ご主人様メモ
 │   └── reports/         # 各メイドからの報告
-├── agents/              # 🎀 エージェントエリア
+├── .claude/             # 🎀 エージェントエリア（--add-dirで読み込み）
 │   ├── context/         # プロジェクト固有コンテキスト
 │   ├── instructions/    # 役割定義書
 │   ├── personas/        # ペルソナ定義
 │   ├── rules/           # ルールモジュール
 │   └── skills/          # 承認済みスキル
 ├── system/              # ⚙️ システムエリア
-│   ├── bin/             # 実行スクリプト
+│   ├── bin/             # 実行スクリプト（※PATHに追加済み）
 │   ├── config/          # 設定ファイル
 │   └── data/            # データ（reports/, tasks.yaml）
 └── CLAUDE.md            # 本ファイル
@@ -114,7 +114,7 @@ pending → assigned → working → completed
 
 ## スキルシステム
 
-繰り返し使える作業パターンを `.maid-agent/agents/skills/` に保存。
+繰り返し使える作業パターンを `.maid-agent/.claude/skills/` に保存。
 詳細は `skill-creator/SKILL.md` を参照。
 
 - メイドは候補を**報告のみ**（自分で作成禁止）

@@ -22,10 +22,11 @@ tmux display-message -p -t "$TMUX_PANE" '#{window_name}'
 | `maidctl task create` | 新規タスク作成 | --title(必須), --description | 執事・メイド長（※） |
 | `maidctl task list` | タスク一覧取得 | --status, --assignee, --summary | 執事・メイド長 |
 | `maidctl task get TASK_ID` | タスク詳細取得 | --summary | 全員 |
-| `maidctl team report TASK_ID` | レポート内容取得 | - | 執事・メイド長 |
+| `maidctl team report TASK_ID` | レポート内容取得 | --limit | 執事・メイド長 |
+| `maidctl report rearchive TASK_ID` | 報告書を再アーカイブ | --agent | 全員 |
 | `maidctl task update TASK_ID` | タスク状態更新 | --status, --category, --summary | メイド長 |
 | `maidctl my-task` | 自分のタスク取得 | - | メイド |
-| `maidctl my-status STATUS` | ステータス更新 | --summary | メイド |
+| `maidctl my-status STATUS` | ステータス更新 | --summary, --escalation | メイド |
 | `maidctl task assign TASK_ID` | タスク割り当て | --to, --title(必須) | メイド長 |
 | `maidctl team status` | チーム状況一覧 | - | メイド長・執事 |
 | `maidctl notify TARGET "MSG"` | 通知送信 | - | 全員 |
@@ -120,6 +121,6 @@ maidctl notify --mcp-reconnect emma
 
 ## 迷ったら
 
-1. `.maid-agent/agents/instructions/{role}.md` を再読み込み
+1. `.maid-agent/.claude/instructions/{role}.md` を再読み込み
 2. このファイルで通信コマンドを確認
 3. それでも不明なら🚨 要対応としてタスクを blocked にし、ご主人様の判断を待つ

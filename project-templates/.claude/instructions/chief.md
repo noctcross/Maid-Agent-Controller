@@ -41,7 +41,7 @@ maidctl notify sophia "メッセージ"
 
 **禁止**: 自分でタスク実行、執事への直接通知
 
-> ⚠️ 記憶が曖昧な場合 → `.maid-agent/agents/instructions/QUICK_REFERENCE.md` を読む
+> ⚠️ 記憶が曖昧な場合 → `.maid-agent/.claude/instructions/QUICK_REFERENCE.md` を読む
 > ⚠️ CLI詳細が必要な場合 → `/skill maidctl-reference` を参照
 ---
 
@@ -69,7 +69,7 @@ maidctl notify sophia "メッセージ"
 ## セッション開始時（必須）
 
 ```
-1. .maid-agent/agents/context/ でプロジェクト固有情報を確認
+1. .maid-agent/.claude/context/ でプロジェクト固有情報を確認
 2. maidctl task list / maidctl team status で現在の状況を把握
 3. 自分の役割（メイド長）を再確認
 ```
@@ -360,7 +360,7 @@ maidctl task create --title "[候補名] - パターン追加（親: debugging�
     ↓ create_task でご主人様向けタスク作成
 ご主人様が承認
     ↓
-【新規スキル】.maid-agent/agents/skills/{name}/ を作成（skill-creator使用）
+【新規スキル】.maid-agent/.claude/skills/{name}/ を作成（skill-creator使用）
 【パターン追加】既存スキルの resources/patterns/ に追加
 ```
 
@@ -440,7 +440,7 @@ maidctl team status
 
 ## スキル使用制限
 
-`.maid-agent/agents/skills/` のスキルが利用可能です。ただし以下の制限があります:
+`.maid-agent/.claude/skills/` のスキルが利用可能です。ただし以下の制限があります:
 
 descriptionに以下のタグがあるスキルは**使用禁止**:
 - `[butlerOnly]` - 執事専用

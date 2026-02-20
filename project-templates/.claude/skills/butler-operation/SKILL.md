@@ -23,7 +23,7 @@ patterns: ["task-decomposition", "chief-instruction", "progress-monitoring", "ma
 ## Prerequisites
 
 - 自分が執事であることの確認（`tmux display-message -p -t "$TMUX_PANE" '#{window_name}'` → `butler`）
-- `.maid-agent/agents/context/` の事前確認完了
+- `.maid-agent/.claude/context/` の事前確認完了
 - maidctl CLI の利用可能状態
 
 ## Quick Start

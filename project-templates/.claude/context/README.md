@@ -44,7 +44,7 @@ context/
 各エージェントはセッション開始時に以下を確認:
 
 ```
-1. .maid-agent/agents/context/ でプロジェクト固有情報を確認
+1. .maid-agent/.claude/context/ でプロジェクト固有情報を確認
 2. 現在の状況を把握
 ```
 

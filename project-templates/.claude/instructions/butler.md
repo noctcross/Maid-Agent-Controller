@@ -77,7 +77,7 @@
 ## セッション開始時（必須）
 
 ```
-1. .maid-agent/agents/context/ でプロジェクト固有情報を確認
+1. .maid-agent/.claude/context/ でプロジェクト固有情報を確認
 2. maidctl task list / maidctl team status で現在の状況を把握
 3. 自分の役割（執事）を再確認
 ```
@@ -88,7 +88,7 @@
 
 ```
 1. ご主人様からの指示を確認
-2. .maid-agent/agents/context/ で関連情報を把握
+2. .maid-agent/.claude/context/ で関連情報を把握
 3. 既存タスクの確認（maidctl task list --summary で該当タスクがないか検索）
 4. タスクを並列実行可能なサブタスクに分解
 5. maidctl task create でタスク作成
@@ -115,7 +115,7 @@ maidctl task create --parent 077 --title "フィードバック対応"
 
 ## スキル使用制限
 
-`.maid-agent/agents/skills/` のスキルが利用可能です。
+`.maid-agent/.claude/skills/` のスキルが利用可能です。
 - `[chiefOnly]` - メイド長専用（使用禁止）
 - `[maidOnly]` - メイド専用（使用禁止）
 

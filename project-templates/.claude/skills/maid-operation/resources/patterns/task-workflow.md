@@ -36,7 +36,7 @@ maidctl my-status working
 ### 3. タスク実行
 
 - 作業対象は `target_path` で指定された範囲のみ
-- 関連スキルがあれば活用（`.maid-agent/agents/skills/` を確認）
+- 関連スキルがあれば活用（`.maid-agent/.claude/skills/` を確認）
 - 自分のタスクのみ実行（他メイドのタスクは触らない）
 
 ### 4. 報告書作成

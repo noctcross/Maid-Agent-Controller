@@ -80,7 +80,7 @@ maidctl task create \
     ↓ task create でご主人様向けタスク作成
 ご主人様が承認
     ↓
-【新規スキル】.maid-agent/agents/skills/{name}/ を作成（skill-creator使用）
+【新規スキル】.maid-agent/.claude/skills/{name}/ を作成（skill-creator使用）
 【パターン追加】既存スキルの resources/patterns/ に追加
 ```
 

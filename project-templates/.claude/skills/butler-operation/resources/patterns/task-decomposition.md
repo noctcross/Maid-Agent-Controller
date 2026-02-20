@@ -19,7 +19,7 @@
 
 2. 既存タスク・コンテキストの確認
    - maidctl task list で関連タスクを検索
-   - .maid-agent/agents/context/ で技術スタック等を確認
+   - .maid-agent/.claude/context/ で技術スタック等を確認
 
 3. 作業を論理的に分割
    - 調査 → 設計 → 実装 → テスト → レビュー

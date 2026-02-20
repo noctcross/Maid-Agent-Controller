@@ -18,7 +18,7 @@ jest.unstable_mockModule("../../services/index.js", () => ({
   executeGetReport: mockExecuteGetReport,
 }));
 
-jest.unstable_mockModule("../../middleware/session-manager.js", () => ({
+jest.unstable_mockModule("../../middleware/project-path.js", () => ({
   getProjectPathFromRequest: () => TEST_PROJECT_PATH,
 }));
 

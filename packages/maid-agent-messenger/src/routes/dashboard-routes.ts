@@ -15,7 +15,7 @@ import {
 } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import type { DashboardData } from "../views/dashboard-html.js";
-import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 

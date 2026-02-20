@@ -33,25 +33,24 @@ case "$WINDOW_NAME" in
   *)      INSTRUCTION_FILE="$INSTRUCTIONS_DIR/maid.md" ;;
 esac
 
-# 7. 役割別MCPツールリマインド
+# 7. 役割別CLIコマンドリマインド
 case "$WINDOW_NAME" in
   butler)
-    MCP_TOOLS="create_task, list_tasks, get_task, get_team_status"
+    CLI_COMMANDS="task create, task list, task get, team status"
     NOTIFY_TARGET="chief"
     ;;
   chief)
-    MCP_TOOLS="list_tasks, get_task, create_task, assign_task, update_task, get_team_status"
+    CLI_COMMANDS="task list, task get, task create, task assign, task update, team status"
     NOTIFY_TARGET="{maid_id}"
     ;;
   *)
-    MCP_TOOLS="get_my_task, update_status"
+    CLI_COMMANDS="my-task, my-status"
     NOTIFY_TARGET="chief"
     ;;
 esac
 
 # 8. additionalContextとしてJSON出力
 CONTEXT="[Maid Agent SessionStart] あなたは${ROLE}です（ID: ${WINDOW_NAME}）。"
-CONTEXT="${CONTEXT} MCPツール: ${MCP_TOOLS}。"
 CONTEXT="${CONTEXT} 通知: maidctl notify ${NOTIFY_TARGET} \\\"msg\\\"。"
 CONTEXT="${CONTEXT} 【必須・ブロッキング】作業開始前にReadツールで以下を読み込むこと: 1. ${INSTRUCTION_FILE} 2. ${QUICK_REF} 読み込み完了まで他のツール呼び出しを行わないこと。"
 

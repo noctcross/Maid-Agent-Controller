@@ -1,20 +1,18 @@
 {
   "name": "maid-agent-messenger",
-  "version": "4.0.0",
-  "description": "MCP server for Maid Agent System - inter-agent messaging",
+  "version": "5.0.0",
+  "description": "Dashboard server for Maid Agent System",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/central-server.js",
   "scripts": {
     "build": "tsc",
     "postbuild": "node scripts/sync-to-global.js",
-    "start": "node dist/index.js",
-    "start:central": "node dist/central-server.js",
+    "start": "node dist/central-server.js",
     "dev": "tsc --watch",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
     "express": "^4.18.2",
     "proper-lockfile": "^4.1.2",
     "ws": "^8.19.0",

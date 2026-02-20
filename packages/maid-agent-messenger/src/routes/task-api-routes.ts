@@ -12,7 +12,7 @@ import {
   type TaskStatus,
 } from "../services/index.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
-import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 
 export interface TaskApiRoutesDeps {

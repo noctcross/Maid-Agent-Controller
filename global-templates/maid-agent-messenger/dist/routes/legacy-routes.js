@@ -7,7 +7,7 @@ import { z } from "zod";
 import { MAID_IDS, UPDATABLE_STATUSES, } from "../types/index.js";
 import { executeGetMyTask, executeUpdateStatus, executeAssignTask, executeGetTeamStatus, } from "../services/index.js";
 import { getQueueMaidPath, getCurrentReportsPath, getArchiveReportsPath, } from "../utils/path-helpers.js";
-import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { getProjectPathFromRequest } from "../middleware/project-path.js";
 // Zodスキーマ
 const GetMyTaskSchema = z.object({
     agent_id: z.enum(MAID_IDS),

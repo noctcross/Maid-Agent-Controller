@@ -19,7 +19,7 @@ import {
   executeUpdateStatus,
   executeGetTeamStatus,
 } from "../services/index.js";
-import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { MAID_IDS, type UpdatableStatus } from "../types/index.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 

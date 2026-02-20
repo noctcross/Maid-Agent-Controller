@@ -37,7 +37,7 @@ skill_candidate:
   # found: true の場合は以下を記載
   # type: ""           # "new_skill" または "pattern_add"
   # target_skill: ""   # pattern_add の場合: 親スキル名（例: debugging, code-review）
-  # name: ""           # スキル/パターン名（例: api-endpoint-creator, mcp-server-diagnostics）
+  # name: ""           # スキル/パターン名（例: api-endpoint-creator, memory-leak-detector）
   # description: ""    # スキル/パターンの説明
   # reason: ""         # なぜスキル化/パターン追加すべきか
 

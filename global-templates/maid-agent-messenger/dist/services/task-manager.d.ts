@@ -129,6 +129,8 @@ export interface UpdateTaskParams {
 export interface SideEffectResults {
     maidYamlSynced?: boolean;
     reportArchived?: boolean;
+    reportArchiveSkipped?: boolean;
+    archiveSkipReason?: string;
     reportTemplatized?: boolean;
     archivePath?: string;
 }

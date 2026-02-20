@@ -11,7 +11,7 @@ jest.unstable_mockModule("fs", () => ({
     existsSync: mockExistsSync,
 }));
 // dynamic import（モック設定後に読み込み）
-const { validateProjectPath } = await import("../../middleware/session-manager.js");
+const { validateProjectPath } = await import("../../middleware/project-path.js");
 describe("validateProjectPath", () => {
     beforeEach(() => {
         jest.clearAllMocks();

@@ -16,7 +16,7 @@ jest.unstable_mockModule("fs", () => ({
 
 // dynamic import（モック設定後に読み込み）
 const { validateProjectPath } = await import(
-  "../../middleware/session-manager.js"
+  "../../middleware/project-path.js"
 );
 
 describe("validateProjectPath", () => {

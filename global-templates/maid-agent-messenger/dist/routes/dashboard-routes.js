@@ -8,7 +8,7 @@ import { loadConfig, getServerUrl } from "../utils/config-loader.js";
 import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { executeListTasks, executeGetTeamStatus, executeUpdateTask, } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
-import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 export function createDashboardRoutes(deps) {
     const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, wsServer } = deps;

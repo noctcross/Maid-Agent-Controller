@@ -5,7 +5,7 @@
 import { Router } from "express";
 import { executeListTasks, executeGetTask, executeUpdateTask, executeGetReport, } from "../services/index.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
-import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { getProjectPathFromRequest } from "../middleware/project-path.js";
 export function createTaskApiRoutes(deps = {}) {
     const { wsServer } = deps;
     const router = Router();

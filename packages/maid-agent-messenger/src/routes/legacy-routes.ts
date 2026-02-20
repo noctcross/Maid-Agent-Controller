@@ -20,7 +20,7 @@ import {
   getCurrentReportsPath,
   getArchiveReportsPath,
 } from "../utils/path-helpers.js";
-import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { getProjectPathFromRequest } from "../middleware/project-path.js";
 
 // Zodスキーマ
 const GetMyTaskSchema = z.object({

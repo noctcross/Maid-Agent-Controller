@@ -12,7 +12,7 @@
 import path from "path";
 import { Router } from "express";
 import { executeCreateTask, executeAssignTask, executeGetMyTask, executeUpdateStatus, executeGetTeamStatus, } from "../services/index.js";
-import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { MAID_IDS } from "../types/index.js";
 export function createCliApiRoutes(deps = {}) {
     const { wsServer } = deps;

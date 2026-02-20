@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # maid-notify - エージェント間通知CLIツール（直接send-keys方式）
 # 使用法: maid-notify <target> "<message>"
-#         maid-notify --mcp-reconnect <target> [server-name]
 
 # =============================================================================
 # 定数定義
@@ -22,10 +21,6 @@ MESSAGE_TO_ENTER_DELAY=1.0
 ENTER_RETRY_COUNT=2
 ENTER_RETRY_DELAY=0.3
 
-# MCP再接続設定
-DEFAULT_MCP_SERVER="maid-agent-messenger"
-MCP_RECONNECT_DELAY=1.5
-
 # =============================================================================
 # 関数定義
 # =============================================================================
@@ -33,14 +28,11 @@ MCP_RECONNECT_DELAY=1.5
 # 使用法を表示
 show_usage() {
     echo "使用法: maid-notify <target> \"<message>\""
-    echo "        maid-notify --mcp-reconnect <target> [server-name]"
     echo ""
     echo "  target: $VALID_TARGETS"
     echo ""
     echo "例:"
     echo "  maid-notify chief \"タスク完了しました\""
-    echo "  maid-notify --mcp-reconnect luna"
-    echo "  maid-notify --mcp-reconnect alice other-mcp-server"
 }
 
 # ターゲットの有効性をチェック
@@ -66,39 +58,6 @@ cancel_scroll_mode() {
     tmux send-keys -t "${SESSION_NAME}:${target}" -X cancel 2>/dev/null || true
     tmux send-keys -t "${SESSION_NAME}:${target}" Escape 2>/dev/null || true
     sleep 0.2
-}
-
-# テキストを送信してEnter
-send_text_with_enter() {
-    local target="$1"
-    local text="$2"
-    tmux send-keys -t "${SESSION_NAME}:${target}" -l "$text" 2>/dev/null
-    sleep $MESSAGE_TO_ENTER_DELAY
-    tmux send-keys -t "${SESSION_NAME}:${target}" C-m 2>/dev/null
-}
-
-# MCP再接続を実行
-execute_mcp_reconnect() {
-    local target="$1"
-    local server_name="$2"
-
-    echo "MCP再接続を実行中: $target ($server_name)..."
-
-    # スクロールモード解除
-    cancel_scroll_mode "$target"
-
-    # /mcp disable 送信
-    send_text_with_enter "$target" "/mcp disable $server_name"
-    sleep $MCP_RECONNECT_DELAY
-
-    # /mcp enable 送信
-    send_text_with_enter "$target" "/mcp enable $server_name"
-    sleep $MCP_RECONNECT_DELAY
-
-    # 通知メッセージ送信（相手が気付けるように）
-    send_text_with_enter "$target" "[MCP再接続完了]"
-
-    echo "MCP再接続を実行しました: $target ($server_name)"
 }
 
 # メッセージ送信（リトライ機構付き）
@@ -169,33 +128,6 @@ if [ ! -f "$SESSION_FILE" ]; then
 fi
 
 SESSION_NAME=$(cat "$SESSION_FILE")
-
-# =============================================================================
-# メイン処理：--mcp-reconnect オプション
-# =============================================================================
-
-if [ "$1" = "--mcp-reconnect" ]; then
-    if [ $# -lt 2 ]; then
-        echo "使用法: maid-notify --mcp-reconnect <target> [server-name]"
-        exit 1
-    fi
-
-    TARGET="$2"
-    SERVER_NAME="${3:-$DEFAULT_MCP_SERVER}"
-
-    # ターゲット検証
-    validate_target "$TARGET" || exit 1
-
-    # オンラインチェック
-    if ! check_target_online "$TARGET"; then
-        echo "エラー: $TARGET はオフラインです"
-        exit 1
-    fi
-
-    # 実行
-    execute_mcp_reconnect "$TARGET" "$SERVER_NAME"
-    exit 0
-fi
 
 # =============================================================================
 # メイン処理：通常のメッセージ送信

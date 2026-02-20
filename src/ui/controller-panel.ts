@@ -303,7 +303,6 @@ export function updateController(ctx: ViewContext): void {
         <h2>📁 設定ファイル</h2>
         <div class="file-links">
             <span class="file-link" onclick="openFile('CLAUDE.md')">CLAUDE.md</span>
-            <span class="file-link" onclick="openFile('QUICK_REFERENCE.md')">QUICK_REFERENCE.md</span>
             <span class="file-link" onclick="openFile('${INSTRUCTIONS_SUBDIR}/butler.md')">butler.md</span>
             <span class="file-link" onclick="openFile('${INSTRUCTIONS_SUBDIR}/chief.md')">chief.md</span>
             <span class="file-link" onclick="openFile('${INSTRUCTIONS_SUBDIR}/maid.md')">maid.md</span>

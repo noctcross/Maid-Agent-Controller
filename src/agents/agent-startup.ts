@@ -230,13 +230,13 @@ export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, r
     let command: string;
     if (promptFilePath) {
         // ファイルから読み込み（推奨）
-        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/.claude --append-system-prompt-file '${promptFilePath}' '${escapedInstruction}'`;
+        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt-file '${promptFilePath}' '${escapedInstruction}'`;
     } else {
         // フォールバック: ファイル生成失敗時は従来の方式
         ctx.log('[prompt] フォールバック: ハードコードプロンプトを使用');
         const rolePrompt = ctx.getFallbackRolePrompt(agentId, role, maidName);
         const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/.claude --append-system-prompt '${escapedRolePrompt}' '${escapedInstruction}'`;
+        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt '${escapedRolePrompt}' '${escapedInstruction}'`;
     }
     ctx.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
 
@@ -394,13 +394,13 @@ export function startClaudeOnAgent(ctx: AgentContext, agentId: string): void {
 
     let command: string;
     if (promptFilePath) {
-        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/.claude --append-system-prompt-file '${promptFilePath}'`;
+        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt-file '${promptFilePath}'`;
     } else {
         // フォールバック: ファイル生成失敗時は従来の方式
         ctx.log('[prompt] フォールバック: ハードコードプロンプトを使用');
         const rolePrompt = ctx.getFallbackRolePrompt(agentId, agent.role, agent.name);
         const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/.claude --append-system-prompt '${escapedRolePrompt}'`;
+        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt '${escapedRolePrompt}'`;
     }
     ctx.sendToAgent(agentId, command);
 }
@@ -416,13 +416,13 @@ export async function startClaudeOnAllAgents(ctx: AgentContext): Promise<void> {
 
         let command: string;
         if (promptFilePath) {
-            command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/.claude --append-system-prompt-file '${promptFilePath}'`;
+            command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt-file '${promptFilePath}'`;
         } else {
             // フォールバック: ファイル生成失敗時は従来の方式
             ctx.log('[prompt] フォールバック: ハードコードプロンプトを使用');
             const rolePrompt = ctx.getFallbackRolePrompt(id, agent.role, agent.name);
             const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-            command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/.claude --append-system-prompt '${escapedRolePrompt}'`;
+            command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt '${escapedRolePrompt}'`;
         }
         ctx.sendToAgent(id, command);
         await ctx.delay(500); // 各エージェント間で少し待つ

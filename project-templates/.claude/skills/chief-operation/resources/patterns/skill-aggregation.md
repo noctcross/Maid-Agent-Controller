@@ -20,8 +20,8 @@ skill_candidate:
   found: true
   type: "new_skill"  # または "pattern_add"
   target_skill: "debugging"  # pattern_addの場合のみ
-  name: "mcp-server-diagnostics"
-  description: "MCPサーバーの診断手順"
+  name: "api-error-handler"
+  description: "APIエラーハンドリングの診断手順"
   reason: "2回以上同じ手順を実行"
 ```
 
@@ -30,7 +30,7 @@ skill_candidate:
 | タイプ | 条件 | 例 |
 |-------|------|-----|
 | `new_skill` | 既存ドメインスキルに該当しない | api-endpoint-creator |
-| `pattern_add` | 上位スキルが既に存在 | debugging に mcp-server-diagnostics 追加 |
+| `pattern_add` | 上位スキルが既に存在 | debugging に memory-leak-detector 追加 |
 
 ### 3. 重複・有効性チェック
 
@@ -46,9 +46,9 @@ skill_candidate:
 複数メイドから同様の候補があれば統合:
 
 ```
-エマ: MCPサーバー診断手順
-アリス: MCPエラー復旧手順
-→ 統合: mcp-recovery スキル
+エマ: APIエラー診断手順
+アリス: API復旧手順
+→ 統合: api-recovery スキル
 ```
 
 ### 5. ご主人様向けタスク作成
@@ -56,8 +56,8 @@ skill_candidate:
 ```bash
 # 新規スキルの場合
 maidctl task create \
-  --title "[mcp-recovery] - スキル化候補" \
-  --description "MCPサーバーの診断・復旧手順をスキル化。提案者: エマ、アリス" \
+  --title "[api-recovery] - スキル化候補" \
+  --description "APIエラーの診断・復旧手順をスキル化。提案者: エマ、アリス" \
   --priority low \
   --category skill_candidate
 

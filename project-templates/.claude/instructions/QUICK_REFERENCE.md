@@ -90,25 +90,6 @@ maidctl notify emma "新しいタスクがあります"
 - `chief` - メイド長ビオラ（執事・メイドから）
 - `emma`, `sophia`, `lily`, `rose`, `alice`, `may`, `flora`, `luna` - メイド（メイド長からのみ）
 
-### MCP再接続オプション（Phase 2）
-
-maidctl 使用時にエラーが発生した場合:
-
-```bash
-# 自分自身のMCP接続をリセット（バックグラウンド実行必須）
-maidctl notify --mcp-reconnect {自分のID} &
-
-# 例: ルナの場合
-maidctl notify --mcp-reconnect luna &
-
-# 他のエージェントをリセット（メイド長用）
-maidctl notify --mcp-reconnect emma
-```
-
-**注意**:
-- 自分自身に送る場合は `&` でバックグラウンド実行が必須
-- `[MCP再接続完了]` メッセージを受信したら再試行可能
-
 ## 通信の流れ
 
 ```

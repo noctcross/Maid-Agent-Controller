@@ -46,7 +46,6 @@ maidctl CLIツールの詳細リファレンス。コマンド一覧、オプシ
 | コマンド | 用途 |
 |----------|------|
 | `maidctl notify TARGET "MSG"` | エージェントに通知 |
-| `maidctl notify --mcp-reconnect ID` | MCP再接続（フォールバック時） |
 
 ---
 

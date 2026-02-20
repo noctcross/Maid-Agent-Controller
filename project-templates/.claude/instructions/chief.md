@@ -129,17 +129,6 @@ maidctl notify sophia "メッセージ"
 | `--parent ID` | 親タスクIDでフィルタ | `--parent 077` |
 | `--summary` | 軽量版出力 | - |
 
-### MCPフォールバック（CLI接続エラー時のみ）
-
-> **⚠️ 非推奨**: CLI（maidctl）が使用できない場合のみ使用。
-> 通常は `maidctl task list` を使用してください。
-
-```
-1. MCPツール list_tasks で未着手タスクを確認
-2. MCPツール assign_task でタスクを配分
-3. 各メイドに maidctl notify で通知
-```
-
 ### メイドのステータス確認
 
 `maidctl team status` で全メイドのステータスを一括取得:
@@ -204,24 +193,6 @@ maidctl notify sophia "新しいタスクがあります。maidctl my-task で�
 **注意**:
 - 執事（butler）への通知は禁止（CF002）。タスク状態を更新して待機
 - 各メイドには個別に通知を送信する（ブロードキャストではない）
-
-### CLI接続エラー時の対処（Phase 2）
-
-maidctl コマンドでエラーが発生した場合:
-
-```bash
-# 自分自身のMCP再接続（バックグラウンド実行必須）
-maidctl notify --mcp-reconnect chief &
-
-# メイドのMCP再接続（メイドから報告があった場合）
-maidctl notify --mcp-reconnect emma
-```
-
-**手順**:
-1. エラー発生を確認
-2. 上記コマンドを実行（自分自身の場合は `&` を忘れずに）
-3. `[MCP再接続完了]` メッセージを待つ
-4. maidctl コマンドを再試行
 
 ## メイドからのエスカレーション対応
 
@@ -328,7 +299,7 @@ maidctl task update TASK_ID --category task --substatus ""
 | タイプ | 条件 | 例 |
 |-------|------|-----|
 | `new_skill` | 既存のドメインスキルに該当しない | api-endpoint-creator |
-| `pattern_add` | 上位スキルが既に存在 | debugging に mcp-server-diagnostics を追加 |
+| `pattern_add` | 上位スキルが既に存在 | debugging に memory-leak-detector を追加 |
 
 ### スキル候補の報告
 

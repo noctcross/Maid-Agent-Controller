@@ -30,7 +30,7 @@ description: 汎用的な作業パターンを発見した際に、再利用可�
   └─ code-review, debugging, testing, documentation, deployment ...
 
 【レベル2: カテゴリ】（中分類）
-  └─ code-review/security, code-review/performance, debugging/mcp-server ...
+  └─ code-review/security, code-review/performance, debugging/memory-leak ...
 
 【レベル3: パターン】（個別詳細）
   └─ 具体的なチェック項目、手順、事例
@@ -56,7 +56,7 @@ description: 汎用的な作業パターンを発見した際に、再利用可�
 既存スキルにパターン追加する場合:
 - 上位スキル（code-review, debugging等）が既に存在
 - 個別の手順・事例である
-- 例: 「MCPサーバー診断手順」 → debugging/patterns/mcp-server.md
+- 例: 「APIエラー診断手順」 → debugging/patterns/api-error.md
 ```
 
 ---
@@ -82,7 +82,7 @@ skill-name/
 │   ├── patterns/               # パターン集
 │   │   ├── security.md
 │   │   ├── performance.md
-│   │   └── mcp-issues.md
+│   │   └── memory-issues.md
 │   └── examples/               # 事例集
 │       └── case-001.md
 └── scripts/                    # オプション: 自動化スクリプト

@@ -34,7 +34,7 @@
 
 - 上位スキル（debugging, code-review等）が既に存在
 - 個別の手順・事例である
-- 例: 「MCPサーバー診断手順」→ debugging/patterns/mcp-server.md
+- 例: 「APIエラー診断手順」→ debugging/patterns/api-error.md
 
 ## 報告形式
 
@@ -56,8 +56,8 @@ skill_candidate:
   found: true
   type: "pattern_add"
   target_skill: "debugging"  # 親スキル名
-  name: "mcp-server-diagnostics"
-  description: "MCPサーバー診断パターン"
+  name: "memory-leak-detector"
+  description: "メモリリーク検出パターン"
   reason: "トラブルシューティングで確立した手順"
 ```
 

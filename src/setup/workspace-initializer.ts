@@ -82,82 +82,6 @@ export function updateInstructionsWithBackup(
 }
 
 /**
- * Skills統合: .claude/skills をセットアップ
- * .maid-agent/agents/skills へのジャンクション（Windows）/シンボリックリンク（Mac/Linux）を作成
- */
-export async function setupSkillsIntegration(ctx: SetupContext, maidAgentPath: string): Promise<void> {
-    if (!ctx.workspaceRoot) {
-        ctx.log('[Skills統合] workspaceRootが未設定のためスキップ');
-        return;
-    }
-
-    const claudeDir = path.join(ctx.workspaceRoot, '.claude');
-    const skillsPath = path.join(claudeDir, 'skills');
-    const skillsTarget = path.join(maidAgentPath, 'agents', 'skills');
-
-    // スキルターゲットディレクトリが存在しない場合は作成
-    if (!fs.existsSync(skillsTarget)) {
-        fs.mkdirSync(skillsTarget, { recursive: true });
-        ctx.log('[Skills統合] スキルターゲットディレクトリを作成しました');
-    }
-
-    // .claude ディレクトリ作成（なければ）
-    if (!fs.existsSync(claudeDir)) {
-        fs.mkdirSync(claudeDir, { recursive: true });
-        ctx.log('[Skills統合] .claudeディレクトリを作成しました');
-    }
-
-    // 既にジャンクション/シンボリックリンクなら何もしない
-    if (fs.existsSync(skillsPath)) {
-        try {
-            const stats = fs.lstatSync(skillsPath);
-            if (stats.isSymbolicLink()) {
-                ctx.log('[Skills統合] 既にシンボリックリンクが存在します');
-                return;
-            }
-            // 通常ディレクトリ（既存スキル）の場合はマージ
-            if (stats.isDirectory()) {
-                ctx.log('[Skills統合] 既存スキルをMaidAgent側にマージします');
-                mergeDirectorySync(ctx, skillsPath, skillsTarget);
-                fs.rmSync(skillsPath, { recursive: true });
-                ctx.log('[Skills統合] 既存スキルをマージ後、元ディレクトリを削除しました');
-            }
-        } catch (statError) {
-            const message = statError instanceof Error ? statError.message : String(statError);
-            ctx.log(`[Skills統合] 既存ディレクトリの確認に失敗: ${message}`);
-            // 続行可能な場合は続行
-        }
-    }
-
-    // ジャンクション/シンボリックリンク作成
-    try {
-        if (CURRENT_ENV === 'windows-native') {
-            // Windows: ジャンクション（PowerShell経由）
-            // パス区切りをWindowsスタイルに変換
-            const winSkillsPath = skillsPath.replace(/\//g, '\\');
-            const winSkillsTarget = skillsTarget.replace(/\//g, '\\');
-            await execAsync(
-                `powershell.exe -Command "New-Item -ItemType Junction -Path '${winSkillsPath}' -Target '${winSkillsTarget}' -Force"`
-            );
-            ctx.log('[Skills統合] Windowsジャンクションを作成しました');
-        } else {
-            // Mac/Linux: シンボリックリンク（相対パス）
-            const relativeTarget = path.relative(claudeDir, skillsTarget);
-            fs.symlinkSync(relativeTarget, skillsPath, 'dir');
-            ctx.log('[Skills統合] シンボリックリンクを作成しました');
-        }
-        ctx.log(`[Skills統合] .claude/skills → ${skillsTarget}`);
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        ctx.log(`[Skills統合] リンク作成に失敗: ${message}`);
-        // エラーを投げずにログのみ（Skills統合は必須ではない）
-        vscode.window.showWarningMessage(
-            `Skills統合の設定に失敗しました。手動で設定してください: ${message}`
-        );
-    }
-}
-
-/**
  * ワークスペースを初期化（.maid-agentディレクトリ作成）
  */
 export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
@@ -217,8 +141,8 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
         copyDirectorySync(ctx, templatesPath, maidAgentPath, true, { preserveInstructions: isReInit });
 
         // instructions の差分更新（再初期化時のみ）
-        const templateInstructionsPath = path.join(templatesPath, 'agents', 'instructions');
-        const projectInstructionsPath = path.join(maidAgentPath, 'agents', 'instructions');
+        const templateInstructionsPath = path.join(templatesPath, '.claude', 'instructions');
+        const projectInstructionsPath = path.join(maidAgentPath, '.claude', 'instructions');
         let updatedInstructions: string[] = [];
 
         if (isReInit) {
@@ -248,14 +172,10 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
             }
         }
 
-        // プロジェクトルートの CLAUDE.md を処理
-        await setupRootClaudeMd(ctx);
-
         // グローバル設定のマージ（ルール・スキルの選択）
         await mergeGlobalSettings(ctx, maidAgentPath);
 
-        // Skills統合（.claude/skills シンボリックリンク作成）
-        await setupSkillsIntegration(ctx, maidAgentPath);
+        // 注: --add-dir方式ではルートCLAUDE.mdへの追記・シンボリックリンク作成は不要
 
         // 既存の .mcp.json にハードコードパスがある場合、更新を提案
         await checkAndUpdateMcpJsonPath(ctx);
@@ -346,7 +266,8 @@ export async function deployMaidctl(ctx: SetupContext, globalPath: string): Prom
 }
 
 /**
- * PATH設定を確認付きで自動設定
+ * PATH設定・環境変数を確認付きで自動設定
+ * --add-dir 方式で必要な CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD も設定
  */
 export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: string): Promise<void> {
     // シェル設定ファイルを推定
@@ -354,11 +275,9 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
     const rcFileName = shell.includes('zsh') ? '.zshrc' : '.bashrc';
     const rcFilePath = shell.includes('zsh') ? '~/.zshrc' : '~/.bashrc';
 
-    // PATH追記内容
-    const pathExport = 'export PATH="$HOME/.maid-agent/bin:$PATH"';
-
     // 先に既存設定をチェック
-    let alreadyExists = false;
+    let hasPath = false;
+    let hasEnvVar = false;
     let rcFullPath = '';
 
     try {
@@ -370,7 +289,8 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
 
             if (fs.existsSync(rcFullPath)) {
                 const content = fs.readFileSync(rcFullPath, 'utf-8');
-                alreadyExists = content.includes('maid-agent/bin');
+                hasPath = content.includes('maid-agent/bin');
+                hasEnvVar = content.includes('CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD');
             }
         } else {
             // Mac/Linux
@@ -379,7 +299,8 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
 
             if (fs.existsSync(rcFullPath)) {
                 const content = fs.readFileSync(rcFullPath, 'utf-8');
-                alreadyExists = content.includes('maid-agent/bin');
+                hasPath = content.includes('maid-agent/bin');
+                hasEnvVar = content.includes('CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD');
             }
         }
     } catch (error) {
@@ -387,17 +308,17 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
         ctx.log(`[PATH設定] 既存設定チェックに失敗: ${message}`);
     }
 
-    ctx.log(`[PATH設定] 既存設定チェック結果: ${alreadyExists ? '存在' : '未設定'}`);
+    ctx.log(`[PATH設定] 既存設定チェック結果: PATH=${hasPath ? '存在' : '未設定'}, ENV_VAR=${hasEnvVar ? '存在' : '未設定'}`);
 
-    // 既に設定済みならスキップ
-    if (alreadyExists) {
-        ctx.log('[PATH設定] 既に設定済みのためスキップ');
+    // 両方設定済みならスキップ
+    if (hasPath && hasEnvVar) {
+        ctx.log('[PATH設定] 既に全て設定済みのためスキップ');
         return;
     }
 
     // 確認ダイアログを表示
     const choice = await vscode.window.showInformationMessage(
-        '🛠️ maidctl を使用するために PATH 設定を追加してよろしいですか？',
+        '🛠️ maidctl と Claude Code の設定を追加してよろしいですか？',
         { modal: false },
         'はい（自動設定）',
         'いいえ（手動設定）'
@@ -406,12 +327,18 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
     if (choice === 'はい（自動設定）') {
         ctx.log('[PATH設定] 自動設定を開始します');
         try {
-            // PATH追記
-            const pathLine = '\n# Maid Agent CLI\nexport PATH="$HOME/.maid-agent/bin:$PATH"\n';
-            fs.appendFileSync(rcFullPath, pathLine);
+            // 不足分のみ追記
+            let appendContent = '\n# Maid Agent CLI\n';
+            if (!hasPath) {
+                appendContent += 'export PATH="$HOME/.maid-agent/bin:$PATH"\n';
+            }
+            if (!hasEnvVar) {
+                appendContent += 'export CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1\n';
+            }
+            fs.appendFileSync(rcFullPath, appendContent);
             ctx.log(`[PATH設定] ${rcFilePath} に追記しました`);
             vscode.window.showInformationMessage(
-                `✅ PATH を ${rcFilePath} に追加しました。新しいターミナルで maidctl が使用できます。`
+                `✅ 設定を ${rcFilePath} に追加しました。新しいターミナルで有効になります。`
             );
             return;
         } catch (error) {
@@ -534,115 +461,6 @@ export async function copyGlobalTemplates(ctx: SetupContext, globalPath: string,
     const destTemplatePath = path.join(destReportsPath, 'current_template.md');
     fs.copyFileSync(globalTemplatePath, destTemplatePath);
     ctx.log('[グローバル] テンプレートをコピー: current_template.md');
-}
-
-/**
- * プロジェクトルートの CLAUDE.md を処理
- */
-export async function setupRootClaudeMd(ctx: SetupContext): Promise<void> {
-    if (!ctx.workspaceRoot) return;
-
-    const claudeMdPath = path.join(ctx.workspaceRoot, 'CLAUDE.md');
-    const maidAgentHeader = getMaidAgentClaudeHeader();
-
-    if (fs.existsSync(claudeMdPath)) {
-        // 既存の CLAUDE.md がある場合
-        const existingContent = fs.readFileSync(claudeMdPath, 'utf-8');
-
-        // 既に Maid Agent セクションがある場合はスキップ
-        if (existingContent.includes('# Maid Agent System')) {
-            ctx.log('[CLAUDE.md] 既に Maid Agent セクションが存在します');
-            return;
-        }
-
-        // 先頭に追記するか確認
-        const choice = await vscode.window.showWarningMessage(
-            'CLAUDE.md が既に存在します。Maid Agent の指示を先頭に追加しますか？',
-            '追加する', 'スキップ'
-        );
-
-        if (choice === '追加する') {
-            const newContent = maidAgentHeader + '\n---\n\n' + existingContent;
-            fs.writeFileSync(claudeMdPath, newContent);
-            ctx.log('[CLAUDE.md] 既存ファイルに Maid Agent 指示を追記しました');
-        }
-    } else {
-        // 新規作成
-        fs.writeFileSync(claudeMdPath, maidAgentHeader);
-        ctx.log('[CLAUDE.md] 新規作成しました');
-    }
-}
-
-/**
- * CLAUDE.md に追記する Maid Agent 用のヘッダー
- */
-export function getMaidAgentClaudeHeader(): string {
-    return `# Maid Agent System
-
-このプロジェクトは Maid Agent マルチエージェントシステムで管理されています。
-
-## セッション開始時（必須）
-
-1. Memory MCP で過去の知識グラフを読み込み（利用可能な場合）
-2. \`.maid-agent/agents/context/\` でプロジェクト固有情報を確認
-3. 自分の役割を確認（下記参照）
-
-## あなたの役割
-
-起動時に自分の役割を確認してください:
-- 🎩 執事 (Butler): \`.maid-agent/agents/instructions/butler.md\` を参照
-- 👑 メイド長 (Chief Maid): \`.maid-agent/agents/instructions/chief.md\` を参照
-- 🎀 メイド (Maid): \`.maid-agent/agents/instructions/maid.md\` を参照
-
-## 階層構造
-
-\`\`\`
-ご主人様 (Human)
-    ↓
-🎩 執事 ──→ 戦略立案・タスク分解
-    ↓
-👑 メイド長 ──→ タスク配分・進捗管理
-    ↓
-🎀 メイド×8 ──→ 実作業担当
-\`\`\`
-
-## 重要なルール
-
-1. **指揮系統厳守**: 執事→メイド長→メイド の順序を守る
-2. **自己実行禁止**: 執事・メイド長は自分で作業しない
-3. **報告はMCPツール**: タスク状態を更新して待機
-4. **指示は YAML キュー**: 下への指示は \`.maid-agent/queue/\` のYAMLファイル経由
-5. **sendText 2段階**: 通知時はメッセージとEnterを別々に送信
-
-## MCPタスク管理ツール
-
-タスク管理はMCPツール（maid-agent-messenger）経由で行います。
-
-### 新規ツール（tasks.yaml管理）
-
-| ツール | 用途 | 使用者 |
-|--------|------|--------|
-| \`create_task\` | タスク/サブタスク作成 | 執事 |
-| \`get_task\` | タスク詳細取得 | 全員 |
-| \`list_tasks\` | タスク一覧取得（フィルタ対応） | 執事・メイド長 |
-| \`update_task\` | タスク更新 | メイド長・メイド |
-
-### 既存ツール（維持）
-
-| ツール | 用途 | 使用者 |
-|--------|------|--------|
-| \`get_my_task\` | 自分のタスク取得 | メイド |
-| \`update_status\` | ステータス更新 | メイド |
-| \`assign_task\` | タスク割り当て | メイド長 |
-
-詳細は \`.maid-agent/CLAUDE.md\` を参照。
-
-## ファイル構成
-
-- 詳細設計書: \`.maid-agent/CLAUDE.md\`
-- プロジェクトコンテキスト: \`.maid-agent/agents/context/\`
-- スキル: \`.maid-agent/agents/skills/\`
-`;
 }
 
 /**

@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { Agent, AgentContext } from '../types';
-import { MAID_AGENT_DIR } from '../constants';
+import { MAID_AGENT_DIR, AGENTS_MAP, isValidAgentId } from '../constants';
 import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion, isWslAvailable, windowsToWslPath } from '../utils/environment';
 import { getSessionNameFromPath, getGlobalMaidAgentPath } from '../utils/helpers';
 import { TmuxManager } from '../tmux/tmux-manager';
@@ -289,20 +289,7 @@ export async function resumeSessions(ctx: AgentContext): Promise<void> {
         return;
     }
 
-    // エージェント名とウィンドウ名のマッピング
-    const agentMapping: { [key: string]: { name: string; role: 'butler' | 'chiefMaid' | 'maid'; emoji: string } } = {
-        'butler': { name: 'シルヴィア', role: 'butler', emoji: '🎩' },
-        'chief': { name: 'ビオラ', role: 'chiefMaid', emoji: '👑' },
-        'emma': { name: 'エマ', role: 'maid', emoji: '☕' },
-        'sophia': { name: 'ソフィア', role: 'maid', emoji: '❄️' },
-        'lily': { name: 'リリー', role: 'maid', emoji: '🎀' },
-        'rose': { name: 'ローズ', role: 'maid', emoji: '🌹' },
-        'alice': { name: 'アリス', role: 'maid', emoji: '✨' },
-        'may': { name: 'メイ', role: 'maid', emoji: '🕊️' },
-        'flora': { name: 'フローラ', role: 'maid', emoji: '🌿' },
-        'luna': { name: 'ルナ', role: 'maid', emoji: '🌙' }
-    };
-
+    // AGENTS_MAP から統合されたエージェント情報を取得
     let resumedCount = 0;
     const resumedNames: string[] = [];
 
@@ -312,18 +299,19 @@ export async function resumeSessions(ctx: AgentContext): Promise<void> {
             continue;
         }
 
-        const mapping = agentMapping[windowName];
-        if (mapping) {
+        // AGENTS_MAP に存在するエージェントのみ復帰
+        if (isValidAgentId(windowName)) {
+            const agentConfig = AGENTS_MAP[windowName];
             // エージェントを登録（Claudeコマンドは送信しない）
-            ctx.createAgent(mapping.name, windowName, mapping.role, mapping.emoji);
+            ctx.createAgent(agentConfig.name, windowName, agentConfig.role, agentConfig.emoji);
             // statusをidleに設定（既に稼働中の想定）
             const agent = ctx.agents.get(windowName);
             if (agent) {
                 agent.status = 'idle';
             }
             resumedCount++;
-            resumedNames.push(`${mapping.emoji} ${mapping.name}`);
-            ctx.log(`[復帰] ${mapping.name}（${windowName}）を復帰しました`);
+            resumedNames.push(`${agentConfig.emoji} ${agentConfig.name}`);
+            ctx.log(`[復帰] ${agentConfig.name}（${windowName}）を復帰しました`);
         }
     }
 

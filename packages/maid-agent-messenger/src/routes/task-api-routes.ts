@@ -9,6 +9,7 @@ import {
   executeGetTask,
   executeUpdateTask,
   executeGetReport,
+  archiveReport,
   type TaskStatus,
 } from "../services/index.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
@@ -254,6 +255,58 @@ router.get("/api/dashboard", async (req: Request, res: Response) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     res.status(500).json({ error: "Dashboard retrieval failed", details: message });
+  }
+});
+
+// POST /api/tasks/:id/rearchive - 報告書を再アーカイブ
+router.post("/api/tasks/:id/rearchive", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const { agentId } = req.body;
+
+    // タスク情報を取得（summaryOnly: false で完全なTask型を取得）
+    const taskResult = await executeGetTask(projectPath, { taskId: req.params.id, summaryOnly: false });
+    if (!taskResult.task) {
+      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      return;
+    }
+
+    const task = taskResult.task as import("../services/index.js").Task;
+    const results: Array<{
+      agentId: string;
+      archived: boolean;
+      archivePath?: string;
+      reason?: string;
+    }> = [];
+
+    // 対象エージェントを特定
+    const targetAgentIds = agentId
+      ? [agentId]
+      : task.assignees.map((a) => a.agentId);
+
+    for (const agent of targetAgentIds) {
+      const result = await archiveReport(
+        projectPath,
+        task,
+        agent,
+        true  // skipTimestampCheck: タイムスタンプ無視で再アーカイブ
+      );
+      results.push({
+        agentId: agent,
+        archived: result.archived,
+        archivePath: result.archivePath,
+        reason: result.reason,
+      });
+    }
+
+    res.json({
+      success: true,
+      taskId: req.params.id,
+      results,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Rearchive failed", details: message });
   }
 });
 

@@ -37,3 +37,9 @@ export {
   type GetReportResult,
   type ReportEntry,
 } from "./get-report.js";
+
+// 副作用（rearchive API用）
+export {
+  archiveReport,
+  extractTaskIdFromReport,
+} from "./task-side-effects.js";

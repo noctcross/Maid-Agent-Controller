@@ -923,6 +923,80 @@ cmd_team_report() {
 }
 
 # =============================================================================
+# report サブコマンド
+# =============================================================================
+
+cmd_report_rearchive() {
+  local task_id=""
+  local agent_id=""
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent|-a) agent_id="$2"; shift 2 ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl report rearchive <task-id> [オプション]"
+        echo ""
+        echo "報告書を明示的に再アーカイブする"
+        echo ""
+        echo "オプション:"
+        echo "  --agent, -a AGENT  対象エージェント（省略時は全assignees）"
+        echo "  --json             JSON出力"
+        echo ""
+        echo "例:"
+        echo "  maidctl report rearchive 171          # タスク #171 の報告書を再アーカイブ"
+        echo "  maidctl report rearchive 171 --agent alice  # アリスの報告書のみ"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$task_id" ]; then
+          task_id="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$task_id" ]; then
+    echo "エラー: タスクIDを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # JSONデータを構築
+  local data="{}"
+  if [ -n "$agent_id" ]; then
+    data="{\"agentId\": \"$agent_id\"}"
+  fi
+
+  local result
+  result=$(api_request POST "/api/tasks/${task_id}/rearchive" "$data")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    if check_jq; then
+      echo "$result" | jq -r '
+        .results[]? |
+        if .archived then
+          "✅ \(.agentId): 再アーカイブ完了 → \(.archivePath // "-")"
+        elif .reason == "task_id_mismatch" then
+          "❌ \(.agentId): タスクIDが不一致（current_\(.agentId).md は別タスクの報告書です）"
+        else
+          "⚠️ \(.agentId): スキップ（\(.reason // "unknown")）"
+        end
+      '
+    else
+      echo "$result"
+    fi
+  fi
+}
+
+# =============================================================================
 # notify サブコマンド
 # =============================================================================
 
@@ -993,6 +1067,8 @@ maidctl - Maid Agent CLI Tool v${VERSION}
 
   team status    チーム状況を取得
   team report    タスクのレポートを取得
+
+  report rearchive  報告書を再アーカイブ
 
   notify         他のエージェントに通知
 
@@ -1076,6 +1152,28 @@ main() {
       esac
       ;;
     notify) shift; cmd_notify "$@" ;;
+    report)
+      shift
+      case "${1:-}" in
+        rearchive) shift; cmd_report_rearchive "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl report <subcommand>"
+          echo ""
+          echo "サブコマンド:"
+          echo "  rearchive  報告書を再アーカイブ"
+          ;;
+        "")
+          echo "エラー: サブコマンドを指定してください"
+          echo "使用法: maidctl report <rearchive>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明なサブコマンド: $1"
+          echo "使用法: maidctl report <rearchive>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
     --help|-h) show_help ;;
     --version|-v) echo "maidctl version $VERSION" ;;
     "")

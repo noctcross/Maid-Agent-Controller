@@ -11,3 +11,5 @@ export { executeGetTeamStatus } from "./get-team-status.js";
 export { executeCreateTask, executeGetTask, executeListTasks, executeUpdateTask, } from "./task-manager.js";
 // レポート取得
 export { executeGetReport, } from "./get-report.js";
+// 副作用（rearchive API用）
+export { archiveReport, extractTaskIdFromReport, } from "./task-side-effects.js";

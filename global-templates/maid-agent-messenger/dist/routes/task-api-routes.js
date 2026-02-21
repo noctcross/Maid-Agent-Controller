@@ -3,7 +3,7 @@
  * GET/PATCH /api/tasks/*, GET /api/dashboard
  */
 import { Router } from "express";
-import { executeListTasks, executeGetTask, executeUpdateTask, executeGetReport, } from "../services/index.js";
+import { executeListTasks, executeGetTask, executeUpdateTask, executeGetReport, archiveReport, } from "../services/index.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 export function createTaskApiRoutes(deps = {}) {
@@ -209,6 +209,44 @@ export function createTaskApiRoutes(deps = {}) {
         catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";
             res.status(500).json({ error: "Dashboard retrieval failed", details: message });
+        }
+    });
+    // POST /api/tasks/:id/rearchive - 報告書を再アーカイブ
+    router.post("/api/tasks/:id/rearchive", async (req, res) => {
+        try {
+            const projectPath = getProjectPathFromRequest(req);
+            const { agentId } = req.body;
+            // タスク情報を取得（summaryOnly: false で完全なTask型を取得）
+            const taskResult = await executeGetTask(projectPath, { taskId: req.params.id, summaryOnly: false });
+            if (!taskResult.task) {
+                res.status(404).json({ error: "Task not found", taskId: req.params.id });
+                return;
+            }
+            const task = taskResult.task;
+            const results = [];
+            // 対象エージェントを特定
+            const targetAgentIds = agentId
+                ? [agentId]
+                : task.assignees.map((a) => a.agentId);
+            for (const agent of targetAgentIds) {
+                const result = await archiveReport(projectPath, task, agent, true // skipTimestampCheck: タイムスタンプ無視で再アーカイブ
+                );
+                results.push({
+                    agentId: agent,
+                    archived: result.archived,
+                    archivePath: result.archivePath,
+                    reason: result.reason,
+                });
+            }
+            res.json({
+                success: true,
+                taskId: req.params.id,
+                results,
+            });
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            res.status(500).json({ error: "Rearchive failed", details: message });
         }
     });
     return router;

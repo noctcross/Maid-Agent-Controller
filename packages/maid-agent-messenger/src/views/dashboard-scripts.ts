@@ -1040,6 +1040,15 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
       }
     });
 
+    // スリープ復帰時にデータを再取得（Page Visibility API）
+    // iOS Safari / Android Chrome / PC全ブラウザ対応
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') {
+        console.log('[Dashboard] Page became visible, refreshing data...');
+        refreshDashboard();
+      }
+    });
+
     // === addEventListener登録（インラインonclick置換） ===
 
     // A-1: ソートボタン

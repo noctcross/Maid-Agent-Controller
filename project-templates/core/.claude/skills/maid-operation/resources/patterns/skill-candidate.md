@@ -1,5 +1,16 @@
 # Skill Candidate - スキル化候補の発見・報告方法
 
+## 目次
+
+- [概要](#概要)
+- [適用条件](#適用条件)
+- [判断基準](#判断基準)
+- [新規スキル vs パターン追加](#新規スキル-vs-パターン追加)
+- [報告形式](#報告形式)
+- [フロー](#フロー)
+- [注意点](#注意点)
+- [事例](#事例)
+
 ## 概要
 
 作業中に発見した汎用的なパターンをスキル化候補として報告する方法。
@@ -34,7 +45,7 @@
 
 - 上位スキル（debugging, code-review等）が既に存在
 - 個別の手順・事例である
-- 例: 「APIエラー診断手順」→ debugging/patterns/api-error.md
+- 例: 「MCPサーバー診断手順」→ debugging/patterns/mcp-server.md
 
 ## 報告形式
 
@@ -56,8 +67,8 @@ skill_candidate:
   found: true
   type: "pattern_add"
   target_skill: "debugging"  # 親スキル名
-  name: "memory-leak-detector"
-  description: "メモリリーク検出パターン"
+  name: "mcp-server-diagnostics"
+  description: "MCPサーバー診断パターン"
   reason: "トラブルシューティングで確立した手順"
 ```
 
@@ -88,7 +99,7 @@ skill_candidate:
 7. スキル作成（skill-creator を使用）
 ```
 
-## 重要
+## 注意点
 
 - **スキルを自分で作成してはいけない**
 - 候補を発見したらメイド長に報告のみ

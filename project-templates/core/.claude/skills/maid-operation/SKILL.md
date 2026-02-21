@@ -1,6 +1,6 @@
 ---
 name: maid-operation
-description: "[maidOnly] メイドの運用手順全般。タスク受領、実行、報告、ブロック対応、スキル候補発見まで。タスク完了時や問題発生時に参照。"
+description: "[maidOnly] メイドの運用手順。タスク受領時・作業開始時・完了報告時・ブロック発生時に参照。推測で行動せずパターンを確認すること。"
 version: 1.0
 patterns: ["task-workflow", "report-format", "blocked-handling", "skill-candidate", "improvement-proposal"]
 ---
@@ -11,14 +11,6 @@ patterns: ["task-workflow", "report-format", "blocked-handling", "skill-candidat
 
 メイドがタスクを受領してから完了報告するまでの標準的な運用手順をまとめたスキル。
 ブロック時の対応、スキル化候補の発見、改善提案の記載方法も含む。
-
-## When to Use
-
-- タスクを受領したとき
-- タスク完了時の報告作成
-- 問題が発生してブロックされたとき
-- スキル化候補を発見したとき
-- 改善提案を記載したいとき
 
 ## Quick Start
 
@@ -43,6 +35,17 @@ patterns: ["task-workflow", "report-format", "blocked-handling", "skill-candidat
 
 詳細は [blocked-handling.md](resources/patterns/blocked-handling.md) 参照。
 
+## Forbidden Actions
+
+| ID | 禁止事項 | 代替手段 |
+|----|---------|---------|
+| MF001 | 執事に直接報告 | メイド長経由 |
+| MF002 | ご主人様に直接連絡 | メイド長経由 |
+| MF003 | 指示外の作業 | 指示を待つ |
+| MF004 | ポーリング/待機ループ | イベント駆動 |
+| MF005 | 他メイドのタスク実行 | 自分のタスクのみ |
+| MF006 | tasks.yaml の直接編集 | maidctl コマンドを使用 |
+
 ## Patterns
 
 | パターン | 用途 |
@@ -53,18 +56,7 @@ patterns: ["task-workflow", "report-format", "blocked-handling", "skill-candidat
 | [skill-candidate](resources/patterns/skill-candidate.md) | スキル化候補の発見・報告方法 |
 | [improvement-proposal](resources/patterns/improvement-proposal.md) | 改善提案の記載方法 |
 
-## Guidelines
+## Related Skills
 
-- **報告先**: メイド長（chief）のみ
-- **報告ファイル**: `.maid-agent/system/data/reports/current_{自分のID}.md`
-- **タイムスタンプ**: `date -Iseconds` で取得（推測禁止）
-- **スキル化候補**: 発見したら報告のみ（自分で作成禁止）
-- **改善提案**: 発見したら報告のみ（自分で実施禁止）
-
-## CLI Commands
-
-| コマンド | 用途 |
-|---------|------|
-| `maidctl my-task` | 自分のタスク確認 |
-| `maidctl my-status STATUS` | ステータス更新（working/completed/blocked） |
-| `maidctl notify chief "msg"` | メイド長に通知 |
+- [maidctl-reference](../maidctl-reference/SKILL.md) - CLI詳細リファレンス
+- [chief-operation](../chief-operation/SKILL.md) - メイド長の運用手順（報告先）

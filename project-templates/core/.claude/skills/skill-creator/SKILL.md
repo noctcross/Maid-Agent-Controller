@@ -30,7 +30,7 @@ description: 汎用的な作業パターンを発見した際に、再利用可�
   └─ code-review, debugging, testing, documentation, deployment ...
 
 【レベル2: カテゴリ】（中分類）
-  └─ code-review/security, code-review/performance, debugging/memory-leak ...
+  └─ code-review/security, code-review/performance, debugging/mcp-server ...
 
 【レベル3: パターン】（個別詳細）
   └─ 具体的なチェック項目、手順、事例
@@ -56,7 +56,7 @@ description: 汎用的な作業パターンを発見した際に、再利用可�
 既存スキルにパターン追加する場合:
 - 上位スキル（code-review, debugging等）が既に存在
 - 個別の手順・事例である
-- 例: 「APIエラー診断手順」 → debugging/patterns/api-error.md
+- 例: 「MCPサーバー診断手順」 → debugging/patterns/mcp-server.md
 ```
 
 ---
@@ -82,7 +82,7 @@ skill-name/
 │   ├── patterns/               # パターン集
 │   │   ├── security.md
 │   │   ├── performance.md
-│   │   └── memory-issues.md
+│   │   └── mcp-issues.md
 │   └── examples/               # 事例集
 │       └── case-001.md
 └── scripts/                    # オプション: 自動化スクリプト
@@ -180,6 +180,24 @@ description: PDFからテーブルを抽出しCSVに変換する。データ分�
 保存先:
 - ローカル: `.maid-agent/core/.claude/skills/{skill-name}/`
 - グローバル: `~/.maid-agent/core/.claude/skills/`
+
+---
+
+## Resources Guidelines（resources ディレクトリ設計）
+
+スキルの `resources/` ディレクトリ構成と記述ルールについては、以下のガイドラインを参照:
+
+| ガイドライン | 内容 |
+|-------------|------|
+| [resources-guideline.md](resources/resources-guideline.md) | resources/ の構造、ファイルサイズ上限、参照方法、命名規則 |
+| [pattern-template.md](resources/pattern-template.md) | パターンファイルのテンプレート、バリエーション、セクション構成 |
+
+### 主要ルール（抜粋）
+
+- **SKILL.md**: 500行以下推奨
+- **パターンファイル**: 200行以下推奨（超える場合は目次追加）
+- **参照の深さ**: 1レベルまで（SKILL.md → resources/ のみ）
+- **必須セクション**: 概要、適用条件、手順、注意点、事例
 
 ---
 

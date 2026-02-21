@@ -1,5 +1,14 @@
 # Task Distribution - タスク配分フロー
 
+## 目次
+
+- [概要](#概要)
+- [適用条件](#適用条件)
+- [手順](#手順)
+- [フィルタオプション](#フィルタオプション)
+- [注意点](#注意点)
+- [事例](#事例)
+
 ## 概要
 
 執事から受けたタスクをメイドに適切に配分する手順。
@@ -88,7 +97,36 @@ maidctl notify {メイド} "新しいタスク #{TASK_ID} があります。maid
 
 ## 事例
 
-### 複数サブタスクの並列配分
+### 事例1: 単一タスクの配分
+
+```bash
+# 1. 未着手タスク確認
+maidctl task list --status pending --summary
+
+# 2. エマにタスク割当
+maidctl task assign 077 --to emma --title "設計書作成" --description "API設計書を作成"
+
+# 3. 通知
+maidctl notify emma "新しいタスク #077 があります。maidctl my-task で確認してください。"
+```
+
+### 事例2: レビュー・追加作業のサブタスク発行
+
+**重要**: CF006 違反を避けるため、必ず create → assign の順で実行
+
+```bash
+# 1. 親タスク #077 のレビューサブタスク作成
+maidctl task create --parent 077 --title "#077-1 コードレビュー"
+# → task-077-1 が作成される
+
+# 2. 作成されたサブタスクを割当
+maidctl task assign 077-1 --to sophia --title "コードレビュー"
+
+# 3. 通知
+maidctl notify sophia "レビュータスク #077-1 があります"
+```
+
+### 事例3: 複数サブタスクの並列配分
 
 ```bash
 # 親タスク #100 を3つのサブタスクに分割

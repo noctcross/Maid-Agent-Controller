@@ -1,30 +1,17 @@
 /**
  * ダッシュボードCSS定義
  * dashboard-html.ts から分離
+ *
+ * 共通スタイルは shared-styles.ts, markdown-styles.ts から取得。
  */
+
+import { getSharedCssVariables, getBaseResetStyles, getCardStyles } from "./shared-styles.js";
+import { getScopedMarkdownStyles } from "./markdown-styles.js";
 
 export function getDashboardStyles(): string {
   return `
-    :root {
-      --bg-color: #1e1e1e;
-      --card-bg: #252526;
-      --border-color: #3c3c3c;
-      --text-color: #cccccc;
-      --text-muted: #808080;
-      --accent-color: #569cd6;
-      --success-color: #4ec9b0;
-      --warning-color: #dcdcaa;
-      --error-color: #f14c4c;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 13px;
-      background: var(--bg-color);
-      color: var(--text-color);
-      padding: 20px;
-      min-height: 100vh;
-    }
+    ${getSharedCssVariables()}
+    ${getBaseResetStyles()}
     .header {
       display: flex;
       justify-content: space-between;
@@ -38,24 +25,7 @@ export function getDashboardStyles(): string {
     .project-path { color: var(--text-muted); font-size: 0.7rem; margin-top: 3px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
     @media (max-width: 500px) { .grid { grid-template-columns: 1fr; gap: 6px; } }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 10px;
-      overflow: hidden;
-      min-width: 0;
-    }
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-      padding-bottom: 5px;
-      border-bottom: 1px solid var(--border-color);
-    }
-    .card-title { font-size: 0.95rem; font-weight: 600; }
-    .card-count { background: var(--accent-color); color: white; padding: 1px 6px; border-radius: 10px; font-size: 0.75rem; }
+    ${getCardStyles()}
     .task-item {
       padding: 5px 8px;
       margin: 3px 0;
@@ -309,17 +279,6 @@ export function getDashboardStyles(): string {
       padding: 16px;
       line-height: 1.6;
     }
-    .report-overlay-content .md-h1 { font-size: 1.4em; color: var(--accent-color); border-bottom: 2px solid var(--accent-color); padding-bottom: 6px; margin: 16px 0 12px 0; }
-    .report-overlay-content .md-h2 { font-size: 1.15em; color: #ffc107; border-bottom: 1px solid #444; padding-bottom: 4px; margin: 14px 0 10px 0; }
-    .report-overlay-content .md-h3 { font-size: 1.05em; color: #81c784; margin: 12px 0 6px 0; }
-    .report-overlay-content .md-p { margin: 8px 0; }
-    .report-overlay-content .md-ul { margin: 6px 0; padding-left: 25px; }
-    .report-overlay-content .md-li { margin: 4px 0; list-style-type: disc; }
-    .report-overlay-content .md-table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-    .report-overlay-content .md-table th, .report-overlay-content .md-table td { border: 1px solid #444; padding: 6px 10px; text-align: left; }
-    .report-overlay-content .md-table th { background: rgba(255,255,255,0.1); color: #ffc107; }
-    .report-overlay-content .md-code-block { background: #0a0a0a; padding: 12px; border-radius: 6px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.9em; margin: 8px 0; }
-    .report-overlay-content .md-inline-code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: 'Consolas', monospace; }
-    .report-overlay-content strong { color: #ffc107; }
+    ${getScopedMarkdownStyles(".report-overlay-content")}
   `;
 }

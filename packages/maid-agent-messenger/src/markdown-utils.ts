@@ -6,6 +6,13 @@
 
 import path from "path";
 
+/**
+ * HTML特殊文字をエスケープ（XSS防止）
+ *
+ * 注意: この実装は src/utils/html-escape.ts の escapeHtml() と同一である必要があります。
+ * 変更時は両方を更新してください。
+ * @see src/utils/html-escape.ts (IDE版)
+ */
 export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")

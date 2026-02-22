@@ -661,17 +661,34 @@ export async function generateV2DashboardData(projectPath) {
                 break;
         }
     }
-    // V2Goals: Goal階層構造を構築
+    // V2Goals: Goal階層構造を構築（updatedAt降順でソート）
     const v2Goals = goals
+        .sort((a, b) => {
+        const aTime = a.updatedAt || a.createdAt || "";
+        const bTime = b.updatedAt || b.createdAt || "";
+        return bTime.localeCompare(aTime);
+    })
         .filter((g) => g.status !== "completed" || g.mainStatus !== "closed") // 完了していないGoalのみ
         .map((goal) => {
         const { mainStatus, substatus } = convertToV2Status(goal);
-        // このGoalに属するPhaseを取得
-        const goalPhases = phases.filter((p) => p.parentId === goal.id);
+        // このGoalに属するPhaseを取得（updatedAt降順でソート）
+        const goalPhases = phases
+            .filter((p) => p.parentId === goal.id)
+            .sort((a, b) => {
+            const aTime = a.updatedAt || a.createdAt || "";
+            const bTime = b.updatedAt || b.createdAt || "";
+            return bTime.localeCompare(aTime);
+        });
         const v2Phases = goalPhases.map((phase) => {
             const phaseStatus = convertToV2Status(phase);
-            // このPhaseに属するActionを取得
-            const phaseActions = actions.filter((a) => a.parentId === phase.id);
+            // このPhaseに属するActionを取得（updatedAt降順でソート）
+            const phaseActions = actions
+                .filter((a) => a.parentId === phase.id)
+                .sort((a, b) => {
+                const aTime = a.updatedAt || a.createdAt || "";
+                const bTime = b.updatedAt || b.createdAt || "";
+                return bTime.localeCompare(aTime);
+            });
             const v2Actions = phaseActions.map((action) => {
                 const actionStatus = convertToV2Status(action);
                 return {
@@ -705,9 +722,14 @@ export async function generateV2DashboardData(projectPath) {
             phases: v2Phases,
         };
     });
-    // V2ReviewQueue: レビュー待ちタスク
+    // V2ReviewQueue: レビュー待ちタスク（updatedAt降順でソート）
     const v2ReviewQueue = tasks
         .filter((t) => t.reviewStatus === "pending" || t.reviewStatus === "in_review")
+        .sort((a, b) => {
+        const aTime = a.updatedAt || a.createdAt || "";
+        const bTime = b.updatedAt || b.createdAt || "";
+        return bTime.localeCompare(aTime);
+    })
         .map((task) => ({
         id: task.id,
         title: task.title,
@@ -717,7 +739,7 @@ export async function generateV2DashboardData(projectPath) {
         completedAt: task.completedAt || "",
         assignees: task.assignees?.map((a) => ({ agentId: a.agentId })) || [],
     }));
-    // V2Artifacts: 成果物一覧
+    // V2Artifacts: 成果物一覧（createdAt降順でソート）
     const v2Artifacts = [];
     for (const task of tasks) {
         if (task.artifacts && Array.isArray(task.artifacts)) {
@@ -732,6 +754,12 @@ export async function generateV2DashboardData(projectPath) {
             }
         }
     }
+    // 成果物を作成日時の降順でソート
+    v2Artifacts.sort((a, b) => {
+        const aTime = a.createdAt || "";
+        const bTime = b.createdAt || "";
+        return bTime.localeCompare(aTime);
+    });
     // V2Stats: 統計情報
     const completedCount = tasks.filter((t) => {
         const status = convertToV2Status(t);

@@ -4,4 +4,9 @@
  *
  * 共通スタイルは shared-styles.ts, markdown-styles.ts から取得。
  */
+/**
+ * V2.1 ダッシュボード用CSS
+ * モックアップ dashboard-v2.1.html から抽出
+ */
+export declare function getV2DashboardStyles(): string;
 export declare function getDashboardStyles(): string;

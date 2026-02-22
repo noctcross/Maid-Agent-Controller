@@ -232,6 +232,78 @@ export declare function checkGoalAutoClose(projectPath: string, goalId: string):
     reason?: string;
 }>;
 /**
+ * V2.1 ダッシュボードデータ
+ */
+export interface V2DashboardData {
+    v2Goals: V2GoalData[];
+    v2ReviewQueue: V2ReviewTaskData[];
+    v2Artifacts: V2ArtifactData[];
+    v2Stats: V2StatsData;
+}
+export interface V2ActionData {
+    id: string;
+    title: string;
+    type: "action";
+    mainStatus: string;
+    v2Substatus: string;
+    assignees?: Array<{
+        agentId: string;
+    }>;
+}
+export interface V2PhaseData {
+    id: string;
+    title: string;
+    type: "phase";
+    mainStatus: string;
+    v2Substatus: string;
+    reviewStatus?: string;
+    actions: V2ActionData[];
+}
+export interface V2GoalData {
+    id: string;
+    title: string;
+    type: "goal";
+    mainStatus: string;
+    v2Substatus: string;
+    size?: string;
+    reviewStatus?: string;
+    assignees: Array<{
+        agentId: string;
+    }>;
+    phases: V2PhaseData[];
+}
+export interface V2ReviewTaskData {
+    id: string;
+    title: string;
+    type: string;
+    reviewStatus: string;
+    priority: string;
+    completedAt: string;
+    assignees: Array<{
+        agentId: string;
+    }>;
+}
+export interface V2ArtifactData {
+    path: string;
+    type: string;
+    retention: string;
+    taskId: string;
+    createdAt: string;
+}
+export interface V2StatsData {
+    goalCount: number;
+    phaseCount: number;
+    actionCount: number;
+    completedCount: number;
+    actionRequiredCount: number;
+    reviewPendingCount: number;
+    proposalCount: number;
+}
+/**
+ * タスク一覧からV2.1ダッシュボードデータを生成
+ */
+export declare function generateV2DashboardData(projectPath: string): Promise<V2DashboardData>;
+/**
  * マイグレーション結果
  */
 export interface MigrationResult {

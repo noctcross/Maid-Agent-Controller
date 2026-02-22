@@ -973,6 +973,230 @@ export async function checkGoalAutoClose(
 }
 
 // =============================================================================
+// V2.1: ダッシュボードデータ生成
+// =============================================================================
+
+/**
+ * V2.1 ダッシュボードデータ
+ */
+export interface V2DashboardData {
+  v2Goals: V2GoalData[];
+  v2ReviewQueue: V2ReviewTaskData[];
+  v2Artifacts: V2ArtifactData[];
+  v2Stats: V2StatsData;
+}
+
+export interface V2ActionData {
+  id: string;
+  title: string;
+  type: "action";
+  mainStatus: string;
+  v2Substatus: string;
+  assignees?: Array<{ agentId: string }>;
+}
+
+export interface V2PhaseData {
+  id: string;
+  title: string;
+  type: "phase";
+  mainStatus: string;
+  v2Substatus: string;
+  reviewStatus?: string;
+  actions: V2ActionData[];
+}
+
+export interface V2GoalData {
+  id: string;
+  title: string;
+  type: "goal";
+  mainStatus: string;
+  v2Substatus: string;
+  size?: string;
+  reviewStatus?: string;
+  assignees: Array<{ agentId: string }>;
+  phases: V2PhaseData[];
+}
+
+export interface V2ReviewTaskData {
+  id: string;
+  title: string;
+  type: string;
+  reviewStatus: string;
+  priority: string;
+  completedAt: string;
+  assignees: Array<{ agentId: string }>;
+}
+
+export interface V2ArtifactData {
+  path: string;
+  type: string;
+  retention: string;
+  taskId: string;
+  createdAt: string;
+}
+
+export interface V2StatsData {
+  goalCount: number;
+  phaseCount: number;
+  actionCount: number;
+  completedCount: number;
+  actionRequiredCount: number;
+  reviewPendingCount: number;
+  proposalCount: number;
+}
+
+/**
+ * タスク一覧からV2.1ダッシュボードデータを生成
+ */
+export async function generateV2DashboardData(
+  projectPath: string
+): Promise<V2DashboardData> {
+  const data = await loadTasksReadOnly(projectPath);
+  const tasks = data.tasks;
+
+  // Goal/Phase/Action を分類
+  const goals: Task[] = [];
+  const phases: Task[] = [];
+  const actions: Task[] = [];
+  const investigations: Task[] = [];
+
+  for (const task of tasks) {
+    const taskType = inferTaskType(task);
+    switch (taskType) {
+      case "goal":
+        goals.push(task);
+        break;
+      case "phase":
+        phases.push(task);
+        break;
+      case "action":
+        actions.push(task);
+        break;
+      case "investigation":
+        investigations.push(task);
+        break;
+    }
+  }
+
+  // V2Goals: Goal階層構造を構築
+  const v2Goals: V2GoalData[] = goals
+    .filter((g) => g.status !== "completed" || g.mainStatus !== "closed") // 完了していないGoalのみ
+    .map((goal) => {
+      const { mainStatus, substatus } = convertToV2Status(goal);
+
+      // このGoalに属するPhaseを取得
+      const goalPhases = phases.filter((p) => p.parentId === goal.id);
+
+      const v2Phases: V2PhaseData[] = goalPhases.map((phase) => {
+        const phaseStatus = convertToV2Status(phase);
+
+        // このPhaseに属するActionを取得
+        const phaseActions = actions.filter((a) => a.parentId === phase.id);
+
+        const v2Actions: V2ActionData[] = phaseActions.map((action) => {
+          const actionStatus = convertToV2Status(action);
+          return {
+            id: action.id,
+            title: action.title || `Action #${action.id}`,
+            type: "action" as const,
+            mainStatus: actionStatus.mainStatus,
+            v2Substatus: actionStatus.substatus,
+            assignees: action.assignees?.map((a) => ({ agentId: a.agentId })),
+          };
+        });
+
+        return {
+          id: phase.id,
+          title: phase.title || `Phase #${phase.id}`,
+          type: "phase" as const,
+          mainStatus: phaseStatus.mainStatus,
+          v2Substatus: phaseStatus.substatus,
+          reviewStatus: phase.reviewStatus,
+          actions: v2Actions,
+        };
+      });
+
+      return {
+        id: goal.id,
+        title: goal.title || `Goal #${goal.id}`,
+        type: "goal" as const,
+        mainStatus,
+        v2Substatus: substatus,
+        size: goal.size,
+        reviewStatus: goal.reviewStatus,
+        assignees: goal.assignees?.map((a) => ({ agentId: a.agentId })) || [],
+        phases: v2Phases,
+      };
+    });
+
+  // V2ReviewQueue: レビュー待ちタスク
+  const v2ReviewQueue: V2ReviewTaskData[] = tasks
+    .filter((t) => t.reviewStatus === "pending" || t.reviewStatus === "in_review")
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      type: inferTaskType(task),
+      reviewStatus: task.reviewStatus || "pending",
+      priority: task.priority || "medium",
+      completedAt: task.completedAt || "",
+      assignees: task.assignees?.map((a) => ({ agentId: a.agentId })) || [],
+    }));
+
+  // V2Artifacts: 成果物一覧
+  const v2Artifacts: V2ArtifactData[] = [];
+  for (const task of tasks) {
+    if (task.artifacts && Array.isArray(task.artifacts)) {
+      for (const artifact of task.artifacts) {
+        v2Artifacts.push({
+          path: artifact.path,
+          type: artifact.type || "default",
+          retention: artifact.retention || "L1",
+          taskId: task.id,
+          createdAt: task.createdAt,  // TaskArtifact には createdAt がないので task から取得
+        });
+      }
+    }
+  }
+
+  // V2Stats: 統計情報
+  const completedCount = tasks.filter((t) => {
+    const status = convertToV2Status(t);
+    return status.substatus === "completed" || status.substatus === "archived";
+  }).length;
+
+  const actionRequiredCount = tasks.filter(
+    (t) => t.category === "action_required" && t.status !== "completed"
+  ).length;
+
+  const reviewPendingCount = tasks.filter(
+    (t) => t.reviewStatus === "pending" || t.reviewStatus === "in_review"
+  ).length;
+
+  const proposalCount = tasks.filter(
+    (t) =>
+      (t.category === "skill_candidate" || t.category === "improvement") &&
+      t.status !== "completed"
+  ).length;
+
+  const v2Stats: V2StatsData = {
+    goalCount: goals.length,
+    phaseCount: phases.length,
+    actionCount: actions.length + investigations.length,
+    completedCount,
+    actionRequiredCount,
+    reviewPendingCount,
+    proposalCount,
+  };
+
+  return {
+    v2Goals,
+    v2ReviewQueue,
+    v2Artifacts,
+    v2Stats,
+  };
+}
+
+// =============================================================================
 // V2.1: マイグレーション機能
 // =============================================================================
 

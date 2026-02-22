@@ -11,6 +11,7 @@ import {
   executeListTasks,
   executeGetTeamStatus,
   executeUpdateTask,
+  generateV2DashboardData,
   type Task,
 } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
@@ -58,7 +59,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
       // 完了セクションのソート設定を取得
       const completedSortField = (req.query.completedSortField as string) === "updatedAt" ? "updatedAt" : "id";
 
-      const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, teamStatus] = await Promise.all([
+      const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, teamStatus, v2Data] = await Promise.all([
         executeListTasks(projectPath, { status: ["pending"] }),
         executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
         executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
@@ -68,6 +69,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
         executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
         executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),
+        generateV2DashboardData(projectPath),  // V2.1 ダッシュボードデータ
       ]);
 
       // 本日完了タスクをカウント
@@ -98,6 +100,11 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           completedTodayCount,
         },
         serverUrl: getServerUrl(config),
+        // V2.1 データ
+        v2Goals: v2Data.v2Goals,
+        v2ReviewQueue: v2Data.v2ReviewQueue,
+        v2Artifacts: v2Data.v2Artifacts,
+        v2Stats: v2Data.v2Stats,
       }, editorScheme);
 
       // アクセス記録（非同期、レスポンスをブロックしない）
@@ -191,7 +198,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
       const ACTIVE_STATUSES: ("pending" | "assigned" | "working" | "blocked")[] = ["pending", "assigned", "working", "blocked"];
 
-      const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements] = await Promise.all([
+      const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, v2Data] = await Promise.all([
         executeListTasks(projectPath, { status: ["pending"] }),
         executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
         executeListTasks(projectPath, {
@@ -209,6 +216,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
         executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
         executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
+        generateV2DashboardData(projectPath),  // V2.1 ダッシュボードデータ
       ]);
 
       const completedTodayCount = (completedAll.tasks as Task[]).filter((task) => {
@@ -250,6 +258,8 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           total: completed.total,
         },
         serverUrl: getServerUrl(config),
+        // V2.1 データ
+        v2: v2Data,
       };
 
       res.setHeader("Content-Type", "application/json");
@@ -291,7 +301,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
           const sseActiveStatuses: ("pending" | "assigned" | "working" | "blocked")[] = ["pending", "assigned", "working", "blocked"];
 
-          const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements] = await Promise.all([
+          const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, v2Data] = await Promise.all([
             executeListTasks(projectPath, { status: ["pending"] }),
             executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
             executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
@@ -300,6 +310,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
             executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
             executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),
             executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
+            generateV2DashboardData(projectPath),  // V2.1 ダッシュボードデータ
           ]);
 
           const completedTodayCount = (completedAll.tasks as Task[]).filter((task) => {
@@ -334,7 +345,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
             improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
           };
 
-          res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data })}\n\n`);
         } catch (e) {
           console.error("SSE update error:", e);
         }

@@ -20,6 +20,8 @@ export {
   checkGoalAutoClose,
   inferTaskType,
   convertToV2Status,
+  // V2.1: ダッシュボードデータ生成
+  generateV2DashboardData,
   type CreateTaskParams,
   type CreateTaskResult,
   type GetTaskParams,
@@ -46,6 +48,14 @@ export {
   type TaskArtifact,
   type DependencyResolutionResult,
   type MigrationResult,
+  // V2.1 ダッシュボードデータ型
+  type V2DashboardData,
+  type V2GoalData,
+  type V2PhaseData,
+  type V2ActionData,
+  type V2ReviewTaskData,
+  type V2ArtifactData,
+  type V2StatsData,
 } from "./task-manager.js";
 
 // レポート取得

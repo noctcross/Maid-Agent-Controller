@@ -6,7 +6,7 @@ import { Router } from "express";
 import { createHash } from "crypto";
 import { loadConfig, getServerUrl } from "../utils/config-loader.js";
 import { getJstTimestamp } from "../utils/yaml-helper.js";
-import { executeListTasks, executeGetTeamStatus, executeUpdateTask, } from "../services/index.js";
+import { executeListTasks, executeGetTeamStatus, executeUpdateTask, generateV2DashboardData, } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
@@ -33,7 +33,7 @@ export function createDashboardRoutes(deps) {
             today.setHours(0, 0, 0, 0);
             // 完了セクションのソート設定を取得
             const completedSortField = req.query.completedSortField === "updatedAt" ? "updatedAt" : "id";
-            const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, teamStatus] = await Promise.all([
+            const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, teamStatus, v2Data] = await Promise.all([
                 executeListTasks(projectPath, { status: ["pending"] }),
                 executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
                 executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
@@ -43,6 +43,7 @@ export function createDashboardRoutes(deps) {
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),
+                generateV2DashboardData(projectPath), // V2.1 ダッシュボードデータ
             ]);
             // 本日完了タスクをカウント
             const completedTodayCount = completedAll.tasks.filter((task) => {
@@ -72,6 +73,11 @@ export function createDashboardRoutes(deps) {
                     completedTodayCount,
                 },
                 serverUrl: getServerUrl(config),
+                // V2.1 データ
+                v2Goals: v2Data.v2Goals,
+                v2ReviewQueue: v2Data.v2ReviewQueue,
+                v2Artifacts: v2Data.v2Artifacts,
+                v2Stats: v2Data.v2Stats,
             }, editorScheme);
             // アクセス記録（非同期、レスポンスをブロックしない）
             recordProjectAccess(projectPath).catch((err) => console.error("Failed to record project access:", err));
@@ -149,7 +155,7 @@ export function createDashboardRoutes(deps) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const ACTIVE_STATUSES = ["pending", "assigned", "working", "blocked"];
-            const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements] = await Promise.all([
+            const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, v2Data] = await Promise.all([
                 executeListTasks(projectPath, { status: ["pending"] }),
                 executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
                 executeListTasks(projectPath, {
@@ -167,6 +173,7 @@ export function createDashboardRoutes(deps) {
                 executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
                 executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
+                generateV2DashboardData(projectPath), // V2.1 ダッシュボードデータ
             ]);
             const completedTodayCount = completedAll.tasks.filter((task) => {
                 if (!task.completedAt)
@@ -205,6 +212,8 @@ export function createDashboardRoutes(deps) {
                     total: completed.total,
                 },
                 serverUrl: getServerUrl(config),
+                // V2.1 データ
+                v2: v2Data,
             };
             res.setHeader("Content-Type", "application/json");
             res.json(data);
@@ -238,7 +247,7 @@ export function createDashboardRoutes(deps) {
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     const sseActiveStatuses = ["pending", "assigned", "working", "blocked"];
-                    const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements] = await Promise.all([
+                    const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, v2Data] = await Promise.all([
                         executeListTasks(projectPath, { status: ["pending"] }),
                         executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
                         executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
@@ -247,6 +256,7 @@ export function createDashboardRoutes(deps) {
                         executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
                         executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),
                         executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
+                        generateV2DashboardData(projectPath), // V2.1 ダッシュボードデータ
                     ]);
                     const completedTodayCount = completedAll.tasks.filter((task) => {
                         if (!task.completedAt)
@@ -276,7 +286,7 @@ export function createDashboardRoutes(deps) {
                         skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
                         improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
                     };
-                    res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml })}\n\n`);
+                    res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data })}\n\n`);
                 }
                 catch (e) {
                     console.error("SSE update error:", e);

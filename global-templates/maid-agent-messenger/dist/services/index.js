@@ -11,6 +11,8 @@ export { executeGetTeamStatus } from "./get-team-status.js";
 export { executeCreateTask, executeGetTask, executeListTasks, executeUpdateTask, 
 // V2.1: 依存解消・自動クローズ
 resolveBlockedTasks, checkGoalAutoClose, inferTaskType, convertToV2Status, 
+// V2.1: ダッシュボードデータ生成
+generateV2DashboardData, 
 // V2.1 マイグレーション
 migrateToV2, checkMigrationStatus, } from "./task-manager.js";
 // レポート取得

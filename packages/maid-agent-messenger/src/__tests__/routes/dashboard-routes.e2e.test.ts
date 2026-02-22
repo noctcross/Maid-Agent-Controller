@@ -14,11 +14,26 @@ import { TEST_PROJECT_PATH, createMockListResponse } from "../helpers/e2e-setup.
 const mockExecuteListTasks = jest.fn<any>();
 const mockExecuteGetTeamStatus = jest.fn<any>();
 const mockExecuteUpdateTask = jest.fn<any>();
+const mockGenerateV2DashboardData = jest.fn<any>().mockResolvedValue({
+  v2Goals: [],
+  v2ReviewQueue: [],
+  v2Artifacts: [],
+  v2Stats: {
+    goalCount: 0,
+    phaseCount: 0,
+    actionCount: 0,
+    completedCount: 0,
+    actionRequiredCount: 0,
+    reviewPendingCount: 0,
+    proposalCount: 0,
+  },
+});
 
 jest.unstable_mockModule("../../services/index.js", () => ({
   executeListTasks: mockExecuteListTasks,
   executeGetTeamStatus: mockExecuteGetTeamStatus,
   executeUpdateTask: mockExecuteUpdateTask,
+  generateV2DashboardData: mockGenerateV2DashboardData,
 }));
 
 jest.unstable_mockModule("../../middleware/project-path.js", () => ({

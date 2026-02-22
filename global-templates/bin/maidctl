@@ -8,14 +8,23 @@ set -euo pipefail
 # 定数定義
 # =============================================================================
 
-VERSION="1.0.0"
+VERSION="2.1.0"
 API_BASE="http://localhost:3100"
 
 # 有効なエージェントID
 VALID_AGENTS="emma sophia lily rose alice may flora luna"
 
-# 有効なステータス
+# 有効なステータス（後方互換）
 VALID_STATUSES="working completed blocked"
+
+# V2.1: 有効なタスク種別
+VALID_TASK_TYPES="goal phase action investigation"
+
+# V2.1: 有効なサブステータス
+VALID_V2_SUBSTATUSES="active paused checkpoint waiting completed archived"
+
+# V2.1: 有効なGoalサイズ
+VALID_GOAL_SIZES="simple standard complex"
 
 # 終了コード
 EXIT_SUCCESS=0
@@ -414,6 +423,11 @@ cmd_task_create() {
   local parent_id=""
   local category="task"
   local json_output=false
+  # V2.1 拡張
+  local task_type=""
+  local size=""
+  local tentative=false
+  local blocked_by=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -422,6 +436,11 @@ cmd_task_create() {
       --priority|-p) priority="$2"; shift 2 ;;
       --parent) parent_id="$2"; shift 2 ;;
       --category|-c) category="$2"; shift 2 ;;
+      # V2.1 オプション
+      --type) task_type="$2"; shift 2 ;;
+      --size) size="$2"; shift 2 ;;
+      --tentative) tentative=true; shift ;;
+      --blocked-by) blocked_by="$2"; shift 2 ;;
       --json) json_output=true; shift ;;
       --help|-h)
         echo "使用法: maidctl task create --title TITLE [オプション]"
@@ -432,6 +451,12 @@ cmd_task_create() {
         echo "  --priority, -p PRIORITY 優先度 (high/medium/low)"
         echo "  --parent ID             親タスクID"
         echo "  --category, -c CAT      カテゴリ (task/action_required/skill_candidate/improvement)"
+        echo ""
+        echo "V2.1 オプション:"
+        echo "  --type TYPE             タスク種別 (goal/phase/action/investigation)"
+        echo "  --size SIZE             Goalサイズ (simple/standard/complex) ※goal専用"
+        echo "  --tentative             暫定Goal ※goal専用"
+        echo "  --blocked-by IDS        依存先タスクID（カンマ区切り）"
         echo "  --json                  JSON出力"
         return 0
         ;;
@@ -447,6 +472,20 @@ cmd_task_create() {
 
   if [ -z "$title" ]; then
     echo "エラー: タイトルを指定してください (--title または第1引数)" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # V2.1: タスク種別の検証
+  if [ -n "$task_type" ] && ! echo "$VALID_TASK_TYPES" | grep -qw "$task_type"; then
+    echo "エラー: 無効なタスク種別: $task_type" >&2
+    echo "有効なタスク種別: $VALID_TASK_TYPES" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # V2.1: Goalサイズの検証
+  if [ -n "$size" ] && ! echo "$VALID_GOAL_SIZES" | grep -qw "$size"; then
+    echo "エラー: 無効なGoalサイズ: $size" >&2
+    echo "有効なGoalサイズ: $VALID_GOAL_SIZES" >&2
     exit $EXIT_INVALID_ARGS
   fi
 
@@ -467,6 +506,16 @@ EOF
     data="${data%\}}, \"description\": \"$escaped_description\"}"
   fi
   [ -n "$parent_id" ] && data="${data%\}}, \"parentId\": \"$parent_id\"}"
+  # V2.1 フィールド
+  [ -n "$task_type" ] && data="${data%\}}, \"type\": \"$task_type\"}"
+  [ -n "$size" ] && data="${data%\}}, \"size\": \"$size\"}"
+  [ "$tentative" = true ] && data="${data%\}}, \"tentative\": true}"
+  if [ -n "$blocked_by" ]; then
+    # カンマ区切りを JSON 配列に変換
+    local blocked_by_json
+    blocked_by_json=$(echo "$blocked_by" | tr ',' '\n' | jq -R . | jq -s .)
+    data="${data%\}}, \"blockedBy\": $blocked_by_json}"
+  fi
   data="${data%\}}}"  # 最後の閉じ括弧
 
   local result
@@ -718,11 +767,19 @@ cmd_my_status() {
   local summary=""
   local escalation=false
   local json_output=false
+  # V2.1 拡張
+  local v2_substatus=""
+  local blocked_by=""
+  local reason=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --summary|-m) summary="$2"; shift 2 ;;
       --escalation) escalation=true; shift ;;
+      # V2.1 オプション
+      --substatus) v2_substatus="$2"; shift 2 ;;
+      --blocked-by) blocked_by="$2"; shift 2 ;;
+      --reason) reason="$2"; shift 2 ;;
       --json) json_output=true; shift ;;
       --help|-h)
         echo "使用法: maidctl my-status [agent-id] <status> [オプション]"
@@ -736,7 +793,13 @@ cmd_my_status() {
         echo "  --escalation        エスカレーションフラグ"
         echo "  --json              JSON出力"
         echo ""
+        echo "V2.1 オプション:"
+        echo "  --substatus SUB     V2.1サブステータス (active/paused/checkpoint/waiting/completed)"
+        echo "  --blocked-by IDS    依存先タスクID（waiting時、カンマ区切り）"
+        echo "  --reason TEXT       状態変更理由（checkpoint/waiting時）"
+        echo ""
         echo "有効なステータス: $VALID_STATUSES"
+        echo "V2.1サブステータス: $VALID_V2_SUBSTATUSES"
         echo "有効なエージェント: $VALID_AGENTS"
         return 0
         ;;
@@ -794,6 +857,13 @@ cmd_my_status() {
     exit $EXIT_INVALID_ARGS
   fi
 
+  # V2.1: サブステータスの検証
+  if [ -n "$v2_substatus" ] && ! echo "$VALID_V2_SUBSTATUSES" | grep -qw "$v2_substatus"; then
+    echo "エラー: 無効なV2.1サブステータス: $v2_substatus" >&2
+    echo "有効なV2.1サブステータス: $VALID_V2_SUBSTATUSES" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
   # JSONデータを構築（特殊文字をエスケープ）
   local data="{\"status\": \"$status\""
   if [ -n "$summary" ]; then
@@ -802,6 +872,23 @@ cmd_my_status() {
     data="${data}, \"summary\": \"$escaped_summary\""
   fi
   [ "$escalation" = true ] && data="${data}, \"escalation\": true"
+
+  # V2.1 フィールド
+  if [ -n "$v2_substatus" ]; then
+    data="${data}, \"v2Substatus\": \"$v2_substatus\""
+  fi
+  if [ -n "$blocked_by" ]; then
+    # カンマ区切りを JSON 配列に変換
+    local blocked_by_json
+    blocked_by_json=$(echo "$blocked_by" | tr ',' '\n' | jq -R . | jq -s .)
+    data="${data}, \"blockedBy\": $blocked_by_json"
+  fi
+  if [ -n "$reason" ]; then
+    local escaped_reason
+    escaped_reason=$(json_escape "$reason")
+    data="${data}, \"reason\": \"$escaped_reason\""
+  fi
+
   data="${data}}"
 
   local result
@@ -810,7 +897,9 @@ cmd_my_status() {
   if [ "$json_output" = true ]; then
     echo "$result"
   else
-    echo "ステータスを更新しました: $agent_id -> $status"
+    local display_status="$status"
+    [ -n "$v2_substatus" ] && display_status="$v2_substatus"
+    echo "ステータスを更新しました: $agent_id -> $display_status"
   fi
 }
 
@@ -1058,17 +1147,20 @@ maidctl - Maid Agent CLI Tool v${VERSION}
 コマンド:
   task list      タスク一覧を取得
   task get       タスク詳細を取得
-  task create    タスクを作成
+  task create    タスクを作成（V2.1: --type, --size, --tentative対応）
   task update    タスクを更新
   task assign    タスクを割り当て
 
   my-task        自分のタスクを取得（メイド用）
-  my-status      ステータスを更新（メイド用）
+  my-status      ステータスを更新（V2.1: --substatus対応）
 
   team status    チーム状況を取得
   team report    タスクのレポートを取得
 
   report rearchive  報告書を再アーカイブ
+
+  migrate status  V2.1マイグレーション状況確認
+  migrate run     V2.1マイグレーション実行
 
   notify         他のエージェントに通知
 
@@ -1076,15 +1168,135 @@ maidctl - Maid Agent CLI Tool v${VERSION}
   --help, -h     ヘルプを表示
   --version, -v  バージョンを表示
 
+V2.1 タスク種別: goal, phase, action, investigation
+V2.1 サブステータス: active, paused, checkpoint, waiting, completed, archived
+
 例:
   maidctl task list --status pending
-  maidctl task create --title "新しいタスク" --priority high
+  maidctl task create --title "新機能実装" --type goal --size standard
+  maidctl task create --title "調査" --type investigation --parent 310
   maidctl task assign 173 --to emma
   maidctl my-task emma
-  maidctl my-status emma working --summary "作業中"
+  maidctl my-status emma working --substatus active
+  maidctl my-status emma blocked --substatus checkpoint --reason "設計確認待ち"
   maidctl team status --status working
+  maidctl migrate status
+  maidctl migrate run --dry-run
   maidctl notify chief "タスク完了しました"
 EOF
+}
+
+# =============================================================================
+# V2.1 migrate サブコマンド
+# =============================================================================
+
+cmd_migrate_status() {
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl migrate status [オプション]"
+        echo ""
+        echo "V2.1マイグレーション状況を確認します。"
+        echo ""
+        echo "オプション:"
+        echo "  --json  JSON出力"
+        return 0
+        ;;
+      *) shift ;;
+    esac
+  done
+
+  local result
+  result=$(api_request GET "/api/v2/migration/status")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    if check_jq; then
+      local total v2 legacy required
+      total=$(echo "$result" | jq -r '.totalTasks')
+      v2=$(echo "$result" | jq -r '.v2Tasks')
+      legacy=$(echo "$result" | jq -r '.legacyTasks')
+      required=$(echo "$result" | jq -r '.migrationRequired')
+
+      echo "V2.1 マイグレーション状況"
+      echo "========================"
+      echo "合計タスク数:   $total"
+      echo "V2.1形式:       $v2"
+      echo "旧形式:         $legacy"
+      echo ""
+      if [ "$required" = "true" ]; then
+        echo "⚠️  マイグレーションが必要です"
+        echo "   実行: maidctl migrate run"
+        echo "   確認: maidctl migrate run --dry-run"
+      else
+        echo "✅ すべてのタスクがV2.1形式です"
+      fi
+    else
+      echo "$result"
+    fi
+  fi
+}
+
+cmd_migrate_run() {
+  local dry_run=false
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run) dry_run=true; shift ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl migrate run [オプション]"
+        echo ""
+        echo "既存タスクをV2.1形式にマイグレーションします。"
+        echo ""
+        echo "オプション:"
+        echo "  --dry-run  実際には変更せず、変更内容のみ表示"
+        echo "  --json     JSON出力"
+        return 0
+        ;;
+      *) shift ;;
+    esac
+  done
+
+  local data="{}"
+  [ "$dry_run" = true ] && data='{"dryRun": true}'
+
+  local result
+  result=$(api_request POST "/api/v2/migration/run" "$data")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    if check_jq; then
+      local total migrated skipped is_dry_run
+      total=$(echo "$result" | jq -r '.totalTasks')
+      migrated=$(echo "$result" | jq -r '.migratedTasks')
+      skipped=$(echo "$result" | jq -r '.skippedTasks')
+      is_dry_run=$(echo "$result" | jq -r '.dryRun')
+
+      if [ "$is_dry_run" = "true" ]; then
+        echo "🔍 マイグレーション (ドライラン)"
+      else
+        echo "✅ マイグレーション完了"
+      fi
+      echo "========================"
+      echo "合計タスク数:   $total"
+      echo "マイグレート:   $migrated"
+      echo "スキップ:       $skipped"
+
+      if [ "$is_dry_run" = "true" ]; then
+        echo ""
+        echo "※ 実際に適用するには --dry-run を外して実行してください"
+      fi
+    else
+      echo "$result"
+    fi
+  fi
 }
 
 # =============================================================================
@@ -1170,6 +1382,32 @@ main() {
         *)
           echo "エラー: 不明なサブコマンド: $1"
           echo "使用法: maidctl report <rearchive>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    migrate)
+      shift
+      case "${1:-}" in
+        status) shift; cmd_migrate_status "$@" ;;
+        run) shift; cmd_migrate_run "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl migrate <subcommand>"
+          echo ""
+          echo "V2.1マイグレーション"
+          echo ""
+          echo "サブコマンド:"
+          echo "  status  マイグレーション状況を確認"
+          echo "  run     マイグレーションを実行"
+          ;;
+        "")
+          echo "エラー: サブコマンドを指定してください"
+          echo "使用法: maidctl migrate <status|run>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明なサブコマンド: $1"
+          echo "使用法: maidctl migrate <status|run>"
           exit $EXIT_INVALID_ARGS
           ;;
       esac

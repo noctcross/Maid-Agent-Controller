@@ -1,6 +1,7 @@
 ---
 name: maidctl-reference
 description: "maidctl CLIリファレンス。maidctlコマンド実行前・エラー発生時は必ず参照。推測で再試行せずこのスキルを確認すること。"
+version: "2.1.0"
 ---
 
 # maidctl-reference
@@ -14,6 +15,8 @@ description: "maidctl CLIリファレンス。maidctlコマンド実行前・エ
   - [コマンド一覧](#コマンド一覧)
   - [運用ルール](#運用ルール)
   - [ステータス一覧](#ステータス一覧)
+  - [V2.1 タスク種別](#v21-タスク種別)
+  - [V2.1 サブステータス](#v21-サブステータス)
   - [カテゴリ一覧](#カテゴリ一覧)
   - [優先度一覧](#優先度一覧)
 - [詳細リファレンス](#詳細リファレンス)
@@ -23,7 +26,7 @@ description: "maidctl CLIリファレンス。maidctlコマンド実行前・エ
 
 ## Overview
 
-maidctl CLI の詳細リファレンス。コマンド一覧、オプション詳細、jq連携例、エラー対処法を提供。
+maidctl CLI v2.1.0 の詳細リファレンス。コマンド一覧、オプション詳細、jq連携例、エラー対処法を提供。
 
 ## When to Use
 
@@ -31,6 +34,7 @@ maidctl CLI の詳細リファレンス。コマンド一覧、オプション�
 - オプションの使い方を調べたい時
 - エラーが発生して対処法を知りたい時
 - jq との連携方法を確認したい時
+- V2.1 タスク種別・サブステータスを確認したい時
 
 ## Quick Reference
 
@@ -49,8 +53,8 @@ maidctl CLI の詳細リファレンス。コマンド一覧、オプション�
 |----------|------|--------|
 | `maidctl task list` | タスク一覧取得 | 執事・メイド長 |
 | `maidctl task get TASK_ID` | タスク詳細取得 | 全員 |
-| `maidctl task create` | タスク作成 | 執事・メイド長（※） |
-| `maidctl task update TASK_ID` | タスク更新 | メイド長 |
+| `maidctl task create` | タスク作成（V2.1対応） | 執事・メイド長（※） |
+| `maidctl task update TASK_ID` | タスク更新（V2.1対応） | メイド長 |
 | `maidctl task assign TASK_ID` | タスク割り当て | メイド長 |
 
 ※ メイド長のcreate使用は🚨要対応/📚スキル候補/💡改善提案のみ
@@ -60,7 +64,7 @@ maidctl CLI の詳細リファレンス。コマンド一覧、オプション�
 | コマンド | 用途 |
 |----------|------|
 | `maidctl my-task` | 自分のタスク取得 |
-| `maidctl my-status STATUS` | ステータス更新（working/completed/blocked） |
+| `maidctl my-status STATUS` | ステータス更新（V2.1対応） |
 
 #### チーム状態
 
@@ -69,6 +73,13 @@ maidctl CLI の詳細リファレンス。コマンド一覧、オプション�
 | `maidctl team status` | チーム状況一覧 | メイド長・執事 |
 | `maidctl team report TASK_ID` | レポート取得 | 執事・メイド長 |
 | `maidctl report rearchive TASK_ID` | 報告書を再アーカイブ | 全員 |
+
+#### V2.1 マイグレーション
+
+| コマンド | 用途 | 使用者 |
+|----------|------|--------|
+| `maidctl migrate status` | マイグレーション状況確認 | 執事・メイド長 |
+| `maidctl migrate run` | マイグレーション実行 | 執事・メイド長 |
 
 #### 通知
 
@@ -107,6 +118,81 @@ maidctl CLI の詳細リファレンス。コマンド一覧、オプション�
 | `completed` | 完了 | メイド |
 | `blocked` | 問題発生・判断待ち | メイド |
 
+---
+
+### V2.1 タスク種別
+
+| 種別 | 説明 | 作成者 |
+|------|------|--------|
+| `goal` | ご主人様の指示単位。Phase/Actionの親 | 執事 |
+| `phase` | Goal内の成果物単位。2-4個目安 | 執事・メイド長 |
+| `action` | メイドが実行する作業単位 | メイド長 |
+| `investigation` | 調査・分析タスク（docs/昇格対象） | メイド長 |
+
+#### タスク作成例
+
+```bash
+# Goal作成
+maidctl task create --title "新機能実装" --type goal --size standard
+
+# 暫定Goal（調査後に再定義）
+maidctl task create --title "MCP調査" --type goal --tentative
+
+# Phase作成
+maidctl task create --title "設計" --type phase --parent 310
+
+# Action作成
+maidctl task create --title "API実装" --type action --parent 310-1
+
+# Investigation作成
+maidctl task create --title "ライブラリ調査" --type investigation --parent 310
+
+# 依存関係付き
+maidctl task create --title "テスト作成" --type action --parent 310-1 --blocked-by 310-1-1,310-1-2
+```
+
+#### Goalサイズ
+
+| サイズ | Phase数 | 報告書 | ユースケース |
+|--------|---------|--------|-------------|
+| `simple` | 0-1 | Goal直下 | typo修正、設定変更、調査のみ |
+| `standard` | 2-4 | Phase単位 | 機能追加、バグ修正 |
+| `complex` | 5+ | Phase単位 | 大規模リファクタリング |
+
+---
+
+### V2.1 サブステータス
+
+| サブステータス | 説明 | 使用場面 |
+|---------------|------|----------|
+| `active` | アクティブに作業中 | 通常の作業中 |
+| `paused` | 一時停止中 | 他タスク優先時 |
+| `checkpoint` | チェックポイント到達・確認待ち | メイド長の確認が必要な時 |
+| `waiting` | 依存タスク完了待ち | ブロッカー解消待ち |
+| `completed` | 完了 | タスク完了時 |
+| `archived` | アーカイブ済み | 長期保存時 |
+
+#### ステータス更新例
+
+```bash
+# 作業開始
+maidctl my-status working
+
+# 作業開始（サブステータス指定）
+maidctl my-status working --substatus active
+
+# チェックポイント到達（確認待ち）
+maidctl my-status blocked --substatus checkpoint --reason "設計確認待ち"
+
+# 依存タスク待ち
+maidctl my-status blocked --substatus waiting --blocked-by 310-1-1
+
+# 完了
+maidctl my-status completed
+```
+
+---
+
 ### カテゴリ一覧
 
 | カテゴリ | 用途 | 絵文字 |
@@ -123,6 +209,23 @@ maidctl CLI の詳細リファレンス。コマンド一覧、オプション�
 | `high` | 高優先度（即時対応） |
 | `medium` | 中優先度（通常） |
 | `low` | 低優先度（余裕があれば） |
+
+---
+
+### V2.1 マイグレーション
+
+既存タスクをV2.1形式に移行するコマンド。
+
+```bash
+# マイグレーション状況確認
+maidctl migrate status
+
+# ドライラン（変更内容のみ表示）
+maidctl migrate run --dry-run
+
+# マイグレーション実行
+maidctl migrate run
+```
 
 ---
 

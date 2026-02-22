@@ -59,6 +59,15 @@ maidctl の各コマンドで使用できるオプションの詳細リファレ
 | `--priority LEVEL` | `-p` | 優先度（high/medium/low） | - |
 | `--category CAT` | `-c` | カテゴリ（task/action_required/skill_candidate/improvement） | - |
 
+### V2.1 追加オプション
+
+| オプション | 説明 | 備考 |
+|-----------|------|------|
+| `--type TYPE` | タスク種別（goal/phase/action/investigation） | - |
+| `--size SIZE` | Goalサイズ（simple/standard/complex） | goal専用 |
+| `--tentative` | 暫定Goal | goal専用 |
+| `--blocked-by IDS` | 依存先タスクID（カンマ区切り） | - |
+
 ---
 
 ## task update オプション
@@ -100,6 +109,14 @@ maidctl の各コマンドで使用できるオプションの詳細リファレ
 | `--summary TEXT` | `-m` | 作業サマリ（100文字以内） |
 | `--escalation` | | エスカレーションフラグ（blocked時、ご主人様判断が必要な場合に使用） |
 
+### V2.1 追加オプション
+
+| オプション | 説明 | 備考 |
+|-----------|------|------|
+| `--substatus SUB` | サブステータス（active/paused/checkpoint/waiting/completed） | - |
+| `--blocked-by IDS` | 依存先タスクID（カンマ区切り） | waiting時 |
+| `--reason TEXT` | 状態変更理由 | checkpoint/waiting時 |
+
 ---
 
 ## team report オプション
@@ -129,3 +146,20 @@ maidctl の各コマンドで使用できるオプションの詳細リファレ
 |-----------|--------|------|
 | `--agent AGENT` | `-a` | 対象エージェント（省略時は全assignees） |
 | `--json` | | JSON出力 |
+
+---
+
+## V2.1 migrate コマンド
+
+### migrate status オプション
+
+| オプション | 説明 |
+|-----------|------|
+| `--json` | JSON出力 |
+
+### migrate run オプション
+
+| オプション | 説明 |
+|-----------|------|
+| `--dry-run` | 実際には変更せず、変更内容のみ表示 |
+| `--json` | JSON出力 |

@@ -5,6 +5,18 @@
  * tasks.yaml を単一ファイルで管理
  */
 export type TaskStatus = "pending" | "assigned" | "working" | "completed" | "blocked" | "cancelled";
+export type TaskType = "goal" | "phase" | "action" | "investigation";
+export type TaskMainStatus = "open" | "closed";
+export type TaskSubstatus = "active" | "paused" | "checkpoint" | "waiting" | "completed" | "archived";
+export type GoalSize = "simple" | "standard" | "complex";
+export type ReviewStatus = "pending" | "in_review" | "approved" | "rejected";
+export type RetentionLevel = "L1" | "L2" | "L3";
+export interface TaskArtifact {
+    type: string;
+    path: string;
+    base?: "temporary" | "permanent";
+    retention: RetentionLevel;
+}
 export interface Assignee {
     agentId: string;
     role: string | null;
@@ -35,6 +47,14 @@ export interface Task {
     starredAt?: string | null;
     escalation?: boolean;
     escalatedAt?: string | null;
+    type?: TaskType;
+    mainStatus?: TaskMainStatus;
+    v2Substatus?: TaskSubstatus;
+    size?: GoalSize;
+    tentative?: boolean;
+    blockedBy?: string[];
+    artifacts?: TaskArtifact[];
+    reviewStatus?: ReviewStatus;
 }
 /**
  * 軽量版タスク（summaryOnly: true 時に返却）
@@ -58,6 +78,10 @@ export interface CreateTaskParams {
     priority?: "high" | "medium" | "low";
     parentId?: string;
     category?: TaskCategory;
+    type?: TaskType;
+    size?: GoalSize;
+    tentative?: boolean;
+    blockedBy?: string[];
 }
 export interface CreateTaskResult {
     taskId: string;
@@ -125,6 +149,15 @@ export interface UpdateTaskParams {
     description?: string;
     targetPath?: string;
     agentId?: string;
+    mainStatus?: TaskMainStatus;
+    v2Substatus?: TaskSubstatus;
+    type?: TaskType;
+    size?: GoalSize;
+    tentative?: boolean;
+    blockedBy?: string[];
+    artifacts?: TaskArtifact[];
+    artifactAdd?: TaskArtifact;
+    reviewStatus?: ReviewStatus;
 }
 export interface SideEffectResults {
     maidYamlSynced?: boolean;
@@ -133,6 +166,12 @@ export interface SideEffectResults {
     archiveSkipReason?: string;
     reportTemplatized?: boolean;
     archivePath?: string;
+    dependencyResolved?: boolean;
+    unblockedTasks?: Array<{
+        taskId: string;
+        assignees: string[];
+        previousSubstatus: string;
+    }>;
 }
 export interface UpdateTaskResult {
     success: boolean;
@@ -146,3 +185,84 @@ export interface UpdateTaskResult {
  * tasks.yaml 更新後、副作用（maid yaml同期・レポートアーカイブ・テンプレート初期化）を実行。
  */
 export declare function executeUpdateTask(projectPath: string, params: UpdateTaskParams): Promise<UpdateTaskResult>;
+/**
+ * 依存解消時の自動更新結果
+ */
+export interface DependencyResolutionResult {
+    unblockedTasks: Array<{
+        taskId: string;
+        assignees: string[];
+        previousSubstatus: string;
+    }>;
+}
+/**
+ * タスク完了時に依存しているタスクを自動的に waiting → active に更新
+ *
+ * V2.1 設計書より:
+ * 1. タスクA完了: maidctl my-status completed
+ * 2. システムが blockedBy を検索
+ * 3. タスクBが blockedBy: ["A"] を持つ場合
+ *    → タスクBの担当者に自動通知
+ *    → タスクBの substatus を waiting → active に更新
+ */
+export declare function resolveBlockedTasks(projectPath: string, completedTaskId: string): Promise<DependencyResolutionResult>;
+/**
+ * V2.1: タスク種別の判定（後方互換）
+ * type が未設定の場合、parentId の有無で推定
+ */
+export declare function inferTaskType(task: Task): TaskType;
+/**
+ * V2.1: ステータス変換（旧 → 新）
+ */
+export declare function convertToV2Status(task: Task): {
+    mainStatus: TaskMainStatus;
+    substatus: TaskSubstatus;
+};
+/**
+ * V2.1: Goal の自動クローズ判定
+ *
+ * 条件:
+ * - 全Phaseが completed
+ * - レビューPhaseが存在する場合は approved
+ * - 除外カテゴリなし (skill_candidate, improvement, action_required)
+ */
+export declare function checkGoalAutoClose(projectPath: string, goalId: string): Promise<{
+    canAutoClose: boolean;
+    reason?: string;
+}>;
+/**
+ * マイグレーション結果
+ */
+export interface MigrationResult {
+    totalTasks: number;
+    migratedTasks: number;
+    skippedTasks: number;
+    details: Array<{
+        taskId: string;
+        action: "migrated" | "skipped";
+        changes?: Record<string, unknown>;
+        reason?: string;
+    }>;
+}
+/**
+ * 既存タスクを V2.1 形式にマイグレーション
+ *
+ * 設計書より:
+ * 1. 既存タスクに type: action を付与（デフォルト）
+ * 2. 親タスクを type: goal に変更
+ * 3. サブタスクグループを type: phase に変更（直接の親が goal の場合）
+ * 4. 調査系タスクを type: investigation に変更
+ * 5. mainStatus/v2Substatus を旧 status から変換
+ */
+export declare function migrateToV2(projectPath: string, options?: {
+    dryRun?: boolean;
+}): Promise<MigrationResult>;
+/**
+ * V2.1 マイグレーション状況の確認
+ */
+export declare function checkMigrationStatus(projectPath: string): Promise<{
+    totalTasks: number;
+    v2Tasks: number;
+    legacyTasks: number;
+    migrationRequired: boolean;
+}>;

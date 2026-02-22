@@ -540,6 +540,8 @@ export interface SideEffectResults {
     assignees: string[];
     previousSubstatus: string;
   }>;
+  // V2.1: Goal自動クローズ結果
+  goalAutoClosed?: string;
 }
 
 export interface UpdateTaskResult {
@@ -752,6 +754,34 @@ export async function executeUpdateTask(
         }
       } catch {
         // 依存解消失敗は握りつぶす（メイン処理に影響させない）
+      }
+    }
+
+    // V2.1: Phase完了時に親Goalの自動クローズ判定
+    if (isCompleted && result.task) {
+      const taskType = inferTaskType(result.task);
+      if (taskType === "phase" && result.task.parentId) {
+        try {
+          const autoCloseResult = await checkGoalAutoClose(projectPath, result.task.parentId);
+          if (autoCloseResult.canAutoClose) {
+            // 親Goalを自動クローズ
+            await withTasksLock(projectPath, async (data) => {
+              const goal = data.tasks.find((t) => t.id === result.task!.parentId);
+              if (goal) {
+                goal.mainStatus = "closed";
+                goal.v2Substatus = "completed";
+                goal.status = "completed";
+                goal.completedAt = getTimestamp();
+                goal.updatedAt = getTimestamp();
+              }
+              return { data, result: null };
+            });
+            result.sideEffects = result.sideEffects || {};
+            result.sideEffects.goalAutoClosed = result.task.parentId;
+          }
+        } catch {
+          // Goal自動クローズ失敗は握りつぶす
+        }
       }
     }
   }

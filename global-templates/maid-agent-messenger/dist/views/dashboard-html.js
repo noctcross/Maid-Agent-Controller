@@ -12,6 +12,8 @@ import { generateTaskHtml, composeMasterWaitingHtml } from "./task-html.js";
 import { getDashboardStyles } from "./dashboard-styles.js";
 import { getDashboardHeadScript, getDashboardMainScript, getReportOverlayScript, } from "./dashboard-scripts.js";
 import { getDashboardBodyTemplate, getReportOverlayHtml, } from "./dashboard-template.js";
+// V2.1: Goal階層表示・レビューキュー・成果物・統計
+import { generateGoalTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, } from "./task-html-v2.js";
 /**
  * ダッシュボードHTMLを生成
  *
@@ -86,6 +88,19 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
     const masterWaitingSectionHtml = composeMasterWaitingHtml(masterWaiting, masterReview, projectPath);
     const skillCandidatesHtml = generateTaskHtml(skillCandidates, "skill_candidate", projectPath);
     const improvementsHtml = generateTaskHtml(improvements, "improvement", projectPath);
+    // V2.1: Goal階層・レビューキュー・成果物・統計HTML生成
+    const v2GoalsHtml = data.v2Goals
+        ? generateGoalTreeHtml(data.v2Goals, projectPath)
+        : "";
+    const v2ReviewQueueHtml = data.v2ReviewQueue
+        ? generateReviewQueueHtml(data.v2ReviewQueue, projectPath)
+        : "";
+    const v2ArtifactsHtml = data.v2Artifacts
+        ? generateArtifactsHtml(data.v2Artifacts, projectPath)
+        : "";
+    const v2StatsHtml = data.v2Stats
+        ? generateV2StatsHtml(data.v2Stats)
+        : "";
     // WebSocket接続用のCSPホスト生成
     const serverHost = new URL(data.serverUrl).host;
     const cspConnectSrc = `ws://localhost:3100 wss://localhost:3100 http://localhost:3100 https://localhost:3100 ws://127.0.0.1:3100 wss://127.0.0.1:3100 http://127.0.0.1:3100 https://127.0.0.1:3100 ws://${serverHost} wss://${serverHost} http://${serverHost} https://${serverHost}`;
@@ -114,6 +129,53 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         improvementsCount: improvements.length,
         improvementsHtml,
     };
+    // V2.1セクションHTML（データがある場合のみ表示）
+    const v2SectionsHtml = (data.v2Goals || data.v2ReviewQueue || data.v2Artifacts || data.v2Stats)
+        ? `
+    <!-- V2.1: Goal階層・レビューキュー・成果物セクション -->
+    <div class="v2-sections" style="grid-column: 1 / -1; margin-top: 1rem;">
+      ${v2StatsHtml ? `
+      <div class="card v2-stats-section" data-section="v2-stats">
+        <div class="card-header">
+          <span class="card-title">📊 V2.1 統計</span>
+        </div>
+        ${v2StatsHtml}
+      </div>` : ""}
+
+      ${v2GoalsHtml ? `
+      <div class="card v2-goals-section" data-section="v2-goals">
+        <div class="card-header collapsible-header">
+          <span class="card-title">🎯 Goal階層</span>
+          <span class="count-badge">${data.v2Goals?.length || 0}</span>
+        </div>
+        <div class="collapsible-content goal-tree-container">
+          ${v2GoalsHtml}
+        </div>
+      </div>` : ""}
+
+      ${v2ReviewQueueHtml ? `
+      <div class="card v2-review-section" data-section="v2-review">
+        <div class="card-header collapsible-header">
+          <span class="card-title">📋 レビューキュー</span>
+          <span class="count-badge count-badge-alert">${data.v2ReviewQueue?.length || 0}</span>
+        </div>
+        <div class="collapsible-content">
+          ${v2ReviewQueueHtml}
+        </div>
+      </div>` : ""}
+
+      ${v2ArtifactsHtml ? `
+      <div class="card v2-artifacts-section" data-section="v2-artifacts">
+        <div class="card-header collapsible-header">
+          <span class="card-title">📄 成果物</span>
+          <span class="count-badge">${data.v2Artifacts?.length || 0}</span>
+        </div>
+        <div class="collapsible-content">
+          ${v2ArtifactsHtml}
+        </div>
+      </div>` : ""}
+    </div>`
+        : "";
     // HTML構築（各モジュールに委譲）
     return `<!DOCTYPE html>
 <html lang="ja">
@@ -128,6 +190,7 @@ ${getDashboardStyles()}
 ${getDashboardHeadScript(scriptParams)}
 </head>
 ${getDashboardBodyTemplate(templateParams)}
+${v2SectionsHtml}
 ${getReportOverlayHtml()}
 ${getDashboardMainScript(scriptParams)}
 ${getReportOverlayScript()}

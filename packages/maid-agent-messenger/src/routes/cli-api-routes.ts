@@ -218,7 +218,8 @@ router.patch("/api/agents/:id/status", async (req: Request, res: Response) => {
     }
 
     // バリデーション: status
-    const validStatuses = ["working", "completed", "blocked"];
+    // V2.1: checkpoint, waiting を追加
+    const validStatuses = ["working", "completed", "blocked", "checkpoint", "waiting"];
     if (!status || !validStatuses.includes(status)) {
       res.status(400).json({
         error: "Invalid status",

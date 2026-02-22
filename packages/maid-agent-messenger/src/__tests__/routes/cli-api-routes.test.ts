@@ -263,7 +263,8 @@ describe("PATCH /api/agents/:id/status", () => {
       .expect(400);
 
     expect(res.body.error).toBe("Invalid status");
-    expect(res.body.validStatuses).toEqual(["working", "completed", "blocked"]);
+    // V2.1: checkpoint, waiting を追加
+    expect(res.body.validStatuses).toEqual(["working", "completed", "blocked", "checkpoint", "waiting"]);
   });
 
   it("status未指定で400を返す", async () => {

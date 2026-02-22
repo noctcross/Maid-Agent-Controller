@@ -172,6 +172,7 @@ export interface SideEffectResults {
         assignees: string[];
         previousSubstatus: string;
     }>;
+    goalAutoClosed?: string;
 }
 export interface UpdateTaskResult {
     success: boolean;

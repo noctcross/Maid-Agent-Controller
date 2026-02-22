@@ -8,6 +8,7 @@
  * - dashboard-template.ts: HTMLボディテンプレート
  */
 import type { AgentStatus } from "../types/index.js";
+import { type V2Goal, type V2ReviewTask, type V2Artifact, type V2Stats } from "./task-html-v2.js";
 export interface DashboardData {
     projectPath: string;
     timestamp: string;
@@ -86,6 +87,10 @@ export interface DashboardData {
         completedTodayCount: number;
     };
     serverUrl: string;
+    v2Goals?: V2Goal[];
+    v2ReviewQueue?: V2ReviewTask[];
+    v2Artifacts?: V2Artifact[];
+    v2Stats?: V2Stats;
 }
 /**
  * ダッシュボードHTMLを生成

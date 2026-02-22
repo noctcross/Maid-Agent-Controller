@@ -1108,3 +1108,81 @@ export function getReportOverlayScript(): string {
     }
   </script>`;
 }
+
+/**
+ * V2.1 Dashboard用スクリプトを生成
+ * Goal展開/折りたたみ機能を提供
+ *
+ * @returns `<script>` タグを含むHTMLスクリプト文字列
+ */
+export function getV2DashboardScript(): string {
+  return `
+  <script>
+    // ========================================
+    // V2.1 Dashboard Scripts
+    // ========================================
+
+    /**
+     * Goal展開/折りたたみを切り替える
+     * @param {HTMLElement} header - クリックされたgoal-header要素
+     */
+    function toggleGoal(header) {
+      var goalItem = header.closest('.goal-item');
+      if (!goalItem) return;
+
+      var toggle = header.querySelector('.goal-toggle');
+      var content = goalItem.querySelector('.goal-content');
+      if (!content) return;
+
+      // 折りたたみ状態を切り替え
+      if (toggle.classList.contains('collapsed')) {
+        // 展開する
+        toggle.classList.remove('collapsed');
+        content.style.display = '';
+      } else {
+        // 折りたたむ
+        toggle.classList.add('collapsed');
+        content.style.display = 'none';
+      }
+    }
+
+    // DOMContentLoaded: 初期状態で折りたたみ済みのGoalをnone表示
+    document.addEventListener('DOMContentLoaded', function() {
+      initGoalTree();
+    });
+
+    /**
+     * Goalツリーを初期化（折りたたみ済みのGoalを非表示に）
+     */
+    function initGoalTree() {
+      // .collapsed クラスを持つtoggleの親Goalのcontentを非表示
+      document.querySelectorAll('.goal-toggle.collapsed').forEach(function(toggle) {
+        var goalItem = toggle.closest('.goal-item');
+        if (goalItem) {
+          var content = goalItem.querySelector('.goal-content');
+          if (content) {
+            content.style.display = 'none';
+          }
+        }
+      });
+
+      // goal-headerにクリックイベントを設定
+      document.querySelectorAll('.goal-header').forEach(function(header) {
+        // 既にリスナーが設定済みならスキップ
+        if (header.dataset.hasGoalListener === 'true') return;
+        header.dataset.hasGoalListener = 'true';
+
+        header.addEventListener('click', function(e) {
+          // リンクやボタンのクリックは除外
+          if (e.target.closest('a') || e.target.closest('button')) return;
+          toggleGoal(this);
+        });
+      });
+    }
+
+    // V2.1データが動的に更新された場合の再初期化関数
+    function reinitGoalTree() {
+      initGoalTree();
+    }
+  </script>`;
+}

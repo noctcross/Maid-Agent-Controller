@@ -16,6 +16,7 @@ import {
   getDashboardHeadScript,
   getDashboardMainScript,
   getReportOverlayScript,
+  getV2DashboardScript,
   type DashboardScriptParams,
 } from "./dashboard-scripts.js";
 import {
@@ -331,6 +332,7 @@ ${v2SectionsHtml}
 ${getReportOverlayHtml()}
 ${getDashboardMainScript(scriptParams)}
 ${getReportOverlayScript()}
+${getV2DashboardScript()}
 </body>
 </html>`;
 }

@@ -10,6 +10,9 @@ import {
   executeUpdateTask,
   executeGetReport,
   archiveReport,
+  // V2.1 マイグレーション
+  migrateToV2,
+  checkMigrationStatus,
   type TaskStatus,
 } from "../services/index.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
@@ -99,12 +102,18 @@ router.get("/api/tasks/:id", async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /api/tasks/:id - タスク更新
+// PATCH /api/tasks/:id - タスク更新 (V2.1拡張)
 router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
     const txId = req.get("X-Transaction-Id");
-    const { status, substatus, summary, reportPath } = req.body;
+    const {
+      // 既存フィールド
+      status, substatus, summary, reportPath,
+      // V2.1 拡張フィールド
+      mainStatus, v2Substatus, type, size, tentative,
+      blockedBy, artifacts, artifactAdd, reviewStatus,
+    } = req.body;
 
     const result = await executeUpdateTask(projectPath, {
       taskId: req.params.id,
@@ -112,6 +121,16 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       substatus,
       summary,
       reportPath,
+      // V2.1 拡張
+      mainStatus,
+      v2Substatus,
+      type,
+      size,
+      tentative,
+      blockedBy,
+      artifacts,
+      artifactAdd,
+      reviewStatus,
     });
 
     if (!result.success) {
@@ -307,6 +326,41 @@ router.post("/api/tasks/:id/rearchive", async (req: Request, res: Response) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     res.status(500).json({ error: "Rearchive failed", details: message });
+  }
+});
+
+// =============================================================================
+// V2.1 マイグレーション API
+// =============================================================================
+
+// GET /api/v2/migration/status - マイグレーション状況確認
+router.get("/api/v2/migration/status", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const status = await checkMigrationStatus(projectPath);
+    res.json(status);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Migration status check failed", details: message });
+  }
+});
+
+// POST /api/v2/migration/run - マイグレーション実行
+router.post("/api/v2/migration/run", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const { dryRun } = req.body;
+
+    const result = await migrateToV2(projectPath, { dryRun: dryRun === true });
+
+    res.json({
+      success: true,
+      dryRun: dryRun === true,
+      ...result,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Migration failed", details: message });
   }
 });
 

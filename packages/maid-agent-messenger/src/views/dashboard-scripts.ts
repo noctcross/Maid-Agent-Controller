@@ -1238,7 +1238,20 @@ export function getV2DashboardScript(): string {
         header.addEventListener('click', function(e) {
           // リンクやボタンのクリックは除外
           if (e.target.closest('a') || e.target.closest('button')) return;
-          toggleGoal(this);
+          toggleGoal(header);
+        });
+      });
+
+      // phase-headerにクリックイベントを設定
+      document.querySelectorAll('.phase-header').forEach(function(header) {
+        // 既にリスナーが設定済みならスキップ
+        if (header.dataset.hasPhaseListener === 'true') return;
+        header.dataset.hasPhaseListener = 'true';
+
+        header.addEventListener('click', function(e) {
+          // リンクやボタンのクリックは除外
+          if (e.target.closest('a') || e.target.closest('button')) return;
+          togglePhase(header);
         });
       });
     }

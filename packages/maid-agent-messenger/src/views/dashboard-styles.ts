@@ -136,8 +136,8 @@ export function getV2DashboardStyles(): string {
 
     .goal-item {
       background: var(--v2-bg-card);
-      border-radius: 8px;
-      margin-bottom: 12px;
+      border-radius: 6px;
+      margin-bottom: 6px;
       overflow: hidden;
     }
 
@@ -148,9 +148,10 @@ export function getV2DashboardStyles(): string {
     .goal-header {
       display: flex;
       align-items: center;
-      padding: 12px 15px;
+      padding: 6px 10px;
       cursor: pointer;
-      gap: 10px;
+      gap: 8px;
+      font-size: 0.85rem;
     }
 
     .goal-header:hover {
@@ -186,30 +187,30 @@ export function getV2DashboardStyles(): string {
     }
 
     .goal-content {
-      padding: 0 15px 15px 40px;
+      padding: 0 10px 8px 25px;
     }
 
     .goal-summary {
-      font-size: 0.9rem;
+      font-size: 0.8rem;
       color: var(--v2-text-secondary);
-      margin-bottom: 15px;
-      padding: 8px 12px;
+      margin-bottom: 8px;
+      padding: 5px 8px;
       background: rgba(0,0,0,0.2);
-      border-radius: 5px;
+      border-radius: 4px;
     }
 
     .goal-assignees {
-      margin-top: 10px;
-      font-size: 0.85rem;
+      margin-top: 5px;
+      font-size: 0.75rem;
       color: var(--v2-text-secondary);
     }
 
-    /* V2.1 Badges */
+    /* V2.1 Badges - Compact */
     .badge {
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      margin-left: 5px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      margin-left: 4px;
     }
 
     .badge-goal {
@@ -236,9 +237,10 @@ export function getV2DashboardStyles(): string {
     .status {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 4px;
+      gap: 3px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.75rem;
       font-size: 0.75rem;
     }
 
@@ -277,24 +279,25 @@ export function getV2DashboardStyles(): string {
       color: var(--v2-status-checkpoint);
     }
 
-    /* V2.1 Phase Tree */
+    /* V2.1 Phase Tree - Compact */
     .phase-tree {
       border-left: 2px solid var(--v2-border-color);
-      padding-left: 15px;
-      margin-left: 5px;
+      padding-left: 12px;
+      margin-left: 4px;
     }
 
     .phase-item {
       position: relative;
-      padding: 8px 0;
+      padding: 4px 0;
+      font-size: 0.85rem;
     }
 
     .phase-item::before {
       content: '';
       position: absolute;
-      left: -17px;
-      top: 14px;
-      width: 12px;
+      left: -14px;
+      top: 10px;
+      width: 10px;
       height: 2px;
       background: var(--v2-border-color);
     }
@@ -343,19 +346,19 @@ export function getV2DashboardStyles(): string {
       color: var(--v2-status-paused);
     }
 
-    /* V2.1 Action List */
+    /* V2.1 Action List - Compact */
     .action-list {
-      margin-top: 8px;
-      padding-left: 20px;
-      font-size: 0.85rem;
+      margin-top: 4px;
+      padding-left: 15px;
+      font-size: 0.8rem;
       color: var(--v2-text-secondary);
     }
 
     .v2-sections .action-item {
       display: flex;
       align-items: center;
-      padding: 4px 0;
-      gap: 8px;
+      padding: 2px 0;
+      gap: 6px;
     }
 
     .action-icon {
@@ -419,9 +422,9 @@ export function getV2DashboardStyles(): string {
 
     /* V2.1 Review Status */
     .review-status {
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.7rem;
     }
 
     .review-pending {

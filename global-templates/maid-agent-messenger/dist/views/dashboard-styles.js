@@ -728,6 +728,57 @@ export function getV2DashboardStyles() {
       .v2-sections .team-grid {
         grid-template-columns: repeat(2, 1fr);
       }
+
+      /* スマホ: ステータス表示をアイコンのみに */
+      .goal-header .status,
+      .phase-header .status,
+      .action-status {
+        font-size: 0;
+      }
+      .goal-header .status::before,
+      .phase-header .status::before {
+        font-size: 0.9rem;
+      }
+      /* ステータスアイコンのみ表示（テキストは非表示） */
+      .status-active::before { content: "🔵"; }
+      .status-paused::before { content: "⏸️"; }
+      .status-checkpoint::before { content: "🔶"; }
+      .status-waiting::before { content: "⏳"; }
+      .status-completed::before { content: "✅"; }
+      .status-archived::before { content: "📦"; }
+      .status-pending::before { content: "⏳"; }
+
+      /* フィルタコントロールを縦並びに */
+      .v2-filter-controls {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      /* Goal/Phase ヘッダーをコンパクトに */
+      .goal-header {
+        flex-wrap: wrap;
+        padding: 4px 8px;
+      }
+      .goal-title {
+        flex-basis: 100%;
+        order: 10;
+        font-size: 0.8rem;
+        margin-top: 2px;
+      }
+      .phase-header {
+        flex-wrap: wrap;
+      }
+    }
+
+    /* V2.1 Sort Controls */
+    .v2-sort-controls {
+      display: flex;
+      gap: 4px;
+      margin-left: 8px;
+    }
+    .v2-sort-controls .sort-toggle-btn {
+      padding: 2px 8px;
+      font-size: 0.75rem;
     }
 
     /* V2.1 スマホ対応: 500px以下 */
@@ -754,16 +805,35 @@ export function getV2DashboardStyles() {
       .goal-header {
         padding: 10px 12px;
         font-size: 0.9rem;
-        gap: 8px;
+        gap: 6px;
       }
       .goal-toggle {
         font-size: 0.9rem;
       }
       .goal-title {
         font-size: 0.9rem;
+        flex: 1;
+        min-width: 0;
       }
       .goal-id {
         font-size: 0.85rem;
+      }
+      /* V2.1 スマホ: バッジ類を非表示にしてタイトルを優先表示 */
+      .goal-header .badge-goal,
+      .goal-header .badge-size {
+        display: none;
+      }
+      .goal-header .status {
+        font-size: 0.7rem;
+        padding: 1px 4px;
+        white-space: nowrap;
+      }
+      .goal-header .report-link {
+        font-size: 0.8rem;
+      }
+      /* V2.1 スマホ: Phase階層も同様にバッジを縮小 */
+      .phase-header .badge {
+        display: none;
       }
       .goal-content {
         padding: 0 10px 10px 24px;

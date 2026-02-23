@@ -1192,6 +1192,29 @@ export function getV2DashboardScript() {
       }
     }
 
+    /**
+     * Phase展開/折りたたみを切り替える
+     * @param {HTMLElement} header - クリックされたphase-header要素
+     */
+    function togglePhase(header) {
+      var phaseItem = header.closest('.phase-item');
+      if (!phaseItem) return;
+
+      var actionList = phaseItem.querySelector('.action-list');
+      if (!actionList) return;
+
+      // 折りたたみ状態を切り替え
+      if (phaseItem.classList.contains('collapsed')) {
+        // 展開する
+        phaseItem.classList.remove('collapsed');
+        actionList.style.display = '';
+      } else {
+        // 折りたたむ
+        phaseItem.classList.add('collapsed');
+        actionList.style.display = 'none';
+      }
+    }
+
     // DOMContentLoaded: 初期状態で折りたたみ済みのGoalをnone表示
     document.addEventListener('DOMContentLoaded', function() {
       initGoalTree();

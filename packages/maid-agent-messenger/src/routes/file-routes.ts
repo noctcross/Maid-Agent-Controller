@@ -24,6 +24,11 @@ router.get("/file", async (req: Request, res: Response) => {
     // URLデコード
     filePath = decodeURIComponent(filePath);
 
+    // 相対パスの場合はprojectPathと結合して絶対パスに変換
+    if (projectPath && !path.isAbsolute(filePath)) {
+      filePath = path.join(projectPath, filePath);
+    }
+
     // WSL環境でのみWindowsパス（C:/...）をWSLパス（/mnt/c/...）に変換
     // Mac/Linuxでは変換不要
     const isWslEnvironment = process.platform === 'linux' && process.env.WSL_DISTRO_NAME;

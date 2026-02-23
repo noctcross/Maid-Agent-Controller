@@ -150,6 +150,7 @@ export function getV2DashboardStyles() {
       cursor: pointer;
       gap: 8px;
       font-size: 0.85rem;
+      flex-wrap: wrap;
     }
 
     .goal-header:hover {
@@ -177,6 +178,10 @@ export function getV2DashboardStyles() {
     .goal-title {
       flex: 1;
       font-weight: 500;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .goal-id {
@@ -321,6 +326,11 @@ export function getV2DashboardStyles() {
 
     .phase-name {
       font-weight: 500;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .phase-status {
@@ -365,6 +375,10 @@ export function getV2DashboardStyles() {
 
     .action-name {
       flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .v2-sections .action-item.completed .action-name {

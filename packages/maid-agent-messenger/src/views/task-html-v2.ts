@@ -143,12 +143,12 @@ function generateGoalItemHtml(goal: V2Goal, projectPath: string): string {
   const assigneesStr = goal.assignees.map((a) => a.agentId).join(", ");
   const reviewBadge = goal.reviewStatus ? generateReviewBadgeHtml(goal.reviewStatus) : "";
   // 報告書リンク: Goalには統合サマリーへのリンク
-  const reportLink = generateReportLinkHtml(goal.id, "goal");
+  const reportLink = generateReportLinkHtml(goal.id, "goal", projectPath);
 
   const phasesHtml = goal.phases.length > 0
     ? `<div class="goal-content">
         <div class="phase-tree">
-          ${goal.phases.map((phase) => generatePhaseItemHtml(phase)).join("\n")}
+          ${goal.phases.map((phase) => generatePhaseItemHtml(phase, projectPath)).join("\n")}
         </div>
         <div class="goal-assignees">👥 担当: ${escapeHtml(assigneesStr)}</div>
       </div>`
@@ -172,12 +172,12 @@ function generateGoalItemHtml(goal: V2Goal, projectPath: string): string {
 /**
  * Phase単体のHTML生成
  */
-function generatePhaseItemHtml(phase: V2Phase): string {
+function generatePhaseItemHtml(phase: V2Phase, projectPath: string): string {
   const statusIcon = STATUS_ICONS[phase.v2Substatus] || "❓";
   const statusClass = STATUS_CLASSES[phase.v2Substatus] || "";
   const reviewBadge = phase.reviewStatus ? generateReviewBadgeHtml(phase.reviewStatus) : "";
   // 報告書リンク: PhaseにはPhase別報告書へのリンク
-  const reportLink = generateReportLinkHtml(phase.id, "phase");
+  const reportLink = generateReportLinkHtml(phase.id, "phase", projectPath);
 
   const actionsHtml = phase.actions.length > 0
     ? `<div class="action-list">
@@ -236,10 +236,11 @@ function generateReviewBadgeHtml(reviewStatus: string): string {
  * 報告書リンクのHTML生成
  * @param taskId タスクID
  * @param taskType タスク種別（goal/phase）
+ * @param projectPath プロジェクトパス
  */
-function generateReportLinkHtml(taskId: string, taskType: string): string {
+function generateReportLinkHtml(taskId: string, taskType: string, projectPath: string): string {
   const title = taskType === "goal" ? "統合サマリーを開く" : "Phase報告書を開く";
-  return `<a href="/report?task=${encodeURIComponent(taskId)}" class="report-link" title="${title}">📄</a>`;
+  return `<a href="/report?task=${encodeURIComponent(taskId)}&project=${encodeURIComponent(projectPath)}" class="report-link" title="${title}">📄</a>`;
 }
 
 // === レビューキュー表示 ===

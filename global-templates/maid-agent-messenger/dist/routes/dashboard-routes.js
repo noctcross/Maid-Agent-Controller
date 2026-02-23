@@ -44,7 +44,7 @@ export function createDashboardRoutes(deps) {
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),
-                generateV2DashboardData(projectPath), // V2.1 ダッシュボードデータ
+                generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
             ]);
             // 本日完了タスクをカウント
             const completedTodayCount = completedAll.tasks.filter((task) => {
@@ -174,7 +174,7 @@ export function createDashboardRoutes(deps) {
                 executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
                 executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
-                generateV2DashboardData(projectPath), // V2.1 ダッシュボードデータ
+                generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
             ]);
             const completedTodayCount = completedAll.tasks.filter((task) => {
                 if (!task.completedAt)
@@ -264,7 +264,7 @@ export function createDashboardRoutes(deps) {
                         executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
                         executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),
                         executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
-                        generateV2DashboardData(projectPath), // V2.1 ダッシュボードデータ
+                        generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
                     ]);
                     const completedTodayCount = completedAll.tasks.filter((task) => {
                         if (!task.completedAt)

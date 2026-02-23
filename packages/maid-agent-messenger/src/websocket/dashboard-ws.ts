@@ -13,6 +13,7 @@ import {
   TasksHtml,
   WebSocketConfig,
   DEFAULT_WS_CONFIG,
+  EscalationNotification,
 } from "./types.js";
 
 export class DashboardWebSocketServer {
@@ -167,6 +168,22 @@ export class DashboardWebSocketServer {
         this.send(ws, event);
       }
     });
+  }
+
+  /**
+   * 特定プロジェクトにエスカレーション通知を配信
+   */
+  public broadcastEscalation(projectPath: string, notification: EscalationNotification): void {
+    console.log(`[WS] Broadcasting escalation to ${projectPath}: ${notification.title}`);
+    this.broadcast(projectPath, { type: "escalation", data: notification });
+  }
+
+  /**
+   * 全クライアントにエスカレーション通知を配信
+   */
+  public broadcastAllEscalation(notification: EscalationNotification): void {
+    console.log(`[WS] Broadcasting escalation to all: ${notification.title}`);
+    this.broadcastAll({ type: "escalation", data: notification });
   }
 
   /**

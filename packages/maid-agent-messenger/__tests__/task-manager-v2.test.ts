@@ -126,7 +126,7 @@ describe("V2.1: resolveBlockedTasks - 依存解消自動通知", () => {
     // タスクBが active になっていることを確認
     taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     const taskBUpdated = taskBResult.task as Task;
-    expect(taskBUpdated?.v2Substatus).toBe("active");
+    expect(taskBUpdated?.v2Substatus).toBe("assigned");
     expect(taskBUpdated?.blockedBy).toEqual([]);
   });
 
@@ -167,7 +167,7 @@ describe("V2.1: resolveBlockedTasks - 依存解消自動通知", () => {
     expect(result.unblockedTasks.length).toBe(1);
     taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     taskBData = taskBResult.task as Task;
-    expect(taskBData?.v2Substatus).toBe("active");
+    expect(taskBData?.v2Substatus).toBe("assigned");
     expect(taskBData?.blockedBy).toEqual([]);
   });
 });
@@ -363,11 +363,25 @@ describe("V2.1: migrateToV2 - マイグレーション", () => {
 });
 
 describe("V2.1: convertToV2Status - ステータス変換", () => {
-  it("working → open/active に変換", () => {
+  it("pending → open/pending に変換", () => {
+    const task = { status: "pending" } as Task;
+    const result = convertToV2Status(task);
+    expect(result.mainStatus).toBe("open");
+    expect(result.substatus).toBe("pending");
+  });
+
+  it("assigned → open/assigned に変換", () => {
+    const task = { status: "assigned" } as Task;
+    const result = convertToV2Status(task);
+    expect(result.mainStatus).toBe("open");
+    expect(result.substatus).toBe("assigned");
+  });
+
+  it("working → open/working に変換", () => {
     const task = { status: "working" } as Task;
     const result = convertToV2Status(task);
     expect(result.mainStatus).toBe("open");
-    expect(result.substatus).toBe("active");
+    expect(result.substatus).toBe("working");
   });
 
   it("completed → closed/completed に変換", () => {
@@ -391,15 +405,22 @@ describe("V2.1: convertToV2Status - ステータス変換", () => {
     expect(result.substatus).toBe("checkpoint");
   });
 
+  it("cancelled → cancelled/completed に変換", () => {
+    const task = { status: "cancelled" } as Task;
+    const result = convertToV2Status(task);
+    expect(result.mainStatus).toBe("cancelled");
+    expect(result.substatus).toBe("completed");
+  });
+
   it("既にV2.1形式の場合はそのまま返す", () => {
     const task = {
       status: "pending",
       mainStatus: "open",
-      v2Substatus: "paused",
+      v2Substatus: "pending",
     } as Task;
     const result = convertToV2Status(task);
     expect(result.mainStatus).toBe("open");
-    expect(result.substatus).toBe("paused");
+    expect(result.substatus).toBe("pending");
   });
 });
 
@@ -459,7 +480,7 @@ describe("V2.1: executeUpdateTask - completed時に依存解消が呼ばれる",
     // タスクBが active になっている
     taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     taskBData = taskBResult.task as Task;
-    expect(taskBData?.v2Substatus).toBe("active");
+    expect(taskBData?.v2Substatus).toBe("assigned");
   });
 
   it("v2Substatus=completed 時にも依存解消が呼ばれる", async () => {
@@ -482,7 +503,7 @@ describe("V2.1: executeUpdateTask - completed時に依存解消が呼ばれる",
 
     const taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     const taskBData = taskBResult.task as Task;
-    expect(taskBData?.v2Substatus).toBe("active");
+    expect(taskBData?.v2Substatus).toBe("assigned");
   });
 });
 

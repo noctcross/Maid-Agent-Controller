@@ -31,12 +31,23 @@ export type DebouncedEvent =
   | ({ type: "taskAssigned"; taskId: string; assignee: string } & TransactionIdentifier)
   | ({ type: "statusUpdated"; agentId: string; status: string } & TransactionIdentifier);
 
+/** エスカレーション通知データ（Phase6: WebSocket通知） */
+export interface EscalationNotification {
+  taskId: string;
+  title: string;
+  severity: "low" | "medium" | "high" | "critical";
+  agentId: string;
+  message: string;
+  timestamp: string;
+}
+
 export type DashboardEvent =
   | { type: "connected"; sessionId: string }
   | { type: "stats"; data: DashboardStats }
   | { type: "tasks"; data: TasksHtml }
   | DebouncedEvent
   | { type: "tasksBatchUpdated"; events: DebouncedEvent[]; count: number }
+  | { type: "escalation"; data: EscalationNotification }
   | { type: "ping" }
   | { type: "pong" }
   | { type: "error"; message: string };

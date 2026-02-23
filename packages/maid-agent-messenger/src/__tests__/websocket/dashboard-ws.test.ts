@@ -177,4 +177,126 @@ describe("DashboardWebSocketServer", () => {
       done(err);
     });
   });
+
+  // Phase6: エスカレーション通知テスト
+  describe("Escalation Notification", () => {
+    it("broadcastEscalationでエスカレーション通知を送信できる", (done) => {
+      const ws = new WebSocket(
+        `ws://localhost:${TEST_PORT}/dashboard/ws?project=/test/path`
+      );
+
+      let connected = false;
+
+      ws.on("message", (data) => {
+        const event = JSON.parse(data.toString());
+        if (event.type === "connected") {
+          connected = true;
+          // 少し待ってからエスカレーション通知を送信
+          setTimeout(() => {
+            wsServer.broadcastEscalation("/test/path", {
+              taskId: "task-123",
+              title: "緊急: APIエラー発生",
+              severity: "high",
+              agentId: "emma",
+              message: "外部API連携でタイムアウトが発生しています",
+              timestamp: new Date().toISOString(),
+            });
+          }, 100);
+        } else if (event.type === "escalation" && connected) {
+          expect(event.data.taskId).toBe("task-123");
+          expect(event.data.title).toBe("緊急: APIエラー発生");
+          expect(event.data.severity).toBe("high");
+          expect(event.data.agentId).toBe("emma");
+          expect(event.data.message).toBe("外部API連携でタイムアウトが発生しています");
+          ws.close();
+          done();
+        }
+      });
+
+      ws.on("error", (err) => {
+        done(err);
+      });
+    });
+
+    it("異なるプロジェクトにはエスカレーション通知が届かない", (done) => {
+      const ws = new WebSocket(
+        `ws://localhost:${TEST_PORT}/dashboard/ws?project=/other/path`
+      );
+
+      let receivedEscalation = false;
+
+      ws.on("message", (data) => {
+        const event = JSON.parse(data.toString());
+        if (event.type === "connected") {
+          // 別プロジェクトにエスカレーション通知
+          wsServer.broadcastEscalation("/test/path", {
+            taskId: "task-456",
+            title: "テスト通知",
+            severity: "medium",
+            agentId: "lily",
+            message: "テストメッセージ",
+            timestamp: new Date().toISOString(),
+          });
+          // 少し待っても届かないことを確認
+          setTimeout(() => {
+            expect(receivedEscalation).toBe(false);
+            ws.close();
+            done();
+          }, 200);
+        } else if (event.type === "escalation") {
+          receivedEscalation = true;
+        }
+      });
+
+      ws.on("error", (err) => {
+        done(err);
+      });
+    });
+
+    it("broadcastAllEscalationで全クライアントに通知できる", (done) => {
+      const ws1 = new WebSocket(
+        `ws://localhost:${TEST_PORT}/dashboard/ws?project=/path1`
+      );
+      const ws2 = new WebSocket(
+        `ws://localhost:${TEST_PORT}/dashboard/ws?project=/path2`
+      );
+
+      let connectedCount = 0;
+      let receivedCount = 0;
+
+      const handleMessage = (data: WebSocket.RawData) => {
+        const event = JSON.parse(data.toString());
+        if (event.type === "connected") {
+          connectedCount++;
+          if (connectedCount === 2) {
+            // 両方接続されたら全体通知
+            setTimeout(() => {
+              wsServer.broadcastAllEscalation({
+                taskId: "task-789",
+                title: "システム全体通知",
+                severity: "critical",
+                agentId: "system",
+                message: "メンテナンス開始",
+                timestamp: new Date().toISOString(),
+              });
+            }, 100);
+          }
+        } else if (event.type === "escalation") {
+          receivedCount++;
+          expect(event.data.taskId).toBe("task-789");
+          if (receivedCount === 2) {
+            ws1.close();
+            ws2.close();
+            done();
+          }
+        }
+      };
+
+      ws1.on("message", handleMessage);
+      ws2.on("message", handleMessage);
+
+      ws1.on("error", (err) => done(err));
+      ws2.on("error", (err) => done(err));
+    });
+  });
 });

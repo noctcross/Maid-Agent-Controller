@@ -294,6 +294,10 @@ export function generateDashboardHtml(
               <input type="checkbox" id="v2-goals-show-archived">
               <span>Archived</span>
             </label>
+            <div class="v2-sort-controls">
+              <button id="v2-goals-sort-id" class="sort-toggle-btn active" title="タスク番号でソート">#↓</button>
+              <button id="v2-goals-sort-updated" class="sort-toggle-btn" title="更新日時でソート">📅</button>
+            </div>
           </div>
         </div>
         <div class="collapsible-content goal-tree-container" id="v2-goals-list">

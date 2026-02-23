@@ -731,25 +731,6 @@ export function getV2DashboardStyles(): string {
         grid-template-columns: repeat(2, 1fr);
       }
 
-      /* スマホ: ステータス表示をアイコンのみに */
-      .goal-header .status,
-      .phase-header .status,
-      .action-status {
-        font-size: 0;
-      }
-      .goal-header .status::before,
-      .phase-header .status::before {
-        font-size: 0.9rem;
-      }
-      /* ステータスアイコンのみ表示（テキストは非表示） */
-      .status-active::before { content: "🔵"; }
-      .status-paused::before { content: "⏸️"; }
-      .status-checkpoint::before { content: "🔶"; }
-      .status-waiting::before { content: "⏳"; }
-      .status-completed::before { content: "✅"; }
-      .status-archived::before { content: "📦"; }
-      .status-pending::before { content: "⏳"; }
-
       /* フィルタコントロールを縦並びに */
       .v2-filter-controls {
         flex-wrap: wrap;
@@ -761,14 +742,16 @@ export function getV2DashboardStyles(): string {
         flex-wrap: wrap;
         padding: 4px 8px;
       }
-      .goal-title {
-        flex-basis: 100%;
-        order: 10;
-        font-size: 0.8rem;
-        margin-top: 2px;
+      .goal-header .status {
+        font-size: 0.7rem;
+        padding: 1px 4px;
       }
       .phase-header {
         flex-wrap: wrap;
+      }
+      .phase-header .status {
+        font-size: 0.7rem;
+        padding: 1px 4px;
       }
     }
 

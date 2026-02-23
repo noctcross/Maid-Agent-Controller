@@ -48,6 +48,8 @@ export interface V2Goal {
   displayIcon?: string;
   // V2.1: アーカイブフラグ
   archived?: boolean;
+  // V2.1: 更新日時（ソート用）
+  updatedAt?: string;
 }
 
 export interface V2ReviewTask {
@@ -154,7 +156,7 @@ function generateGoalItemHtml(goal: V2Goal, projectPath: string): string {
       </div>`
     : "";
 
-  return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true}">
+  return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true}" data-updated="${goal.updatedAt || ""}">
     <div class="goal-header">
       <span class="goal-toggle ${toggleClass}">▼</span>
       <span class="goal-id">#${escapeHtml(goal.id)}</span>

@@ -1107,6 +1107,8 @@ export interface V2GoalData {
   displayIcon?: string;
   // V2.1: アーカイブフラグ
   archived?: boolean;
+  // V2.1: 更新日時（ソート用）
+  updatedAt?: string;
 }
 
 export interface V2ReviewTaskData {
@@ -1265,6 +1267,7 @@ export async function generateV2DashboardData(
         displayStatus,
         displayIcon,
         archived: goal.archived,
+        updatedAt: goal.updatedAt,
       };
     });
 

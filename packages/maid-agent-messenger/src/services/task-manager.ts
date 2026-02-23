@@ -1070,6 +1070,7 @@ export interface V2DashboardData {
   v2ReviewQueue: V2ReviewTaskData[];
   v2Artifacts: V2ArtifactData[];
   v2Stats: V2StatsData;
+  totalGoals: number;
 }
 
 export interface V2ActionData {
@@ -1151,7 +1152,7 @@ export async function generateV2DashboardData(
   projectPath: string,
   options: V2DashboardOptions = {}
 ): Promise<V2DashboardData> {
-  const { showArchived = false, statusFilter = "open" } = options;
+  const { showArchived = false, statusFilter = "open", offset = 0, limit = 10 } = options;
   const data = await loadTasksReadOnly(projectPath);
   const tasks = data.tasks;
 
@@ -1264,6 +1265,10 @@ export async function generateV2DashboardData(
       };
     });
 
+  // ページネーション: totalGoals はフィルタリング後の件数
+  const totalGoals = v2Goals.length;
+  const paginatedV2Goals = v2Goals.slice(offset, offset + limit);
+
   // V2ReviewQueue: レビュー待ちタスク（updatedAt降順でソート）
   const v2ReviewQueue: V2ReviewTaskData[] = tasks
     .filter((t) => t.reviewStatus === "pending" || t.reviewStatus === "in_review")
@@ -1350,10 +1355,11 @@ export async function generateV2DashboardData(
   };
 
   return {
-    v2Goals,
+    v2Goals: paginatedV2Goals,
     v2ReviewQueue,
     v2Artifacts,
     v2Stats,
+    totalGoals,
   };
 }
 

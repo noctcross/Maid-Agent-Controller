@@ -706,7 +706,7 @@ export async function checkGoalAutoClose(projectPath, goalId) {
  * タスク一覧からV2.1ダッシュボードデータを生成
  */
 export async function generateV2DashboardData(projectPath, options = {}) {
-    const { showArchived = false, statusFilter = "open" } = options;
+    const { showArchived = false, statusFilter = "open", offset = 0, limit = 10 } = options;
     const data = await loadTasksReadOnly(projectPath);
     const tasks = data.tasks;
     // Goal/Phase/Action を分類
@@ -808,6 +808,9 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             displayIcon,
         };
     });
+    // ページネーション: totalGoals はフィルタリング後の件数
+    const totalGoals = v2Goals.length;
+    const paginatedV2Goals = v2Goals.slice(offset, offset + limit);
     // V2ReviewQueue: レビュー待ちタスク（updatedAt降順でソート）
     const v2ReviewQueue = tasks
         .filter((t) => t.reviewStatus === "pending" || t.reviewStatus === "in_review")
@@ -883,10 +886,11 @@ export async function generateV2DashboardData(projectPath, options = {}) {
         proposalCount,
     };
     return {
-        v2Goals,
+        v2Goals: paginatedV2Goals,
         v2ReviewQueue,
         v2Artifacts,
         v2Stats,
+        totalGoals,
     };
 }
 // =============================================================================

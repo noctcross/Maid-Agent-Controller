@@ -259,6 +259,7 @@ export interface V2DashboardData {
     v2ReviewQueue: V2ReviewTaskData[];
     v2Artifacts: V2ArtifactData[];
     v2Stats: V2StatsData;
+    totalGoals: number;
 }
 export interface V2ActionData {
     id: string;

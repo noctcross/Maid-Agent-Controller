@@ -14,6 +14,10 @@ import { TEST_PROJECT_PATH, createMockListResponse } from "../helpers/e2e-setup.
 const mockExecuteListTasks = jest.fn<any>();
 const mockExecuteGetTeamStatus = jest.fn<any>();
 const mockExecuteUpdateTask = jest.fn<any>();
+const mockExecuteGetReport = jest.fn<any>().mockResolvedValue({
+  success: true,
+  reports: [],
+});
 const mockGenerateV2DashboardData = jest.fn<any>().mockResolvedValue({
   v2Goals: [],
   v2ReviewQueue: [],
@@ -33,6 +37,7 @@ jest.unstable_mockModule("../../services/index.js", () => ({
   executeListTasks: mockExecuteListTasks,
   executeGetTeamStatus: mockExecuteGetTeamStatus,
   executeUpdateTask: mockExecuteUpdateTask,
+  executeGetReport: mockExecuteGetReport,
   generateV2DashboardData: mockGenerateV2DashboardData,
 }));
 

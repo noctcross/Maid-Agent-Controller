@@ -11,9 +11,11 @@ import {
   executeListTasks,
   executeGetTeamStatus,
   executeUpdateTask,
+  executeGetReport,
   generateV2DashboardData,
   type Task,
 } from "../services/index.js";
+import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import type { DashboardData } from "../views/dashboard-html.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
@@ -497,6 +499,93 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({ error: "Star toggle failed", details: message });
+    }
+  });
+
+  // GET /report - 報告書表示（LAN公開）
+  router.get("/report", async (req: Request, res: Response) => {
+    try {
+      const taskId = req.query.task as string;
+      if (!taskId) {
+        res.status(400).send("<html><body><h1>Error</h1><p>task parameter is required</p></body></html>");
+        return;
+      }
+
+      const projectPath = req.query.project
+        ? decodeURIComponent(req.query.project as string)
+        : getProjectPathFromRequest(req);
+
+      const result = await executeGetReport(projectPath, { taskId });
+
+      if (!result.success) {
+        res.status(404).send(`<html><body><h1>Not Found</h1><p>${escapeHtml(result.message || "Report not found")}</p></body></html>`);
+        return;
+      }
+
+      if (result.reports.length === 0) {
+        res.status(404).send(`<html><body><h1>Not Found</h1><p>このタスクには報告書が登録されていません</p></body></html>`);
+        return;
+      }
+
+      // 報告書の内容をHTMLに変換
+      const reportsHtml = result.reports.map((report) => {
+        if (report.error) {
+          return `<div class="report-error"><h3>${escapeHtml(report.path)}</h3><p class="error">${escapeHtml(report.error)}</p></div>`;
+        }
+        if (!report.content) {
+          return `<div class="report-error"><h3>${escapeHtml(report.path)}</h3><p class="error">内容を取得できませんでした</p></div>`;
+        }
+        // Markdown → HTML変換、パスリンク化
+        let html = convertMarkdownToHtml(report.content);
+        html = linkifyProjectPaths(html, projectPath);
+        return `<div class="report-content">
+          <h3 class="report-path">${escapeHtml(report.path)}</h3>
+          <div class="report-body">${html}</div>
+        </div>`;
+      }).join("\n");
+
+      const pageHtml = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>報告書 - ${escapeHtml(taskId)}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: #f5a623; margin-bottom: 20px; }
+    .report-content { background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .report-path { color: #7fdbff; font-size: 0.9em; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #333; }
+    .report-body { line-height: 1.6; }
+    .report-body h1, .report-body h2, .report-body h3 { color: #f5a623; }
+    .report-body a { color: #7fdbff; }
+    .report-body code { background: #0d1b2a; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+    .report-body pre { background: #0d1b2a; padding: 15px; border-radius: 8px; overflow-x: auto; }
+    .report-body pre code { padding: 0; }
+    .report-body ul, .report-body ol { padding-left: 20px; }
+    .report-body table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    .report-body th, .report-body td { border: 1px solid #444; padding: 8px; text-align: left; }
+    .report-body th { background: #0d1b2a; }
+    .report-error { background: #3e1616; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .error { color: #ff6b6b; }
+    .back-link { display: inline-block; margin-bottom: 20px; color: #7fdbff; text-decoration: none; }
+    .back-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/dashboard?project=${encodeURIComponent(projectPath)}" class="back-link">← ダッシュボードに戻る</a>
+    <h1>📄 報告書 - ${escapeHtml(taskId)}</h1>
+    ${reportsHtml}
+  </div>
+</body>
+</html>`;
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(pageHtml);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).send(`<html><body><h1>Error</h1><p>${escapeHtml(message)}</p></body></html>`);
     }
   });
 

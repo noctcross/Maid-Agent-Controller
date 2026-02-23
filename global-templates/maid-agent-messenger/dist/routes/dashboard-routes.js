@@ -413,124 +413,84 @@ export function createDashboardRoutes(deps) {
             res.status(500).json({ error: "Star toggle failed", details: message });
         }
     });
-    // GET /report - 統合サマリー/レポート表示（LAN公開OK）
+    // GET /report - 報告書表示（LAN公開）
     router.get("/report", async (req, res) => {
         try {
+            const taskId = req.query.task;
+            if (!taskId) {
+                res.status(400).send("<html><body><h1>Error</h1><p>task parameter is required</p></body></html>");
+                return;
+            }
             const projectPath = req.query.project
                 ? decodeURIComponent(req.query.project)
                 : getProjectPathFromRequest(req);
-            const taskId = req.query.task;
-            if (!taskId) {
-                res.status(400).send("Missing task parameter");
-                return;
-            }
             const result = await executeGetReport(projectPath, { taskId });
-            if (!result.success || !result.reports || result.reports.length === 0) {
-                // レポートが見つからない場合
-                res.status(404).send(`
-          <!DOCTYPE html>
-          <html><head><title>Report Not Found</title>
-          <style>body{font-family:sans-serif;background:#1e1e1e;color:#ccc;padding:40px;text-align:center;}
-          .error{color:#f14c4c;font-size:1.5rem;}</style></head>
-          <body><div class="error">⚠️ レポートが見つかりません</div>
-          <p>タスク #${escapeHtml(taskId)} のレポートは存在しないか、まだ作成されていません。</p>
-          <a href="javascript:history.back()" style="color:#4ec9b0;">← 戻る</a></body></html>
-        `);
+            if (!result.success) {
+                res.status(404).send(`<html><body><h1>Not Found</h1><p>${escapeHtml(result.message || "Report not found")}</p></body></html>`);
                 return;
             }
-            // 複数レポートを結合
-            const combinedContent = result.reports.map((r) => {
-                const header = `## 📄 ${escapeHtml(r.path.split("/").pop() || r.path)}\n\n`;
-                return header + r.content;
-            }).join("\n\n---\n\n");
-            // Markdown → HTML 変換
-            const markdownHtml = convertMarkdownToHtml(combinedContent);
-            const htmlContent = linkifyProjectPaths(markdownHtml, projectPath);
-            const html = `<!DOCTYPE html>
+            if (result.reports.length === 0) {
+                res.status(404).send(`<html><body><h1>Not Found</h1><p>このタスクには報告書が登録されていません</p></body></html>`);
+                return;
+            }
+            // 報告書の内容をHTMLに変換
+            const reportsHtml = result.reports.map((report) => {
+                if (report.error) {
+                    return `<div class="report-error"><h3>${escapeHtml(report.path)}</h3><p class="error">${escapeHtml(report.error)}</p></div>`;
+                }
+                if (!report.content) {
+                    return `<div class="report-error"><h3>${escapeHtml(report.path)}</h3><p class="error">内容を取得できませんでした</p></div>`;
+                }
+                // Markdown → HTML変換、パスリンク化
+                let html = convertMarkdownToHtml(report.content);
+                html = linkifyProjectPaths(html, projectPath);
+                return `<div class="report-content">
+          <h3 class="report-path">${escapeHtml(report.path)}</h3>
+          <div class="report-body">${html}</div>
+        </div>`;
+            }).join("\n");
+            const pageHtml = `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>レポート #${escapeHtml(taskId)}</title>
+  <title>報告書 - ${escapeHtml(taskId)}</title>
   <style>
-    :root {
-      --bg-start: #1a1a2e;
-      --bg-end: #16213e;
-      --text-color: #eee;
-      --h1-color: #e94560;
-      --h2-color: #ffc107;
-      --h3-color: #81c784;
-      --link-color: #4ec9b0;
-      --code-bg: #0a0a0a;
-      --border-color: #444;
-      --accent-color: #e94560;
-    }
-    * { box-sizing: border-box; }
-    body {
-      font-family: "Segoe UI", "Hiragino Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 100%);
-      color: var(--text-color);
-      line-height: 1.6;
-      padding: 16px 40px;
-      max-width: 900px;
-      margin: 0 auto;
-      min-height: 100vh;
-      font-size: 13px;
-    }
-    .file-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 10px;
-      margin-bottom: 16px;
-      border-bottom: 2px solid var(--accent-color);
-    }
-    .file-name { font-size: 1.2rem; color: var(--accent-color); }
-    .back-link { color: var(--link-color); text-decoration: none; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: #f5a623; margin-bottom: 20px; }
+    .report-content { background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .report-path { color: #7fdbff; font-size: 0.9em; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #333; }
+    .report-body { line-height: 1.6; }
+    .report-body h1, .report-body h2, .report-body h3 { color: #f5a623; }
+    .report-body a { color: #7fdbff; }
+    .report-body code { background: #0d1b2a; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+    .report-body pre { background: #0d1b2a; padding: 15px; border-radius: 8px; overflow-x: auto; }
+    .report-body pre code { padding: 0; }
+    .report-body ul, .report-body ol { padding-left: 20px; }
+    .report-body table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    .report-body th, .report-body td { border: 1px solid #444; padding: 8px; text-align: left; }
+    .report-body th { background: #0d1b2a; }
+    .report-error { background: #3e1616; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .error { color: #ff6b6b; }
+    .back-link { display: inline-block; margin-bottom: 20px; color: #7fdbff; text-decoration: none; }
     .back-link:hover { text-decoration: underline; }
-    .content { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 16px; }
-    h1, h2, h3, h4, h5, h6 { margin: 1.5em 0 0.5em; }
-    h1 { font-size: 1.4em; color: var(--h1-color); border-bottom: 2px solid var(--h1-color); padding-bottom: 6px; }
-    h2 { font-size: 1.15em; color: var(--h2-color); border-bottom: 1px solid var(--border-color); padding-bottom: 4px; }
-    h3 { font-size: 1.05em; color: var(--h3-color); }
-    a { color: var(--link-color); }
-    code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: "Consolas", "Monaco", monospace; font-size: 0.9em; }
-    pre { background: var(--code-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
-    pre code { background: none; padding: 0; }
-    table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-    th, td { border: 1px solid var(--border-color); padding: 6px 10px; text-align: left; }
-    th { background: rgba(255,255,255,0.1); color: var(--h2-color); }
-    ul { padding-left: 25px; }
-    li { margin: 4px 0; }
-    hr { border: none; border-top: 1px solid var(--border-color); margin: 16px 0; }
-    p { margin: 8px 0; }
-    .path-link { color: var(--link-color); text-decoration: none; border-bottom: 1px dotted var(--link-color); }
-    .path-link:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <div class="file-header">
-    <div class="file-name">📋 タスク #${escapeHtml(taskId)} レポート</div>
-    <a href="javascript:history.back()" class="back-link">← 戻る</a>
-  </div>
-  <div class="content">
-    ${htmlContent}
+  <div class="container">
+    <a href="/dashboard?project=${encodeURIComponent(projectPath)}" class="back-link">← ダッシュボードに戻る</a>
+    <h1>📄 報告書 - ${escapeHtml(taskId)}</h1>
+    ${reportsHtml}
   </div>
 </body>
 </html>`;
             res.setHeader("Content-Type", "text/html; charset=utf-8");
-            res.send(html);
+            res.send(pageHtml);
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";
-            res.status(500).send(`
-        <!DOCTYPE html>
-        <html><head><title>Error</title>
-        <style>body{font-family:sans-serif;background:#1e1e1e;color:#ccc;padding:40px;text-align:center;}
-        .error{color:#f14c4c;font-size:1.5rem;}</style></head>
-        <body><div class="error">⚠️ エラーが発生しました</div><p>${escapeHtml(message)}</p>
-        <a href="javascript:history.back()" style="color:#4ec9b0;">← 戻る</a></body></html>
-      `);
+            res.status(500).send(`<html><body><h1>Error</h1><p>${escapeHtml(message)}</p></body></html>`);
         }
     });
     return router;

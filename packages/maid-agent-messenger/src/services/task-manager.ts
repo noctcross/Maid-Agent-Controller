@@ -1168,13 +1168,18 @@ export async function generateV2DashboardData(
 
   /**
    * タスク種別を判定（親タスクの情報も使用）
-   * 1. type が明示的に設定されている場合はそれを使用
-   * 2. parentId がない → goal
-   * 3. parentId があり、親の parentId がない → phase（Goalの直接の子）
-   * 4. parentId があり、親の parentId もある → action（孫タスク）
+   * 1. type が 'goal', 'phase', 'investigation' の場合はそのまま使用
+   * 2. type が 'action' または未設定の場合は親タスク構造で判定:
+   *    - parentId がない → goal
+   *    - parentId があり、親の parentId がない → phase（Goalの直接の子）
+   *    - parentId があり、親の parentId もある → action（孫タスク）
    */
   function inferTypeWithContext(task: Task): TaskType {
-    if (task.type) return task.type;
+    // type が 'goal', 'phase', 'investigation' の場合はそのまま使用
+    if (task.type === "goal" || task.type === "phase" || task.type === "investigation") {
+      return task.type;
+    }
+    // type が 'action' または未設定の場合は親タスク構造で判定
     if (!task.parentId) return "goal";
     // 親タスクを取得
     const parent = taskMap.get(task.parentId);

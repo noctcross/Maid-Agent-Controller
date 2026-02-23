@@ -43,6 +43,7 @@ export declare function getReportOverlayScript(): string;
  * V2.1 Dashboard用スクリプトを生成
  * Goal展開/折りたたみ機能を提供
  *
+ * @param params - スクリプト生成パラメータ
  * @returns `<script>` タグを含むHTMLスクリプト文字列
  */
-export declare function getV2DashboardScript(): string;
+export declare function getV2DashboardScript(params?: DashboardScriptParams): string;

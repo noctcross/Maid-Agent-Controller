@@ -132,6 +132,20 @@ export class DashboardWebSocketServer {
         });
     }
     /**
+     * 特定プロジェクトにエスカレーション通知を配信
+     */
+    broadcastEscalation(projectPath, notification) {
+        console.log(`[WS] Broadcasting escalation to ${projectPath}: ${notification.title}`);
+        this.broadcast(projectPath, { type: "escalation", data: notification });
+    }
+    /**
+     * 全クライアントにエスカレーション通知を配信
+     */
+    broadcastAllEscalation(notification) {
+        console.log(`[WS] Broadcasting escalation to all: ${notification.title}`);
+        this.broadcastAll({ type: "escalation", data: notification });
+    }
+    /**
      * 接続中のクライアント数を取得
      */
     getClientCount() {

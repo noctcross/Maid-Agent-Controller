@@ -6,8 +6,8 @@
  */
 export type TaskStatus = "pending" | "assigned" | "working" | "completed" | "blocked" | "cancelled";
 export type TaskType = "goal" | "phase" | "action" | "investigation";
-export type TaskMainStatus = "open" | "closed";
-export type TaskSubstatus = "active" | "paused" | "checkpoint" | "waiting" | "completed" | "archived";
+export type TaskMainStatus = "open" | "closed" | "cancelled";
+export type TaskSubstatus = "pending" | "assigned" | "working" | "waiting" | "checkpoint" | "completed";
 export type GoalSize = "simple" | "standard" | "complex";
 export type ReviewStatus = "pending" | "in_review" | "approved" | "rejected";
 export type RetentionLevel = "L1" | "L2" | "L3";
@@ -55,6 +55,7 @@ export interface Task {
     blockedBy?: string[];
     artifacts?: TaskArtifact[];
     reviewStatus?: ReviewStatus;
+    archived?: boolean;
 }
 /**
  * 軽量版タスク（summaryOnly: true 時に返却）
@@ -232,6 +233,15 @@ export declare function checkGoalAutoClose(projectPath: string, goalId: string):
     reason?: string;
 }>;
 /**
+ * V2.1 Goals ページネーションオプション
+ */
+export interface V2GoalsPaginationOptions {
+    offset?: number;
+    limit?: number;
+    statusFilter?: "open" | "closed" | "all";
+    showArchived?: boolean;
+}
+/**
  * V2.1 ダッシュボードデータ
  */
 export interface V2DashboardData {
@@ -239,6 +249,7 @@ export interface V2DashboardData {
     v2ReviewQueue: V2ReviewTaskData[];
     v2Artifacts: V2ArtifactData[];
     v2Stats: V2StatsData;
+    totalGoals: number;
 }
 export interface V2ActionData {
     id: string;
@@ -302,7 +313,7 @@ export interface V2StatsData {
 /**
  * タスク一覧からV2.1ダッシュボードデータを生成
  */
-export declare function generateV2DashboardData(projectPath: string): Promise<V2DashboardData>;
+export declare function generateV2DashboardData(projectPath: string, options?: V2GoalsPaginationOptions): Promise<V2DashboardData>;
 /**
  * マイグレーション結果
  */

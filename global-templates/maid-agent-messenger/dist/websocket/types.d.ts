@@ -40,6 +40,15 @@ export type DebouncedEvent = ({
     agentId: string;
     status: string;
 } & TransactionIdentifier);
+/** エスカレーション通知データ（Phase6: WebSocket通知） */
+export interface EscalationNotification {
+    taskId: string;
+    title: string;
+    severity: "low" | "medium" | "high" | "critical";
+    agentId: string;
+    message: string;
+    timestamp: string;
+}
 export type DashboardEvent = {
     type: "connected";
     sessionId: string;
@@ -53,6 +62,9 @@ export type DashboardEvent = {
     type: "tasksBatchUpdated";
     events: DebouncedEvent[];
     count: number;
+} | {
+    type: "escalation";
+    data: EscalationNotification;
 } | {
     type: "ping";
 } | {

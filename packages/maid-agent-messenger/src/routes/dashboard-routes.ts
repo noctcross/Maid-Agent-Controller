@@ -396,6 +396,46 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     }
   });
 
+  // GET /dashboard/v2/goals - V2.1 Goals ページネーション用エンドポイント
+  router.get("/dashboard/v2/goals", async (req: Request, res: Response) => {
+    try {
+      const projectPath = req.query.project
+        ? decodeURIComponent(req.query.project as string)
+        : getProjectPathFromRequest(req);
+
+      // ページネーションパラメータ
+      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      // フィルタパラメータ
+      const statusParam = req.query.status as string;
+      const statusFilter: "open" | "closed" | "all" =
+        statusParam === "closed" ? "closed" :
+        statusParam === "all" ? "all" : "open";
+
+      const showArchived = req.query.archived === "true";
+
+      // V2.1 ダッシュボードデータを取得（ページネーション適用）
+      const v2Data = await generateV2DashboardData(projectPath, {
+        offset,
+        limit,
+        statusFilter,
+        showArchived,
+      });
+
+      res.json({
+        goals: v2Data.v2Goals,
+        total: v2Data.totalGoals,
+        offset,
+        limit,
+        hasMore: offset + v2Data.v2Goals.length < v2Data.totalGoals,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: message });
+    }
+  });
+
   // PATCH /dashboard/tasks/:id/star - スタートグル（LAN公開）
   router.patch("/dashboard/tasks/:id/star", async (req: Request, res: Response) => {
     try {

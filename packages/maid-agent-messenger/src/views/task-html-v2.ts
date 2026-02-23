@@ -166,8 +166,9 @@ function generatePhaseItemHtml(phase: V2Phase): string {
   const statusIcon = STATUS_ICONS[phase.v2Substatus] || "❓";
   const statusClass = STATUS_CLASSES[phase.v2Substatus] || "";
   const reviewBadge = phase.reviewStatus ? generateReviewBadgeHtml(phase.reviewStatus) : "";
+  const hasActions = phase.actions.length > 0;
 
-  const actionsHtml = phase.actions.length > 0
+  const actionsHtml = hasActions
     ? `<div class="action-list">
         ${phase.actions.map((action, idx, arr) =>
           generateActionItemHtml(action, idx === arr.length - 1)
@@ -176,7 +177,8 @@ function generatePhaseItemHtml(phase: V2Phase): string {
     : "";
 
   return `<div class="phase-item ${phase.v2Substatus === "active" ? "highlight" : ""}" data-id="${escapeHtml(phase.id)}">
-    <div class="phase-header">
+    <div class="phase-header" onclick="togglePhase(this)">
+      ${hasActions ? '<span class="phase-toggle">▼</span>' : ''}
       <span class="phase-id">#${escapeHtml(phase.id)}</span>
       <span class="phase-name">[${escapeHtml(phase.title)}] Phase</span>
       <span class="status ${statusClass}">${statusIcon} ${phase.v2Substatus}</span>

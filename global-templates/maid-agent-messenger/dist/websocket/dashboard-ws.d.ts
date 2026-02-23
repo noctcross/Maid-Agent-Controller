@@ -2,7 +2,7 @@
  * ダッシュボード用 WebSocket サーバー
  */
 import type { Server } from "http";
-import { DashboardEvent, DashboardStats, TasksHtml, WebSocketConfig } from "./types.js";
+import { DashboardEvent, DashboardStats, TasksHtml, WebSocketConfig, EscalationNotification } from "./types.js";
 export declare class DashboardWebSocketServer {
     private wss;
     private clients;
@@ -24,6 +24,14 @@ export declare class DashboardWebSocketServer {
      * 全クライアントにイベントを配信
      */
     broadcastAll(event: DashboardEvent): void;
+    /**
+     * 特定プロジェクトにエスカレーション通知を配信
+     */
+    broadcastEscalation(projectPath: string, notification: EscalationNotification): void;
+    /**
+     * 全クライアントにエスカレーション通知を配信
+     */
+    broadcastAllEscalation(notification: EscalationNotification): void;
     /**
      * 接続中のクライアント数を取得
      */

@@ -333,6 +333,40 @@ export function createDashboardRoutes(deps) {
             res.status(500).json({ error: "Review toggle failed", details: message });
         }
     });
+    // GET /dashboard/v2/goals - V2.1 Goals ページネーション用エンドポイント
+    router.get("/dashboard/v2/goals", async (req, res) => {
+        try {
+            const projectPath = req.query.project
+                ? decodeURIComponent(req.query.project)
+                : getProjectPathFromRequest(req);
+            // ページネーションパラメータ
+            const offset = parseInt(req.query.offset) || 0;
+            const limit = parseInt(req.query.limit) || 10;
+            // フィルタパラメータ
+            const statusParam = req.query.status;
+            const statusFilter = statusParam === "closed" ? "closed" :
+                statusParam === "all" ? "all" : "open";
+            const showArchived = req.query.archived === "true";
+            // V2.1 ダッシュボードデータを取得（ページネーション適用）
+            const v2Data = await generateV2DashboardData(projectPath, {
+                offset,
+                limit,
+                statusFilter,
+                showArchived,
+            });
+            res.json({
+                goals: v2Data.v2Goals,
+                total: v2Data.totalGoals,
+                offset,
+                limit,
+                hasMore: offset + v2Data.v2Goals.length < v2Data.totalGoals,
+            });
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            res.status(500).json({ error: message });
+        }
+    });
     // PATCH /dashboard/tasks/:id/star - スタートグル（LAN公開）
     router.patch("/dashboard/tasks/:id/star", async (req, res) => {
         try {

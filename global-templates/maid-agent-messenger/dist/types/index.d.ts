@@ -8,13 +8,13 @@ export declare const ALL_AGENT_IDS: readonly ["butler", "chief", "emma", "sophia
 export type AgentId = (typeof ALL_AGENT_IDS)[number];
 export declare const TASK_TYPES: readonly ["goal", "phase", "action", "investigation"];
 export type TaskType = (typeof TASK_TYPES)[number];
-export declare const TASK_MAIN_STATUSES: readonly ["open", "closed"];
+export declare const TASK_MAIN_STATUSES: readonly ["open", "closed", "cancelled"];
 export type TaskMainStatus = (typeof TASK_MAIN_STATUSES)[number];
-export declare const TASK_SUBSTATUSES: readonly ["active", "paused", "checkpoint", "waiting", "completed", "archived"];
+export declare const TASK_SUBSTATUSES: readonly ["pending", "assigned", "working", "waiting", "checkpoint", "completed"];
 export type TaskSubstatus = (typeof TASK_SUBSTATUSES)[number];
-export declare const OPEN_SUBSTATUSES: readonly ["active", "paused", "checkpoint", "waiting"];
+export declare const OPEN_SUBSTATUSES: readonly ["pending", "assigned", "working", "waiting", "checkpoint"];
 export type OpenSubstatus = (typeof OPEN_SUBSTATUSES)[number];
-export declare const CLOSED_SUBSTATUSES: readonly ["completed", "archived"];
+export declare const CLOSED_SUBSTATUSES: readonly ["completed"];
 export type ClosedSubstatus = (typeof CLOSED_SUBSTATUSES)[number];
 export declare const GOAL_SIZES: readonly ["simple", "standard", "complex"];
 export type GoalSize = (typeof GOAL_SIZES)[number];
@@ -32,7 +32,7 @@ export declare const LEGACY_TASK_STATUSES: readonly ["idle", "assigned", "workin
 export type LegacyTaskStatus = (typeof LEGACY_TASK_STATUSES)[number];
 export declare const UPDATABLE_STATUSES: readonly ["working", "completed", "blocked"];
 export type UpdatableStatus = (typeof UPDATABLE_STATUSES)[number];
-export declare const MAID_UPDATABLE_SUBSTATUSES: readonly ["active", "paused", "checkpoint", "completed"];
+export declare const MAID_UPDATABLE_SUBSTATUSES: readonly ["working", "checkpoint", "completed"];
 export type MaidUpdatableSubstatus = (typeof MAID_UPDATABLE_SUBSTATUSES)[number];
 export declare const TASK_CATEGORIES: readonly ["task", "action_required", "skill_candidate", "improvement"];
 export type TaskCategory = (typeof TASK_CATEGORIES)[number];

@@ -26,23 +26,23 @@ export const TASK_TYPES = [
 // =============================================================================
 // V2.1: タスクステータス（2層構造）
 // =============================================================================
-// メインステータス: open/closed
-export const TASK_MAIN_STATUSES = ["open", "closed"];
-// サブステータス
+// メインステータス: open/closed/cancelled
+export const TASK_MAIN_STATUSES = ["open", "closed", "cancelled"];
+// サブステータス（V2.1設計に合わせて変更）
 export const TASK_SUBSTATUSES = [
     // open 時のサブステータス
-    "active", // 作業中・進行中
-    "paused", // 一時停止
-    "checkpoint", // 人間の判断・確認待ち
-    "waiting", // 他タスクの完了待ち
+    "pending", // 未着手
+    "assigned", // 割り当て済み
+    "working", // 作業中
+    "waiting", // 依存待ち
+    "checkpoint", // 確認待ち
     // closed 時のサブステータス
     "completed", // 完了
-    "archived", // アーカイブ済み
 ];
 // open 時の有効なサブステータス
-export const OPEN_SUBSTATUSES = ["active", "paused", "checkpoint", "waiting"];
+export const OPEN_SUBSTATUSES = ["pending", "assigned", "working", "waiting", "checkpoint"];
 // closed 時の有効なサブステータス
-export const CLOSED_SUBSTATUSES = ["completed", "archived"];
+export const CLOSED_SUBSTATUSES = ["completed"];
 // =============================================================================
 // V2.1: Goal サイズ
 // =============================================================================
@@ -86,8 +86,7 @@ export const UPDATABLE_STATUSES = [
 ];
 // V2.1: メイドが更新可能なサブステータス
 export const MAID_UPDATABLE_SUBSTATUSES = [
-    "active",
-    "paused",
+    "working",
     "checkpoint",
     "completed",
 ];
@@ -107,37 +106,38 @@ export const TASK_CATEGORIES = [
 export function convertLegacyStatus(legacyStatus) {
     switch (legacyStatus) {
         case "idle":
-            return { status: "open", substatus: "paused" };
+            return { status: "open", substatus: "pending" };
         case "assigned":
-            return { status: "open", substatus: "active" };
+            return { status: "open", substatus: "assigned" };
         case "working":
-            return { status: "open", substatus: "active" };
+            return { status: "open", substatus: "working" };
         case "completed":
             return { status: "closed", substatus: "completed" };
         case "blocked":
             return { status: "open", substatus: "checkpoint" };
         default:
-            return { status: "open", substatus: "active" };
+            console.warn(`[convertLegacyStatus] Unknown legacyStatus: ${legacyStatus}, defaulting to open/pending`);
+            return { status: "open", substatus: "pending" };
     }
 }
 /**
  * V2.1 ステータスから旧ステータスへの変換（後方互換用）
  */
 export function convertToLegacyStatus(status, substatus) {
-    if (status === "closed") {
+    if (status === "closed" || status === "cancelled") {
         return "completed";
     }
     switch (substatus) {
-        case "active":
-            return "working";
-        case "paused":
+        case "pending":
             return "idle";
+        case "assigned":
+            return "assigned";
+        case "working":
+            return "working";
         case "checkpoint":
         case "waiting":
             return "blocked";
         case "completed":
-            return "completed";
-        case "archived":
             return "completed";
         default:
             return "idle";

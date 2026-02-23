@@ -27,7 +27,7 @@ export function getV2DashboardStyles(): string {
     .grid-stats {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 10px;
+      gap: 6px;
     }
 
     .grid-main {
@@ -40,24 +40,26 @@ export function getV2DashboardStyles(): string {
       grid-template-columns: 1fr;
     }
 
-    /* V2.1 Stats Cards */
+    /* V2.1 Stats Cards - Compact */
     .stat-card {
       background: var(--v2-bg-card);
-      border-radius: 10px;
-      padding: 15px;
+      border-radius: 6px;
+      padding: 8px 10px;
       text-align: center;
     }
 
     .stat-card .number {
-      font-size: 2rem;
+      font-size: 1.4rem;
       font-weight: bold;
       color: var(--v2-accent-blue);
+      line-height: 1.2;
     }
 
     .stat-card .label {
-      font-size: 0.8rem;
+      font-size: 0.65rem;
       color: var(--v2-text-secondary);
-      margin-top: 5px;
+      margin-top: 2px;
+      line-height: 1.2;
     }
 
     .stat-card.warning .number {
@@ -101,13 +103,22 @@ export function getV2DashboardStyles(): string {
       background: rgba(255,255,255,0.05);
     }
 
-    .goal-toggle {
+    .goal-toggle, .phase-toggle {
       font-size: 0.8rem;
       transition: transform 0.2s;
+      cursor: pointer;
     }
 
-    .goal-toggle.collapsed {
+    .goal-toggle.collapsed, .phase-toggle.collapsed {
       transform: rotate(-90deg);
+    }
+
+    .phase-header {
+      cursor: pointer;
+    }
+
+    .phase-header:hover {
+      background: rgba(255,255,255,0.05);
     }
 
     .goal-title {
@@ -589,6 +600,30 @@ export function getV2DashboardStyles(): string {
       margin-bottom: 15px;
     }
 
+    .v2-goals-header-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .v2-goals-controls {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .v2-goals-controls .filter-toggle-btn {
+      padding: 2px 8px;
+      font-size: 0.7rem;
+    }
+
+    #v2GoalsPagination {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
     /* V2.1 Responsive */
     @media (max-width: 1200px) {
       .grid-stats {
@@ -888,6 +923,82 @@ export function getDashboardStyles(): string {
       line-height: 1.6;
     }
     ${getScopedMarkdownStyles(".report-overlay-content")}
+    /* ========================================
+     * Toast Notification Styles (Phase6)
+     * ======================================== */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 400px;
+    }
+    .toast {
+      background: var(--card-bg, #1e1e3f);
+      border-radius: 8px;
+      padding: 12px 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      animation: toastSlideIn 0.3s ease-out;
+      border-left: 4px solid #6c757d;
+    }
+    .toast.severity-low { border-left-color: #17a2b8; }
+    .toast.severity-medium { border-left-color: #ffc107; }
+    .toast.severity-high { border-left-color: #fd7e14; }
+    .toast.severity-critical {
+      border-left-color: #dc3545;
+      background: linear-gradient(135deg, #2d1f1f 0%, #1e1e3f 100%);
+    }
+    .toast-icon {
+      font-size: 1.5em;
+      flex-shrink: 0;
+    }
+    .toast-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .toast-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+      color: var(--text-color, #fff);
+    }
+    .toast-message {
+      font-size: 0.9em;
+      color: var(--text-secondary, #aaa);
+      word-break: break-word;
+    }
+    .toast-meta {
+      font-size: 0.75em;
+      color: var(--text-secondary, #888);
+      margin-top: 6px;
+    }
+    .toast-close {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary, #888);
+      cursor: pointer;
+      font-size: 1.2em;
+      padding: 0;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .toast-close:hover { color: var(--text-color, #fff); }
+    .toast.hiding {
+      animation: toastSlideOut 0.3s ease-in forwards;
+    }
+    @keyframes toastSlideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes toastSlideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
     ${getV2DashboardStyles()}
   `;
 }

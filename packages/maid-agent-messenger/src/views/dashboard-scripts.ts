@@ -772,6 +772,12 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
           }
           break;
 
+        case 'escalation':
+          // Phase6: エスカレーション通知 → トースト表示
+          console.log('[WS] Escalation received:', event.data.title);
+          showEscalationToast(event.data);
+          break;
+
         case 'error':
           console.error('[WS] Server error:', event.message);
           break;
@@ -779,6 +785,80 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
         default:
           console.log('[WS] Unknown event:', event.type);
       }
+    }
+
+    // ========================================
+    // エスカレーション通知トースト (Phase6)
+    // ========================================
+
+    // トーストコンテナを確保
+    function getToastContainer() {
+      var container = document.getElementById('toastContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+      }
+      return container;
+    }
+
+    // 重要度に応じたアイコン
+    function getSeverityIcon(severity) {
+      switch (severity) {
+        case 'critical': return '🚨';
+        case 'high': return '⚠️';
+        case 'medium': return '📢';
+        case 'low': return 'ℹ️';
+        default: return '📋';
+      }
+    }
+
+    // トースト表示
+    function showEscalationToast(data) {
+      var container = getToastContainer();
+
+      var toast = document.createElement('div');
+      toast.className = 'toast severity-' + (data.severity || 'medium');
+      toast.innerHTML = '<span class="toast-icon">' + getSeverityIcon(data.severity) + '</span>' +
+        '<div class="toast-content">' +
+          '<div class="toast-title">' + escapeHtmlInScript(data.title || 'エスカレーション') + '</div>' +
+          '<div class="toast-message">' + escapeHtmlInScript(data.message || '') + '</div>' +
+          '<div class="toast-meta">#' + escapeHtmlInScript(data.taskId || '') + ' by ' + escapeHtmlInScript(data.agentId || '') + '</div>' +
+        '</div>' +
+        '<button class="toast-close" aria-label="閉じる">&times;</button>';
+
+      // 閉じるボタンのイベント
+      toast.querySelector('.toast-close').addEventListener('click', function() {
+        hideToast(toast);
+      });
+
+      container.appendChild(toast);
+
+      // 自動非表示（criticalは30秒、その他は10秒）
+      var autoHideDelay = data.severity === 'critical' ? 30000 : 10000;
+      setTimeout(function() {
+        hideToast(toast);
+      }, autoHideDelay);
+    }
+
+    // トースト非表示（アニメーション付き）
+    function hideToast(toast) {
+      if (!toast || toast.classList.contains('hiding')) return;
+      toast.classList.add('hiding');
+      setTimeout(function() {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+      }, 300);
+    }
+
+    // スクリプト内でのHTMLエスケープ
+    function escapeHtmlInScript(str) {
+      if (!str) return '';
+      var div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
     }
 
     // 展開状態を記憶するMap（taskId -> expanded）
@@ -1113,9 +1193,11 @@ export function getReportOverlayScript(): string {
  * V2.1 Dashboard用スクリプトを生成
  * Goal展開/折りたたみ機能を提供
  *
+ * @param params - スクリプト生成パラメータ
  * @returns `<script>` タグを含むHTMLスクリプト文字列
  */
-export function getV2DashboardScript(): string {
+export function getV2DashboardScript(params?: DashboardScriptParams): string {
+  const projectPath = params?.projectPath || "";
   return `
   <script>
     // ========================================
@@ -1146,9 +1228,34 @@ export function getV2DashboardScript(): string {
       }
     }
 
+    /**
+     * Phase展開/折りたたみを切り替える
+     * @param {HTMLElement} header - クリックされたphase-header要素
+     */
+    function togglePhase(header) {
+      var phaseItem = header.closest('.phase-item');
+      if (!phaseItem) return;
+
+      var toggle = header.querySelector('.phase-toggle');
+      var content = phaseItem.querySelector('.action-list');
+      if (!content) return;
+
+      // 折りたたみ状態を切り替え
+      if (toggle && toggle.classList.contains('collapsed')) {
+        // 展開する
+        toggle.classList.remove('collapsed');
+        content.style.display = '';
+      } else if (toggle) {
+        // 折りたたむ
+        toggle.classList.add('collapsed');
+        content.style.display = 'none';
+      }
+    }
+
     // DOMContentLoaded: 初期状態で折りたたみ済みのGoalをnone表示
     document.addEventListener('DOMContentLoaded', function() {
       initGoalTree();
+      initV2GoalsPagination();
     });
 
     /**
@@ -1178,11 +1285,262 @@ export function getV2DashboardScript(): string {
           toggleGoal(this);
         });
       });
+
+      // phase-headerにクリックイベントを設定
+      document.querySelectorAll('.phase-header').forEach(function(header) {
+        // 既にリスナーが設定済みならスキップ
+        if (header.dataset.hasPhaseListener === 'true') return;
+        header.dataset.hasPhaseListener = 'true';
+
+        header.addEventListener('click', function(e) {
+          // リンクやボタンのクリックは除外
+          if (e.target.closest('a') || e.target.closest('button')) return;
+          togglePhase(this);
+        });
+      });
     }
 
     // V2.1データが動的に更新された場合の再初期化関数
     function reinitGoalTree() {
       initGoalTree();
+    }
+
+    // ========================================
+    // V2.1 Goals Pagination
+    // ========================================
+
+    var v2GoalsCurrentPage = 0;
+    var v2GoalsLimit = 10;
+    var v2GoalsTotalCount = 0;
+    var v2GoalsStatusFilter = 'open';  // 'open' | 'closed' | 'all'
+
+    function initV2GoalsPagination() {
+      // フィルターボタンにイベントを設定
+      var filterButtons = document.querySelectorAll('.v2-goals-controls .filter-toggle-btn');
+      filterButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var filter = this.dataset.filter;
+          setV2GoalsFilter(filter);
+        });
+      });
+
+      // ページネーションボタンにイベント委任を設定
+      var paginationRoot = document.getElementById('v2GoalsPagination');
+      if (paginationRoot) {
+        paginationRoot.addEventListener('click', function(e) {
+          var btn = e.target.closest('.pagination-btn');
+          if (btn && !btn.disabled) {
+            var page = parseInt(btn.dataset.page, 10);
+            goV2GoalsPage(page);
+          }
+        });
+      }
+    }
+
+    function setV2GoalsFilter(filter) {
+      v2GoalsStatusFilter = filter;
+      v2GoalsCurrentPage = 0;
+
+      // ボタンのアクティブ状態を更新
+      var filterButtons = document.querySelectorAll('.v2-goals-controls .filter-toggle-btn');
+      filterButtons.forEach(function(btn) {
+        if (btn.dataset.filter === filter) {
+          btn.classList.add('filter-yes');
+        } else {
+          btn.classList.remove('filter-yes');
+        }
+      });
+
+      requestV2GoalsPage();
+    }
+
+    function goV2GoalsPage(page) {
+      if (page < 0) return;
+      v2GoalsCurrentPage = page;
+      requestV2GoalsPage();
+    }
+
+    function requestV2GoalsPage() {
+      var offset = v2GoalsCurrentPage * v2GoalsLimit;
+      var url = '/dashboard/v2/goals?project=' + encodeURIComponent('${escapeHtml(projectPath)}') +
+        '&offset=' + offset +
+        '&limit=' + v2GoalsLimit +
+        '&status=' + v2GoalsStatusFilter;
+
+      if (_vscodeApi) {
+        _vscodeApi.postMessage({
+          command: 'v2GoalsPage',
+          offset: offset,
+          limit: v2GoalsLimit,
+          status: v2GoalsStatusFilter
+        });
+      } else {
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            updateV2GoalsSection(data.goals, data.total, offset, v2GoalsLimit);
+          })
+          .catch(function(err) {
+            console.error('[V2Goals] Fetch error:', err);
+          });
+      }
+    }
+
+    function updateV2GoalsSection(goals, total, offset, limit) {
+      v2GoalsTotalCount = total;
+
+      // Goalsコンテナを更新
+      var container = document.getElementById('v2GoalsContainer');
+      if (container) {
+        if (!goals || goals.length === 0) {
+          container.innerHTML = '<div class="empty-message">なし</div>';
+        } else {
+          container.innerHTML = goals.map(function(goal) {
+            return generateGoalItemHtmlClient(goal);
+          }).join('\\n');
+        }
+        reinitGoalTree();
+      }
+
+      // カウントバッジを更新
+      var countBadge = document.querySelector('.v2-goals-count');
+      if (countBadge) {
+        countBadge.textContent = goals.length + (total > goals.length ? ' / ' + total : '');
+      }
+
+      // ページネーションUIを更新
+      updateV2GoalsPagination(total, offset, limit);
+    }
+
+    function updateV2GoalsPagination(total, offset, limit) {
+      var paginationEl = document.getElementById('v2GoalsPagination');
+      if (!paginationEl) return;
+
+      var totalPages = Math.ceil(total / limit);
+      var currentPage = Math.floor(offset / limit);
+
+      if (totalPages <= 1) {
+        paginationEl.innerHTML = '<span class="pagination-info">' + total + '件</span>';
+      } else {
+        paginationEl.innerHTML =
+          '<button class="pagination-btn" data-page="' + (currentPage - 1) + '" ' + (currentPage === 0 ? 'disabled' : '') + '>◀</button>' +
+          '<span class="pagination-info">' + (currentPage + 1) + '/' + totalPages + '</span>' +
+          '<button class="pagination-btn" data-page="' + (currentPage + 1) + '" ' + (currentPage >= totalPages - 1 ? 'disabled' : '') + '>▶</button>';
+      }
+    }
+
+    // クライアント側でGoalアイテムのHTMLを生成
+    function generateGoalItemHtmlClient(goal) {
+      var statusIcon = {
+        active: '🔵', paused: '⏸️', checkpoint: '🔶', waiting: '⏳',
+        completed: '✅', archived: '📦', pending: '⏳', assigned: '📋', working: '🔧'
+      }[goal.v2Substatus] || '❓';
+
+      var statusClass = {
+        active: 'status-active', paused: 'status-paused', checkpoint: 'status-checkpoint',
+        waiting: 'status-waiting', completed: 'status-completed', archived: 'status-archived',
+        pending: 'status-pending', assigned: 'status-assigned', working: 'status-working'
+      }[goal.v2Substatus] || '';
+
+      var isCollapsed = goal.mainStatus === 'closed';
+      var toggleClass = isCollapsed ? 'collapsed' : '';
+      var assigneesStr = (goal.assignees || []).map(function(a) { return a.agentId; }).join(', ');
+
+      var reviewBadge = '';
+      if (goal.reviewStatus === 'approved') {
+        reviewBadge = '<span class="review-status review-approved">✅ レビュー済</span>';
+      } else if (goal.reviewStatus === 'pending') {
+        reviewBadge = '<span class="review-status review-pending">📋 要レビュー</span>';
+      } else if (goal.reviewStatus === 'rejected') {
+        reviewBadge = '<span class="review-status review-rejected">❌ 差し戻し</span>';
+      }
+
+      var phasesHtml = '';
+      if (goal.phases && goal.phases.length > 0) {
+        phasesHtml = '<div class="goal-content">' +
+          '<div class="phase-tree">' +
+          goal.phases.map(function(phase) { return generatePhaseItemHtmlClient(phase); }).join('\\n') +
+          '</div>' +
+          '<div class="goal-assignees">👥 担当: ' + escapeHtmlClient(assigneesStr) + '</div>' +
+          '</div>';
+      }
+
+      return '<div class="goal-item" data-id="' + escapeHtmlClient(goal.id) + '" data-status="' + goal.mainStatus + '" data-substatus="' + goal.v2Substatus + '">' +
+        '<div class="goal-header" onclick="toggleGoal(this)">' +
+        '<span class="goal-toggle ' + toggleClass + '">▼</span>' +
+        '<span class="goal-id">#' + escapeHtmlClient(goal.id) + '</span>' +
+        '<span class="goal-title">' + escapeHtmlClient(goal.title) + '</span>' +
+        '<span class="badge badge-goal">Goal</span>' +
+        (goal.size ? '<span class="badge badge-size">' + escapeHtmlClient(goal.size) + '</span>' : '') +
+        '<span class="status ' + statusClass + '">' + statusIcon + ' ' + goal.v2Substatus + '</span>' +
+        reviewBadge +
+        '</div>' +
+        phasesHtml +
+        '</div>';
+    }
+
+    function generatePhaseItemHtmlClient(phase) {
+      var statusIcon = {
+        active: '🔵', paused: '⏸️', checkpoint: '🔶', waiting: '⏳',
+        completed: '✅', archived: '📦', pending: '⏳', assigned: '📋', working: '🔧'
+      }[phase.v2Substatus] || '❓';
+
+      var statusClass = {
+        active: 'status-active', paused: 'status-paused', checkpoint: 'status-checkpoint',
+        waiting: 'status-waiting', completed: 'status-completed', archived: 'status-archived',
+        pending: 'status-pending', assigned: 'status-assigned', working: 'status-working'
+      }[phase.v2Substatus] || '';
+
+      var reviewBadge = '';
+      if (phase.reviewStatus === 'approved') {
+        reviewBadge = '<span class="review-status review-approved">✅ レビュー済</span>';
+      } else if (phase.reviewStatus === 'pending') {
+        reviewBadge = '<span class="review-status review-pending">📋 要レビュー</span>';
+      } else if (phase.reviewStatus === 'rejected') {
+        reviewBadge = '<span class="review-status review-rejected">❌ 差し戻し</span>';
+      }
+
+      var hasActions = phase.actions && phase.actions.length > 0;
+      var actionsHtml = '';
+      if (hasActions) {
+        actionsHtml = '<div class="action-list">' +
+          phase.actions.map(function(action, idx, arr) {
+            return generateActionItemHtmlClient(action, idx === arr.length - 1);
+          }).join('\\n') +
+          '</div>';
+      }
+
+      return '<div class="phase-item ' + (phase.v2Substatus === 'active' ? 'highlight' : '') + '" data-id="' + escapeHtmlClient(phase.id) + '">' +
+        '<div class="phase-header" onclick="togglePhase(this)">' +
+        (hasActions ? '<span class="phase-toggle">▼</span>' : '') +
+        '<span class="phase-id">#' + escapeHtmlClient(phase.id) + '</span>' +
+        '<span class="phase-name">[' + escapeHtmlClient(phase.title) + '] Phase</span>' +
+        '<span class="status ' + statusClass + '">' + statusIcon + ' ' + phase.v2Substatus + '</span>' +
+        reviewBadge +
+        '</div>' +
+        actionsHtml +
+        '</div>';
+    }
+
+    function generateActionItemHtmlClient(action, isLast) {
+      var statusClass = action.v2Substatus === 'completed' ? 'completed' :
+                        action.v2Substatus === 'active' ? 'current' : '';
+      var icon = isLast ? '└' : '├';
+      var statusBadge = action.v2Substatus === 'active' ? '<span class="current-marker">← 現在ここ</span>' : '';
+
+      return '<div class="action-item ' + statusClass + '">' +
+        '<span class="action-icon">' + icon + '</span>' +
+        '<span class="action-name">#' + escapeHtmlClient(action.id) + ' ' + escapeHtmlClient(action.title) + '</span>' +
+        '<span class="action-status ' + action.v2Substatus + '">' + action.v2Substatus + '</span>' +
+        statusBadge +
+        '</div>';
+    }
+
+    function escapeHtmlClient(str) {
+      if (!str) return '';
+      var div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
     }
   </script>`;
 }

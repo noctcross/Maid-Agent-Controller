@@ -88,6 +88,7 @@ export interface DashboardData {
     };
     serverUrl: string;
     v2Goals?: V2Goal[];
+    v2GoalsTotal?: number;
     v2ReviewQueue?: V2ReviewTask[];
     v2Artifacts?: V2Artifact[];
     v2Stats?: V2Stats;

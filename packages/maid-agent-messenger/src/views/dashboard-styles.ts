@@ -717,6 +717,195 @@ export function getV2DashboardStyles(): string {
         grid-template-columns: repeat(2, 1fr);
       }
     }
+
+    /* V2.1 スマホ対応: 500px以下 */
+    @media (max-width: 500px) {
+      /* V2.1 統計カード */
+      .grid-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+      }
+      .stat-card {
+        padding: 10px 8px;
+      }
+      .stat-card .number {
+        font-size: 1.5rem;
+      }
+      .stat-card .label {
+        font-size: 0.75rem;
+      }
+
+      /* V2.1 Goal階層 */
+      .goal-item {
+        margin-bottom: 8px;
+      }
+      .goal-header {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+        gap: 8px;
+      }
+      .goal-toggle {
+        font-size: 0.9rem;
+      }
+      .goal-title {
+        font-size: 0.9rem;
+      }
+      .goal-id {
+        font-size: 0.85rem;
+      }
+      .goal-content {
+        padding: 0 10px 10px 24px;
+      }
+      .goal-summary {
+        font-size: 0.85rem;
+        padding: 8px 10px;
+      }
+      .goal-assignees {
+        font-size: 0.8rem;
+      }
+
+      /* V2.1 バッジ */
+      .badge {
+        font-size: 0.75rem;
+        padding: 2px 6px;
+      }
+
+      /* V2.1 ステータス */
+      .status {
+        font-size: 0.8rem;
+        padding: 3px 8px;
+        gap: 4px;
+      }
+
+      /* V2.1 Phase */
+      .phase-tree {
+        padding-left: 12px;
+      }
+      .phase-item {
+        font-size: 0.9rem;
+        padding: 6px 0;
+      }
+      .phase-header {
+        gap: 6px;
+      }
+      .phase-id {
+        font-size: 0.85rem;
+      }
+      .phase-name {
+        font-size: 0.9rem;
+      }
+      .phase-status {
+        font-size: 0.8rem;
+        padding: 2px 8px;
+      }
+
+      /* V2.1 アクションリスト */
+      .action-list {
+        font-size: 0.85rem;
+        padding-left: 14px;
+      }
+      .v2-sections .action-item {
+        padding: 4px 0;
+        gap: 6px;
+      }
+      .action-status {
+        font-size: 0.8rem;
+        padding: 2px 6px;
+      }
+
+      /* V2.1 レビューステータス */
+      .review-status {
+        font-size: 0.8rem;
+        padding: 2px 8px;
+      }
+
+      /* V2.1 レビューキュー */
+      .review-item {
+        padding: 10px;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .review-priority {
+        font-size: 0.8rem;
+        padding: 3px 8px;
+      }
+
+      /* V2.1 成果物 */
+      .artifact-item {
+        padding: 10px;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .artifact-icon {
+        font-size: 1.1rem;
+      }
+      .artifact-path {
+        font-size: 0.8rem;
+        word-break: break-all;
+      }
+      .artifact-retention {
+        font-size: 0.75rem;
+      }
+      .artifact-source {
+        font-size: 0.8rem;
+      }
+
+      /* V2.1 提案 */
+      .proposal-item {
+        padding: 10px;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .proposal-name {
+        font-size: 0.9rem;
+      }
+      .proposal-source {
+        font-size: 0.8rem;
+      }
+      .proposal-status {
+        font-size: 0.8rem;
+      }
+
+      /* V2.1 チームメンバー */
+      .v2-sections .team-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+      .team-member {
+        padding: 10px 8px;
+      }
+      .team-avatar {
+        width: 38px;
+        height: 38px;
+        font-size: 1.1rem;
+        margin-bottom: 6px;
+      }
+      .team-name {
+        font-size: 0.85rem;
+      }
+      .team-task {
+        font-size: 0.8rem;
+      }
+
+      /* V2.1 フィルタコントロール */
+      .v2-filter-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .v2-filter-select {
+        font-size: 0.85rem;
+        padding: 5px 8px;
+      }
+      .v2-filter-checkbox {
+        font-size: 0.85rem;
+      }
+
+      /* V2.1 ボタン */
+      .btn {
+        font-size: 0.9rem;
+        padding: 10px 16px;
+      }
+    }
   `;
 }
 
@@ -815,8 +1004,110 @@ export function getDashboardStyles(): string {
     .special-section { grid-column: 1 / -1; }
     .special-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     @media (max-width: 768px) { .special-grid { grid-template-columns: 1fr; } }
-    /* モバイル対応: 500px以下でフィルタUIを縦並びに変更 */
+    /* モバイル対応: 500px以下でスマホ表示を改善 */
     @media (max-width: 500px) {
+      /* ヘッダー: 縦並びに変更 */
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      .header h1 {
+        font-size: 1.1rem;
+      }
+      .header .timestamp {
+        font-size: 0.75rem;
+      }
+      .project-path {
+        font-size: 0.65rem;
+        word-break: break-all;
+      }
+
+      /* カード: パディング調整 */
+      .card {
+        padding: 8px;
+      }
+      .card-header {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .card-title {
+        font-size: 0.9rem;
+      }
+
+      /* タスクアイテム: タッチしやすく */
+      .task-item {
+        padding: 8px 10px;
+        font-size: 0.9rem;
+        gap: 6px;
+      }
+      .task-id {
+        font-size: 0.85rem;
+        min-width: 40px;
+      }
+      .task-title {
+        font-size: 0.85rem;
+      }
+      .task-priority,
+      .task-assignee,
+      .task-status,
+      .task-date {
+        font-size: 0.75rem;
+      }
+      .task-action-btn {
+        font-size: 1rem;
+        padding: 4px 6px;
+      }
+
+      /* チームグリッド: アイコン・名前を見やすく */
+      .team-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+      }
+      .agent-status {
+        padding: 6px 8px;
+        font-size: 0.85rem;
+      }
+      .agent-icon {
+        font-size: 1rem;
+      }
+      .agent-name {
+        font-size: 0.85rem;
+      }
+      .agent-row-mid {
+        font-size: 0.75rem;
+      }
+      .agent-elapsed,
+      .agent-substatus,
+      .agent-task-desc {
+        font-size: 0.7rem;
+      }
+
+      /* ステータスバッジ: 読みやすく */
+      .count-badge {
+        font-size: 0.8rem;
+        padding: 2px 8px;
+      }
+      .task-substatus-inline {
+        font-size: 0.8rem;
+      }
+
+      /* 統計セクション */
+      .stats-grid {
+        gap: 6px;
+      }
+      .stat-item {
+        min-width: 70px;
+        padding: 6px 8px;
+      }
+      .stat-value {
+        font-size: 1.2rem;
+      }
+      .stat-label {
+        font-size: 0.7rem;
+      }
+
+      /* フィルタ関連 */
       .controls-section {
         flex-direction: column;
         align-items: stretch;
@@ -853,6 +1144,20 @@ export function getDashboardStyles(): string {
         display: flex;
         gap: 3px;
         flex-shrink: 0;
+      }
+
+      /* ソート・フィルタボタン */
+      .sort-toggle-btn {
+        font-size: 0.72rem;
+        padding: 2px 8px;
+      }
+      .filter-toggle-btn {
+        font-size: 0.75rem;
+        padding: 3px 8px;
+      }
+      .pagination-btn {
+        font-size: 0.8rem;
+        padding: 4px 10px;
       }
     }
     .card-action-required { border-left: 3px solid var(--error-color); }

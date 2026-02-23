@@ -46,6 +46,8 @@ export interface V2Goal {
   // Goal階層連動: 子Phaseの状態から計算された表示用ステータス
   displayStatus?: string;
   displayIcon?: string;
+  // V2.1: アーカイブフラグ
+  archived?: boolean;
 }
 
 export interface V2ReviewTask {
@@ -152,7 +154,7 @@ function generateGoalItemHtml(goal: V2Goal, projectPath: string): string {
       </div>`
     : "";
 
-  return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}">
+  return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true}">
     <div class="goal-header" onclick="toggleGoal(this)">
       <span class="goal-toggle ${toggleClass}">▼</span>
       <span class="goal-id">#${escapeHtml(goal.id)}</span>

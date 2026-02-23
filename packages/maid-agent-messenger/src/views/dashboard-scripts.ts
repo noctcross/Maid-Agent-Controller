@@ -1287,9 +1287,10 @@ export function getV2DashboardScript(): string {
     }
 
     /**
-     * フィルタ条件に基づいてGoals一覧を再取得
+     * フィルタ条件に基づいてGoals一覧をフィルタリング
+     * クライアントサイドでDOM要素を直接操作
      */
-    async function refreshGoals() {
+    function refreshGoals() {
       var statusFilter = document.getElementById('v2-goals-status-filter');
       var archivedCheckbox = document.getElementById('v2-goals-show-archived');
       var goalsList = document.getElementById('v2-goals-list');
@@ -1299,31 +1300,34 @@ export function getV2DashboardScript(): string {
       var status = statusFilter ? statusFilter.value : 'open';
       var showArchived = archivedCheckbox ? archivedCheckbox.checked : false;
 
-      try {
-        // V2.1 APIエンドポイントにフィルタ条件を送信
-        var response = await fetch('/dashboard/v2/goals?' + new URLSearchParams({
-          status: status,
-          archived: showArchived.toString()
-        }), {
-          headers: {
-            'X-Maid-Project-Path': window._projectPath || ''
-          }
-        });
+      // クライアントサイドフィルタリング
+      var goalItems = goalsList.querySelectorAll('.goal-item');
+      var visibleCount = 0;
 
-        if (!response.ok) {
-          console.error('[refreshGoals] API error:', response.status);
-          return;
-        }
+      goalItems.forEach(function(item) {
+        var itemStatus = item.getAttribute('data-status'); // open/closed
+        var isArchived = item.getAttribute('data-archived') === 'true';
 
-        var data = await response.json();
-        // Goalsリストを更新（HTML生成はサーバー側で行う場合はここで受け取る）
-        // 現在のUIでは、ダッシュボード全体をリフレッシュする方が確実
-        if (typeof refreshDashboard === 'function') {
-          refreshDashboard();
+        // ステータスフィルタ: open/closed/all
+        var showByStatus = (status === 'all') || (itemStatus === status);
+        // アーカイブフィルタ: チェックONならarchived含む、OFFなら除外
+        var showByArchived = showArchived || !isArchived;
+
+        if (showByStatus && showByArchived) {
+          item.style.display = '';
+          visibleCount++;
+        } else {
+          item.style.display = 'none';
         }
-      } catch (error) {
-        console.error('[refreshGoals] Error:', error);
+      });
+
+      // カウントバッジを更新
+      var countBadge = goalsList.closest('.card')?.querySelector('.count-badge');
+      if (countBadge) {
+        countBadge.textContent = String(visibleCount);
       }
+
+      console.log('[refreshGoals] Filter applied: status=' + status + ', showArchived=' + showArchived + ', visible=' + visibleCount);
     }
 
     // DOMContentLoaded時にフィルタを初期化

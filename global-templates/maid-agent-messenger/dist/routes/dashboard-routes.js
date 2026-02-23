@@ -6,8 +6,7 @@ import { Router } from "express";
 import { createHash } from "crypto";
 import { loadConfig, getServerUrl } from "../utils/config-loader.js";
 import { getJstTimestamp } from "../utils/yaml-helper.js";
-import { executeListTasks, executeGetTeamStatus, executeUpdateTask, executeGetReport, generateV2DashboardData, } from "../services/index.js";
-import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
+import { executeListTasks, executeGetTeamStatus, executeUpdateTask, generateV2DashboardData, } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
@@ -377,126 +376,6 @@ export function createDashboardRoutes(deps) {
         catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";
             res.status(500).json({ error: "Star toggle failed", details: message });
-        }
-    });
-    // GET /report - 統合サマリー/レポート表示（LAN公開OK）
-    router.get("/report", async (req, res) => {
-        try {
-            const projectPath = req.query.project
-                ? decodeURIComponent(req.query.project)
-                : getProjectPathFromRequest(req);
-            const taskId = req.query.task;
-            if (!taskId) {
-                res.status(400).send("Missing task parameter");
-                return;
-            }
-            const result = await executeGetReport(projectPath, { taskId });
-            if (!result.success || !result.reports || result.reports.length === 0) {
-                // レポートが見つからない場合
-                res.status(404).send(`
-          <!DOCTYPE html>
-          <html><head><title>Report Not Found</title>
-          <style>body{font-family:sans-serif;background:#1e1e1e;color:#ccc;padding:40px;text-align:center;}
-          .error{color:#f14c4c;font-size:1.5rem;}</style></head>
-          <body><div class="error">⚠️ レポートが見つかりません</div>
-          <p>タスク #${escapeHtml(taskId)} のレポートは存在しないか、まだ作成されていません。</p>
-          <a href="javascript:history.back()" style="color:#4ec9b0;">← 戻る</a></body></html>
-        `);
-                return;
-            }
-            // 複数レポートを結合
-            const combinedContent = result.reports.map((r) => {
-                const header = `## 📄 ${escapeHtml(r.path.split("/").pop() || r.path)}\n\n`;
-                return header + r.content;
-            }).join("\n\n---\n\n");
-            // Markdown → HTML 変換
-            const markdownHtml = convertMarkdownToHtml(combinedContent);
-            const htmlContent = linkifyProjectPaths(markdownHtml, projectPath);
-            const html = `<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>レポート #${escapeHtml(taskId)}</title>
-  <style>
-    :root {
-      --bg-start: #1a1a2e;
-      --bg-end: #16213e;
-      --text-color: #eee;
-      --h1-color: #e94560;
-      --h2-color: #ffc107;
-      --h3-color: #81c784;
-      --link-color: #4ec9b0;
-      --code-bg: #0a0a0a;
-      --border-color: #444;
-      --accent-color: #e94560;
-    }
-    * { box-sizing: border-box; }
-    body {
-      font-family: "Segoe UI", "Hiragino Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 100%);
-      color: var(--text-color);
-      line-height: 1.6;
-      padding: 16px 40px;
-      max-width: 900px;
-      margin: 0 auto;
-      min-height: 100vh;
-      font-size: 13px;
-    }
-    .file-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 10px;
-      margin-bottom: 16px;
-      border-bottom: 2px solid var(--accent-color);
-    }
-    .file-name { font-size: 1.2rem; color: var(--accent-color); }
-    .back-link { color: var(--link-color); text-decoration: none; }
-    .back-link:hover { text-decoration: underline; }
-    .content { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 16px; }
-    h1, h2, h3, h4, h5, h6 { margin: 1.5em 0 0.5em; }
-    h1 { font-size: 1.4em; color: var(--h1-color); border-bottom: 2px solid var(--h1-color); padding-bottom: 6px; }
-    h2 { font-size: 1.15em; color: var(--h2-color); border-bottom: 1px solid var(--border-color); padding-bottom: 4px; }
-    h3 { font-size: 1.05em; color: var(--h3-color); }
-    a { color: var(--link-color); }
-    code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: "Consolas", "Monaco", monospace; font-size: 0.9em; }
-    pre { background: var(--code-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
-    pre code { background: none; padding: 0; }
-    table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-    th, td { border: 1px solid var(--border-color); padding: 6px 10px; text-align: left; }
-    th { background: rgba(255,255,255,0.1); color: var(--h2-color); }
-    ul { padding-left: 25px; }
-    li { margin: 4px 0; }
-    hr { border: none; border-top: 1px solid var(--border-color); margin: 16px 0; }
-    p { margin: 8px 0; }
-    .path-link { color: var(--link-color); text-decoration: none; border-bottom: 1px dotted var(--link-color); }
-    .path-link:hover { text-decoration: underline; }
-  </style>
-</head>
-<body>
-  <div class="file-header">
-    <div class="file-name">📋 タスク #${escapeHtml(taskId)} レポート</div>
-    <a href="javascript:history.back()" class="back-link">← 戻る</a>
-  </div>
-  <div class="content">
-    ${htmlContent}
-  </div>
-</body>
-</html>`;
-            res.setHeader("Content-Type", "text/html; charset=utf-8");
-            res.send(html);
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            res.status(500).send(`
-        <!DOCTYPE html>
-        <html><head><title>Error</title>
-        <style>body{font-family:sans-serif;background:#1e1e1e;color:#ccc;padding:40px;text-align:center;}
-        .error{color:#f14c4c;font-size:1.5rem;}</style></head>
-        <body><div class="error">⚠️ エラーが発生しました</div><p>${escapeHtml(message)}</p>
-        <a href="javascript:history.back()" style="color:#4ec9b0;">← 戻る</a></body></html>
-      `);
         }
     });
     return router;

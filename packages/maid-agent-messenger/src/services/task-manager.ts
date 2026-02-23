@@ -1104,6 +1104,8 @@ export interface V2GoalData {
   // Goal階層連動: 子Phaseの状態から計算された表示用ステータス
   displayStatus?: string;
   displayIcon?: string;
+  // V2.1: アーカイブフラグ
+  archived?: boolean;
 }
 
 export interface V2ReviewTaskData {
@@ -1261,6 +1263,7 @@ export async function generateV2DashboardData(
         phases: v2Phases,
         displayStatus,
         displayIcon,
+        archived: goal.archived,
       };
     });
 

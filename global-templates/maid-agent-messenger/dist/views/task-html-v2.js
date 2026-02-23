@@ -75,7 +75,7 @@ function generateGoalItemHtml(goal, projectPath) {
         <div class="goal-assignees">👥 担当: ${escapeHtml(assigneesStr)}</div>
       </div>`
         : "";
-    return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}">
+    return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true}">
     <div class="goal-header" onclick="toggleGoal(this)">
       <span class="goal-toggle ${toggleClass}">▼</span>
       <span class="goal-id">#${escapeHtml(goal.id)}</span>

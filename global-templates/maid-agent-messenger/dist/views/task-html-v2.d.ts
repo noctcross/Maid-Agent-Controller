@@ -41,6 +41,7 @@ export interface V2Goal {
     phases: V2Phase[];
     displayStatus?: string;
     displayIcon?: string;
+    archived?: boolean;
 }
 export interface V2ReviewTask {
     id: string;

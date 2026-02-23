@@ -294,6 +294,7 @@ export interface V2GoalData {
     phases: V2PhaseData[];
     displayStatus?: string;
     displayIcon?: string;
+    archived?: boolean;
 }
 export interface V2ReviewTaskData {
     id: string;

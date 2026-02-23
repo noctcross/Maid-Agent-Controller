@@ -806,6 +806,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             phases: v2Phases,
             displayStatus,
             displayIcon,
+            archived: goal.archived,
         };
     });
     // ページネーション: totalGoals はフィルタリング後の件数

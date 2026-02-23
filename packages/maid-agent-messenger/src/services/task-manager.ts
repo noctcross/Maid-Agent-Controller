@@ -1160,6 +1160,30 @@ export async function generateV2DashboardData(
   const data = await loadTasksReadOnly(projectPath);
   const tasks = data.tasks;
 
+  // タスクのMapを作成（親タスク参照用）
+  const taskMap = new Map<string, Task>();
+  for (const task of tasks) {
+    taskMap.set(task.id, task);
+  }
+
+  /**
+   * タスク種別を判定（親タスクの情報も使用）
+   * 1. type が明示的に設定されている場合はそれを使用
+   * 2. parentId がない → goal
+   * 3. parentId があり、親の parentId がない → phase（Goalの直接の子）
+   * 4. parentId があり、親の parentId もある → action（孫タスク）
+   */
+  function inferTypeWithContext(task: Task): TaskType {
+    if (task.type) return task.type;
+    if (!task.parentId) return "goal";
+    // 親タスクを取得
+    const parent = taskMap.get(task.parentId);
+    // 親タスクが存在し、その親がない場合はphase（Goalの直接の子）
+    if (parent && !parent.parentId) return "phase";
+    // それ以外はaction（孫タスク）
+    return "action";
+  }
+
   // Goal/Phase/Action を分類
   const goals: Task[] = [];
   const phases: Task[] = [];
@@ -1167,7 +1191,7 @@ export async function generateV2DashboardData(
   const investigations: Task[] = [];
 
   for (const task of tasks) {
-    const taskType = inferTaskType(task);
+    const taskType = inferTypeWithContext(task);
     switch (taskType) {
       case "goal":
         goals.push(task);

@@ -42,6 +42,7 @@ export interface V2Goal {
     displayStatus?: string;
     displayIcon?: string;
     archived?: boolean;
+    updatedAt?: string;
 }
 export interface V2ReviewTask {
     id: string;

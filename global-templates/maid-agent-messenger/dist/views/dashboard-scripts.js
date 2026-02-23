@@ -1217,7 +1217,9 @@ export function getV2DashboardScript() {
 
     // DOMContentLoaded: 初期化
     document.addEventListener('DOMContentLoaded', function() {
+      console.log('[V2.1] DOMContentLoaded fired');
       initGoalTree();
+      setupGoalTreeEventDelegation();
       // 初期フィルタを適用（Open表示）
       setTimeout(function() {
         refreshGoals();
@@ -1225,11 +1227,60 @@ export function getV2DashboardScript() {
     });
 
     /**
+     * イベント委任パターンでGoalツリーのクリックを処理
+     * document全体にリスナーを設定し、動的要素にも対応
+     */
+    function setupGoalTreeEventDelegation() {
+      // 既に設定済みならスキップ
+      if (document.body.dataset.goalTreeDelegation === 'true') {
+        console.log('[V2.1] Event delegation already set up');
+        return;
+      }
+      document.body.dataset.goalTreeDelegation = 'true';
+
+      document.body.addEventListener('click', function(e) {
+        var target = e.target;
+
+        // リンクやボタンのクリックは除外
+        if (target.closest('a') || target.closest('button')) return;
+
+        // goal-headerのクリックをチェック
+        var goalHeader = target.closest('.goal-header');
+        if (goalHeader) {
+          console.log('[V2.1] Goal header clicked via delegation');
+          e.stopPropagation();
+          toggleGoal(goalHeader);
+          return;
+        }
+
+        // phase-headerのクリックをチェック
+        var phaseHeader = target.closest('.phase-header');
+        if (phaseHeader) {
+          console.log('[V2.1] Phase header clicked via delegation');
+          e.stopPropagation();
+          togglePhase(phaseHeader);
+          return;
+        }
+      });
+
+      console.log('[V2.1] Event delegation set up on document.body');
+    }
+
+    /**
      * Goalツリーを初期化（折りたたみ済みのGoalを非表示に）
      */
     function initGoalTree() {
+      console.log('[V2.1] initGoalTree called');
+
+      // goal-headerの存在確認
+      var goalHeaders = document.querySelectorAll('.goal-header');
+      console.log('[V2.1] Found goal-headers:', goalHeaders.length);
+
       // .collapsed クラスを持つtoggleの親Goalのcontentを非表示
-      document.querySelectorAll('.goal-toggle.collapsed').forEach(function(toggle) {
+      var collapsedToggles = document.querySelectorAll('.goal-toggle.collapsed');
+      console.log('[V2.1] Found collapsed toggles:', collapsedToggles.length);
+
+      collapsedToggles.forEach(function(toggle) {
         var goalItem = toggle.closest('.goal-item');
         if (goalItem) {
           var content = goalItem.querySelector('.goal-content');
@@ -1239,35 +1290,18 @@ export function getV2DashboardScript() {
         }
       });
 
-      // goal-headerにクリックイベントを設定
-      document.querySelectorAll('.goal-header').forEach(function(header) {
-        // 既にリスナーが設定済みならスキップ
-        if (header.dataset.hasGoalListener === 'true') return;
-        header.dataset.hasGoalListener = 'true';
-
-        header.addEventListener('click', function(e) {
-          // リンクやボタンのクリックは除外
-          if (e.target.closest('a') || e.target.closest('button')) return;
-          toggleGoal(header);
-        });
-      });
-
-      // phase-headerにクリックイベントを設定
-      document.querySelectorAll('.phase-header').forEach(function(header) {
-        // 既にリスナーが設定済みならスキップ
-        if (header.dataset.hasPhaseListener === 'true') return;
-        header.dataset.hasPhaseListener = 'true';
-
-        header.addEventListener('click', function(e) {
-          // リンクやボタンのクリックは除外
-          if (e.target.closest('a') || e.target.closest('button')) return;
-          togglePhase(header);
-        });
+      // phase-headerのphase-item.collapsedも初期化
+      document.querySelectorAll('.phase-item.collapsed').forEach(function(phaseItem) {
+        var actionList = phaseItem.querySelector('.action-list');
+        if (actionList) {
+          actionList.style.display = 'none';
+        }
       });
     }
 
     // V2.1データが動的に更新された場合の再初期化関数
     function reinitGoalTree() {
+      console.log('[V2.1] reinitGoalTree called');
       initGoalTree();
     }
 
@@ -1280,17 +1314,23 @@ export function getV2DashboardScript() {
      * ステータスフィルタとarchivedチェックボックスの監視
      */
     function initGoalsFilter() {
+      console.log('[V2.1] initGoalsFilter called');
       var statusFilter = document.getElementById('v2-goals-status-filter');
       var archivedCheckbox = document.getElementById('v2-goals-show-archived');
 
+      console.log('[V2.1] statusFilter:', statusFilter ? 'found' : 'not found');
+      console.log('[V2.1] archivedCheckbox:', archivedCheckbox ? 'found' : 'not found');
+
       if (statusFilter) {
         statusFilter.addEventListener('change', function() {
+          console.log('[V2.1] Status filter changed to:', statusFilter.value);
           refreshGoals();
         });
       }
 
       if (archivedCheckbox) {
         archivedCheckbox.addEventListener('change', function() {
+          console.log('[V2.1] Archived checkbox changed to:', archivedCheckbox.checked);
           refreshGoals();
         });
       }

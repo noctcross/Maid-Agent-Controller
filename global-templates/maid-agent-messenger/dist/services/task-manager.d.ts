@@ -295,6 +295,7 @@ export interface V2GoalData {
     displayStatus?: string;
     displayIcon?: string;
     archived?: boolean;
+    updatedAt?: string;
 }
 export interface V2ReviewTaskData {
     id: string;

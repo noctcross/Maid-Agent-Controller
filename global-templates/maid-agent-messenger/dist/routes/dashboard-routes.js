@@ -11,7 +11,7 @@ import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 export function createDashboardRoutes(deps) {
-    const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, wsServer } = deps;
+    const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, generateGoalTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, wsServer, } = deps;
     const router = Router();
     // GET /dashboard - HTMLダッシュボード（ブラウザ用）
     router.get("/dashboard", async (req, res) => {
@@ -214,6 +214,13 @@ export function createDashboardRoutes(deps) {
                 serverUrl: getServerUrl(config),
                 // V2.1 データ
                 v2: v2Data,
+                // V2.1 HTML（関数が提供されている場合）
+                v2Html: {
+                    goals: generateGoalTreeHtml ? generateGoalTreeHtml(v2Data.v2Goals, projectPath) : undefined,
+                    reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
+                    artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
+                    stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
+                },
             };
             res.setHeader("Content-Type", "application/json");
             res.json(data);
@@ -286,7 +293,14 @@ export function createDashboardRoutes(deps) {
                         skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
                         improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
                     };
-                    res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data })}\n\n`);
+                    // V2.1 HTMLを生成（関数が提供されている場合）
+                    const v2Html = {
+                        goals: generateGoalTreeHtml ? generateGoalTreeHtml(v2Data.v2Goals, projectPath) : undefined,
+                        reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
+                        artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
+                        stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
+                    };
+                    res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data, v2Html })}\n\n`);
                 }
                 catch (e) {
                     console.error("SSE update error:", e);

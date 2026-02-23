@@ -57,12 +57,16 @@ export function generateGoalTreeHtml(goals, projectPath) {
  * 単一GoalのHTML生成
  */
 function generateGoalItemHtml(goal, projectPath) {
-    const statusIcon = STATUS_ICONS[goal.v2Substatus] || "❓";
+    // Goal階層連動: displayStatus/displayIconがある場合は優先使用
+    const statusIcon = goal.displayIcon || STATUS_ICONS[goal.v2Substatus] || "❓";
+    const statusText = goal.displayStatus || goal.v2Substatus;
     const statusClass = STATUS_CLASSES[goal.v2Substatus] || "";
     const isCollapsed = goal.mainStatus === "closed";
     const toggleClass = isCollapsed ? "collapsed" : "";
     const assigneesStr = goal.assignees.map((a) => a.agentId).join(", ");
     const reviewBadge = goal.reviewStatus ? generateReviewBadgeHtml(goal.reviewStatus) : "";
+    // 報告書リンク: Goalには統合サマリーへのリンク
+    const reportLink = generateReportLinkHtml(goal.id, "goal");
     const phasesHtml = goal.phases.length > 0
         ? `<div class="goal-content">
         <div class="phase-tree">
@@ -78,8 +82,9 @@ function generateGoalItemHtml(goal, projectPath) {
       <span class="goal-title">${escapeHtml(goal.title)}</span>
       <span class="badge badge-goal">Goal</span>
       ${goal.size ? `<span class="badge badge-size">${escapeHtml(goal.size)}</span>` : ""}
-      <span class="status ${statusClass}">${statusIcon} ${goal.v2Substatus}</span>
+      <span class="status ${statusClass}">${statusIcon} ${escapeHtml(statusText)}</span>
       ${reviewBadge}
+      ${reportLink}
     </div>
     ${phasesHtml}
   </div>`;
@@ -91,19 +96,20 @@ function generatePhaseItemHtml(phase) {
     const statusIcon = STATUS_ICONS[phase.v2Substatus] || "❓";
     const statusClass = STATUS_CLASSES[phase.v2Substatus] || "";
     const reviewBadge = phase.reviewStatus ? generateReviewBadgeHtml(phase.reviewStatus) : "";
-    const hasActions = phase.actions.length > 0;
-    const actionsHtml = hasActions
+    // 報告書リンク: PhaseにはPhase別報告書へのリンク
+    const reportLink = generateReportLinkHtml(phase.id, "phase");
+    const actionsHtml = phase.actions.length > 0
         ? `<div class="action-list">
         ${phase.actions.map((action, idx, arr) => generateActionItemHtml(action, idx === arr.length - 1)).join("\n")}
       </div>`
         : "";
     return `<div class="phase-item ${phase.v2Substatus === "active" ? "highlight" : ""}" data-id="${escapeHtml(phase.id)}">
-    <div class="phase-header" onclick="togglePhase(this)">
-      ${hasActions ? '<span class="phase-toggle">▼</span>' : ''}
+    <div class="phase-header">
       <span class="phase-id">#${escapeHtml(phase.id)}</span>
       <span class="phase-name">[${escapeHtml(phase.title)}] Phase</span>
       <span class="status ${statusClass}">${statusIcon} ${phase.v2Substatus}</span>
       ${reviewBadge}
+      ${reportLink}
     </div>
     ${actionsHtml}
   </div>`;
@@ -139,6 +145,15 @@ function generateReviewBadgeHtml(reviewStatus) {
         return '<span class="review-status review-rejected">❌ 差し戻し</span>';
     }
     return "";
+}
+/**
+ * 報告書リンクのHTML生成
+ * @param taskId タスクID
+ * @param taskType タスク種別（goal/phase）
+ */
+function generateReportLinkHtml(taskId, taskType) {
+    const title = taskType === "goal" ? "統合サマリーを開く" : "Phase報告書を開く";
+    return `<a href="/report?task=${encodeURIComponent(taskId)}" class="report-link" title="${title}">📄</a>`;
 }
 // === レビューキュー表示 ===
 /**

@@ -199,6 +199,10 @@ export interface TaskV2 {
   reportPaths: string[];
   reviewed: boolean;
   reviewedAt: string | null;
+
+  // === V2.1: アーカイブフラグ（独立フラグ） ===
+  archived?: boolean;              // アーカイブ済み（デフォルト: false）
+  archivedAt?: string | null;      // アーカイブ日時
 }
 
 /**

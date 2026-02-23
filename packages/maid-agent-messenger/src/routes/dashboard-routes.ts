@@ -27,11 +27,25 @@ export interface DashboardRoutesDeps {
   generateDashboardHtml: (data: DashboardData, editorScheme?: string) => string;
   generateTaskHtml: (tasks: any[], type: string, projectPath: string, scheme?: string) => string;
   composeMasterWaitingHtml: (masterWaitingTasks: any[], masterReviewTasks: any[], projectPath: string, scheme?: string) => string;
+  // V2.1 HTML生成関数（SSE更新用）
+  generateGoalTreeHtml?: (goals: any[], projectPath: string) => string;
+  generateReviewQueueHtml?: (reviewTasks: any[], projectPath: string) => string;
+  generateArtifactsHtml?: (artifacts: any[], projectPath: string) => string;
+  generateV2StatsHtml?: (stats: any) => string;
   wsServer?: DashboardWebSocketServer; // WebSocket サーバー（オプション）
 }
 
 export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
-  const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, wsServer } = deps;
+  const {
+    generateDashboardHtml,
+    generateTaskHtml,
+    composeMasterWaitingHtml,
+    generateGoalTreeHtml,
+    generateReviewQueueHtml,
+    generateArtifactsHtml,
+    generateV2StatsHtml,
+    wsServer,
+  } = deps;
   const router = Router();
 
   // GET /dashboard - HTMLダッシュボード（ブラウザ用）
@@ -260,6 +274,13 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         serverUrl: getServerUrl(config),
         // V2.1 データ
         v2: v2Data,
+        // V2.1 HTML（関数が提供されている場合）
+        v2Html: {
+          goals: generateGoalTreeHtml ? generateGoalTreeHtml(v2Data.v2Goals, projectPath) : undefined,
+          reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
+          artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
+          stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
+        },
       };
 
       res.setHeader("Content-Type", "application/json");
@@ -345,7 +366,15 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
             improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
           };
 
-          res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data })}\n\n`);
+          // V2.1 HTMLを生成（関数が提供されている場合）
+          const v2Html = {
+            goals: generateGoalTreeHtml ? generateGoalTreeHtml(v2Data.v2Goals, projectPath) : undefined,
+            reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
+            artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
+            stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
+          };
+
+          res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data, v2Html })}\n\n`);
         } catch (e) {
           console.error("SSE update error:", e);
         }

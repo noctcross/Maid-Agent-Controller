@@ -39,6 +39,8 @@ export interface V2Goal {
         agentId: string;
     }>;
     phases: V2Phase[];
+    displayStatus?: string;
+    displayIcon?: string;
 }
 export interface V2ReviewTask {
     id: string;

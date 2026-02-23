@@ -103,7 +103,6 @@ export interface DashboardData {
   serverUrl: string; // サーバーの実URL（ポーリング用）
   // V2.1: Goal階層表示用データ（オプション）
   v2Goals?: V2Goal[];
-  v2GoalsTotal?: number;  // ページネーション用総件数
   v2ReviewQueue?: V2ReviewTask[];
   v2Artifacts?: V2Artifact[];
   v2Stats?: V2Stats;
@@ -282,17 +281,22 @@ export function generateDashboardHtml(
 
       ${v2GoalsHtml ? `
       <div class="card v2-goals-section" data-section="v2-goals">
-        <div class="card-header collapsible-header v2-goals-header-row">
+        <div class="card-header collapsible-header">
           <span class="card-title">🎯 Goal階層</span>
-          <span class="count-badge v2-goals-count">${data.v2Goals?.length || 0}${data.v2GoalsTotal && data.v2GoalsTotal > (data.v2Goals?.length || 0) ? ` / ${data.v2GoalsTotal}` : ""}</span>
-          <div class="v2-goals-controls">
-            <button id="v2GoalsFilterOpen" class="filter-toggle-btn filter-yes" data-filter="open">Open</button>
-            <button id="v2GoalsFilterClosed" class="filter-toggle-btn" data-filter="closed">Closed</button>
-            <button id="v2GoalsFilterAll" class="filter-toggle-btn" data-filter="all">All</button>
+          <span class="count-badge">${data.v2Goals?.length || 0}</span>
+          <div class="v2-filter-controls">
+            <select id="v2-goals-status-filter" class="v2-filter-select">
+              <option value="open" selected>Open</option>
+              <option value="closed">Closed</option>
+              <option value="all">All</option>
+            </select>
+            <label class="v2-filter-checkbox">
+              <input type="checkbox" id="v2-goals-show-archived">
+              <span>Archived</span>
+            </label>
           </div>
-          <div id="v2GoalsPagination" class="inline-pagination"></div>
         </div>
-        <div class="collapsible-content goal-tree-container" id="v2GoalsContainer">
+        <div class="collapsible-content goal-tree-container" id="v2-goals-list">
           ${v2GoalsHtml}
         </div>
       </div>` : ""}
@@ -339,7 +343,7 @@ ${v2SectionsHtml}
 ${getReportOverlayHtml()}
 ${getDashboardMainScript(scriptParams)}
 ${getReportOverlayScript()}
-${getV2DashboardScript(scriptParams)}
+${getV2DashboardScript()}
 </body>
 </html>`;
 }

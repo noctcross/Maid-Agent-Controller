@@ -82,7 +82,7 @@ function generateGoalItemHtml(goal, projectPath) {
       <span class="goal-title">${escapeHtml(goal.title)}</span>
       <span class="badge badge-goal">Goal</span>
       ${goal.size ? `<span class="badge badge-size">${escapeHtml(goal.size)}</span>` : ""}
-      <span class="status ${statusClass}">${statusIcon} ${escapeHtml(statusText)}</span>
+      <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${escapeHtml(statusText)}</span></span>
       ${reviewBadge}
       ${reportLink}
     </div>
@@ -107,7 +107,7 @@ function generatePhaseItemHtml(phase, projectPath) {
     <div class="phase-header">
       <span class="phase-id">#${escapeHtml(phase.id)}</span>
       <span class="phase-name">[${escapeHtml(phase.title)}] Phase</span>
-      <span class="status ${statusClass}">${statusIcon} ${phase.v2Substatus}</span>
+      <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${phase.v2Substatus}</span></span>
       ${reviewBadge}
       ${reportLink}
     </div>
@@ -124,10 +124,11 @@ function generateActionItemHtml(action, isLast) {
     const statusBadge = action.v2Substatus === "active"
         ? '<span class="current-marker">← 現在ここ</span>'
         : "";
+    const statusIcon = STATUS_ICONS[action.v2Substatus] || "⏳";
     return `<div class="action-item ${statusClass}">
     <span class="action-icon">${icon}</span>
     <span class="action-name">#${escapeHtml(action.id)} ${escapeHtml(action.title)}</span>
-    <span class="action-status ${action.v2Substatus}">${action.v2Substatus}</span>
+    <span class="action-status ${action.v2Substatus}">${statusIcon}<span class="status-text"> ${action.v2Substatus}</span></span>
     ${statusBadge}
   </div>`;
 }

@@ -1195,17 +1195,17 @@ export function getV2DashboardScript(): string {
 
       var toggle = header.querySelector('.goal-toggle');
       var content = goalItem.querySelector('.goal-content');
-      if (!content) return;
+      // content が null でも toggle の状態は変更する（phases が空の Goal 対応）
 
       // 折りたたみ状態を切り替え
       if (toggle.classList.contains('collapsed')) {
         // 展開する
         toggle.classList.remove('collapsed');
-        content.style.display = '';
+        if (content) content.style.display = '';
       } else {
         // 折りたたむ
         toggle.classList.add('collapsed');
-        content.style.display = 'none';
+        if (content) content.style.display = 'none';
       }
     }
 
@@ -1232,16 +1232,33 @@ export function getV2DashboardScript(): string {
       }
     }
 
-    // DOMContentLoaded: 初期化
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('[V2.1] DOMContentLoaded fired');
+    // V2.1初期化関数（DOMContentLoaded対応）
+    function initV2Dashboard() {
+      console.log('[V2.1] initV2Dashboard called');
       initGoalTree();
       setupGoalTreeEventDelegation();
+      initGoalsFilter();
+      // ソートボタンのイベントリスナー
+      var sortIdBtn = document.getElementById('v2-goals-sort-id');
+      var sortUpdBtn = document.getElementById('v2-goals-sort-updated');
+      if (sortIdBtn) {
+        sortIdBtn.addEventListener('click', function() { sortGoals('id'); });
+      }
+      if (sortUpdBtn) {
+        sortUpdBtn.addEventListener('click', function() { sortGoals('updated'); });
+      }
       // 初期フィルタを適用（Open表示）
       setTimeout(function() {
         refreshGoals();
       }, 0);
-    });
+    }
+
+    // DOMContentLoaded: 初期化（既に読み込み済みの場合も対応）
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initV2Dashboard);
+    } else {
+      initV2Dashboard();
+    }
 
     /**
      * イベント委任パターンでGoalツリーのクリックを処理
@@ -1382,11 +1399,16 @@ export function getV2DashboardScript(): string {
           var cmp = compareGoalIds(idA, idB);
           return goalsSortState === 'id-desc' ? -cmp : cmp;
         } else {
-          // updated-desc: data-updated属性でソート（なければid降順）
+          // updated-desc: data-updated属性でソート
           var updA = a.getAttribute('data-updated') || '';
           var updB = b.getAttribute('data-updated') || '';
+          // 両方あれば日時で比較、片方だけあれば値がある方を優先、両方なければID降順
           if (updA && updB) {
             return updB.localeCompare(updA);
+          } else if (updA && !updB) {
+            return -1; // Aを上に
+          } else if (!updA && updB) {
+            return 1;  // Bを上に
           }
           return -compareGoalIds(a.getAttribute('data-id') || '', b.getAttribute('data-id') || '');
         }
@@ -1477,19 +1499,6 @@ export function getV2DashboardScript(): string {
       console.log('[refreshGoals] Filter applied: status=' + status + ', showArchived=' + showArchived + ', visible=' + visibleCount);
     }
 
-    // DOMContentLoaded時にフィルタを初期化
-    document.addEventListener('DOMContentLoaded', function() {
-      initGoalsFilter();
-
-      // ソートボタンのイベントリスナー
-      var sortIdBtn = document.getElementById('v2-goals-sort-id');
-      var sortUpdBtn = document.getElementById('v2-goals-sort-updated');
-      if (sortIdBtn) {
-        sortIdBtn.addEventListener('click', function() { sortGoals('id'); });
-      }
-      if (sortUpdBtn) {
-        sortUpdBtn.addEventListener('click', function() { sortGoals('updated'); });
-      }
-    });
+    // 注: initGoalsFilter と ソートボタンのリスナーは initV2Dashboard() で設定済み
   </script>`;
 }

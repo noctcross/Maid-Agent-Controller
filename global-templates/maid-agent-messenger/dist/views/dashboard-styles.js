@@ -814,6 +814,12 @@ export function getV2DashboardStyles() {
       .goal-header .report-link {
         font-size: 0.8rem;
       }
+      /* V2.1 スマホ: ステータスはアイコンのみ表示（テキスト非表示） */
+      .goal-header .status-text,
+      .phase-header .status-text,
+      .action-item .status-text {
+        display: none;
+      }
       /* V2.1 スマホ: Phase階層も同様にバッジを縮小 */
       .phase-header .badge {
         display: none;

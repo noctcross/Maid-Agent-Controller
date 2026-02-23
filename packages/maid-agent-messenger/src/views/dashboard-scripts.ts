@@ -878,7 +878,7 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
         if (goalsContainer) {
           goalsContainer.innerHTML = v2Html.goals;
           // Goal展開状態の復元とリスナー設定
-          initializeGoalToggles();
+          initGoalTree();
         }
         // カウントバッジ更新
         const goalsBadge = document.querySelector('.v2-goals-section .count-badge');

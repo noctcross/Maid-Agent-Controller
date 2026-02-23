@@ -756,16 +756,35 @@ export function getV2DashboardStyles(): string {
       .goal-header {
         padding: 10px 12px;
         font-size: 0.9rem;
-        gap: 8px;
+        gap: 6px;
       }
       .goal-toggle {
         font-size: 0.9rem;
       }
       .goal-title {
         font-size: 0.9rem;
+        flex: 1;
+        min-width: 0;
       }
       .goal-id {
         font-size: 0.85rem;
+      }
+      /* V2.1 スマホ: バッジ類を非表示にしてタイトルを優先表示 */
+      .goal-header .badge-goal,
+      .goal-header .badge-size {
+        display: none;
+      }
+      .goal-header .status {
+        font-size: 0.7rem;
+        padding: 1px 4px;
+        white-space: nowrap;
+      }
+      .goal-header .report-link {
+        font-size: 0.8rem;
+      }
+      /* V2.1 スマホ: Phase階層も同様にバッジを縮小 */
+      .phase-header .badge {
+        display: none;
       }
       .goal-content {
         padding: 0 10px 10px 24px;

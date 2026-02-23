@@ -10,7 +10,7 @@
 import { escapeHtml } from "../markdown-utils.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./task-html.js";
 import { getDashboardStyles } from "./dashboard-styles.js";
-import { getDashboardHeadScript, getDashboardMainScript, getReportOverlayScript, } from "./dashboard-scripts.js";
+import { getDashboardHeadScript, getDashboardMainScript, getReportOverlayScript, getV2DashboardScript, } from "./dashboard-scripts.js";
 import { getDashboardBodyTemplate, getReportOverlayHtml, } from "./dashboard-template.js";
 // V2.1: Goal階層表示・レビューキュー・成果物・統計
 import { generateGoalTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, } from "./task-html-v2.js";
@@ -147,8 +147,19 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         <div class="card-header collapsible-header">
           <span class="card-title">🎯 Goal階層</span>
           <span class="count-badge">${data.v2Goals?.length || 0}</span>
+          <div class="v2-filter-controls">
+            <select id="v2-goals-status-filter" class="v2-filter-select">
+              <option value="open" selected>Open</option>
+              <option value="closed">Closed</option>
+              <option value="all">All</option>
+            </select>
+            <label class="v2-filter-checkbox">
+              <input type="checkbox" id="v2-goals-show-archived">
+              <span>Archived</span>
+            </label>
+          </div>
         </div>
-        <div class="collapsible-content goal-tree-container">
+        <div class="collapsible-content goal-tree-container" id="v2-goals-list">
           ${v2GoalsHtml}
         </div>
       </div>` : ""}
@@ -194,6 +205,7 @@ ${v2SectionsHtml}
 ${getReportOverlayHtml()}
 ${getDashboardMainScript(scriptParams)}
 ${getReportOverlayScript()}
+${getV2DashboardScript()}
 </body>
 </html>`;
 }

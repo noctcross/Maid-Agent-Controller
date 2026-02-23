@@ -55,6 +55,8 @@ export interface Task {
     blockedBy?: string[];
     artifacts?: TaskArtifact[];
     reviewStatus?: ReviewStatus;
+    archived?: boolean;
+    archivedAt?: string | null;
 }
 /**
  * 軽量版タスク（summaryOnly: true 時に返却）
@@ -158,6 +160,7 @@ export interface UpdateTaskParams {
     artifacts?: TaskArtifact[];
     artifactAdd?: TaskArtifact;
     reviewStatus?: ReviewStatus;
+    archived?: boolean;
 }
 export interface SideEffectResults {
     maidYamlSynced?: boolean;
@@ -220,6 +223,23 @@ export declare function convertToV2Status(task: Task): {
     substatus: TaskSubstatus;
 };
 /**
+ * V2.1: Goal階層連動 - 子Phaseの状態から親Goalの表示ステータスを計算
+ *
+ * 設計書より:
+ * - 全Phase pending → Goal「未着手」⏸️
+ * - いずれかPhase assigned → Goal「準備中」📋
+ * - いずれかPhase working → Goal「進行中」🔵
+ * - いずれかPhase waiting/checkpoint → Goal「ブロック中」⚠️
+ * - 全Phase completed → Goal「完了可能」✅
+ */
+export declare function computeGoalDisplayStatus(goalSubstatus: string, phases: Array<{
+    v2Substatus: string;
+    mainStatus?: string;
+}>): {
+    displayStatus: string;
+    displayIcon: string;
+};
+/**
  * V2.1: Goal の自動クローズ判定
  *
  * 条件:
@@ -271,6 +291,8 @@ export interface V2GoalData {
         agentId: string;
     }>;
     phases: V2PhaseData[];
+    displayStatus?: string;
+    displayIcon?: string;
 }
 export interface V2ReviewTaskData {
     id: string;
@@ -300,9 +322,35 @@ export interface V2StatsData {
     proposalCount: number;
 }
 /**
+ * V2.1 ダッシュボードデータ生成オプション
+ */
+export interface V2DashboardOptions {
+    showArchived?: boolean;
+    statusFilter?: "open" | "closed" | "all";
+    offset?: number;
+    limit?: number;
+}
+/**
  * タスク一覧からV2.1ダッシュボードデータを生成
  */
-export declare function generateV2DashboardData(projectPath: string): Promise<V2DashboardData>;
+export declare function generateV2DashboardData(projectPath: string, options?: V2DashboardOptions): Promise<V2DashboardData>;
+/**
+ * 旧ステータスから V2.1 ステータスへのマッピング
+ *
+ * 実装計画書 3.2 準拠
+ */
+export declare function mapLegacyToV2Status(legacyStatus: TaskStatus, legacySubstatus: string | null): {
+    mainStatus: TaskMainStatus;
+    v2Substatus: TaskSubstatus;
+};
+/**
+ * 単一タスクを V2.1 形式にマイグレーション
+ *
+ * 実装計画書 3.6 準拠
+ * - 既に V2.1 形式の場合はそのまま返す
+ * - archivedフラグを独立フラグとして設定
+ */
+export declare function migrateTaskToV2(task: Task): Task;
 /**
  * マイグレーション結果
  */

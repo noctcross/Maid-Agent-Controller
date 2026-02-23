@@ -19,6 +19,30 @@ export function getSharedCssVariables() {
       --success-color: #4ec9b0;
       --warning-color: #dcdcaa;
       --error-color: #f14c4c;
+
+      /* V2.1: ダッシュボード用CSS変数（22個） */
+      --v2-bg-primary: #1a1a2e;
+      --v2-bg-secondary: #16213e;
+      --v2-bg-card: #0f3460;
+      --v2-text-primary: #eee;
+      --v2-text-secondary: #aaa;
+      --v2-accent-blue: #4a90d9;
+      --v2-accent-green: #4caf50;
+      --v2-accent-yellow: #ffc107;
+      --v2-accent-orange: #ff9800;
+      --v2-accent-red: #f44336;
+      --v2-accent-purple: #9c27b0;
+      --v2-border-color: #2a3f5f;
+      --v2-status-active: #4a90d9;
+      --v2-status-paused: #888;
+      --v2-status-checkpoint: #ffc107;
+      --v2-status-waiting: #ff9800;
+      --v2-status-completed: #4caf50;
+      --v2-status-archived: #666;
+      --v2-review-pending: #fffde7;
+      --v2-review-inprogress: #e3f2fd;
+      --v2-review-approved: #e8f5e9;
+      --v2-review-rejected: #ffebee;
     }
   `;
 }

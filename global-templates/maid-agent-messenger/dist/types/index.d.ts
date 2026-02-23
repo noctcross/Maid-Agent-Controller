@@ -66,6 +66,8 @@ export interface TaskV2 {
     reportPaths: string[];
     reviewed: boolean;
     reviewedAt: string | null;
+    archived?: boolean;
+    archivedAt?: string | null;
 }
 /**
  * タスク割り当て情報

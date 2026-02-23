@@ -39,3 +39,10 @@ export declare function getDashboardMainScript(params: DashboardScriptParams): s
  * @returns `<script>` タグを含むHTMLスクリプト文字列
  */
 export declare function getReportOverlayScript(): string;
+/**
+ * V2.1 Dashboard用スクリプトを生成
+ * Goal展開/折りたたみ機能を提供
+ *
+ * @returns `<script>` タグを含むHTMLスクリプト文字列
+ */
+export declare function getV2DashboardScript(): string;

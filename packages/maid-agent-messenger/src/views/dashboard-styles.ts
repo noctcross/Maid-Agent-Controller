@@ -72,10 +72,64 @@ export function getV2DashboardStyles(): string {
       color: var(--v2-accent-purple);
     }
 
+    /* V2.1 Filter Controls */
+    .v2-filter-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-left: auto;
+    }
+
+    .v2-filter-select {
+      padding: 4px 8px;
+      border: 1px solid var(--border-color, #555);
+      border-radius: 4px;
+      background: var(--v2-bg-card, #2d2d2d);
+      color: var(--v2-text-primary, #fff);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .v2-filter-select:hover {
+      border-color: var(--v2-accent-blue, #4a9eff);
+    }
+
+    .v2-filter-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.85rem;
+      color: var(--v2-text-secondary, #aaa);
+      cursor: pointer;
+    }
+
+    .v2-filter-checkbox input[type="checkbox"] {
+      cursor: pointer;
+    }
+
+    .v2-filter-checkbox:hover {
+      color: var(--v2-text-primary, #fff);
+    }
+
     /* V2.1 Goal Tree */
     .goal-tree-container {
       max-height: 500px;
       overflow-y: auto;
+    }
+
+    /* V2.1 archived タスクのスタイル */
+    .goal-item[data-archived="true"],
+    .phase-item[data-archived="true"],
+    .action-item[data-archived="true"] {
+      opacity: 0.5;
+      background: var(--v2-bg-archived, rgba(100, 100, 100, 0.3));
+    }
+
+    .goal-item[data-archived="true"] .goal-header::after,
+    .phase-item[data-archived="true"]::after {
+      content: "📦";
+      margin-left: auto;
+      font-size: 0.75rem;
     }
 
     .goal-item {
@@ -372,6 +426,18 @@ export function getV2DashboardStyles(): string {
     .review-rejected {
       background: var(--v2-review-rejected);
       color: #c62828;
+    }
+
+    /* V2.1 Report Link */
+    .report-link {
+      opacity: 0.6;
+      margin-left: 8px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .report-link:hover {
+      opacity: 1.0;
     }
 
     /* V2.1 Review Queue */

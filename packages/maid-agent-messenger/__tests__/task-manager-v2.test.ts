@@ -485,3 +485,185 @@ describe("V2.1: executeUpdateTask - completed時に依存解消が呼ばれる",
     expect(taskBData?.v2Substatus).toBe("active");
   });
 });
+
+// =============================================================================
+// Phase 7: 追加テスト - mapLegacyToV2Status, migrateTaskToV2, archived フラグ
+// =============================================================================
+
+import {
+  mapLegacyToV2Status,
+  migrateTaskToV2,
+} from "../src/services/task-manager";
+
+describe("V2.1: mapLegacyToV2Status - 旧ステータスマッピング", () => {
+  it("pending → open/paused に変換", () => {
+    const result = mapLegacyToV2Status("pending", null);
+    expect(result.mainStatus).toBe("open");
+    expect(result.v2Substatus).toBe("paused");
+  });
+
+  it("assigned → open/active に変換", () => {
+    const result = mapLegacyToV2Status("assigned", null);
+    expect(result.mainStatus).toBe("open");
+    expect(result.v2Substatus).toBe("active");
+  });
+
+  it("working → open/active に変換", () => {
+    const result = mapLegacyToV2Status("working", null);
+    expect(result.mainStatus).toBe("open");
+    expect(result.v2Substatus).toBe("active");
+  });
+
+  it("blocked + waiting → open/waiting に変換", () => {
+    const result = mapLegacyToV2Status("blocked", "waiting");
+    expect(result.mainStatus).toBe("open");
+    expect(result.v2Substatus).toBe("waiting");
+  });
+
+  it("blocked + null → open/checkpoint に変換", () => {
+    const result = mapLegacyToV2Status("blocked", null);
+    expect(result.mainStatus).toBe("open");
+    expect(result.v2Substatus).toBe("checkpoint");
+  });
+
+  it("completed → closed/completed に変換", () => {
+    const result = mapLegacyToV2Status("completed", null);
+    expect(result.mainStatus).toBe("closed");
+    expect(result.v2Substatus).toBe("completed");
+  });
+
+  it("cancelled → closed/archived に変換", () => {
+    const result = mapLegacyToV2Status("cancelled", null);
+    expect(result.mainStatus).toBe("closed");
+    expect(result.v2Substatus).toBe("archived");
+  });
+});
+
+describe("V2.1: migrateTaskToV2 - 単一タスクマイグレーション", () => {
+  it("既にV2.1形式のタスクはそのまま返す", () => {
+    const task = {
+      id: "001",
+      status: "working" as const,
+      mainStatus: "open" as const,
+      v2Substatus: "active" as const,
+    } as Task;
+
+    const result = migrateTaskToV2(task);
+    expect(result).toBe(task); // 同じオブジェクト参照
+  });
+
+  it("旧形式のタスクにV2.1フィールドが追加される", () => {
+    const task = {
+      id: "001",
+      parentId: null,
+      title: "テストタスク",
+      status: "working" as const,
+      substatus: null,
+    } as Task;
+
+    const result = migrateTaskToV2(task);
+
+    expect(result.mainStatus).toBe("open");
+    expect(result.v2Substatus).toBe("active");
+    expect(result.type).toBe("goal"); // parentId が null なので goal
+    expect(result.archived).toBe(false);
+    expect(result.archivedAt).toBeNull();
+  });
+
+  it("reviewed=true のタスクは archived=true になる", () => {
+    const task = {
+      id: "001",
+      parentId: null,
+      status: "completed" as const,
+      substatus: null,
+      reviewed: true,
+      reviewedAt: "2026-02-23T10:00:00.000Z",
+    } as Task;
+
+    const result = migrateTaskToV2(task);
+
+    expect(result.archived).toBe(true);
+    expect(result.archivedAt).toBe("2026-02-23T10:00:00.000Z");
+  });
+
+  it("substatus=archived のタスクは archived=true になる", () => {
+    const task = {
+      id: "001",
+      parentId: null,
+      status: "completed" as const,
+      substatus: "archived",
+      completedAt: "2026-02-23T09:00:00.000Z",
+    } as Task;
+
+    const result = migrateTaskToV2(task);
+
+    expect(result.archived).toBe(true);
+    expect(result.archivedAt).toBe("2026-02-23T09:00:00.000Z");
+  });
+
+  it("Goal専用フィールドが初期化される", () => {
+    const task = {
+      id: "001",
+      parentId: null,
+      status: "pending" as const,
+      substatus: null,
+    } as Task;
+
+    const result = migrateTaskToV2(task);
+
+    expect(result.type).toBe("goal");
+    expect(result.size).toBe("standard");
+    expect(result.tentative).toBe(false);
+  });
+
+  it("配列フィールドが初期化される", () => {
+    const task = {
+      id: "001",
+      parentId: "000",
+      status: "pending" as const,
+      substatus: null,
+    } as Task;
+
+    const result = migrateTaskToV2(task);
+
+    expect(result.artifacts).toEqual([]);
+    expect(result.blockedBy).toEqual([]);
+  });
+});
+
+describe("V2.1: migrateToV2 - archivedフラグのマイグレーション", () => {
+  beforeEach(async () => {
+    await setupTestProject();
+  });
+
+  afterAll(async () => {
+    await fs.rm(TEST_PROJECT_PATH, { recursive: true, force: true });
+  });
+
+  it("reviewed=true の旧タスクは archived=true でマイグレーションされる", async () => {
+    // 旧形式のレビュー済みタスク作成
+    const taskId = await createLegacyTask("レビュー済みタスク", { status: "completed" });
+
+    // reviewed フラグを直接設定
+    const { stringify } = await import("yaml");
+    const data = await readTasksYaml();
+    if (data) {
+      const task = data.tasks.find((t) => t.id === taskId);
+      if (task) {
+        task.reviewed = true;
+        task.reviewedAt = "2026-02-23T10:00:00.000Z";
+        const filePath = path.join(TEST_PROJECT_PATH, ".maid-agent", "system", "data", "tasks.yaml");
+        await fs.writeFile(filePath, stringify(data), "utf-8");
+      }
+    }
+
+    // マイグレーション実行
+    await migrateToV2(TEST_PROJECT_PATH);
+
+    // archived フラグの確認
+    const result = await executeGetTask(TEST_PROJECT_PATH, { taskId });
+    const taskData = result.task as Task;
+    expect(taskData?.archived).toBe(true);
+    expect(taskData?.archivedAt).toBe("2026-02-23T10:00:00.000Z");
+  });
+});

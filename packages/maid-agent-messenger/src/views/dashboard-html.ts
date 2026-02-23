@@ -284,8 +284,19 @@ export function generateDashboardHtml(
         <div class="card-header collapsible-header">
           <span class="card-title">🎯 Goal階層</span>
           <span class="count-badge">${data.v2Goals?.length || 0}</span>
+          <div class="v2-filter-controls">
+            <select id="v2-goals-status-filter" class="v2-filter-select">
+              <option value="open" selected>Open</option>
+              <option value="closed">Closed</option>
+              <option value="all">All</option>
+            </select>
+            <label class="v2-filter-checkbox">
+              <input type="checkbox" id="v2-goals-show-archived">
+              <span>Archived</span>
+            </label>
+          </div>
         </div>
-        <div class="collapsible-content goal-tree-container">
+        <div class="collapsible-content goal-tree-container" id="v2-goals-list">
           ${v2GoalsHtml}
         </div>
       </div>` : ""}

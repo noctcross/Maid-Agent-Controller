@@ -27,6 +27,13 @@ import imageRoutes from "./routes/image-routes.js";
 import { generateDashboardHtml } from "./views/dashboard-html.js";
 import { generateTopPageHtml } from "./views/top-page-html.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js";
+// V2.1 ビュー
+import {
+  generateGoalTreeHtml,
+  generateReviewQueueHtml,
+  generateArtifactsHtml,
+  generateV2StatsHtml,
+} from "./views/task-html-v2.js";
 
 import { loopbackOnly } from "./middleware/loopback-only.js";
 import { DashboardWebSocketServer } from "./websocket/dashboard-ws.js";
@@ -79,7 +86,16 @@ async function main(): Promise<void> {
   // ※ loopbackOnly付きルートを先にマウントすると、パス指定なしの
   //    app.use(loopbackOnly, router) が全リクエストをブロックしてしまうため
   app.use(createTopPageRoutes({ generateTopPageHtml }));  // トップページ（プロジェクト一覧）
-  app.use(createDashboardRoutes({ generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, wsServer }));
+  app.use(createDashboardRoutes({
+    generateDashboardHtml,
+    generateTaskHtml,
+    composeMasterWaitingHtml,
+    generateGoalTreeHtml,
+    generateReviewQueueHtml,
+    generateArtifactsHtml,
+    generateV2StatsHtml,
+    wsServer,
+  }));
   app.use(fileRoutes);
   app.use(imageRoutes);
   // 非公開エンドポイント（loopbackのみ）

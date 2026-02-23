@@ -677,6 +677,10 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
         .then(function(data) {
           if (data.stats) updateStats(data.stats);
           if (data.tasks) updateTaskListsWithMeta(data.tasks, data.completedMeta);
+          // V2.1セクションの更新
+          if (data.v2Html) {
+            updateV2Sections(data.v2Html, data.v2);
+          }
         })
         .catch(function(err) {
           console.error('[fetchTasks] Error:', err);
@@ -706,6 +710,10 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
 
         case 'tasks':
           updateTaskListsWithMeta(event.data, null);
+          // V2.1セクションの更新（v2Htmlが含まれている場合）
+          if (event.v2Html) {
+            updateV2Sections(event.v2Html, event.v2);
+          }
           break;
 
         case 'taskUpdated':
@@ -858,6 +866,61 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
 
       // フィルタを再適用
       filterTasks();
+    }
+
+    // V2.1セクションを更新
+    function updateV2Sections(v2Html, v2Data) {
+      if (!v2Html) return;
+
+      // Goals セクション
+      if (v2Html.goals) {
+        const goalsContainer = document.getElementById('v2-goals-list');
+        if (goalsContainer) {
+          goalsContainer.innerHTML = v2Html.goals;
+          // Goal展開状態の復元とリスナー設定
+          initializeGoalToggles();
+        }
+        // カウントバッジ更新
+        const goalsBadge = document.querySelector('.v2-goals-section .count-badge');
+        if (goalsBadge && v2Data && v2Data.v2Goals) {
+          goalsBadge.textContent = v2Data.v2Goals.length;
+        }
+      }
+
+      // Review Queue セクション
+      if (v2Html.reviewQueue) {
+        const reviewSection = document.querySelector('.v2-review-section .collapsible-content');
+        if (reviewSection) {
+          reviewSection.innerHTML = v2Html.reviewQueue;
+        }
+        const reviewBadge = document.querySelector('.v2-review-section .count-badge');
+        if (reviewBadge && v2Data && v2Data.v2ReviewQueue) {
+          reviewBadge.textContent = v2Data.v2ReviewQueue.length;
+        }
+      }
+
+      // Artifacts セクション
+      if (v2Html.artifacts) {
+        const artifactsSection = document.querySelector('.v2-artifacts-section .collapsible-content');
+        if (artifactsSection) {
+          artifactsSection.innerHTML = v2Html.artifacts;
+        }
+        const artifactsBadge = document.querySelector('.v2-artifacts-section .count-badge');
+        if (artifactsBadge && v2Data && v2Data.v2Artifacts) {
+          artifactsBadge.textContent = v2Data.v2Artifacts.length;
+        }
+      }
+
+      // Stats セクション
+      if (v2Html.stats) {
+        const statsSection = document.querySelector('.v2-stats-section');
+        if (statsSection) {
+          const statsContent = statsSection.querySelector('.grid-stats');
+          if (statsContent) {
+            statsContent.outerHTML = v2Html.stats;
+          }
+        }
+      }
     }
 
     function updateStats(stats) {
@@ -1184,5 +1247,75 @@ export function getV2DashboardScript(): string {
     function reinitGoalTree() {
       initGoalTree();
     }
+
+    // ========================================
+    // V2.1 Goals Filter
+    // ========================================
+
+    /**
+     * Goalsフィルタの初期化
+     * ステータスフィルタとarchivedチェックボックスの監視
+     */
+    function initGoalsFilter() {
+      var statusFilter = document.getElementById('v2-goals-status-filter');
+      var archivedCheckbox = document.getElementById('v2-goals-show-archived');
+
+      if (statusFilter) {
+        statusFilter.addEventListener('change', function() {
+          refreshGoals();
+        });
+      }
+
+      if (archivedCheckbox) {
+        archivedCheckbox.addEventListener('change', function() {
+          refreshGoals();
+        });
+      }
+    }
+
+    /**
+     * フィルタ条件に基づいてGoals一覧を再取得
+     */
+    async function refreshGoals() {
+      var statusFilter = document.getElementById('v2-goals-status-filter');
+      var archivedCheckbox = document.getElementById('v2-goals-show-archived');
+      var goalsList = document.getElementById('v2-goals-list');
+
+      if (!goalsList) return;
+
+      var status = statusFilter ? statusFilter.value : 'open';
+      var showArchived = archivedCheckbox ? archivedCheckbox.checked : false;
+
+      try {
+        // V2.1 APIエンドポイントにフィルタ条件を送信
+        var response = await fetch('/dashboard/v2/goals?' + new URLSearchParams({
+          status: status,
+          archived: showArchived.toString()
+        }), {
+          headers: {
+            'X-Maid-Project-Path': window._projectPath || ''
+          }
+        });
+
+        if (!response.ok) {
+          console.error('[refreshGoals] API error:', response.status);
+          return;
+        }
+
+        var data = await response.json();
+        // Goalsリストを更新（HTML生成はサーバー側で行う場合はここで受け取る）
+        // 現在のUIでは、ダッシュボード全体をリフレッシュする方が確実
+        if (typeof refreshDashboard === 'function') {
+          refreshDashboard();
+        }
+      } catch (error) {
+        console.error('[refreshGoals] Error:', error);
+      }
+    }
+
+    // DOMContentLoaded時にフィルタを初期化
+    document.addEventListener('DOMContentLoaded', function() {
+      initGoalsFilter();
+    });
   </script>`;
 }

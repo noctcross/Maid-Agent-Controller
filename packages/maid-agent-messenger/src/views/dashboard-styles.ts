@@ -46,6 +46,7 @@ export function getV2DashboardStyles(): string {
       border-radius: 6px;
       padding: 8px 10px;
       text-align: center;
+      min-width: 80px;
     }
 
     .stat-card .number {
@@ -276,12 +277,14 @@ export function getV2DashboardStyles(): string {
     .status {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 3px;
       padding: 1px 6px;
       border-radius: 3px;
       font-size: 0.75rem;
-      min-width: 70px;
+      min-width: 80px;
       flex-shrink: 0;
+      text-align: center;
     }
 
     .status-active {
@@ -431,11 +434,15 @@ export function getV2DashboardStyles(): string {
     }
 
     .action-status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       font-size: 0.75rem;
       padding: 1px 6px;
       border-radius: 3px;
-      min-width: 60px;
+      min-width: 80px;
       flex-shrink: 0;
+      text-align: center;
     }
 
     .action-status.completed {

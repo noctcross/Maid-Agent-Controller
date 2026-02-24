@@ -118,7 +118,8 @@ const MAID_ICONS: Record<string, string> = {
 /**
  * agentId からアイコンを取得
  */
-function getMaidIcon(agentId: string): string {
+function getMaidIcon(agentId: string | undefined): string {
+  if (!agentId) return "👤";
   return MAID_ICONS[agentId.toLowerCase()] || "👤";
 }
 

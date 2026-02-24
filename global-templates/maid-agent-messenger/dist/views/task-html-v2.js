@@ -44,6 +44,8 @@ const MAID_ICONS = {
  * agentId からアイコンを取得
  */
 function getMaidIcon(agentId) {
+    if (!agentId)
+        return "👤";
     return MAID_ICONS[agentId.toLowerCase()] || "👤";
 }
 const TYPE_ICONS = {

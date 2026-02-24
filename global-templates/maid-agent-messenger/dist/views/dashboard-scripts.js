@@ -1408,6 +1408,44 @@ export function getV2DashboardScript() {
     }
 
     /**
+     * 現在のソート状態でGoalsをソート（状態変更なし）
+     * フィルタ適用後に呼び出してソート順を維持
+     */
+    function applyCurrentSort() {
+      var goalsList = document.getElementById('v2-goals-list');
+      if (!goalsList) return;
+
+      var goalItems = Array.from(goalsList.querySelectorAll('.goal-item'));
+      if (goalItems.length === 0) return;
+
+      // 現在のソート状態でソート実行
+      goalItems.sort(function(a, b) {
+        if (goalsSortState === 'id-desc' || goalsSortState === 'id-asc') {
+          var idA = a.getAttribute('data-id') || '';
+          var idB = b.getAttribute('data-id') || '';
+          var cmp = compareGoalIds(idA, idB);
+          return goalsSortState === 'id-desc' ? -cmp : cmp;
+        } else {
+          var updA = a.getAttribute('data-updated') || '';
+          var updB = b.getAttribute('data-updated') || '';
+          if (updA && updB) {
+            return updB.localeCompare(updA);
+          } else if (updA && !updB) {
+            return -1;
+          } else if (!updA && updB) {
+            return 1;
+          }
+          return -compareGoalIds(a.getAttribute('data-id') || '', b.getAttribute('data-id') || '');
+        }
+      });
+
+      // DOM再配置
+      goalItems.forEach(function(item) {
+        goalsList.appendChild(item);
+      });
+    }
+
+    /**
      * Goal IDを比較（数字部分を考慮）
      */
     function compareGoalIds(a, b) {
@@ -1480,6 +1518,9 @@ export function getV2DashboardScript() {
       }
 
       console.log('[refreshGoals] Filter applied: status=' + status + ', showArchived=' + showArchived + ', visible=' + visibleCount);
+
+      // フィルタ後にソートを再適用
+      applyCurrentSort();
     }
 
     // 注: initGoalsFilter と ソートボタンのリスナーは initV2Dashboard() で設定済み

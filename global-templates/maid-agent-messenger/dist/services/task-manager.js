@@ -743,11 +743,16 @@ export async function generateV2DashboardData(projectPath, options = {}) {
     const phases = [];
     const actions = [];
     const investigations = [];
+    // Goal階層から除外するカテゴリ（提案・要対応は別パネルで表示）
+    const excludedCategories = ["skill_candidate", "improvement", "action_required"];
     for (const task of tasks) {
         const taskType = inferTypeWithContext(task);
         switch (taskType) {
             case "goal":
-                goals.push(task);
+                // 提案・要対応カテゴリはGoal階層から除外
+                if (!excludedCategories.includes(task.category || "task")) {
+                    goals.push(task);
+                }
                 break;
             case "phase":
                 phases.push(task);
@@ -818,6 +823,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
                 mainStatus: phaseStatus.mainStatus,
                 v2Substatus: phaseStatus.substatus,
                 reviewStatus: phase.reviewStatus,
+                assignees: phase.assignees?.map((a) => ({ agentId: a.agentId })),
                 actions: v2Actions,
             };
         });
@@ -835,7 +841,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             phases: v2Phases,
             displayStatus,
             displayIcon,
-            archived: goal.archived,
+            archived: goal.archived || substatus === "archived",
             updatedAt: goal.updatedAt,
         };
     });

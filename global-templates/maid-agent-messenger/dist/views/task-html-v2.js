@@ -61,8 +61,9 @@ function generateGoalItemHtml(goal, projectPath) {
     const statusIcon = goal.displayIcon || STATUS_ICONS[goal.v2Substatus] || "❓";
     const statusText = goal.displayStatus || goal.v2Substatus;
     const statusClass = STATUS_CLASSES[goal.v2Substatus] || "";
-    const isCollapsed = goal.mainStatus === "closed";
-    const toggleClass = isCollapsed ? "collapsed" : "";
+    // 初期状態は全Goal折りたたみ（ユーザーが展開する）
+    const isCollapsed = true;
+    const toggleClass = "collapsed";
     const assigneesStr = goal.assignees.map((a) => a.agentId).join(", ");
     const reviewBadge = goal.reviewStatus ? generateReviewBadgeHtml(goal.reviewStatus) : "";
     // 報告書リンク: Goalには統合サマリーへのリンク
@@ -72,10 +73,11 @@ function generateGoalItemHtml(goal, projectPath) {
         <div class="phase-tree">
           ${goal.phases.map((phase) => generatePhaseItemHtml(phase, projectPath)).join("\n")}
         </div>
-        <div class="goal-assignees">👥 担当: ${escapeHtml(assigneesStr)}</div>
       </div>`
         : "";
-    return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true}" data-updated="${goal.updatedAt || ""}">
+    // 担当者表示（ヘッダー内に配置して位置を統一）
+    const assigneesHtml = assigneesStr ? `<span class="goal-assignees-inline">👥 ${escapeHtml(assigneesStr)}</span>` : "";
+    return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true || goal.v2Substatus === 'archived'}" data-updated="${goal.updatedAt || ""}">
     <div class="goal-header">
       <span class="goal-toggle ${toggleClass}">▼</span>
       <span class="goal-id">#${escapeHtml(goal.id)}</span>
@@ -83,6 +85,7 @@ function generateGoalItemHtml(goal, projectPath) {
       <span class="badge badge-goal">Goal</span>
       ${goal.size ? `<span class="badge badge-size">${escapeHtml(goal.size)}</span>` : ""}
       <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${escapeHtml(statusText)}</span></span>
+      ${assigneesHtml}
       ${reviewBadge}
       ${reportLink}
     </div>
@@ -98,6 +101,9 @@ function generatePhaseItemHtml(phase, projectPath) {
     const reviewBadge = phase.reviewStatus ? generateReviewBadgeHtml(phase.reviewStatus) : "";
     // 報告書リンク: PhaseにはPhase別報告書へのリンク
     const reportLink = generateReportLinkHtml(phase.id, "phase", projectPath);
+    // 担当者表示（担当者がいる場合のみ）
+    const assigneesStr = phase.assignees?.map((a) => a.agentId).join(", ") || "";
+    const assigneesBadge = assigneesStr ? `<span class="phase-assignees">👤${escapeHtml(assigneesStr)}</span>` : "";
     const actionsHtml = phase.actions.length > 0
         ? `<div class="action-list">
         ${phase.actions.map((action, idx, arr) => generateActionItemHtml(action, idx === arr.length - 1)).join("\n")}
@@ -108,6 +114,7 @@ function generatePhaseItemHtml(phase, projectPath) {
       <span class="phase-id">#${escapeHtml(phase.id)}</span>
       <span class="phase-name">[${escapeHtml(phase.title)}] Phase</span>
       <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${phase.v2Substatus}</span></span>
+      ${assigneesBadge}
       ${reviewBadge}
       ${reportLink}
     </div>
@@ -125,10 +132,14 @@ function generateActionItemHtml(action, isLast) {
         ? '<span class="current-marker">← 現在ここ</span>'
         : "";
     const statusIcon = STATUS_ICONS[action.v2Substatus] || "⏳";
+    // 担当者表示（担当者がいる場合のみ）
+    const assigneesStr = action.assignees?.map((a) => a.agentId).join(", ") || "";
+    const assigneesBadge = assigneesStr ? `<span class="action-assignees">👤${escapeHtml(assigneesStr)}</span>` : "";
     return `<div class="action-item ${statusClass}">
     <span class="action-icon">${icon}</span>
     <span class="action-name">#${escapeHtml(action.id)} ${escapeHtml(action.title)}</span>
     <span class="action-status ${action.v2Substatus}">${statusIcon}<span class="status-text"> ${action.v2Substatus}</span></span>
+    ${assigneesBadge}
     ${statusBadge}
   </div>`;
 }

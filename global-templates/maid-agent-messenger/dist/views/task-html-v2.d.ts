@@ -25,6 +25,9 @@ export interface V2Phase {
     mainStatus: string;
     v2Substatus: string;
     reviewStatus?: string;
+    assignees?: Array<{
+        agentId: string;
+    }>;
     actions: V2Action[];
 }
 export interface V2Goal {

@@ -1303,7 +1303,7 @@ export async function generateV2DashboardData(
         phases: v2Phases,
         displayStatus,
         displayIcon,
-        archived: goal.archived,
+        archived: goal.archived || substatus === "archived",
         updatedAt: goal.updatedAt,
       };
     });

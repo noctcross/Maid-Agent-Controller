@@ -278,6 +278,9 @@ export interface V2PhaseData {
     mainStatus: string;
     v2Substatus: string;
     reviewStatus?: string;
+    assignees?: Array<{
+        agentId: string;
+    }>;
     actions: V2ActionData[];
 }
 export interface V2GoalData {

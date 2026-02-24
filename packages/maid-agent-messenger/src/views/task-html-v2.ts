@@ -154,11 +154,13 @@ function generateGoalItemHtml(goal: V2Goal, projectPath: string): string {
         <div class="phase-tree">
           ${goal.phases.map((phase) => generatePhaseItemHtml(phase, projectPath)).join("\n")}
         </div>
-        <div class="goal-assignees">👥 担当: ${escapeHtml(assigneesStr)}</div>
       </div>`
     : "";
 
-  return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true}" data-updated="${goal.updatedAt || ""}">
+  // 担当者表示（ヘッダー内に配置して位置を統一）
+  const assigneesHtml = assigneesStr ? `<span class="goal-assignees-inline">👥 ${escapeHtml(assigneesStr)}</span>` : "";
+
+  return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true || goal.v2Substatus === 'archived'}" data-updated="${goal.updatedAt || ""}">
     <div class="goal-header">
       <span class="goal-toggle ${toggleClass}">▼</span>
       <span class="goal-id">#${escapeHtml(goal.id)}</span>
@@ -166,6 +168,7 @@ function generateGoalItemHtml(goal: V2Goal, projectPath: string): string {
       <span class="badge badge-goal">Goal</span>
       ${goal.size ? `<span class="badge badge-size">${escapeHtml(goal.size)}</span>` : ""}
       <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${escapeHtml(statusText)}</span></span>
+      ${assigneesHtml}
       ${reviewBadge}
       ${reportLink}
     </div>

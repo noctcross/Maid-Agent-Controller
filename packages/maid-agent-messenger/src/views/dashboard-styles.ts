@@ -210,6 +210,16 @@ export function getV2DashboardStyles(): string {
       color: var(--v2-text-secondary);
     }
 
+    .goal-assignees-inline {
+      font-size: 0.7rem;
+      color: var(--v2-text-secondary);
+      background: rgba(255,255,255,0.05);
+      padding: 1px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
     .phase-assignees,
     .action-assignees {
       font-size: 0.7rem;

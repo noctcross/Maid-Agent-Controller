@@ -139,6 +139,22 @@ const ARTIFACT_TYPE_ICONS: Record<string, string> = {
   default: "📄",
 };
 
+// === 担当者表示ヘルパー ===
+
+/**
+ * 担当者表示HTMLを生成（アイコンとメイド名を分離してスマホ対応）
+ * @param assignees 担当者配列
+ * @param className 親要素のクラス名
+ */
+function generateAssigneesHtml(assignees: Array<{ agentId: string }> | undefined, className: string): string {
+  if (!assignees || assignees.length === 0) return "";
+  const items = assignees.map((a) => {
+    const icon = getMaidIcon(a.agentId);
+    return `<span class="assignee-item"><span class="assignee-icon">${icon}</span><span class="assignee-name">${escapeHtml(a.agentId)}</span></span>`;
+  }).join(" ");
+  return `<span class="${className}">${items}</span>`;
+}
+
 // === Goalツリー表示 ===
 
 /**
@@ -164,8 +180,8 @@ function generateGoalItemHtml(goal: V2Goal, projectPath: string): string {
   const isCollapsed = true;
   const toggleClass = "collapsed";
 
-  // 担当者をアイコン付きで表示
-  const assigneesWithIcons = goal.assignees.map((a) => `${getMaidIcon(a.agentId)}${a.agentId}`).join(" ");
+  // 担当者表示（アイコンとメイド名を分離してスマホ対応）
+  const assigneesHtml = generateAssigneesHtml(goal.assignees, "goal-assignees-inline");
   const reviewBadge = goal.reviewStatus ? generateReviewBadgeHtml(goal.reviewStatus) : "";
   // 報告書リンク: Goalには統合サマリーへのリンク
   const reportLink = generateReportLinkHtml(goal.id, "goal", projectPath);
@@ -177,9 +193,6 @@ function generateGoalItemHtml(goal: V2Goal, projectPath: string): string {
         </div>
       </div>`
     : "";
-
-  // 担当者表示（ヘッダー内に配置して位置を統一）
-  const assigneesHtml = assigneesWithIcons ? `<span class="goal-assignees-inline">${escapeHtml(assigneesWithIcons)}</span>` : "";
 
   return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true || goal.v2Substatus === 'archived'}" data-updated="${goal.updatedAt || ""}">
     <div class="goal-header">
@@ -206,9 +219,8 @@ function generatePhaseItemHtml(phase: V2Phase, projectPath: string): string {
   const reviewBadge = phase.reviewStatus ? generateReviewBadgeHtml(phase.reviewStatus) : "";
   // 報告書リンク: PhaseにはPhase別報告書へのリンク
   const reportLink = generateReportLinkHtml(phase.id, "phase", projectPath);
-  // 担当者表示（アイコン付き）
-  const assigneesWithIcons = phase.assignees?.map((a) => `${getMaidIcon(a.agentId)}${a.agentId}`).join(" ") || "";
-  const assigneesBadge = assigneesWithIcons ? `<span class="phase-assignees">${escapeHtml(assigneesWithIcons)}</span>` : "";
+  // 担当者表示（アイコンとメイド名を分離してスマホ対応）
+  const assigneesBadge = generateAssigneesHtml(phase.assignees, "phase-assignees");
 
   const actionsHtml = phase.actions.length > 0
     ? `<div class="action-list">
@@ -242,9 +254,8 @@ function generateActionItemHtml(action: V2Action, isLast: boolean): string {
     ? '<span class="current-marker">← 現在ここ</span>'
     : "";
   const statusIcon = STATUS_ICONS[action.v2Substatus] || "⏳";
-  // 担当者表示（アイコン付き）
-  const assigneesWithIcons = action.assignees?.map((a) => `${getMaidIcon(a.agentId)}${a.agentId}`).join(" ") || "";
-  const assigneesBadge = assigneesWithIcons ? `<span class="action-assignees">${escapeHtml(assigneesWithIcons)}</span>` : "";
+  // 担当者表示（アイコンとメイド名を分離してスマホ対応）
+  const assigneesBadge = generateAssigneesHtml(action.assignees, "action-assignees");
 
   return `<div class="action-item ${statusClass}">
     <span class="action-icon">${icon}</span>

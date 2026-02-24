@@ -216,6 +216,7 @@ export function getV2DashboardStyles() {
       border-radius: 3px;
       white-space: nowrap;
       flex-shrink: 0;
+      margin-left: auto;
     }
 
     .phase-assignees,

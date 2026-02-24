@@ -1382,16 +1382,19 @@ export function getV2DashboardScript() {
           var cmp = compareGoalIds(idA, idB);
           return goalsSortState === 'id-desc' ? -cmp : cmp;
         } else {
-          // updated-desc: data-updated属性でソート
+          // updated-desc: data-updated属性でソート（新しい順=降順）
           var updA = a.getAttribute('data-updated') || '';
           var updB = b.getAttribute('data-updated') || '';
           // 両方あれば日時で比較、片方だけあれば値がある方を優先、両方なければID降順
           if (updA && updB) {
-            return updB.localeCompare(updA);
+            // Dateオブジェクトで比較（新しい方が前に来る=降順）
+            var timeA = new Date(updA).getTime();
+            var timeB = new Date(updB).getTime();
+            return timeB - timeA;  // 降順: 新しい（大きい）方が前
           } else if (updA && !updB) {
-            return -1; // Aを上に
+            return -1; // Aを上に（値がある方を優先）
           } else if (!updA && updB) {
-            return 1;  // Bを上に
+            return 1;  // Bを上に（値がある方を優先）
           }
           return -compareGoalIds(a.getAttribute('data-id') || '', b.getAttribute('data-id') || '');
         }
@@ -1426,10 +1429,13 @@ export function getV2DashboardScript() {
           var cmp = compareGoalIds(idA, idB);
           return goalsSortState === 'id-desc' ? -cmp : cmp;
         } else {
+          // updated-desc: 新しい順=降順
           var updA = a.getAttribute('data-updated') || '';
           var updB = b.getAttribute('data-updated') || '';
           if (updA && updB) {
-            return updB.localeCompare(updA);
+            var timeA = new Date(updA).getTime();
+            var timeB = new Date(updB).getTime();
+            return timeB - timeA;  // 降順: 新しい方が前
           } else if (updA && !updB) {
             return -1;
           } else if (!updA && updB) {

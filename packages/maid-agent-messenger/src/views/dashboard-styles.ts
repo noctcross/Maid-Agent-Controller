@@ -496,15 +496,21 @@ export function getV2DashboardStyles(): string {
     }
 
     /* V2.1 Report Link */
-    .report-link {
+    .v2-sections .report-link {
       opacity: 0.6;
-      margin-left: 8px;
       text-decoration: none;
       cursor: pointer;
+      background: transparent;
+      flex-shrink: 0;
     }
 
-    .report-link:hover {
+    .v2-sections .report-link:hover {
       opacity: 1.0;
+    }
+
+    /* V2.1 担当なし表示 */
+    .no-assignee {
+      opacity: 0.5;
     }
 
     /* V2.1 Review Queue */

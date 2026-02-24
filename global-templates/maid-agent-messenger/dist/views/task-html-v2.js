@@ -71,8 +71,8 @@ const ARTIFACT_TYPE_ICONS = {
  */
 function generateAssigneesHtml(assignees, className) {
     if (!assignees || assignees.length === 0) {
-        // 担当者がいない場合も空のspanを出力してレイアウトを揃える
-        return `<span class="${className}"></span>`;
+        // 担当者がいない場合は「担当なし」を表示（スマホでは「－」のみ）
+        return `<span class="${className} no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>`;
     }
     const items = assignees
         .filter((a) => a && a.agentId) // undefined/null をスキップ
@@ -81,7 +81,7 @@ function generateAssigneesHtml(assignees, className) {
         return `<span class="assignee-item"><span class="assignee-icon">${icon}</span><span class="assignee-name">${escapeHtml(a.agentId)}</span></span>`;
     }).join(" ");
     if (!items) {
-        return `<span class="${className}"></span>`;
+        return `<span class="${className} no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>`;
     }
     return `<span class="${className}">${items}</span>`;
 }

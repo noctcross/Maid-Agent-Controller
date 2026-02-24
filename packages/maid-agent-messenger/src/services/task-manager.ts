@@ -26,8 +26,8 @@ export type TaskStatus =
 // V2.1: タスク種別
 export type TaskType = "goal" | "phase" | "action" | "investigation";
 
-// V2.1: メインステータス
-export type TaskMainStatus = "open" | "closed";
+// V2.1: メインステータス（open/closed/cancelled）
+export type TaskMainStatus = "open" | "closed" | "cancelled";
 
 // V2.1: サブステータス
 export type TaskSubstatus =
@@ -906,7 +906,7 @@ export function convertToV2Status(task: Task): { mainStatus: TaskMainStatus; sub
       }
       return { mainStatus: "open", substatus: "checkpoint" };
     case "cancelled":
-      return { mainStatus: "closed", substatus: "archived" };
+      return { mainStatus: "cancelled", substatus: "archived" };
     default:
       return { mainStatus: "open", substatus: "active" };
   }
@@ -1434,7 +1434,7 @@ export function mapLegacyToV2Status(
     case "completed":
       return { mainStatus: "closed", v2Substatus: "completed" };
     case "cancelled":
-      return { mainStatus: "closed", v2Substatus: "archived" };
+      return { mainStatus: "cancelled", v2Substatus: "archived" };
     default:
       console.warn(`[mapLegacyToV2Status] Unknown legacyStatus: ${legacyStatus}, defaulting to open/paused`);
       return { mainStatus: "open", v2Substatus: "paused" };

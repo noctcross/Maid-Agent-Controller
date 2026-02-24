@@ -163,6 +163,8 @@ export function getV2DashboardStyles(): string {
       font-size: 0.8rem;
       transition: transform 0.2s;
       cursor: pointer;
+      flex-shrink: 0;
+      width: 16px;
     }
 
     .goal-toggle.collapsed, .phase-toggle.collapsed {
@@ -180,7 +182,7 @@ export function getV2DashboardStyles(): string {
     .goal-title {
       flex: 1;
       font-weight: 500;
-      min-width: 0;
+      min-width: 100px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -188,7 +190,8 @@ export function getV2DashboardStyles(): string {
 
     .goal-id {
       color: var(--v2-accent-blue);
-      margin-right: 8px;
+      min-width: 55px;
+      flex-shrink: 0;
     }
 
     .goal-content {
@@ -218,14 +221,16 @@ export function getV2DashboardStyles(): string {
       border-radius: 3px;
       white-space: nowrap;
       flex-shrink: 0;
-      margin-left: auto;
+      min-width: 70px;
+      text-align: right;
     }
 
     .phase-assignees,
     .action-assignees {
       font-size: 0.7rem;
       color: var(--v2-text-secondary);
-      margin-left: 6px;
+      min-width: 60px;
+      flex-shrink: 0;
       opacity: 0.8;
     }
 
@@ -265,7 +270,8 @@ export function getV2DashboardStyles(): string {
       padding: 1px 6px;
       border-radius: 3px;
       font-size: 0.75rem;
-      font-size: 0.75rem;
+      min-width: 70px;
+      flex-shrink: 0;
     }
 
     .status-active {
@@ -343,12 +349,14 @@ export function getV2DashboardStyles(): string {
     .phase-id {
       color: var(--v2-accent-blue);
       font-size: 0.85rem;
+      min-width: 70px;
+      flex-shrink: 0;
     }
 
     .phase-name {
       font-weight: 500;
       flex: 1;
-      min-width: 0;
+      min-width: 80px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -416,6 +424,8 @@ export function getV2DashboardStyles(): string {
       font-size: 0.75rem;
       padding: 1px 6px;
       border-radius: 3px;
+      min-width: 60px;
+      flex-shrink: 0;
     }
 
     .action-status.completed {

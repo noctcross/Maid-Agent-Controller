@@ -6,7 +6,7 @@
  */
 export type TaskStatus = "pending" | "assigned" | "working" | "completed" | "blocked" | "cancelled";
 export type TaskType = "goal" | "phase" | "action" | "investigation";
-export type TaskMainStatus = "open" | "closed";
+export type TaskMainStatus = "open" | "closed" | "cancelled";
 export type TaskSubstatus = "active" | "paused" | "checkpoint" | "waiting" | "completed" | "archived";
 export type GoalSize = "simple" | "standard" | "complex";
 export type ReviewStatus = "pending" | "in_review" | "approved" | "rejected";

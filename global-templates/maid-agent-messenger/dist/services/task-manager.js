@@ -580,7 +580,7 @@ export function convertToV2Status(task) {
             }
             return { mainStatus: "open", substatus: "checkpoint" };
         case "cancelled":
-            return { mainStatus: "closed", substatus: "archived" };
+            return { mainStatus: "cancelled", substatus: "archived" };
         default:
             return { mainStatus: "open", substatus: "active" };
     }
@@ -954,7 +954,7 @@ export function mapLegacyToV2Status(legacyStatus, legacySubstatus) {
         case "completed":
             return { mainStatus: "closed", v2Substatus: "completed" };
         case "cancelled":
-            return { mainStatus: "closed", v2Substatus: "archived" };
+            return { mainStatus: "cancelled", v2Substatus: "archived" };
         default:
             console.warn(`[mapLegacyToV2Status] Unknown legacyStatus: ${legacyStatus}, defaulting to open/paused`);
             return { mainStatus: "open", v2Substatus: "paused" };

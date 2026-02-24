@@ -40,6 +40,9 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
       }
     } catch (e) {}
 
+    // V2.1 Goals API用プロジェクトパス
+    window.v2ProjectPath = '${escapeHtml(projectPath)}';
+
     // デバウンス関数（連続操作を制御）
     function debounce(func, wait) {
       let timeoutId = null;
@@ -873,18 +876,11 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
       if (!v2Html) return;
 
       // Goals セクション
+      // サーバーから送られるHTMLは初回ロード時のパラメータ（全件）なので、
+      // 現在のフィルタ状態を維持するために refreshGoals() で再取得する
       if (v2Html.goals) {
-        const goalsContainer = document.getElementById('v2-goals-list');
-        if (goalsContainer) {
-          goalsContainer.innerHTML = v2Html.goals;
-          // Goal展開状態の復元とリスナー設定
-          initGoalTree();
-        }
-        // カウントバッジ更新
-        const goalsBadge = document.querySelector('.v2-goals-section .count-badge');
-        if (goalsBadge && v2Data && v2Data.v2Goals) {
-          goalsBadge.textContent = v2Data.v2Goals.length;
-        }
+        console.log('[updateV2Sections] Goals update detected, refreshing with current filters');
+        refreshGoals();
       }
 
       // Review Queue セクション
@@ -1185,6 +1181,15 @@ export function getV2DashboardScript(): string {
     // V2.1 Dashboard Scripts
     // ========================================
 
+    // V2.1 Goals ページネーション状態
+    var v2GoalsCurrentPage = 0;
+    var v2GoalsLimit = 10;
+    var v2GoalsTotal = 0;
+
+    // V2.1 Goals ソート状態
+    var v2GoalsSortField = 'id';    // 'id' | 'updatedAt'
+    var v2GoalsSortOrder = 'desc';  // 'asc' | 'desc'
+
     /**
      * Goal展開/折りたたみを切り替える
      * @param {HTMLElement} header - クリックされたgoal-header要素
@@ -1349,15 +1354,28 @@ export function getV2DashboardScript(): string {
      */
     function initGoalsFilter() {
       console.log('[V2.1] initGoalsFilter called');
-      var statusFilter = document.getElementById('v2-goals-status-filter');
+      var statusGroup = document.getElementById('v2-goals-status-group');
       var archivedCheckbox = document.getElementById('v2-goals-show-archived');
+      var limitGroup = document.getElementById('v2-goals-limit-group');
 
-      console.log('[V2.1] statusFilter:', statusFilter ? 'found' : 'not found');
+      console.log('[V2.1] statusGroup:', statusGroup ? 'found' : 'not found');
       console.log('[V2.1] archivedCheckbox:', archivedCheckbox ? 'found' : 'not found');
+      console.log('[V2.1] limitGroup:', limitGroup ? 'found' : 'not found');
 
-      if (statusFilter) {
-        statusFilter.addEventListener('change', function() {
-          console.log('[V2.1] Status filter changed to:', statusFilter.value);
+      // ステータスフィルタ（トグルボタン）
+      if (statusGroup) {
+        statusGroup.addEventListener('click', function(e) {
+          var btn = e.target.closest('.v2-toggle-btn');
+          if (!btn) return;
+          // 既にactiveなら何もしない
+          if (btn.classList.contains('active')) return;
+          // 他のボタンからactiveを外す
+          statusGroup.querySelectorAll('.v2-toggle-btn').forEach(function(b) {
+            b.classList.remove('active');
+          });
+          btn.classList.add('active');
+          console.log('[V2.1] Status filter changed to:', btn.dataset.value);
+          v2GoalsCurrentPage = 0;
           refreshGoals();
         });
       }
@@ -1365,6 +1383,39 @@ export function getV2DashboardScript(): string {
       if (archivedCheckbox) {
         archivedCheckbox.addEventListener('change', function() {
           console.log('[V2.1] Archived checkbox changed to:', archivedCheckbox.checked);
+          v2GoalsCurrentPage = 0; // フィルタ変更時はページ1に戻す
+          refreshGoals();
+        });
+      }
+
+      // ページネーションボタンのイベント委任
+      var paginationRoot = document.getElementById('v2-goals-pagination');
+      if (paginationRoot) {
+        paginationRoot.addEventListener('click', function(e) {
+          var btn = e.target.closest('.v2-goals-page-btn');
+          if (btn && !btn.disabled) {
+            var page = parseInt(btn.dataset.page, 10);
+            goV2GoalsPage(page);
+          }
+        });
+      }
+
+      // 表示件数（トグルボタン）
+      if (limitGroup) {
+        limitGroup.addEventListener('click', function(e) {
+          var btn = e.target.closest('.v2-toggle-btn');
+          if (!btn) return;
+          // 既にactiveなら何もしない
+          if (btn.classList.contains('active')) return;
+          // 他のボタンからactiveを外す
+          limitGroup.querySelectorAll('.v2-toggle-btn').forEach(function(b) {
+            b.classList.remove('active');
+          });
+          btn.classList.add('active');
+          var newLimit = parseInt(btn.dataset.value, 10);
+          console.log('[V2.1] Limit changed to:', newLimit);
+          v2GoalsLimit = newLimit;
+          v2GoalsCurrentPage = 0;
           refreshGoals();
         });
       }
@@ -1378,53 +1429,37 @@ export function getV2DashboardScript(): string {
      * @param {string} sortBy - ソート条件（'id' または 'updated'）
      */
     function sortGoals(sortBy) {
-      var goalsList = document.getElementById('v2-goals-list');
-      if (!goalsList) return;
-
-      var goalItems = Array.from(goalsList.querySelectorAll('.goal-item'));
-      if (goalItems.length === 0) return;
-
+      // サーバーサイドソートを使用
       // ソート状態を更新
       if (sortBy === 'id') {
-        goalsSortState = goalsSortState === 'id-desc' ? 'id-asc' : 'id-desc';
+        if (v2GoalsSortField === 'id') {
+          // 同じフィールドならasc/desc切り替え
+          v2GoalsSortOrder = v2GoalsSortOrder === 'desc' ? 'asc' : 'desc';
+        } else {
+          v2GoalsSortField = 'id';
+          v2GoalsSortOrder = 'desc';
+        }
+        goalsSortState = v2GoalsSortOrder === 'desc' ? 'id-desc' : 'id-asc';
       } else {
-        goalsSortState = 'updated-desc';
+        // 更新日時ソートも同様にasc/desc切り替え
+        if (v2GoalsSortField === 'updatedAt') {
+          v2GoalsSortOrder = v2GoalsSortOrder === 'desc' ? 'asc' : 'desc';
+        } else {
+          v2GoalsSortField = 'updatedAt';
+          v2GoalsSortOrder = 'desc';
+        }
+        goalsSortState = v2GoalsSortOrder === 'desc' ? 'updated-desc' : 'updated-asc';
       }
 
-      // ソート実行
-      goalItems.sort(function(a, b) {
-        if (goalsSortState === 'id-desc' || goalsSortState === 'id-asc') {
-          var idA = a.getAttribute('data-id') || '';
-          var idB = b.getAttribute('data-id') || '';
-          var cmp = compareGoalIds(idA, idB);
-          return goalsSortState === 'id-desc' ? -cmp : cmp;
-        } else {
-          // updated-desc: data-updated属性でソート（新しい順=降順）
-          var updA = a.getAttribute('data-updated') || '';
-          var updB = b.getAttribute('data-updated') || '';
-          // 両方あれば日時で比較、片方だけあれば値がある方を優先、両方なければID降順
-          if (updA && updB) {
-            // Dateオブジェクトで比較（新しい方が前に来る=降順）
-            var timeA = new Date(updA).getTime();
-            var timeB = new Date(updB).getTime();
-            return timeB - timeA;  // 降順: 新しい（大きい）方が前
-          } else if (updA && !updB) {
-            return -1; // Aを上に（値がある方を優先）
-          } else if (!updA && updB) {
-            return 1;  // Bを上に（値がある方を優先）
-          }
-          return -compareGoalIds(a.getAttribute('data-id') || '', b.getAttribute('data-id') || '');
-        }
-      });
-
-      // DOM再配置
-      goalItems.forEach(function(item) {
-        goalsList.appendChild(item);
-      });
+      // ソート変更時はページ1に戻す
+      v2GoalsCurrentPage = 0;
 
       // ソートボタンの状態更新
       updateGoalsSortButtons();
-      console.log('[sortGoals] Sorted by:', goalsSortState);
+      console.log('[sortGoals] Server-side sort:', v2GoalsSortField, v2GoalsSortOrder);
+
+      // APIを再リクエスト
+      refreshGoals();
     }
 
     /**
@@ -1495,55 +1530,288 @@ export function getV2DashboardScript(): string {
         idBtn.textContent = goalsSortState === 'id-asc' ? '#↑' : '#↓';
       }
       if (updBtn) {
-        updBtn.classList.toggle('active', goalsSortState === 'updated-desc');
+        updBtn.classList.toggle('active', goalsSortState.startsWith('updated'));
+        // 📅↓ = 新しい順（降順）、📅↑ = 古い順（昇順）
+        updBtn.textContent = goalsSortState === 'updated-asc' ? '📅↑' : '📅↓';
       }
     }
 
     /**
-     * フィルタ条件に基づいてGoals一覧をフィルタリング
-     * クライアントサイドでDOM要素を直接操作
+     * Goals一覧をサーバーから取得（ページネーション対応）
      */
     function refreshGoals() {
-      var statusFilter = document.getElementById('v2-goals-status-filter');
+      var statusGroup = document.getElementById('v2-goals-status-group');
       var archivedCheckbox = document.getElementById('v2-goals-show-archived');
-      var goalsList = document.getElementById('v2-goals-list');
 
-      if (!goalsList) return;
-
-      var status = statusFilter ? statusFilter.value : 'open';
+      // アクティブなトグルボタンからステータスを取得
+      var activeStatusBtn = statusGroup ? statusGroup.querySelector('.v2-toggle-btn.active') : null;
+      var status = activeStatusBtn ? activeStatusBtn.dataset.value : 'open';
       var showArchived = archivedCheckbox ? archivedCheckbox.checked : false;
 
-      // クライアントサイドフィルタリング
-      var goalItems = goalsList.querySelectorAll('.goal-item');
-      var visibleCount = 0;
+      var offset = v2GoalsCurrentPage * v2GoalsLimit;
+      var url = '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
+        '&offset=' + offset +
+        '&limit=' + v2GoalsLimit +
+        '&status=' + status +
+        '&archived=' + showArchived +
+        '&sort=' + v2GoalsSortField +
+        '&order=' + v2GoalsSortOrder;
 
-      goalItems.forEach(function(item) {
-        var itemStatus = item.getAttribute('data-status'); // open/closed
-        var isArchived = item.getAttribute('data-archived') === 'true';
+      console.log('[refreshGoals] Fetching:', url);
 
-        // ステータスフィルタ: open/closed/all
-        var showByStatus = (status === 'all') || (itemStatus === status);
-        // アーカイブフィルタ: チェックONならarchived含む、OFFなら除外
-        var showByArchived = showArchived || !isArchived;
+      fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          updateV2GoalsSection(data.goals, data.total, data.offset, data.limit);
+        })
+        .catch(function(err) {
+          console.error('[refreshGoals] Error:', err);
+        });
+    }
 
-        if (showByStatus && showByArchived) {
-          item.style.display = '';
-          visibleCount++;
-        } else {
-          item.style.display = 'none';
-        }
-      });
+    /**
+     * Goalsセクションを更新
+     */
+    function updateV2GoalsSection(goals, total, offset, limit) {
+      var goalsList = document.getElementById('v2-goals-list');
+      if (!goalsList) return;
 
-      // カウントバッジを更新
-      var countBadge = goalsList.closest('.card')?.querySelector('.count-badge');
-      if (countBadge) {
-        countBadge.textContent = String(visibleCount);
+      v2GoalsTotal = total;
+
+      // HTMLを生成（サーバーから返されたgoals配列をレンダリング）
+      if (goals && goals.length > 0) {
+        var html = goals.map(function(goal) {
+          return renderGoalItem(goal);
+        }).join('\\n');
+        goalsList.innerHTML = html;
+      } else {
+        goalsList.innerHTML = '<div class="empty-message">なし</div>';
       }
 
-      console.log('[refreshGoals] Filter applied: status=' + status + ', showArchived=' + showArchived + ', visible=' + visibleCount);
+      // カウントバッジを更新
+      var countBadge = document.getElementById('v2-goals-count');
+      if (countBadge) {
+        countBadge.textContent = String(total);
+      }
 
-      // フィルタ後にソートを再適用
-      applyCurrentSort();
+      // ページネーションUIを更新
+      updateV2GoalsPagination(total, offset, limit);
+
+      // Goalツリーを再初期化
+      initGoalTree();
+
+      // サーバーサイドでソート済みなのでクライアントサイドソートは不要
+
+      console.log('[updateV2GoalsSection] Updated: total=' + total + ', offset=' + offset + ', displayed=' + goals.length);
+    }
+
+    /**
+     * GoalアイテムのHTMLを生成（クライアントサイドレンダリング）
+     */
+    function renderGoalItem(goal) {
+      var statusIcons = {
+        active: '🔵', paused: '⏸️', checkpoint: '🔶', waiting: '⏳',
+        completed: '✅', archived: '📦', pending: '⏳'
+      };
+      var statusClasses = {
+        active: 'status-active', paused: 'status-paused', checkpoint: 'status-checkpoint',
+        waiting: 'status-waiting', completed: 'status-completed', archived: 'status-archived', pending: 'status-pending'
+      };
+      var maidIcons = {
+        emma: '☕', sophia: '❄️', lily: '🎀', rose: '🌹',
+        alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
+      };
+
+      var statusIcon = goal.displayIcon || statusIcons[goal.v2Substatus] || '❓';
+      var statusText = goal.displayStatus || goal.v2Substatus;
+      var statusClass = statusClasses[goal.v2Substatus] || '';
+
+      // 担当者HTML
+      var assigneesHtml = '';
+      if (goal.assignees && goal.assignees.length > 0) {
+        var items = goal.assignees.filter(function(a) { return a && a.agentId; }).map(function(a) {
+          var icon = maidIcons[a.agentId.toLowerCase()] || '👤';
+          return '<span class="assignee-item"><span class="assignee-icon">' + icon + '</span><span class="assignee-name">' + escapeHtmlClient(a.agentId) + '</span></span>';
+        }).join(' ');
+        if (items) {
+          assigneesHtml = '<span class="goal-assignees-inline">' + items + '</span>';
+        }
+      }
+      if (!assigneesHtml) {
+        assigneesHtml = '<span class="goal-assignees-inline no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
+      }
+
+      // 報告書リンク
+      var reportLink = '<a href="/report?task=' + encodeURIComponent(goal.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="統合サマリーを開く">📄</a>';
+
+      // Phaseを再帰的にレンダリング
+      var phasesHtml = '';
+      if (goal.phases && goal.phases.length > 0) {
+        phasesHtml = '<div class="goal-content"><div class="phase-tree">' +
+          goal.phases.map(function(phase) { return renderPhaseItem(phase); }).join('\\n') +
+          '</div></div>';
+      }
+
+      return '<div class="goal-item" data-id="' + escapeHtmlClient(goal.id) + '" data-status="' + goal.mainStatus + '" data-substatus="' + goal.v2Substatus + '" data-archived="' + (goal.archived === true || goal.v2Substatus === 'archived') + '" data-updated="' + (goal.updatedAt || '') + '">' +
+        '<div class="goal-header">' +
+          '<span class="goal-toggle collapsed">▼</span>' +
+          '<span class="goal-id">#' + escapeHtmlClient(goal.id) + '</span>' +
+          '<span class="goal-title">' + escapeHtmlClient(goal.title) + '</span>' +
+          '<span class="badge badge-goal">Goal</span>' +
+          (goal.size ? '<span class="badge badge-size">' + escapeHtmlClient(goal.size) + '</span>' : '') +
+          '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + escapeHtmlClient(statusText) + '</span></span>' +
+          assigneesHtml +
+          reportLink +
+        '</div>' +
+        phasesHtml +
+      '</div>';
+    }
+
+    /**
+     * PhaseアイテムのHTMLを生成
+     */
+    function renderPhaseItem(phase) {
+      var statusIcons = {
+        active: '🔵', paused: '⏸️', checkpoint: '🔶', waiting: '⏳',
+        completed: '✅', archived: '📦', pending: '⏳'
+      };
+      var statusClasses = {
+        active: 'status-active', paused: 'status-paused', checkpoint: 'status-checkpoint',
+        waiting: 'status-waiting', completed: 'status-completed', archived: 'status-archived', pending: 'status-pending'
+      };
+      var maidIcons = {
+        emma: '☕', sophia: '❄️', lily: '🎀', rose: '🌹',
+        alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
+      };
+
+      var statusIcon = statusIcons[phase.v2Substatus] || '❓';
+      var statusClass = statusClasses[phase.v2Substatus] || '';
+
+      // 担当者HTML
+      var assigneesHtml = '';
+      if (phase.assignees && phase.assignees.length > 0) {
+        var items = phase.assignees.filter(function(a) { return a && a.agentId; }).map(function(a) {
+          var icon = maidIcons[a.agentId.toLowerCase()] || '👤';
+          return '<span class="assignee-item"><span class="assignee-icon">' + icon + '</span><span class="assignee-name">' + escapeHtmlClient(a.agentId) + '</span></span>';
+        }).join(' ');
+        if (items) {
+          assigneesHtml = '<span class="phase-assignees">' + items + '</span>';
+        }
+      }
+      if (!assigneesHtml) {
+        assigneesHtml = '<span class="phase-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
+      }
+
+      // 報告書リンク
+      var reportLink = '<a href="/report?task=' + encodeURIComponent(phase.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="Phase報告書を開く">📄</a>';
+
+      // Actionをレンダリング
+      var actionsHtml = '';
+      if (phase.actions && phase.actions.length > 0) {
+        actionsHtml = '<div class="action-list">' +
+          phase.actions.map(function(action, idx, arr) {
+            return renderActionItem(action, idx === arr.length - 1);
+          }).join('\\n') +
+          '</div>';
+      }
+
+      return '<div class="phase-item ' + (phase.v2Substatus === 'active' ? 'highlight' : '') + '" data-id="' + escapeHtmlClient(phase.id) + '">' +
+        '<div class="phase-header">' +
+          '<span class="phase-id">#' + escapeHtmlClient(phase.id) + '</span>' +
+          '<span class="phase-name">[' + escapeHtmlClient(phase.title) + '] Phase</span>' +
+          '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + phase.v2Substatus + '</span></span>' +
+          assigneesHtml +
+          reportLink +
+        '</div>' +
+        actionsHtml +
+      '</div>';
+    }
+
+    /**
+     * ActionアイテムのHTMLを生成
+     */
+    function renderActionItem(action, isLast) {
+      var statusIcons = {
+        active: '🔵', paused: '⏸️', checkpoint: '🔶', waiting: '⏳',
+        completed: '✅', archived: '📦', pending: '⏳'
+      };
+      var maidIcons = {
+        emma: '☕', sophia: '❄️', lily: '🎀', rose: '🌹',
+        alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
+      };
+
+      var statusClass = action.v2Substatus === 'completed' ? 'completed' :
+                        action.v2Substatus === 'active' ? 'current' : '';
+      var icon = isLast ? '└' : '├';
+      var statusBadge = action.v2Substatus === 'active' ? '<span class="current-marker">← 現在ここ</span>' : '';
+      var statusIcon = statusIcons[action.v2Substatus] || '⏳';
+
+      // 担当者HTML
+      var assigneesHtml = '';
+      if (action.assignees && action.assignees.length > 0) {
+        var items = action.assignees.filter(function(a) { return a && a.agentId; }).map(function(a) {
+          var maidIcon = maidIcons[a.agentId.toLowerCase()] || '👤';
+          return '<span class="assignee-item"><span class="assignee-icon">' + maidIcon + '</span><span class="assignee-name">' + escapeHtmlClient(a.agentId) + '</span></span>';
+        }).join(' ');
+        if (items) {
+          assigneesHtml = '<span class="action-assignees">' + items + '</span>';
+        }
+      }
+      if (!assigneesHtml) {
+        assigneesHtml = '<span class="action-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
+      }
+
+      return '<div class="action-item ' + statusClass + '">' +
+        '<span class="action-icon">' + icon + '</span>' +
+        '<span class="action-name">#' + escapeHtmlClient(action.id) + ' ' + escapeHtmlClient(action.title) + '</span>' +
+        '<span class="action-status ' + action.v2Substatus + '">' + statusIcon + '<span class="status-text"> ' + action.v2Substatus + '</span></span>' +
+        assigneesHtml +
+        statusBadge +
+      '</div>';
+    }
+
+    /**
+     * クライアントサイドHTMLエスケープ
+     */
+    function escapeHtmlClient(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    /**
+     * V2 Goalsページネーションを更新
+     */
+    function updateV2GoalsPagination(total, offset, limit) {
+      var paginationEl = document.getElementById('v2-goals-pagination');
+      if (!paginationEl) return;
+
+      var totalPages = Math.ceil(total / limit);
+      var currentPage = Math.floor(offset / limit);
+
+      if (totalPages <= 1) {
+        paginationEl.innerHTML = '<span class="pagination-info">' + total + '件</span>';
+      } else {
+        paginationEl.innerHTML =
+          '<button class="pagination-btn v2-goals-page-btn" data-page="' + (currentPage - 1) + '" ' + (currentPage === 0 ? 'disabled' : '') + '>◀</button>' +
+          '<span class="pagination-info">' + (currentPage + 1) + '/' + totalPages + '</span>' +
+          '<button class="pagination-btn v2-goals-page-btn" data-page="' + (currentPage + 1) + '" ' + (currentPage >= totalPages - 1 ? 'disabled' : '') + '>▶</button>';
+      }
+    }
+
+    /**
+     * V2 Goalsのページを変更
+     */
+    function goV2GoalsPage(page) {
+      if (page < 0) return;
+      var totalPages = Math.ceil(v2GoalsTotal / v2GoalsLimit);
+      if (page >= totalPages) return;
+      v2GoalsCurrentPage = page;
+      refreshGoals();
     }
 
     // 注: initGoalsFilter と ソートボタンのリスナーは initV2Dashboard() で設定済み

@@ -446,12 +446,20 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
       const showArchived = req.query.archived === "true";
 
-      // V2.1 ダッシュボードデータを取得（ページネーション適用）
+      // ソートパラメータ
+      const sortFieldParam = req.query.sort as string;
+      const sortField: "id" | "updatedAt" = sortFieldParam === "updatedAt" ? "updatedAt" : "id";
+      const sortOrderParam = req.query.order as string;
+      const sortOrder: "asc" | "desc" = sortOrderParam === "asc" ? "asc" : "desc";
+
+      // V2.1 ダッシュボードデータを取得（ページネーション・ソート適用）
       const v2Data = await generateV2DashboardData(projectPath, {
         offset,
         limit,
         statusFilter,
         showArchived,
+        sortField,
+        sortOrder,
       });
 
       res.json({

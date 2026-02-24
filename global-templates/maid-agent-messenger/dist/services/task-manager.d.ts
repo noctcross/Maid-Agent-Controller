@@ -335,6 +335,8 @@ export interface V2DashboardOptions {
     statusFilter?: "open" | "closed" | "all";
     offset?: number;
     limit?: number;
+    sortField?: "id" | "updatedAt";
+    sortOrder?: "asc" | "desc";
 }
 /**
  * タスク一覧からV2.1ダッシュボードデータを生成

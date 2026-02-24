@@ -283,13 +283,16 @@ export function generateDashboardHtml(
       <div class="card v2-goals-section" data-section="v2-goals">
         <div class="card-header collapsible-header">
           <span class="card-title">🎯 Goal階層</span>
-          <span class="count-badge">${data.v2Goals?.length || 0}</span>
+          <span class="count-badge" id="v2-goals-count">${data.v2Goals?.length || 0}</span>
+          <div class="v2-goals-pagination-wrapper">
+            <div class="inline-pagination" id="v2-goals-pagination"></div>
+          </div>
           <div class="v2-filter-controls">
-            <select id="v2-goals-status-filter" class="v2-filter-select">
-              <option value="open" selected>Open</option>
-              <option value="closed">Closed</option>
-              <option value="all">All</option>
-            </select>
+            <div class="v2-toggle-group" id="v2-goals-status-group">
+              <button class="v2-toggle-btn active" data-value="open">Open</button>
+              <button class="v2-toggle-btn" data-value="closed">Closed</button>
+              <button class="v2-toggle-btn" data-value="all">All</button>
+            </div>
             <label class="v2-filter-checkbox">
               <input type="checkbox" id="v2-goals-show-archived">
               <span>Archived</span>
@@ -297,6 +300,12 @@ export function generateDashboardHtml(
             <div class="v2-sort-controls">
               <button id="v2-goals-sort-id" class="sort-toggle-btn active" title="タスク番号でソート">#↓</button>
               <button id="v2-goals-sort-updated" class="sort-toggle-btn" title="更新日時でソート">📅</button>
+            </div>
+            <div class="v2-toggle-group" id="v2-goals-limit-group">
+              <button class="v2-toggle-btn active" data-value="10">10</button>
+              <button class="v2-toggle-btn" data-value="20">20</button>
+              <button class="v2-toggle-btn" data-value="50">50</button>
+              <button class="v2-toggle-btn" data-value="100">100</button>
             </div>
           </div>
         </div>

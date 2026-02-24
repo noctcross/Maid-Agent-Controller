@@ -1148,6 +1148,8 @@ export interface V2DashboardOptions {
   statusFilter?: "open" | "closed" | "all";    // ステータスフィルタ（デフォルト: "open"）
   offset?: number;                              // ページネーション: オフセット
   limit?: number;                               // ページネーション: 件数（デフォルト: 10）
+  sortField?: "id" | "updatedAt";              // ソートフィールド（デフォルト: "id"）
+  sortOrder?: "asc" | "desc";                   // ソート順（デフォルト: "desc"）
 }
 
 /**
@@ -1157,7 +1159,7 @@ export async function generateV2DashboardData(
   projectPath: string,
   options: V2DashboardOptions = {}
 ): Promise<V2DashboardData> {
-  const { showArchived = false, statusFilter = "open", offset = 0, limit = 10 } = options;
+  const { showArchived = false, statusFilter = "open", offset = 0, limit = 10, sortField = "id", sortOrder = "desc" } = options;
   const data = await loadTasksReadOnly(projectPath);
   const tasks = data.tasks;
 
@@ -1220,12 +1222,33 @@ export async function generateV2DashboardData(
     }
   }
 
-  // V2Goals: Goal階層構造を構築（updatedAt降順でソート）
+  // タスクID比較用ヘルパー（数値部分を考慮）
+  const compareTaskIds = (idA: string, idB: string): number => {
+    const partsA = idA.split("-");
+    const partsB = idB.split("-");
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+      const pa = i < partsA.length ? parseInt(partsA[i], 10) : -1;
+      const pb = i < partsB.length ? parseInt(partsB[i], 10) : -1;
+      const numA = isNaN(pa) ? -1 : pa;
+      const numB = isNaN(pb) ? -1 : pb;
+      if (numA !== numB) return numA - numB;
+    }
+    return 0;
+  };
+
+  // V2Goals: Goal階層構造を構築（ソートオプションに基づく）
   const v2Goals: V2GoalData[] = goals
     .sort((a, b) => {
-      const aTime = a.updatedAt || a.createdAt || "";
-      const bTime = b.updatedAt || b.createdAt || "";
-      return bTime.localeCompare(aTime);
+      let cmp: number;
+      if (sortField === "updatedAt") {
+        const aTime = a.updatedAt || a.createdAt || "";
+        const bTime = b.updatedAt || b.createdAt || "";
+        cmp = aTime.localeCompare(bTime);
+      } else {
+        // デフォルト: id でソート
+        cmp = compareTaskIds(a.id, b.id);
+      }
+      return sortOrder === "asc" ? cmp : -cmp;
     })
     // archivedフィルタ: デフォルトでarchivedを除外
     .filter((g) => showArchived || g.archived !== true)

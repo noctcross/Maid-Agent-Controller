@@ -74,6 +74,13 @@ export function getV2DashboardStyles() {
       color: var(--v2-accent-purple);
     }
 
+    /* V2.1 Goals Pagination */
+    .v2-goals-pagination-wrapper {
+      display: flex;
+      align-items: center;
+      margin-left: 8px;
+    }
+
     /* V2.1 Filter Controls */
     .v2-filter-controls {
       display: flex;
@@ -96,6 +103,22 @@ export function getV2DashboardStyles() {
       border-color: var(--v2-accent-blue, #4a9eff);
     }
 
+    /* V2.1 表示件数セレクト */
+    .v2-limit-select {
+      padding: 3px 6px;
+      border: 1px solid var(--border-color, #555);
+      border-radius: 4px;
+      background: var(--v2-bg-card, #2d2d2d);
+      color: var(--v2-text-primary, #fff);
+      font-size: 0.75rem;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+
+    .v2-limit-select:hover {
+      border-color: var(--v2-accent-blue, #4a9eff);
+    }
+
     .v2-filter-checkbox {
       display: flex;
       align-items: center;
@@ -113,10 +136,43 @@ export function getV2DashboardStyles() {
       color: var(--v2-text-primary, #fff);
     }
 
+    /* V2.1 トグルボタングループ */
+    .v2-toggle-group {
+      display: flex;
+      gap: 2px;
+      background: var(--v2-bg-card, #2d2d2d);
+      border: 1px solid var(--border-color, #555);
+      border-radius: 4px;
+      padding: 2px;
+    }
+
+    .v2-toggle-btn {
+      padding: 3px 8px;
+      border: none;
+      border-radius: 3px;
+      background: transparent;
+      color: var(--v2-text-secondary, #aaa);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .v2-toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--v2-text-primary, #fff);
+    }
+
+    .v2-toggle-btn.active {
+      background: var(--v2-accent-blue, #4a9eff);
+      color: #fff;
+    }
+
     /* V2.1 Goal Tree */
     .goal-tree-container {
-      max-height: 500px;
-      overflow-y: auto;
+      /* コンテンツに合わせて自然に伸びる（高さ制限撤廃） */
+      max-height: none;
+      overflow-y: visible;
     }
 
     /* V2.1 archived タスクのスタイル */

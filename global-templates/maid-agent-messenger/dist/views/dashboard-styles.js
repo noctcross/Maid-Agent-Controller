@@ -220,7 +220,6 @@ export function getV2DashboardStyles() {
       white-space: nowrap;
       flex-shrink: 0;
       min-width: 70px;
-      text-align: right;
     }
 
     .phase-assignees,
@@ -230,6 +229,17 @@ export function getV2DashboardStyles() {
       min-width: 60px;
       flex-shrink: 0;
       opacity: 0.8;
+    }
+
+    /* 担当者表示: アイコンとメイド名を分離 */
+    .assignee-item {
+      white-space: nowrap;
+    }
+    .assignee-icon {
+      margin-right: 1px;
+    }
+    .assignee-name {
+      /* デフォルトは表示 */
     }
 
     /* V2.1 Badges - Compact */
@@ -849,13 +859,31 @@ export function getV2DashboardStyles() {
       .action-item .status-text {
         display: none;
       }
-      /* V2.1 スマホ: ステータス要素のmin-widthを解除してスペース削減 */
+      /* V2.1 スマホ: ステータス要素のmin-widthを解除、背景色なしに統一 */
       .goal-header .status,
       .phase-header .status,
       .action-item .action-status {
         min-width: auto;
         padding: 1px 4px;
         gap: 0;
+        background: transparent;
+      }
+      /* V2.1 スマホ: 担当者メイド名を非表示（アイコンのみ表示） */
+      .assignee-name {
+        display: none;
+      }
+      /* V2.1 スマホ: 担当者エリアに固定幅を設定して縦揃え、背景色なし */
+      .goal-assignees-inline,
+      .phase-assignees,
+      .action-assignees {
+        min-width: 20px;
+        background: transparent;
+        padding: 0;
+      }
+      /* V2.1 スマホ: 報告書アイコンの間隔を統一（gapに任せる） */
+      .goal-header .report-link,
+      .phase-header .report-link {
+        margin-left: 0;
       }
       /* V2.1 スマホ: Phase階層も同様にバッジを縮小 */
       .phase-header .badge {

@@ -145,16 +145,22 @@ const ARTIFACT_TYPE_ICONS: Record<string, string> = {
  * 担当者表示HTMLを生成（アイコンとメイド名を分離してスマホ対応）
  * @param assignees 担当者配列
  * @param className 親要素のクラス名
+ * @returns 担当者がいない場合も空のspanを返す（レイアウト揃え用）
  */
 function generateAssigneesHtml(assignees: Array<{ agentId: string }> | undefined, className: string): string {
-  if (!assignees || assignees.length === 0) return "";
+  if (!assignees || assignees.length === 0) {
+    // 担当者がいない場合も空のspanを出力してレイアウトを揃える
+    return `<span class="${className}"></span>`;
+  }
   const items = assignees
     .filter((a) => a && a.agentId) // undefined/null をスキップ
     .map((a) => {
       const icon = getMaidIcon(a.agentId);
       return `<span class="assignee-item"><span class="assignee-icon">${icon}</span><span class="assignee-name">${escapeHtml(a.agentId)}</span></span>`;
     }).join(" ");
-  if (!items) return "";
+  if (!items) {
+    return `<span class="${className}"></span>`;
+  }
   return `<span class="${className}">${items}</span>`;
 }
 

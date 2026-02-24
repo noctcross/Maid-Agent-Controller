@@ -210,6 +210,14 @@ export function getV2DashboardStyles(): string {
       color: var(--v2-text-secondary);
     }
 
+    .phase-assignees,
+    .action-assignees {
+      font-size: 0.7rem;
+      color: var(--v2-text-secondary);
+      margin-left: 6px;
+      opacity: 0.8;
+    }
+
     /* V2.1 Badges - Compact */
     .badge {
       padding: 1px 5px;

@@ -1089,6 +1089,7 @@ export interface V2PhaseData {
   mainStatus: string;
   v2Substatus: string;
   reviewStatus?: string;
+  assignees?: Array<{ agentId: string }>;
   actions: V2ActionData[];
 }
 
@@ -1195,11 +1196,17 @@ export async function generateV2DashboardData(
   const actions: Task[] = [];
   const investigations: Task[] = [];
 
+  // Goal階層から除外するカテゴリ（提案・要対応は別パネルで表示）
+  const excludedCategories = ["skill_candidate", "improvement", "action_required"];
+
   for (const task of tasks) {
     const taskType = inferTypeWithContext(task);
     switch (taskType) {
       case "goal":
-        goals.push(task);
+        // 提案・要対応カテゴリはGoal階層から除外
+        if (!excludedCategories.includes(task.category || "task")) {
+          goals.push(task);
+        }
         break;
       case "phase":
         phases.push(task);
@@ -1273,6 +1280,7 @@ export async function generateV2DashboardData(
           mainStatus: phaseStatus.mainStatus,
           v2Substatus: phaseStatus.substatus,
           reviewStatus: phase.reviewStatus,
+          assignees: phase.assignees?.map((a) => ({ agentId: a.agentId })),
           actions: v2Actions,
         };
       });

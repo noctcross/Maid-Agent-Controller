@@ -849,6 +849,14 @@ export function getV2DashboardStyles() {
       .action-item .status-text {
         display: none;
       }
+      /* V2.1 スマホ: ステータス要素のmin-widthを解除してスペース削減 */
+      .goal-header .status,
+      .phase-header .status,
+      .action-item .action-status {
+        min-width: auto;
+        padding: 1px 4px;
+        gap: 0;
+      }
       /* V2.1 スマホ: Phase階層も同様にバッジを縮小 */
       .phase-header .badge {
         display: none;

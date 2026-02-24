@@ -21,10 +21,10 @@ export function getV2DashboardStyles() {
       margin-top: 1rem;
     }
 
-    /* V2.1 Grid Layout */
+    /* V2.1 Stats Layout - Flex based for compact display */
     .grid-stats {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: 6px;
     }
 
@@ -38,13 +38,14 @@ export function getV2DashboardStyles() {
       grid-template-columns: 1fr;
     }
 
-    /* V2.1 Stats Cards - Compact */
+    /* V2.1 Stats Cards - Compact (V1互換) */
     .stat-card {
+      flex: 1;
       background: var(--v2-bg-card);
       border-radius: 6px;
-      padding: 8px 10px;
+      padding: 6px 8px;
       text-align: center;
-      min-width: 80px;
+      min-width: 70px;
     }
 
     .stat-card .number {
@@ -759,10 +760,6 @@ export function getV2DashboardStyles() {
 
     /* V2.1 Responsive */
     @media (max-width: 1200px) {
-      .grid-stats {
-        grid-template-columns: repeat(4, 1fr);
-      }
-
       .v2-sections .team-grid {
         grid-template-columns: repeat(4, 1fr);
       }
@@ -771,10 +768,6 @@ export function getV2DashboardStyles() {
     @media (max-width: 768px) {
       .grid-main {
         grid-template-columns: 1fr;
-      }
-
-      .grid-stats {
-        grid-template-columns: repeat(2, 1fr);
       }
 
       .v2-sections .team-grid {
@@ -818,19 +811,16 @@ export function getV2DashboardStyles() {
 
     /* V2.1 スマホ対応: 500px以下 */
     @media (max-width: 500px) {
-      /* V2.1 統計カード */
-      .grid-stats {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
-      }
+      /* V2.1 統計カード - flex維持でコンパクト表示 */
       .stat-card {
-        padding: 10px 8px;
+        padding: 5px 6px;
+        min-width: 60px;
       }
       .stat-card .number {
-        font-size: 1.5rem;
+        font-size: 1.2rem;
       }
       .stat-card .label {
-        font-size: 0.75rem;
+        font-size: 0.65rem;
       }
 
       /* V2.1 Goal階層 */

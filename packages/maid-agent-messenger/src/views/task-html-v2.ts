@@ -148,10 +148,13 @@ const ARTIFACT_TYPE_ICONS: Record<string, string> = {
  */
 function generateAssigneesHtml(assignees: Array<{ agentId: string }> | undefined, className: string): string {
   if (!assignees || assignees.length === 0) return "";
-  const items = assignees.map((a) => {
-    const icon = getMaidIcon(a.agentId);
-    return `<span class="assignee-item"><span class="assignee-icon">${icon}</span><span class="assignee-name">${escapeHtml(a.agentId)}</span></span>`;
-  }).join(" ");
+  const items = assignees
+    .filter((a) => a && a.agentId) // undefined/null をスキップ
+    .map((a) => {
+      const icon = getMaidIcon(a.agentId);
+      return `<span class="assignee-item"><span class="assignee-icon">${icon}</span><span class="assignee-name">${escapeHtml(a.agentId)}</span></span>`;
+    }).join(" ");
+  if (!items) return "";
   return `<span class="${className}">${items}</span>`;
 }
 

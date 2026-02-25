@@ -12,22 +12,22 @@ import { escapeHtml } from "../markdown-utils.js";
 import { formatRelativeTime } from "../utils/yaml-helper.js";
 // === ステータスアイコン・クラス ===
 const STATUS_ICONS = {
-    active: "🔵",
-    paused: "⏸️",
+    pending: "⏸️",
+    assigned: "📋",
+    working: "🔵",
     checkpoint: "🔶",
     waiting: "⏳",
     completed: "✅",
     archived: "📦",
-    pending: "⏳",
 };
 const STATUS_CLASSES = {
-    active: "status-active",
-    paused: "status-paused",
+    pending: "status-pending",
+    assigned: "status-assigned",
+    working: "status-working",
     checkpoint: "status-checkpoint",
     waiting: "status-waiting",
     completed: "status-completed",
     archived: "status-archived",
-    pending: "status-pending",
 };
 // メイドアイコンマッピング（settings.yaml より）
 const MAID_ICONS = {
@@ -149,7 +149,7 @@ function generatePhaseItemHtml(phase, projectPath) {
         ${phase.actions.map((action, idx, arr) => generateActionItemHtml(action, idx === arr.length - 1)).join("\n")}
       </div>`
         : "";
-    return `<div class="phase-item ${phase.v2Substatus === "active" ? "highlight" : ""}" data-id="${escapeHtml(phase.id)}">
+    return `<div class="phase-item ${phase.v2Substatus === "working" ? "highlight" : ""}" data-id="${escapeHtml(phase.id)}">
     <div class="phase-header">
       <span class="phase-id">#${escapeHtml(phase.id)}</span>
       <span class="phase-name">[${escapeHtml(phase.title)}] Phase</span>
@@ -166,9 +166,9 @@ function generatePhaseItemHtml(phase, projectPath) {
  */
 function generateActionItemHtml(action, isLast) {
     const statusClass = action.v2Substatus === "completed" ? "completed" :
-        action.v2Substatus === "active" ? "current" : "";
+        action.v2Substatus === "working" ? "current" : "";
     const icon = isLast ? "└" : "├";
-    const statusBadge = action.v2Substatus === "active"
+    const statusBadge = action.v2Substatus === "working"
         ? '<span class="current-marker">← 現在ここ</span>'
         : "";
     const statusIcon = STATUS_ICONS[action.v2Substatus] || "⏳";

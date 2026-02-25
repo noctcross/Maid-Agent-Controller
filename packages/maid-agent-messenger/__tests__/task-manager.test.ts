@@ -525,64 +525,64 @@ describe("ファイルロック（エッジケース）", () => {
   });
 });
 
-describe("escalation フラグ", () => {
-  it("escalation: true でフラグと日時が設定される", async () => {
+describe("actionRequired フラグ", () => {
+  it("actionRequired: true でフラグと日時が設定される", async () => {
     // 準備: タスク作成
     const created = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "テストタスク",
     });
 
-    // 実行: escalation: true で更新
+    // 実行: actionRequired: true で更新
     const result = await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: created.taskId,
       status: "blocked",
-      escalation: true,
+      actionRequired: true,
     });
 
     expect(result.success).toBe(true);
-    expect(result.task!.escalation).toBe(true);
-    expect(result.task!.escalatedAt).toBeTruthy();
+    expect(result.task!.actionRequired).toBe(true);
+    expect(result.task!.actionRequiredAt).toBeTruthy();
   });
 
-  it("escalation: false でフラグと日時がクリアされる", async () => {
-    // 準備: タスク作成 → escalation: true に設定
+  it("actionRequired: false でフラグと日時がクリアされる", async () => {
+    // 準備: タスク作成 → actionRequired: true に設定
     const created = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "テストタスク",
     });
     await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: created.taskId,
-      escalation: true,
+      actionRequired: true,
     });
 
-    // 実行: escalation: false で更新
+    // 実行: actionRequired: false で更新
     const result = await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: created.taskId,
-      escalation: false,
+      actionRequired: false,
     });
 
     expect(result.success).toBe(true);
-    expect(result.task!.escalation).toBe(false);
-    expect(result.task!.escalatedAt).toBeNull();
+    expect(result.task!.actionRequired).toBe(false);
+    expect(result.task!.actionRequiredAt).toBeNull();
   });
 
-  it("escalation 未指定時は既存値を維持する", async () => {
-    // 準備: タスク作成 → escalation: true に設定
+  it("actionRequired 未指定時は既存値を維持する", async () => {
+    // 準備: タスク作成 → actionRequired: true に設定
     const created = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "テストタスク",
     });
     await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: created.taskId,
-      escalation: true,
+      actionRequired: true,
     });
 
-    // 実行: escalation を指定せず別フィールドを更新
+    // 実行: actionRequired を指定せず別フィールドを更新
     const result = await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: created.taskId,
       summary: "更新テスト",
     });
 
     expect(result.success).toBe(true);
-    expect(result.task!.escalation).toBe(true);
-    expect(result.task!.escalatedAt).toBeTruthy();
+    expect(result.task!.actionRequired).toBe(true);
+    expect(result.task!.actionRequiredAt).toBeTruthy();
   });
 });

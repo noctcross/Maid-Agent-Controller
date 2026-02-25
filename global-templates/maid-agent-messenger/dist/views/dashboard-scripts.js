@@ -1226,6 +1226,7 @@ export function getV2DashboardScript() {
       initGoalTree();
       setupGoalTreeEventDelegation();
       initGoalsFilter();
+      initTaskIdClickHandler();
       // ソートボタンのイベントリスナー
       var sortIdBtn = document.getElementById('v2-goals-sort-id');
       var sortUpdBtn = document.getElementById('v2-goals-sort-updated');
@@ -1592,13 +1593,14 @@ export function getV2DashboardScript() {
      * GoalアイテムのHTMLを生成（クライアントサイドレンダリング）
      */
     function renderGoalItem(goal) {
+      // V2.1: working が正式、active/paused は後方互換
       var statusIcons = {
-        active: '🔵', paused: '⏸️', checkpoint: '🔶', waiting: '⏳',
-        completed: '✅', archived: '📦', pending: '⏳'
+        working: '🔵', active: '🔵', assigned: '📋', pending: '⏳', paused: '⏸️',
+        checkpoint: '🔶', waiting: '⏳', completed: '✅', archived: '📦'
       };
       var statusClasses = {
-        active: 'status-active', paused: 'status-paused', checkpoint: 'status-checkpoint',
-        waiting: 'status-waiting', completed: 'status-completed', archived: 'status-archived', pending: 'status-pending'
+        working: 'status-active', active: 'status-active', assigned: 'status-assigned', pending: 'status-pending', paused: 'status-paused',
+        checkpoint: 'status-checkpoint', waiting: 'status-waiting', completed: 'status-completed', archived: 'status-archived'
       };
       var maidIcons = {
         emma: '☕', sophia: '❄️', lily: '🎀', rose: '🌹',
@@ -1627,6 +1629,17 @@ export function getV2DashboardScript() {
       // 報告書リンク
       var reportLink = '<a href="/report?task=' + encodeURIComponent(goal.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="統合サマリーを開く">📄</a>';
 
+      // タスク詳細データ（JSON → Base64エンコード）
+      var taskInfoJson = JSON.stringify({
+        id: goal.id,
+        title: goal.title,
+        description: goal.description || '',
+        status: statusText,
+        assignees: (goal.assignees || []).map(function(a) { return a.agentId; }).join(', ') || '担当なし',
+        updatedAt: goal.updatedAt || ''
+      });
+      var taskInfoBase64 = btoa(unescape(encodeURIComponent(taskInfoJson)));
+
       // Phaseを再帰的にレンダリング
       var phasesHtml = '';
       if (goal.phases && goal.phases.length > 0) {
@@ -1638,7 +1651,7 @@ export function getV2DashboardScript() {
       return '<div class="goal-item" data-id="' + escapeHtmlClient(goal.id) + '" data-status="' + goal.mainStatus + '" data-substatus="' + goal.v2Substatus + '" data-archived="' + (goal.archived === true || goal.v2Substatus === 'archived') + '" data-updated="' + (goal.updatedAt || '') + '">' +
         '<div class="goal-header">' +
           '<span class="goal-toggle collapsed">▼</span>' +
-          '<span class="goal-id">#' + escapeHtmlClient(goal.id) + '</span>' +
+          '<span class="goal-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(goal.id) + '</span>' +
           '<span class="goal-title">' + escapeHtmlClient(goal.title) + '</span>' +
           '<span class="badge badge-goal">Goal</span>' +
           (goal.size ? '<span class="badge badge-size">' + escapeHtmlClient(goal.size) + '</span>' : '') +
@@ -1654,13 +1667,14 @@ export function getV2DashboardScript() {
      * PhaseアイテムのHTMLを生成
      */
     function renderPhaseItem(phase) {
+      // V2.1: working が正式、active/paused は後方互換
       var statusIcons = {
-        active: '🔵', paused: '⏸️', checkpoint: '🔶', waiting: '⏳',
-        completed: '✅', archived: '📦', pending: '⏳'
+        working: '🔵', active: '🔵', assigned: '📋', pending: '⏳', paused: '⏸️',
+        checkpoint: '🔶', waiting: '⏳', completed: '✅', archived: '📦'
       };
       var statusClasses = {
-        active: 'status-active', paused: 'status-paused', checkpoint: 'status-checkpoint',
-        waiting: 'status-waiting', completed: 'status-completed', archived: 'status-archived', pending: 'status-pending'
+        working: 'status-active', active: 'status-active', assigned: 'status-assigned', pending: 'status-pending', paused: 'status-paused',
+        checkpoint: 'status-checkpoint', waiting: 'status-waiting', completed: 'status-completed', archived: 'status-archived'
       };
       var maidIcons = {
         emma: '☕', sophia: '❄️', lily: '🎀', rose: '🌹',
@@ -1688,6 +1702,17 @@ export function getV2DashboardScript() {
       // 報告書リンク
       var reportLink = '<a href="/report?task=' + encodeURIComponent(phase.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="Phase報告書を開く">📄</a>';
 
+      // タスク詳細データ（JSON → Base64エンコード）
+      var taskInfoJson = JSON.stringify({
+        id: phase.id,
+        title: phase.title,
+        description: phase.description || '',
+        status: phase.v2Substatus,
+        assignees: (phase.assignees || []).map(function(a) { return a.agentId; }).join(', ') || '担当なし',
+        updatedAt: phase.updatedAt || ''
+      });
+      var taskInfoBase64 = btoa(unescape(encodeURIComponent(taskInfoJson)));
+
       // Actionをレンダリング
       var actionsHtml = '';
       if (phase.actions && phase.actions.length > 0) {
@@ -1700,7 +1725,7 @@ export function getV2DashboardScript() {
 
       return '<div class="phase-item ' + (phase.v2Substatus === 'active' ? 'highlight' : '') + '" data-id="' + escapeHtmlClient(phase.id) + '">' +
         '<div class="phase-header">' +
-          '<span class="phase-id">#' + escapeHtmlClient(phase.id) + '</span>' +
+          '<span class="phase-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(phase.id) + '</span>' +
           '<span class="phase-name">[' + escapeHtmlClient(phase.title) + '] Phase</span>' +
           '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + phase.v2Substatus + '</span></span>' +
           assigneesHtml +
@@ -1714,9 +1739,10 @@ export function getV2DashboardScript() {
      * ActionアイテムのHTMLを生成
      */
     function renderActionItem(action, isLast) {
+      // V2.1: working が正式、active/paused は後方互換
       var statusIcons = {
-        active: '🔵', paused: '⏸️', checkpoint: '🔶', waiting: '⏳',
-        completed: '✅', archived: '📦', pending: '⏳'
+        working: '🔵', active: '🔵', assigned: '📋', pending: '⏳', paused: '⏸️',
+        checkpoint: '🔶', waiting: '⏳', completed: '✅', archived: '📦'
       };
       var maidIcons = {
         emma: '☕', sophia: '❄️', lily: '🎀', rose: '🌹',
@@ -1724,9 +1750,9 @@ export function getV2DashboardScript() {
       };
 
       var statusClass = action.v2Substatus === 'completed' ? 'completed' :
-                        action.v2Substatus === 'active' ? 'current' : '';
+                        action.v2Substatus === 'working' ? 'current' : '';
       var icon = isLast ? '└' : '├';
-      var statusBadge = action.v2Substatus === 'active' ? '<span class="current-marker">← 現在ここ</span>' : '';
+      var statusBadge = action.v2Substatus === 'working' ? '<span class="current-marker">← 現在ここ</span>' : '';
       var statusIcon = statusIcons[action.v2Substatus] || '⏳';
 
       // 担当者HTML
@@ -1744,9 +1770,21 @@ export function getV2DashboardScript() {
         assigneesHtml = '<span class="action-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
       }
 
+      // タスク詳細データ（JSON → Base64エンコード）
+      var taskInfoJson = JSON.stringify({
+        id: action.id,
+        title: action.title,
+        description: action.description || '',
+        status: action.v2Substatus,
+        assignees: (action.assignees || []).map(function(a) { return a.agentId; }).join(', ') || '担当なし',
+        updatedAt: action.updatedAt || ''
+      });
+      var taskInfoBase64 = btoa(unescape(encodeURIComponent(taskInfoJson)));
+
       return '<div class="action-item ' + statusClass + '">' +
         '<span class="action-icon">' + icon + '</span>' +
-        '<span class="action-name">#' + escapeHtmlClient(action.id) + ' ' + escapeHtmlClient(action.title) + '</span>' +
+        '<span class="action-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(action.id) + '</span>' +
+        '<span class="action-title"> ' + escapeHtmlClient(action.title) + '</span>' +
         '<span class="action-status ' + action.v2Substatus + '">' + statusIcon + '<span class="status-text"> ' + action.v2Substatus + '</span></span>' +
         assigneesHtml +
         statusBadge +
@@ -1764,6 +1802,103 @@ export function getV2DashboardScript() {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    }
+
+    /**
+     * タスク詳細ポップアップを表示
+     */
+    function showTaskDetailPopup(taskInfo) {
+      // 既存のオーバーレイを削除
+      var existing = document.querySelector('.task-detail-overlay');
+      if (existing) {
+        existing.remove();
+      }
+
+      // 更新日時のフォーマット
+      var updatedAtText = taskInfo.updatedAt ? new Date(taskInfo.updatedAt).toLocaleString('ja-JP') : '不明';
+
+      // オーバーレイとポップアップを作成
+      var overlay = document.createElement('div');
+      overlay.className = 'task-detail-overlay';
+      overlay.innerHTML =
+        '<div class="task-detail-popup">' +
+          '<div class="task-detail-header">' +
+            '<span class="task-detail-title">#' + escapeHtmlClient(taskInfo.id) + ' ' + escapeHtmlClient(taskInfo.title) + '</span>' +
+            '<button class="task-detail-close" title="閉じる">✕</button>' +
+          '</div>' +
+          '<div class="task-detail-body">' +
+            '<div class="task-detail-row">' +
+              '<div class="task-detail-label">説明</div>' +
+              '<div class="task-detail-value task-detail-description">' + (escapeHtmlClient(taskInfo.description) || '(なし)') + '</div>' +
+            '</div>' +
+            '<div class="task-detail-row">' +
+              '<div class="task-detail-label">ステータス</div>' +
+              '<div class="task-detail-value">' + escapeHtmlClient(taskInfo.status) + '</div>' +
+            '</div>' +
+            '<div class="task-detail-row">' +
+              '<div class="task-detail-label">担当者</div>' +
+              '<div class="task-detail-value">' + escapeHtmlClient(taskInfo.assignees) + '</div>' +
+            '</div>' +
+            '<div class="task-detail-row">' +
+              '<div class="task-detail-label">更新日時</div>' +
+              '<div class="task-detail-value">' + updatedAtText + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      // 閉じるボタンのイベント
+      overlay.querySelector('.task-detail-close').addEventListener('click', function() {
+        overlay.remove();
+      });
+
+      // オーバーレイ（ポップアップ外）クリックで閉じる
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.remove();
+        }
+      });
+
+      document.body.appendChild(overlay);
+    }
+
+    /**
+     * タスクID クリックイベントの初期化（イベント委任）
+     */
+    function initTaskIdClickHandler() {
+      var goalsContainer = document.getElementById('v2-goals-list');
+      if (!goalsContainer) {
+        console.log('[initTaskIdClickHandler] v2-goals-list not found');
+        return;
+      }
+      console.log('[initTaskIdClickHandler] Setting up click handler');
+
+      goalsContainer.addEventListener('click', function(e) {
+        var clickable = e.target.closest('.task-id-clickable');
+        if (!clickable) return;
+
+        console.log('[initTaskIdClickHandler] Task ID clicked:', clickable.textContent);
+
+        // イベント伝播を停止（アコーディオンとの干渉防止）
+        e.stopPropagation();
+        e.preventDefault();
+
+        // data-task-info からBase64エンコードされたJSON取得
+        var taskInfoBase64 = clickable.getAttribute('data-task-info');
+        if (!taskInfoBase64) {
+          console.error('[initTaskIdClickHandler] No data-task-info attribute');
+          return;
+        }
+
+        try {
+          // Base64デコード → JSON.parse
+          var taskInfoJson = decodeURIComponent(escape(atob(taskInfoBase64)));
+          var taskInfo = JSON.parse(taskInfoJson);
+          console.log('[initTaskIdClickHandler] Parsed task info:', taskInfo.id);
+          showTaskDetailPopup(taskInfo);
+        } catch (err) {
+          console.error('[initTaskIdClickHandler] Failed to parse task info:', err);
+        }
+      });
     }
 
     /**

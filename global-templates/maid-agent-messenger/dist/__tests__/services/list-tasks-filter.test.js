@@ -177,14 +177,14 @@ describe("executeListTasks - category + status 複合フィルタ", () => {
             expect(result.tasks[0].status).toBe("working");
         });
     });
-    describe("action_required カテゴリ（既に正しく実装済みの参考例）", () => {
+    describe("actionRequired フラグフィルタ（既に正しく実装済みの参考例）", () => {
         it("activeステータスでフィルタすると、completedが除外される", async () => {
             const ACTIVE_STATUSES = ["pending", "assigned", "working", "blocked"];
             const result = await executeListTasks(PROJECT_PATH, {
-                category: ["action_required"],
+                actionRequired: true,
                 status: [...ACTIVE_STATUSES],
             });
-            // テストデータにaction_requiredカテゴリのタスクはないので0件
+            // テストデータにactionRequired=trueのタスクはないので0件
             expect(result.tasks).toHaveLength(0);
         });
     });

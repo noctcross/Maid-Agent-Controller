@@ -165,8 +165,8 @@ maidctl task create --title "テスト作成" --type action --parent 310-1 --blo
 
 | サブステータス | 説明 | 使用場面 |
 |---------------|------|----------|
-| `active` | アクティブに作業中 | 通常の作業中 |
-| `paused` | 一時停止中 | 他タスク優先時 |
+| `working` | アクティブに作業中 | 通常の作業中 |
+| `pending` | 一時停止中 | 他タスク優先時 |
 | `checkpoint` | チェックポイント到達・確認待ち | メイド長の確認が必要な時 |
 | `waiting` | 依存タスク完了待ち | ブロッカー解消待ち |
 | `completed` | 完了 | タスク完了時 |
@@ -179,7 +179,7 @@ maidctl task create --title "テスト作成" --type action --parent 310-1 --blo
 maidctl my-status working
 
 # 作業開始（サブステータス指定）
-maidctl my-status working --substatus active
+maidctl my-status working --substatus working
 
 # チェックポイント到達（確認待ち）
 maidctl my-status blocked --substatus checkpoint --reason "設計確認待ち"
@@ -198,7 +198,7 @@ maidctl my-status completed
 | カテゴリ | 用途 | 絵文字 |
 |---------|------|--------|
 | `task` | 通常タスク（デフォルト） | - |
-| `action_required` | 要対応（ご主人様判断待ち） | 🚨 |
+| `action_required`（非推奨） | 要対応 → `--action-required` を使用 | 🚨 |
 | `skill_candidate` | スキル化候補 | 📚 |
 | `improvement` | 改善提案 | 💡 |
 

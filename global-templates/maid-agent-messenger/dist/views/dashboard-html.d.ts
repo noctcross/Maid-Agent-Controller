@@ -20,6 +20,7 @@ export interface DashboardData {
         createdAt: string;
         updatedAt?: string;
         category?: string;
+        actionRequired?: boolean;
     }>;
     working: Array<{
         id: string;
@@ -58,8 +59,8 @@ export interface DashboardData {
             agentId: string;
         }>;
         priority: string;
-        escalation?: boolean;
-        escalatedAt?: string | null;
+        actionRequired?: boolean;
+        actionRequiredAt?: string | null;
     }>;
     masterReview: Array<{
         id: string;
@@ -91,6 +92,7 @@ export interface DashboardData {
     v2ReviewQueue?: V2ReviewTask[];
     v2Artifacts?: V2Artifact[];
     v2Stats?: V2Stats;
+    dashboardVersion?: "v1" | "v2";
 }
 /**
  * ダッシュボードHTMLを生成

@@ -48,6 +48,7 @@ export interface DashboardData {
     createdAt: string;
     updatedAt?: string;
     category?: string;
+    actionRequired?: boolean;  // V2.1: 要対応フラグ
   }>;
   working: Array<{
     id: string;
@@ -80,8 +81,8 @@ export interface DashboardData {
     substatus: string | null;
     assignees: Array<{ agentId: string }>;
     priority: string;
-    escalation?: boolean;
-    escalatedAt?: string | null;
+    actionRequired?: boolean;  // V2.1: escalation → actionRequired
+    actionRequiredAt?: string | null;
   }>;
   masterReview: Array<{
     id: string;
@@ -106,6 +107,8 @@ export interface DashboardData {
   v2ReviewQueue?: V2ReviewTask[];
   v2Artifacts?: V2Artifact[];
   v2Stats?: V2Stats;
+  // V1/V2切り替え（デフォルト: v2）
+  dashboardVersion?: "v1" | "v2";
 }
 
 /**
@@ -133,6 +136,9 @@ export function generateDashboardHtml(
     teamStatus,
     stats,
   } = data;
+
+  // バージョン取得（デフォルト: v2）
+  const version = data.dashboardVersion || "v2";
 
   // ステータスアイコンマップ
   const statusIcon: Record<string, string> = {
@@ -188,14 +194,20 @@ export function generateDashboardHtml(
     .join("\n");
 
   // 待機中タスク（特殊カテゴリは専用セクションに表示するため除外）
+  // V2.1: action_required は actionRequired フラグに移行済み
+  // 後方互換: 旧カテゴリのデータも除外
   const SPECIAL_CATEGORIES = [
-    "action_required",
+    "action_required",  // 後方互換（V2.1では actionRequired フラグを使用）
     "skill_candidate",
     "improvement",
   ];
-  const filteredPending = pending.filter(
-    (task) => !task.category || !SPECIAL_CATEGORIES.includes(task.category)
-  );
+  const filteredPending = pending.filter((task) => {
+    // V2.1: actionRequired フラグがtrueのタスクを除外
+    if (task.actionRequired) return false;
+    // 後方互換: 旧カテゴリのタスクを除外
+    if (task.category && SPECIAL_CATEGORIES.includes(task.category)) return false;
+    return true;
+  });
 
   // HTML生成を task-html.ts に委譲（初回レンダリングとポーリング更新で同一出力を保証）
   const pendingHtml = generateTaskHtml(filteredPending, "pending", projectPath);
@@ -266,8 +278,32 @@ export function generateDashboardHtml(
     improvementsHtml,
   };
 
-  // V2.1セクションHTML（データがある場合のみ表示）
-  const v2SectionsHtml = (data.v2Goals || data.v2ReviewQueue || data.v2Artifacts || data.v2Stats)
+  // V1/V2表示切り替え
+  const showV1Sections = version === "v1";
+  const showV2Sections = version === "v2";
+
+  // バージョン切り替えリンク
+  const versionSwitchLink = version === "v1"
+    ? `<a href="/dashboard?project=${encodeURIComponent(projectPath)}&version=v2" class="version-switch-link">V2に切り替え</a>`
+    : `<a href="/dashboard?project=${encodeURIComponent(projectPath)}&version=v1" class="version-switch-link">V1に切り替え（レガシー）</a>`;
+
+  // V1ボディ（従来型表示）またはV2用ヘッダー
+  const bodyContent = showV1Sections
+    ? getDashboardBodyTemplate(templateParams)
+    : `
+<body>
+  <div class="header">
+    <div>
+      <h1>📋 Maid Agent Dashboard</h1>
+      <div class="project-path">${escapeHtml(projectPath)}</div>
+      ${versionSwitchLink}
+    </div>
+    <div class="timestamp">更新: ${timestamp}</div>
+  </div>
+  <div class="grid">`;
+
+  // V2.1セクションHTML（V2表示時かつデータがある場合のみ表示）
+  const v2SectionsHtml = showV2Sections && (data.v2Goals || data.v2ReviewQueue || data.v2Artifacts || data.v2Stats)
     ? `
     <!-- V2.1: Goal階層・レビューキュー・成果物セクション -->
     <div class="v2-sections" style="grid-column: 1 / -1; margin-top: 1rem;">
@@ -338,6 +374,14 @@ export function generateDashboardHtml(
     </div>`
     : "";
 
+  // V1モード用バージョン切り替えリンク（V2モードはヘッダー内に含まれる）
+  const v1VersionSwitchHtml = showV1Sections
+    ? `<div class="version-switch-container">${versionSwitchLink}</div>`
+    : "";
+
+  // V2モードのgrid閉じタグ（V1モードはgetDashboardBodyTemplateに含まれる）
+  const v2GridClose = showV2Sections ? `</div>` : "";
+
   // HTML構築（各モジュールに委譲）
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -351,8 +395,10 @@ ${getDashboardStyles()}
   </style>
 ${getDashboardHeadScript(scriptParams)}
 </head>
-${getDashboardBodyTemplate(templateParams)}
+${bodyContent}
+${v1VersionSwitchHtml}
 ${v2SectionsHtml}
+${v2GridClose}
 ${getReportOverlayHtml()}
 ${getDashboardMainScript(scriptParams)}
 ${getReportOverlayScript()}

@@ -29,6 +29,9 @@ export function createDashboardRoutes(deps) {
             // エディタスキームを取得（?editor=vscode|windsurf|cursor、設定ファイルのデフォルト値を使用）
             const config = await loadConfig();
             const editorScheme = req.query.editor || config.dashboard.editor;
+            // バージョンパラメータ（デフォルト: v2）
+            const versionParam = req.query.version;
+            const dashboardVersion = versionParam === "v1" ? "v1" : "v2";
             // 並列でデータを取得（Phase 1: 特殊カテゴリ・blocked追加, Phase 2: 本日完了追加）
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -39,8 +42,8 @@ export function createDashboardRoutes(deps) {
                 executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
                 executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
                 executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }), // 本日完了カウント用
-                executeListTasks(projectPath, { category: ["action_required"], status: ["pending", "assigned", "working", "blocked"] }),
-                executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
+                executeListTasks(projectPath, { actionRequired: true, status: ["pending", "assigned", "working", "blocked"] }),
+                executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),
@@ -54,7 +57,7 @@ export function createDashboardRoutes(deps) {
                 return completedDate >= today;
             }).length;
             // HTML生成
-            const SPECIAL_CATEGORIES = ["action_required", "skill_candidate", "improvement"];
+            const SPECIAL_CATEGORIES = ["skill_candidate", "improvement"];
             const html = generateDashboardHtml({
                 projectPath,
                 timestamp: getJstTimestamp(),
@@ -79,6 +82,8 @@ export function createDashboardRoutes(deps) {
                 v2ReviewQueue: v2Data.v2ReviewQueue,
                 v2Artifacts: v2Data.v2Artifacts,
                 v2Stats: v2Data.v2Stats,
+                // V1/V2切り替え
+                dashboardVersion,
             }, editorScheme);
             // アクセス記録（非同期、レスポンスをブロックしない）
             recordProjectAccess(projectPath).catch((err) => console.error("Failed to record project access:", err));
@@ -170,8 +175,8 @@ export function createDashboardRoutes(deps) {
                     sortOrder: "desc",
                 }),
                 executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }),
-                executeListTasks(projectPath, { category: ["action_required"], status: ACTIVE_STATUSES }),
-                executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
+                executeListTasks(projectPath, { actionRequired: true, status: ACTIVE_STATUSES }),
+                executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
                 executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
                 generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
@@ -182,9 +187,9 @@ export function createDashboardRoutes(deps) {
                 const completedDate = new Date(task.completedAt);
                 return completedDate >= today;
             }).length;
-            // 待機中から特殊カテゴリを除外
-            const specialCategories = ["action_required", "skill_candidate", "improvement"];
-            const filteredPendingTasks = pending.tasks.filter((t) => !t.category || !specialCategories.includes(t.category));
+            // 待機中から特殊カテゴリとactionRequiredを除外
+            const specialCategories = ["skill_candidate", "improvement"];
+            const filteredPendingTasks = pending.tasks.filter((t) => (!t.category || !specialCategories.includes(t.category)) && !t.actionRequired);
             // 完了セクションのHTML生成とハッシュ計算
             const completedHtml = generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme);
             const completedHash = createHash("md5").update(completedHtml).digest("hex").substring(0, 16);
@@ -260,8 +265,8 @@ export function createDashboardRoutes(deps) {
                         executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
                         executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
                         executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }),
-                        executeListTasks(projectPath, { category: ["action_required"], status: sseActiveStatuses }),
-                        executeListTasks(projectPath, { category: ["action_required"], status: ["completed"], reviewed: false }),
+                        executeListTasks(projectPath, { actionRequired: true, status: sseActiveStatuses }),
+                        executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
                         executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),
                         executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
                         generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
@@ -272,9 +277,9 @@ export function createDashboardRoutes(deps) {
                         const completedDate = new Date(task.completedAt);
                         return completedDate >= today;
                     }).length;
-                    // 待機中から特殊カテゴリを除外
-                    const sseSpecialCategories = ["action_required", "skill_candidate", "improvement"];
-                    const sseFilteredPending = pending.tasks.filter((t) => !t.category || !sseSpecialCategories.includes(t.category));
+                    // 待機中から特殊カテゴリとactionRequiredを除外
+                    const sseSpecialCategories = ["skill_candidate", "improvement"];
+                    const sseFilteredPending = pending.tasks.filter((t) => (!t.category || !sseSpecialCategories.includes(t.category)) && !t.actionRequired);
                     const stats = {
                         pendingCount: sseFilteredPending.length,
                         workingCount: working.total,

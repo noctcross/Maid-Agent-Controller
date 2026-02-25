@@ -18,12 +18,12 @@
 
 メイド長が `maidctl task create` を使用できるケース:
 
-| カテゴリ | 説明 | category |
+| カテゴリ | 説明 | オプション |
 |---------|------|----------|
-| 🚨 要対応 | ご主人様の判断が必要 | `action_required` |
-| 📚 スキル化候補 | メイドから集約した候補 | `skill_candidate` |
-| 💡 改善提案 | メイドから集約した提案 | `improvement` |
-| エスカレーション派生 | 相談で新規タスクが必要 | `task` |
+| 🚨 要対応 | ご主人様の判断が必要 | `--action-required` |
+| 📚 スキル化候補 | メイドから集約した候補 | `--category skill_candidate` |
+| 💡 改善提案 | メイドから集約した提案 | `--category improvement` |
+| エスカレーション派生 | 相談で新規タスクが必要 | `--category task` |
 
 ## 手順
 
@@ -36,7 +36,7 @@ maidctl task create \
   --title "API設計のアプローチについて判断が必要" \
   --description "詳細は current_emma.md を参照。REST vs GraphQL の選択。" \
   --priority high \
-  --category action_required
+  --action-required
 ```
 
 ### 📚 スキル化候補の作成
@@ -88,7 +88,7 @@ maidctl task create \
 メイドの完了報告を確認し、ご主人様の確認が必要と判断した場合:
 
 ```bash
-maidctl task update TASK_ID --category action_required
+maidctl task update TASK_ID --action-required
 # ※ status は completed のまま
 # → ダッシュボードの「⚠️ 対応待ち → 確認待ち」に表示
 ```
@@ -110,10 +110,10 @@ maidctl task create \
   --title "API設計: REST vs GraphQL の選択" \
   --description "エマの設計タスク(#077)がブロック中。current_emma.md に比較表あり。判断をお願いします。" \
   --priority high \
-  --category action_required
+  --action-required
 
-# 元タスクもaction_requiredに更新
-maidctl task update 077 --category action_required --substatus "ご主人様判断待ち"
+# 元タスクも要対応に更新
+maidctl task update 077 --action-required --substatus "ご主人様判断待ち"
 ```
 
 ### 改善提案の集約

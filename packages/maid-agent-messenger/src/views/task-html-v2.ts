@@ -17,26 +17,31 @@ import { formatDateJstShort, formatRelativeTime } from "../utils/yaml-helper.js"
 export interface V2Action {
   id: string;
   title: string;
+  description?: string;
   type: "action";
   mainStatus: string;
   v2Substatus: string;
   assignees?: Array<{ agentId: string }>;
+  updatedAt?: string;
 }
 
 export interface V2Phase {
   id: string;
   title: string;
+  description?: string;
   type: "phase";
   mainStatus: string;
   v2Substatus: string;
   reviewStatus?: string;
   assignees?: Array<{ agentId: string }>;
   actions: V2Action[];
+  updatedAt?: string;
 }
 
 export interface V2Goal {
   id: string;
   title: string;
+  description?: string;
   type: "goal";
   mainStatus: string;
   v2Substatus: string;
@@ -84,23 +89,23 @@ export interface V2Stats {
 // === ステータスアイコン・クラス ===
 
 const STATUS_ICONS: Record<string, string> = {
-  active: "🔵",
-  paused: "⏸️",
+  pending: "⏸️",
+  assigned: "📋",
+  working: "🔵",
   checkpoint: "🔶",
   waiting: "⏳",
   completed: "✅",
   archived: "📦",
-  pending: "⏳",
 };
 
 const STATUS_CLASSES: Record<string, string> = {
-  active: "status-active",
-  paused: "status-paused",
+  pending: "status-pending",
+  assigned: "status-assigned",
+  working: "status-working",
   checkpoint: "status-checkpoint",
   waiting: "status-waiting",
   completed: "status-completed",
   archived: "status-archived",
-  pending: "status-pending",
 };
 
 // メイドアイコンマッピング（settings.yaml より）
@@ -239,7 +244,7 @@ function generatePhaseItemHtml(phase: V2Phase, projectPath: string): string {
       </div>`
     : "";
 
-  return `<div class="phase-item ${phase.v2Substatus === "active" ? "highlight" : ""}" data-id="${escapeHtml(phase.id)}">
+  return `<div class="phase-item ${phase.v2Substatus === "working" ? "highlight" : ""}" data-id="${escapeHtml(phase.id)}">
     <div class="phase-header">
       <span class="phase-id">#${escapeHtml(phase.id)}</span>
       <span class="phase-name">[${escapeHtml(phase.title)}] Phase</span>
@@ -257,9 +262,9 @@ function generatePhaseItemHtml(phase: V2Phase, projectPath: string): string {
  */
 function generateActionItemHtml(action: V2Action, isLast: boolean): string {
   const statusClass = action.v2Substatus === "completed" ? "completed" :
-                      action.v2Substatus === "active" ? "current" : "";
+                      action.v2Substatus === "working" ? "current" : "";
   const icon = isLast ? "└" : "├";
-  const statusBadge = action.v2Substatus === "active"
+  const statusBadge = action.v2Substatus === "working"
     ? '<span class="current-marker">← 現在ここ</span>'
     : "";
   const statusIcon = STATUS_ICONS[action.v2Substatus] || "⏳";

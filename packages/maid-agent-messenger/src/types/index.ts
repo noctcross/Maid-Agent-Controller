@@ -138,10 +138,9 @@ export const MAID_UPDATABLE_SUBSTATUSES = [
 
 export type MaidUpdatableSubstatus = (typeof MAID_UPDATABLE_SUBSTATUSES)[number];
 
-// タスクカテゴリ
+// タスクカテゴリ（V2.1: action_required は actionRequired に統合）
 export const TASK_CATEGORIES = [
   "task",              // 通常タスク（デフォルト）
-  "action_required",   // 🚨 要対応
   "skill_candidate",   // 📚 スキル化候補
   "improvement",       // 💡 改善提案
 ] as const;
@@ -169,7 +168,7 @@ export interface TaskV2 {
   // === V2.1: タスク種別・状態 ===
   type: TaskType;                   // goal/phase/action/investigation
   status: TaskMainStatus;           // open/closed
-  substatus: TaskSubstatus;         // active/paused/checkpoint/waiting/completed/archived
+  substatus: TaskSubstatus;         // pending/assigned/working/checkpoint/waiting/completed/archived
 
   // === V2.1: Goal専用フィールド ===
   size?: GoalSize;                  // simple/standard/complex（Goal only）

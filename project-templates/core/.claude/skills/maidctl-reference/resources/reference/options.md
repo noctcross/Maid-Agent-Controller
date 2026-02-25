@@ -32,7 +32,7 @@ maidctl の各コマンドで使用できるオプションの詳細リファレ
 | `--status STATUS` | `-s` | ステータスフィルタ | `--status pending` |
 | `--assignee NAME` | | 担当者フィルタ | `--assignee emma` |
 | `--parent ID` | | 親タスクIDフィルタ | `--parent 077` |
-| `--category CAT` | `-c` | カテゴリフィルタ | `--category action_required` |
+| `--category CAT` | `-c` | カテゴリフィルタ | `--category skill_candidate` |
 | `--limit N` | `-l` | 取得件数上限 | `--limit 10` |
 | `--summary` | `-m` | 軽量版 | - |
 | `--json` | | JSON出力 | - |
@@ -57,7 +57,8 @@ maidctl の各コマンドで使用できるオプションの詳細リファレ
 | `--description TEXT` | `-d` | タスク詳細 | - |
 | `--parent ID` | | 親タスクID（サブタスク作成時） | - |
 | `--priority LEVEL` | `-p` | 優先度（high/medium/low） | - |
-| `--category CAT` | `-c` | カテゴリ（task/action_required/skill_candidate/improvement） | - |
+| `--category CAT` | `-c` | カテゴリ（task/skill_candidate/improvement） | - |
+| `--action-required` | | 要対応フラグ | - |
 
 ### V2.1 追加オプション
 
@@ -113,7 +114,7 @@ maidctl の各コマンドで使用できるオプションの詳細リファレ
 
 | オプション | 説明 | 備考 |
 |-----------|------|------|
-| `--substatus SUB` | サブステータス（active/paused/checkpoint/waiting/completed） | - |
+| `--substatus SUB` | サブステータス（working/pending/checkpoint/waiting/completed） | - |
 | `--blocked-by IDS` | 依存先タスクID（カンマ区切り） | waiting時 |
 | `--reason TEXT` | 状態変更理由 | checkpoint/waiting時 |
 

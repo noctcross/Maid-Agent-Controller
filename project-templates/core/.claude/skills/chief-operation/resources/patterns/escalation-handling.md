@@ -29,7 +29,7 @@
 | 複数メイドの協議が必要 | 順番に意見収集タスクを割り振り |
 | 技術的判断が必要（escalation: true） | ご主人様判断待ちに設定 |
 | 作業方針の決定が必要（escalation: true） | ご主人様判断待ちに設定 |
-| 完了タスクの確認が必要 | action_required（status: completedのまま） |
+| 完了タスクの確認が必要 | `--action-required`（status: completedのまま） |
 
 ## 手順
 
@@ -54,7 +54,7 @@ tasks.yaml の `escalation: true` を確認（主要シグナル）
 ```bash
 # 1. 報告書のescalationセクションで詳細確認
 # 2. ご主人様判断待ちに設定
-maidctl task update TASK_ID --category action_required --substatus "ご主人様判断待ち"
+maidctl task update TASK_ID --action-required --substatus "ご主人様判断待ち"
 
 # ※ status: blocked は maidctl my-status で自動同期済み
 # ※ ダッシュボードの「⚠️ 対応待ち → アクティブ」に表示
@@ -70,7 +70,7 @@ maidctl task update TASK_ID --category action_required --substatus "ご主人様
 maidctl notify {メイド} "解消しました。再開してください。"
 
 # 解決不可の場合 → フロー1に移行
-maidctl task update TASK_ID --category action_required --substatus "ご主人様判断待ち"
+maidctl task update TASK_ID --action-required --substatus "ご主人様判断待ち"
 ```
 
 ### フロー3: 他メイドへの相談
@@ -95,8 +95,8 @@ maidctl notify sophia "エマさんからの相談依頼があります"
 maidctl notify {メイド} "判断結果: {内容}"
 
 # 2. エスカレーション解除
-maidctl task update TASK_ID --category task --substatus ""
-# ※ action_required → task に戻す
+maidctl task update TASK_ID --no-action-required --substatus ""
+# ※ 要対応フラグを解除
 ```
 
 ## 完了タスクの確認待ち設定（フロー2）
@@ -104,7 +104,7 @@ maidctl task update TASK_ID --category task --substatus ""
 メイドの完了報告を確認し、ご主人様の確認が必要と判断した場合:
 
 ```bash
-maidctl task update TASK_ID --category action_required
+maidctl task update TASK_ID --action-required
 # ※ status は completed のまま
 # → ダッシュボードの「⚠️ 対応待ち → 確認待ち」に表示
 ```
@@ -124,14 +124,14 @@ maidctl task update TASK_ID --category action_required
 # 報告書: 「REST vs GraphQL どちらを採用すべきか判断が必要」
 
 # ご主人様判断待ちに設定
-maidctl task update 077 --category action_required \
+maidctl task update 077 --action-required \
   --substatus "REST/GraphQL選択判断待ち"
 
 # → ご主人様の判断を待つ
 
 # 判断後
 maidctl notify emma "REST APIを採用します。再開してください。"
-maidctl task update 077 --category task --substatus ""
+maidctl task update 077 --no-action-required --substatus ""
 ```
 
 ### 他メイドへの相談で解決するケース

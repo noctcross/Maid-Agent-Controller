@@ -11,16 +11,19 @@
 export interface V2Action {
     id: string;
     title: string;
+    description?: string;
     type: "action";
     mainStatus: string;
     v2Substatus: string;
     assignees?: Array<{
         agentId: string;
     }>;
+    updatedAt?: string;
 }
 export interface V2Phase {
     id: string;
     title: string;
+    description?: string;
     type: "phase";
     mainStatus: string;
     v2Substatus: string;
@@ -29,10 +32,12 @@ export interface V2Phase {
         agentId: string;
     }>;
     actions: V2Action[];
+    updatedAt?: string;
 }
 export interface V2Goal {
     id: string;
     title: string;
+    description?: string;
     type: "goal";
     mainStatus: string;
     v2Substatus: string;

@@ -7,9 +7,14 @@
 export type TaskStatus = "pending" | "assigned" | "working" | "completed" | "blocked" | "cancelled";
 export type TaskType = "goal" | "phase" | "action" | "investigation";
 export type TaskMainStatus = "open" | "closed" | "cancelled";
-export type TaskSubstatus = "active" | "paused" | "checkpoint" | "waiting" | "completed" | "archived";
+export type TaskSubstatus = "pending" | "assigned" | "working" | "checkpoint" | "waiting" | "completed" | "archived";
 export type GoalSize = "simple" | "standard" | "complex";
 export type ReviewStatus = "pending" | "in_review" | "approved" | "rejected";
+export type OperatorRole = "maid" | "chief" | "butler" | "master";
+export interface StatusTransitionValidation {
+    valid: boolean;
+    error?: string;
+}
 export type RetentionLevel = "L1" | "L2" | "L3";
 export interface TaskArtifact {
     type: string;
@@ -22,7 +27,7 @@ export interface Assignee {
     role: string | null;
     subTaskId: string | null;
 }
-export type TaskCategory = "task" | "action_required" | "skill_candidate" | "improvement";
+export type TaskCategory = "task" | "skill_candidate" | "improvement";
 export interface Task {
     id: string;
     parentId: string | null;
@@ -45,8 +50,8 @@ export interface Task {
     starred?: boolean;
     reviewedAt?: string | null;
     starredAt?: string | null;
-    escalation?: boolean;
-    escalatedAt?: string | null;
+    actionRequired?: boolean;
+    actionRequiredAt?: string | null;
     type?: TaskType;
     mainStatus?: TaskMainStatus;
     v2Substatus?: TaskSubstatus;
@@ -116,6 +121,7 @@ export interface ListTasksParams {
     category?: TaskCategory[];
     reviewed?: boolean;
     starred?: boolean;
+    actionRequired?: boolean;
     search?: string;
     limit?: number;
     offset?: number;
@@ -147,8 +153,10 @@ export interface UpdateTaskParams {
     reportPath?: string;
     reviewed?: boolean;
     starred?: boolean;
-    escalation?: boolean;
+    actionRequired?: boolean;
+    title?: string;
     description?: string;
+    priority?: "high" | "medium" | "low";
     targetPath?: string;
     agentId?: string;
     mainStatus?: TaskMainStatus;
@@ -200,14 +208,14 @@ export interface DependencyResolutionResult {
     }>;
 }
 /**
- * タスク完了時に依存しているタスクを自動的に waiting → active に更新
+ * タスク完了時に依存しているタスクを自動的に waiting → assigned に更新
  *
  * V2.1 設計書より:
  * 1. タスクA完了: maidctl my-status completed
  * 2. システムが blockedBy を検索
  * 3. タスクBが blockedBy: ["A"] を持つ場合
  *    → タスクBの担当者に自動通知
- *    → タスクBの substatus を waiting → active に更新
+ *    → タスクBの substatus を waiting → assigned に更新
  */
 export declare function resolveBlockedTasks(projectPath: string, completedTaskId: string): Promise<DependencyResolutionResult>;
 /**
@@ -215,6 +223,22 @@ export declare function resolveBlockedTasks(projectPath: string, completedTaskId
  * type が未設定の場合、parentId の有無で推定
  */
 export declare function inferTaskType(task: Task): TaskType;
+/**
+ * V2.1: ステータス遷移バリデーション
+ *
+ * 不正な遷移を検出し、許可/拒否を判定する。
+ * 設計書: docs/Maid-Agent-Controller/設計書/02_メッセンジャーサーバ/ダッシュボード/ステータス遷移設計.md
+ *
+ * @param currentStatus - 現在のステータス（v2Substatus）
+ * @param newStatus - 遷移先のステータス
+ * @param operatorRole - 操作者の役割
+ * @returns バリデーション結果
+ */
+export declare function validateStatusTransition(currentStatus: TaskSubstatus | string, newStatus: TaskSubstatus, operatorRole: OperatorRole): StatusTransitionValidation;
+/**
+ * エージェントIDから役割を取得
+ */
+export declare function getAgentRole(agentId: string): OperatorRole;
 /**
  * V2.1: ステータス変換（旧 → 新）
  */
@@ -245,7 +269,8 @@ export declare function computeGoalDisplayStatus(goalSubstatus: string, phases: 
  * 条件:
  * - 全Phaseが completed
  * - レビューPhaseが存在する場合は approved
- * - 除外カテゴリなし (skill_candidate, improvement, action_required)
+ * - 除外カテゴリなし (skill_candidate, improvement)
+ * - actionRequired フラグ付きタスクは別途管理
  */
 export declare function checkGoalAutoClose(projectPath: string, goalId: string): Promise<{
     canAutoClose: boolean;
@@ -264,16 +289,19 @@ export interface V2DashboardData {
 export interface V2ActionData {
     id: string;
     title: string;
+    description?: string;
     type: "action";
     mainStatus: string;
     v2Substatus: string;
     assignees?: Array<{
         agentId: string;
     }>;
+    updatedAt?: string;
 }
 export interface V2PhaseData {
     id: string;
     title: string;
+    description?: string;
     type: "phase";
     mainStatus: string;
     v2Substatus: string;
@@ -282,10 +310,12 @@ export interface V2PhaseData {
         agentId: string;
     }>;
     actions: V2ActionData[];
+    updatedAt?: string;
 }
 export interface V2GoalData {
     id: string;
     title: string;
+    description?: string;
     type: "goal";
     mainStatus: string;
     v2Substatus: string;
@@ -299,6 +329,7 @@ export interface V2GoalData {
     displayIcon?: string;
     archived?: boolean;
     updatedAt?: string;
+    latestUpdatedAt?: string;
 }
 export interface V2ReviewTaskData {
     id: string;

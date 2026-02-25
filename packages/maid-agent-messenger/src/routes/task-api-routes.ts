@@ -110,9 +110,12 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
     const {
       // 既存フィールド
       status, substatus, summary, reportPath,
+      title, description, priority,
       // V2.1 拡張フィールド
       mainStatus, v2Substatus, type, size, tentative,
       blockedBy, artifacts, artifactAdd, reviewStatus,
+      // V2.1 追加フィールド
+      archived, actionRequired, starred,
     } = req.body;
 
     const result = await executeUpdateTask(projectPath, {
@@ -120,6 +123,9 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       status,
       substatus,
       summary,
+      title,
+      description,
+      priority,
       reportPath,
       // V2.1 拡張
       mainStatus,
@@ -131,6 +137,10 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       artifacts,
       artifactAdd,
       reviewStatus,
+      // V2.1 追加
+      archived,
+      actionRequired,
+      starred,
     });
 
     if (!result.success) {

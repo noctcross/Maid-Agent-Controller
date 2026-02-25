@@ -90,10 +90,9 @@ export const MAID_UPDATABLE_SUBSTATUSES = [
     "checkpoint",
     "completed",
 ];
-// タスクカテゴリ
+// タスクカテゴリ（V2.1: action_required は actionRequired に統合）
 export const TASK_CATEGORIES = [
     "task", // 通常タスク（デフォルト）
-    "action_required", // 🚨 要対応
     "skill_candidate", // 📚 スキル化候補
     "improvement", // 💡 改善提案
 ];

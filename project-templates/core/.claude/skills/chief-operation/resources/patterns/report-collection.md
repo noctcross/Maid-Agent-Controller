@@ -104,7 +104,7 @@ maidctl task update 123 --status completed --summary "サブタスク完了に�
 
 - 執事への通知は禁止（CF002）。タスク状態を更新して待機
 - スキル候補・改善提案は必ず確認（見落とし防止）
-- 確認待ちの場合は `--category action_required` を設定
+- 確認待ちの場合は `--action-required` を設定
 
 ## 事例
 

@@ -15,7 +15,7 @@ export interface UpdateStatusParams {
     agentId: string;
     status: UpdatableStatus;
     summary?: string;
-    escalation?: boolean;
+    actionRequired?: boolean;
 }
 /**
  * ステータスを更新

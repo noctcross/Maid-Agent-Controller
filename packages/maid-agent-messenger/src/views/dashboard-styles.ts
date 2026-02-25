@@ -170,6 +170,105 @@ export function getV2DashboardStyles(): string {
       color: #fff;
     }
 
+    /* V2.1 タスク詳細ポップアップ */
+    .task-detail-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    .task-detail-popup {
+      background: var(--v2-bg-card, #2d2d2d);
+      border: 1px solid var(--border-color, #555);
+      border-radius: 8px;
+      max-width: 500px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .task-detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color, #555);
+      background: var(--v2-bg-header, #252525);
+    }
+
+    .task-detail-title {
+      font-weight: bold;
+      font-size: 1rem;
+      color: var(--v2-text-primary, #fff);
+    }
+
+    .task-detail-close {
+      background: none;
+      border: none;
+      color: var(--v2-text-secondary, #aaa);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      line-height: 1;
+    }
+
+    .task-detail-close:hover {
+      color: var(--v2-text-primary, #fff);
+    }
+
+    .task-detail-body {
+      padding: 16px;
+    }
+
+    .task-detail-row {
+      margin-bottom: 12px;
+    }
+
+    .task-detail-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .task-detail-label {
+      font-size: 0.75rem;
+      color: var(--v2-text-secondary, #aaa);
+      margin-bottom: 4px;
+    }
+
+    .task-detail-value {
+      font-size: 0.9rem;
+      color: var(--v2-text-primary, #fff);
+      line-height: 1.4;
+    }
+
+    .task-detail-description {
+      background: var(--v2-bg-content, #1e1e1e);
+      padding: 8px 12px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* クリック可能なタスクID */
+    .task-id-clickable {
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+      text-underline-offset: 2px;
+    }
+
+    .task-id-clickable:hover {
+      color: var(--v2-accent-blue, #4a9eff);
+    }
+
     /* V2.1 Goal Tree */
     .goal-tree-container {
       /* コンテンツに合わせて自然に伸びる（高さ制限撤廃） */
@@ -1121,6 +1220,9 @@ export function getDashboardStyles(): string {
     .header h1 { font-size: 1.2rem; }
     .header .timestamp { color: var(--text-muted); font-size: 0.8rem; }
     .project-path { color: var(--text-muted); font-size: 0.7rem; margin-top: 3px; }
+    .version-switch-link { color: #7fdbff; font-size: 0.75rem; margin-left: 8px; text-decoration: none; }
+    .version-switch-link:hover { text-decoration: underline; }
+    .version-switch-container { position: absolute; top: 60px; right: 20px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
     @media (max-width: 500px) { .grid { grid-template-columns: 1fr; gap: 6px; } }
     ${getCardStyles()}

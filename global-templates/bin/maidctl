@@ -20,8 +20,8 @@ VALID_STATUSES="working completed blocked"
 # V2.1: 有効なタスク種別
 VALID_TASK_TYPES="goal phase action investigation"
 
-# V2.1: 有効なサブステータス
-VALID_V2_SUBSTATUSES="active paused checkpoint waiting completed archived"
+# V2.1: 有効なサブステータス（active/paused は後方互換）
+VALID_V2_SUBSTATUSES="pending assigned working waiting checkpoint completed archived"
 
 # V2.1: 有効なGoalサイズ
 VALID_GOAL_SIZES="simple standard complex"
@@ -539,6 +539,14 @@ cmd_task_update() {
   local status=""
   local substatus=""
   local summary=""
+  local title=""
+  local description=""
+  local priority=""
+  local blocked_by=""
+  local archived=""
+  local review_status=""
+  local action_required=""
+  local starred=""
   local json_output=false
 
   while [[ $# -gt 0 ]]; do
@@ -546,6 +554,16 @@ cmd_task_update() {
       --status|-s) status="$2"; shift 2 ;;
       --substatus) substatus="$2"; shift 2 ;;
       --summary) summary="$2"; shift 2 ;;
+      --title) title="$2"; shift 2 ;;
+      --description) description="$2"; shift 2 ;;
+      --priority) priority="$2"; shift 2 ;;
+      --blocked-by) blocked_by="$2"; shift 2 ;;
+      --archived) archived="true"; shift ;;
+      --review-status) review_status="$2"; shift 2 ;;
+      --action-required) action_required="true"; shift ;;
+      --no-action-required) action_required="false"; shift ;;
+      --starred) starred="true"; shift ;;
+      --no-starred) starred="false"; shift ;;
       --json) json_output=true; shift ;;
       --help|-h)
         echo "使用法: maidctl task update <task-id> [オプション]"
@@ -554,6 +572,16 @@ cmd_task_update() {
         echo "  --status, -s STATUS  ステータス"
         echo "  --substatus SUB      サブステータス"
         echo "  --summary TEXT       サマリ"
+        echo "  --title TEXT         タイトル変更"
+        echo "  --description TEXT   説明変更"
+        echo "  --priority PRIORITY  優先度 (high/medium/low)"
+        echo "  --blocked-by IDS     依存先タスクID (カンマ区切り)"
+        echo "  --archived           アーカイブフラグ設定"
+        echo "  --review-status ST   レビュー状態 (none/pending/in_review/approved/rejected)"
+        echo "  --action-required    ご主人様対応必要フラグ"
+        echo "  --no-action-required フラグ解除"
+        echo "  --starred            スター付き"
+        echo "  --no-starred         スター解除"
         echo "  --json               JSON出力"
         return 0
         ;;
@@ -575,6 +603,20 @@ cmd_task_update() {
     exit $EXIT_INVALID_ARGS
   fi
 
+  # バリデーション: 優先度
+  if [ -n "$priority" ] && ! echo "high medium low" | grep -qw "$priority"; then
+    echo "エラー: 無効な優先度: $priority" >&2
+    echo "有効な優先度: high, medium, low" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # バリデーション: レビュー状態
+  if [ -n "$review_status" ] && ! echo "none pending in_review approved rejected" | grep -qw "$review_status"; then
+    echo "エラー: 無効なレビュー状態: $review_status" >&2
+    echo "有効なレビュー状態: none, pending, in_review, approved, rejected" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
   # JSONデータを構築（特殊文字をエスケープ）
   local data="{"
   local first=true
@@ -593,6 +635,54 @@ cmd_task_update() {
     escaped_summary=$(json_escape "$summary")
     [ "$first" = false ] && data="${data}, "
     data="${data}\"summary\": \"$escaped_summary\""
+    first=false
+  fi
+  if [ -n "$title" ]; then
+    local escaped_title
+    escaped_title=$(json_escape "$title")
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"title\": \"$escaped_title\""
+    first=false
+  fi
+  if [ -n "$description" ]; then
+    local escaped_description
+    escaped_description=$(json_escape "$description")
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"description\": \"$escaped_description\""
+    first=false
+  fi
+  if [ -n "$priority" ]; then
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"priority\": \"$priority\""
+    first=false
+  fi
+  if [ -n "$blocked_by" ]; then
+    # カンマ区切りを JSON 配列に変換
+    local blocked_by_json
+    blocked_by_json=$(echo "$blocked_by" | tr ',' '\n' | jq -R . | jq -s .)
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"blockedBy\": $blocked_by_json"
+    first=false
+  fi
+  if [ "$archived" = "true" ]; then
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"archived\": true"
+    first=false
+  fi
+  if [ -n "$review_status" ]; then
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"reviewStatus\": \"$review_status\""
+    first=false
+  fi
+  if [ -n "$action_required" ]; then
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"actionRequired\": $action_required"
+    first=false
+  fi
+  if [ -n "$starred" ]; then
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"starred\": $starred"
+    first=false
   fi
   data="${data}}"
 

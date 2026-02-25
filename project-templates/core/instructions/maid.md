@@ -16,8 +16,18 @@
 | コマンド | 用途 |
 |----------|------|
 | `maidctl my-task` | 自分のタスク情報を取得 |
-| `maidctl my-status STATUS` | ステータスを更新（working/completed/blocked） |
+| `maidctl my-status STATUS` | ステータスを更新 |
+| `maidctl my-report init` | 報告書テンプレート生成 |
 | `maidctl notify chief "MSG"` | メイド長への報告通知 |
+
+**STATUS値（V2.1）**:
+| 値 | 用途 |
+|----|------|
+| `working` | 作業中 |
+| `completed` | 完了 |
+| `blocked` | ブロック（V2.1では --substatus で詳細指定） |
+| `blocked --substatus checkpoint` | ご主人様/上位者の判断待ち |
+| `blocked --substatus waiting` | 他タスク完了待ち（依存解消で自動通知） |
 
 **報告ファイル**: `.maid-agent/system/data/reports/current_{{AGENT_ID}}.md`
 
@@ -25,6 +35,7 @@
 
 > ⚠️ 詳細手順: `/skill maid-operation`
 > ⚠️ CLI詳細: `/skill maidctl-reference`
+> ⚠️ checkpoint vs waiting: `patterns/checkpoint-vs-waiting.md`
 
 ---
 
@@ -79,16 +90,27 @@
 7. 停止（次の指示を待つ）
 ```
 
-### ブロック時
+### ブロック時（V2.1: checkpoint / waiting を使い分け）
 
-外部要因で作業を進められない場合:
+外部要因で作業を進められない場合、ブロックの種類によって使い分け:
 
+#### checkpoint（ご主人様/上位者の判断待ち）
 ```
 1. 報告ファイルの「問題・注意点」に詳細を記載
-2. maidctl my-status blocked --summary "ブロック理由" でブロック報告
-   - ご主人様判断が必要な場合は --escalation オプション追加
-3. maidctl notify chief "ブロックされました" で通知
+2. maidctl my-status blocked --substatus checkpoint --reason "判断待ち内容" で状態更新
+3. maidctl notify chief "ご判断をお待ちしております" で通知
+4. 停止（上位者の回答を待つ）
 ```
+
+#### waiting（他タスクの完了待ち）
+```
+1. 報告ファイルに依存関係を記載
+2. maidctl my-status blocked --substatus waiting --blocked-by TASK_ID で状態更新
+3. maidctl notify chief "依存タスク完了待ちです" で通知
+4. 停止（依存解消時に自動通知を受ける）
+```
+
+**使い分けの判断基準**: 詳細は `patterns/checkpoint-vs-waiting.md` を参照
 
 ## メイド長への通知
 
@@ -111,16 +133,21 @@ maidctl notify chief "問題が発生いたしました。"
 - ライセンス・著作権に関する判断
 - 他メイドへの相談依頼
 
-## 報告形式
+## 報告形式（V2.1）
 
 ```markdown
 # 作業報告 - {{MAID_NAME}}
 
 ## タスク情報
+<!-- 自動生成: 編集禁止 -->
 - task_id: {タスクID}
 - title: {タスク名}
-- status: completed / blocked
-- completed_at: {date -Iseconds で取得}
+- description: {タスク説明}
+- parent_id: {親タスクID}
+- type: {goal/phase/action/investigation}
+<!-- /自動生成 -->
+- mainStatus: open / closed
+- v2Substatus: pending / assigned / working / checkpoint / waiting / completed
 
 ## 作業内容
 {実行した作業の説明}
@@ -135,6 +162,11 @@ maidctl notify chief "問題が発生いたしました。"
 escalation:
   required: false
 
+## 切り出し確認
+extraction_check:
+  required: false
+  extracted_to: ""
+
 ## スキル化候補
 skill_candidate:
   found: false
@@ -142,9 +174,17 @@ skill_candidate:
 ## 改善提案
 improvement_proposal:
   found: false
+
+## Investigation 昇格推奨
+promotion:
+  recommended: false
+  # recommended: true の場合は以下を記載
+  # path: "docs/research/xxx.md"
+  # reason: "昇格推奨理由"
 ```
 
-詳細テンプレートは `/skill maid-operation` を参照。
+**テンプレート自動生成**: `maidctl my-report init`
+詳細テンプレートは `/skill maid-operation` の `patterns/report-format.md` を参照。
 
 ## スキル化候補・改善提案
 

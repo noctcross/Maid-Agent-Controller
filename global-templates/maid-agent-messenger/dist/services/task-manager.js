@@ -34,7 +34,7 @@ function parseTasksData(content) {
                     task.completedAt,
                     task.starredAt,
                     task.reviewedAt,
-                    task.escalatedAt,
+                    task.actionRequiredAt,
                     task.startedAt,
                     task.assignedAt,
                     task.createdAt,
@@ -123,9 +123,9 @@ export async function executeCreateTask(projectPath, params) {
         const taskType = params.type || "action";
         // V2.1: 初期ステータスの設定
         // - blockedBy があれば waiting
-        // - それ以外は active
+        // - それ以外は pending（未着手）
         const hasBlockers = params.blockedBy && params.blockedBy.length > 0;
-        const initialV2Substatus = hasBlockers ? "waiting" : "active";
+        const initialV2Substatus = hasBlockers ? "waiting" : "pending";
         const newTask = {
             id: taskId,
             parentId: params.parentId || null,
@@ -232,6 +232,9 @@ export async function executeListTasks(projectPath, params = {}) {
     if (params.starred !== undefined) {
         tasks = tasks.filter((t) => params.starred ? t.starred === true : !t.starred);
     }
+    if (params.actionRequired !== undefined) {
+        tasks = tasks.filter((t) => params.actionRequired ? t.actionRequired === true : !t.actionRequired);
+    }
     // テキスト検索（id, title, description を部分一致検索）
     if (params.search) {
         const searchLower = params.search.toLowerCase();
@@ -319,8 +322,14 @@ export async function executeUpdateTask(projectPath, params) {
                 task.assignedAt = now;
             }
         }
+        if (params.title !== undefined) {
+            task.title = params.title;
+        }
         if (params.description !== undefined) {
             task.description = params.description;
+        }
+        if (params.priority !== undefined) {
+            task.priority = params.priority;
         }
         if (params.targetPath !== undefined) {
             task.targetPath = params.targetPath;
@@ -347,9 +356,9 @@ export async function executeUpdateTask(projectPath, params) {
             task.starred = params.starred;
             task.starredAt = params.starred ? now : null;
         }
-        if (params.escalation !== undefined) {
-            task.escalation = params.escalation;
-            task.escalatedAt = params.escalation ? now : null;
+        if (params.actionRequired !== undefined) {
+            task.actionRequired = params.actionRequired;
+            task.actionRequiredAt = params.actionRequired ? now : null;
         }
         // === V2.1 フィールドの更新 ===
         if (params.mainStatus !== undefined) {
@@ -359,32 +368,57 @@ export async function executeUpdateTask(projectPath, params) {
                 task.completedAt = now;
             }
         }
+        // V2.1: ステータス遷移バリデーション
         if (params.v2Substatus !== undefined) {
-            task.v2Substatus = params.v2Substatus;
-            // V2.1 substatus が設定されたら、後方互換の status/substatus も更新
-            task.substatus = params.v2Substatus;
-            // V2.1 → 旧ステータス変換
-            if (params.v2Substatus === "completed" || params.v2Substatus === "archived") {
-                task.status = "completed";
-                task.mainStatus = "closed";
-                if (!task.completedAt) {
-                    task.completedAt = now;
+            const currentSubstatus = (task.v2Substatus || task.substatus || "pending");
+            const operatorRole = params.agentId ? getAgentRole(params.agentId) : "maid";
+            const validation = validateStatusTransition(currentSubstatus, params.v2Substatus, operatorRole);
+            if (!validation.valid) {
+                // 不正遷移: WARNログを出力
+                console.warn(`[WARN] Invalid status transition attempted`, {
+                    taskId: task.id,
+                    currentStatus: currentSubstatus,
+                    attemptedStatus: params.v2Substatus,
+                    operator: params.agentId || "unknown",
+                    operatorRole,
+                    timestamp: now,
+                    error: validation.error,
+                });
+                // 不正遷移は無視し、ステータスは変更しない
+                // ただし、他のフィールド更新は継続
+            }
+            else {
+                // 正常遷移: 既存の更新処理を実行
+                task.v2Substatus = params.v2Substatus;
+                // V2.1 substatus が設定されたら、後方互換の status/substatus も更新
+                task.substatus = params.v2Substatus;
+                // V2.1 → 旧ステータス変換
+                if (params.v2Substatus === "completed" || params.v2Substatus === "archived") {
+                    task.status = "completed";
+                    task.mainStatus = "closed";
+                    if (!task.completedAt) {
+                        task.completedAt = now;
+                    }
                 }
-            }
-            else if (params.v2Substatus === "active") {
-                task.status = "working";
-                task.mainStatus = "open";
-                if (!task.startedAt) {
-                    task.startedAt = now;
+                else if (params.v2Substatus === "working") {
+                    task.status = "working";
+                    task.mainStatus = "open";
+                    if (!task.startedAt) {
+                        task.startedAt = now;
+                    }
                 }
-            }
-            else if (params.v2Substatus === "checkpoint" || params.v2Substatus === "waiting") {
-                task.status = "blocked";
-                task.mainStatus = "open";
-            }
-            else if (params.v2Substatus === "paused") {
-                task.status = "pending";
-                task.mainStatus = "open";
+                else if (params.v2Substatus === "assigned") {
+                    task.status = "assigned";
+                    task.mainStatus = "open";
+                }
+                else if (params.v2Substatus === "checkpoint" || params.v2Substatus === "waiting") {
+                    task.status = "blocked";
+                    task.mainStatus = "open";
+                }
+                else if (params.v2Substatus === "pending") {
+                    task.status = "pending";
+                    task.mainStatus = "open";
+                }
             }
         }
         if (params.type !== undefined) {
@@ -503,14 +537,14 @@ export async function executeUpdateTask(projectPath, params) {
     return result;
 }
 /**
- * タスク完了時に依存しているタスクを自動的に waiting → active に更新
+ * タスク完了時に依存しているタスクを自動的に waiting → assigned に更新
  *
  * V2.1 設計書より:
  * 1. タスクA完了: maidctl my-status completed
  * 2. システムが blockedBy を検索
  * 3. タスクBが blockedBy: ["A"] を持つ場合
  *    → タスクBの担当者に自動通知
- *    → タスクBの substatus を waiting → active に更新
+ *    → タスクBの substatus を waiting → assigned に更新
  */
 export async function resolveBlockedTasks(projectPath, completedTaskId) {
     const unblockedTasks = [];
@@ -524,10 +558,10 @@ export async function resolveBlockedTasks(projectPath, completedTaskId) {
             const previousSubstatus = task.v2Substatus || task.substatus || "";
             // blockedBy から completedTaskId を削除
             task.blockedBy = task.blockedBy.filter((id) => id !== completedTaskId);
-            // blockedBy が空になったら waiting → active に変更
+            // blockedBy が空になったら waiting → assigned に変更
             if (task.blockedBy.length === 0 && task.v2Substatus === "waiting") {
-                task.v2Substatus = "active";
-                task.substatus = "active";
+                task.v2Substatus = "assigned";
+                task.substatus = "assigned";
                 task.status = "assigned"; // 旧ステータス互換
                 task.mainStatus = "open";
                 task.updatedAt = now;
@@ -555,6 +589,85 @@ export function inferTaskType(task) {
     // 後方互換: parentId があればサブタスク（action）、なければ親タスク（goal）
     return task.parentId ? "action" : "goal";
 }
+// 役割の階層（数値が大きいほど上位）
+const ROLE_HIERARCHY = {
+    maid: 1,
+    chief: 2,
+    butler: 3,
+    master: 4,
+};
+/**
+ * V2.1: ステータス遷移バリデーション
+ *
+ * 不正な遷移を検出し、許可/拒否を判定する。
+ * 設計書: docs/Maid-Agent-Controller/設計書/02_メッセンジャーサーバ/ダッシュボード/ステータス遷移設計.md
+ *
+ * @param currentStatus - 現在のステータス（v2Substatus）
+ * @param newStatus - 遷移先のステータス
+ * @param operatorRole - 操作者の役割
+ * @returns バリデーション結果
+ */
+export function validateStatusTransition(currentStatus, newStatus, operatorRole) {
+    // 空文字列・未定義は "pending" として扱う（後方互換）
+    const current = (currentStatus || "pending");
+    const roleLevel = ROLE_HIERARCHY[operatorRole] || 1;
+    // 同じステータスへの遷移は常に許可（no-op）
+    if (current === newStatus) {
+        return { valid: true };
+    }
+    // 許可遷移ルール定義
+    // key: "currentStatus:newStatus", value: 最低必要なroleLevel
+    const allowedTransitions = {
+        // 通常遷移
+        "pending:assigned": 2, // chief+
+        "assigned:working": 1, // maid+
+        "working:waiting": 1, // maid+
+        "working:checkpoint": 1, // maid+
+        "working:completed": 1, // maid+
+        "waiting:working": 1, // maid+
+        "waiting:checkpoint": 1, // maid+
+        "checkpoint:working": 2, // chief+
+        "checkpoint:waiting": 1, // maid+
+        "completed:archived": 2, // chief+
+        // 条件付き遷移（差し戻し・再オープン）
+        "completed:working": 2, // chief（レビュー差し戻し）
+        "archived:working": 3, // butler（再オープン）
+    };
+    const transitionKey = `${current}:${newStatus}`;
+    const requiredLevel = allowedTransitions[transitionKey];
+    // 許可リストにない遷移は禁止
+    if (requiredLevel === undefined) {
+        return {
+            valid: false,
+            error: `${current} → ${newStatus} への遷移は許可されていません`,
+        };
+    }
+    // 役割による権限チェック
+    if (roleLevel < requiredLevel) {
+        const requiredRole = Object.entries(ROLE_HIERARCHY)
+            .find(([, level]) => level === requiredLevel)?.[0] || "unknown";
+        return {
+            valid: false,
+            error: `${current} → ${newStatus} への遷移には ${requiredRole} 以上の権限が必要です`,
+        };
+    }
+    return { valid: true };
+}
+/**
+ * エージェントIDから役割を取得
+ */
+export function getAgentRole(agentId) {
+    if (agentId === "butler")
+        return "butler";
+    if (agentId === "chief")
+        return "chief";
+    // メイドIDリスト
+    const maidIds = ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"];
+    if (maidIds.includes(agentId))
+        return "maid";
+    // master は明示的に指定されない限り使用しない
+    return "maid"; // デフォルト
+}
 /**
  * V2.1: ステータス変換（旧 → 新）
  */
@@ -566,11 +679,11 @@ export function convertToV2Status(task) {
     // 旧ステータスから変換
     switch (task.status) {
         case "pending":
-            return { mainStatus: "open", substatus: "paused" };
+            return { mainStatus: "open", substatus: "pending" };
         case "assigned":
-            return { mainStatus: "open", substatus: "active" };
+            return { mainStatus: "open", substatus: "assigned" };
         case "working":
-            return { mainStatus: "open", substatus: "active" };
+            return { mainStatus: "open", substatus: "working" };
         case "completed":
             return { mainStatus: "closed", substatus: "completed" };
         case "blocked":
@@ -582,7 +695,7 @@ export function convertToV2Status(task) {
         case "cancelled":
             return { mainStatus: "cancelled", substatus: "archived" };
         default:
-            return { mainStatus: "open", substatus: "active" };
+            return { mainStatus: "open", substatus: "pending" };
     }
 }
 /**
@@ -609,7 +722,7 @@ export function computeGoalDisplayStatus(goalSubstatus, phases) {
     if (phases.every((p) => p.v2Substatus === "completed" || p.mainStatus === "closed")) {
         return { displayStatus: "完了可能", displayIcon: "✅" };
     }
-    // いずれかPhase working
+    // いずれかPhase working（active は後方互換）
     if (substatuses.some((s) => s === "working" || s === "active")) {
         return { displayStatus: "進行中", displayIcon: "🔵" };
     }
@@ -617,7 +730,7 @@ export function computeGoalDisplayStatus(goalSubstatus, phases) {
     if (substatuses.some((s) => s === "assigned")) {
         return { displayStatus: "準備中", displayIcon: "📋" };
     }
-    // 全Phase pending/paused
+    // 全Phase pending（paused は後方互換）
     if (substatuses.every((s) => s === "pending" || s === "paused")) {
         return { displayStatus: "未着手", displayIcon: "⏸️" };
     }
@@ -631,12 +744,12 @@ export function computeGoalDisplayStatus(goalSubstatus, phases) {
 function mapSubstatusToDisplay(substatus) {
     switch (substatus) {
         case "pending":
-        case "paused":
+        case "paused": // 後方互換: paused → pending
             return { displayStatus: "未着手", displayIcon: "⏸️" };
         case "assigned":
             return { displayStatus: "準備中", displayIcon: "📋" };
         case "working":
-        case "active":
+        case "active": // 後方互換: active → working
             return { displayStatus: "進行中", displayIcon: "🔵" };
         case "waiting":
             return { displayStatus: "依存待ち", displayIcon: "⏳" };
@@ -656,7 +769,8 @@ function mapSubstatusToDisplay(substatus) {
  * 条件:
  * - 全Phaseが completed
  * - レビューPhaseが存在する場合は approved
- * - 除外カテゴリなし (skill_candidate, improvement, action_required)
+ * - 除外カテゴリなし (skill_candidate, improvement)
+ * - actionRequired フラグ付きタスクは別途管理
  */
 export async function checkGoalAutoClose(projectPath, goalId) {
     const data = await loadTasksReadOnly(projectPath);
@@ -667,8 +781,8 @@ export async function checkGoalAutoClose(projectPath, goalId) {
     if (inferTaskType(goal) !== "goal") {
         return { canAutoClose: false, reason: "Not a goal" };
     }
-    // 除外カテゴリチェック
-    if (["skill_candidate", "improvement", "action_required"].includes(goal.category)) {
+    // 除外カテゴリチェック（V2.1: action_required は actionRequired フラグに移行）
+    if (["skill_candidate", "improvement"].includes(goal.category)) {
         return { canAutoClose: false, reason: `Excluded category: ${goal.category}` };
     }
     // tentative Goal は手動クローズ
@@ -743,8 +857,8 @@ export async function generateV2DashboardData(projectPath, options = {}) {
     const phases = [];
     const actions = [];
     const investigations = [];
-    // Goal階層から除外するカテゴリ（提案・要対応は別パネルで表示）
-    const excludedCategories = ["skill_candidate", "improvement", "action_required"];
+    // Goal階層から除外するカテゴリ（提案は別パネルで表示、actionRequired はフラグで管理）
+    const excludedCategories = ["skill_candidate", "improvement"];
     for (const task of tasks) {
         const taskType = inferTypeWithContext(task);
         switch (taskType) {
@@ -779,21 +893,8 @@ export async function generateV2DashboardData(projectPath, options = {}) {
         }
         return 0;
     };
-    // V2Goals: Goal階層構造を構築（ソートオプションに基づく）
+    // V2Goals: Goal階層構造を構築（フィルタ → 変換 → ソートの順で処理）
     const v2Goals = goals
-        .sort((a, b) => {
-        let cmp;
-        if (sortField === "updatedAt") {
-            const aTime = a.updatedAt || a.createdAt || "";
-            const bTime = b.updatedAt || b.createdAt || "";
-            cmp = aTime.localeCompare(bTime);
-        }
-        else {
-            // デフォルト: id でソート
-            cmp = compareTaskIds(a.id, b.id);
-        }
-        return sortOrder === "asc" ? cmp : -cmp;
-    })
         // archivedフィルタ: デフォルトでarchivedを除外
         .filter((g) => showArchived || g.archived !== true)
         // statusフィルタ: open/closed/all
@@ -832,28 +933,39 @@ export async function generateV2DashboardData(projectPath, options = {}) {
                 return {
                     id: action.id,
                     title: action.title || `Action #${action.id}`,
+                    description: action.description,
                     type: "action",
                     mainStatus: actionStatus.mainStatus,
                     v2Substatus: actionStatus.substatus,
                     assignees: action.assignees?.map((a) => ({ agentId: a.agentId })),
+                    updatedAt: action.updatedAt,
                 };
             });
             return {
                 id: phase.id,
                 title: phase.title || `Phase #${phase.id}`,
+                description: phase.description,
                 type: "phase",
                 mainStatus: phaseStatus.mainStatus,
                 v2Substatus: phaseStatus.substatus,
                 reviewStatus: phase.reviewStatus,
                 assignees: phase.assignees?.map((a) => ({ agentId: a.agentId })),
                 actions: v2Actions,
+                updatedAt: phase.updatedAt,
             };
         });
         // Goal階層連動: 子Phaseの状態から表示ステータスを計算
         const { displayStatus, displayIcon } = computeGoalDisplayStatus(substatus, v2Phases.map((p) => ({ v2Substatus: p.v2Substatus, mainStatus: p.mainStatus })));
+        // 最新更新日時を計算（Goal自身 + 配下のPhase/Action）
+        const childUpdates = v2Phases.flatMap((p) => [p.updatedAt, ...p.actions.map((a) => a.updatedAt)]).filter((d) => Boolean(d));
+        const allUpdates = [goal.updatedAt, ...childUpdates].filter((d) => Boolean(d));
+        const latestUpdatedAt = allUpdates.length > 0
+            ? allUpdates.sort().pop()
+            : goal.updatedAt;
         return {
             id: goal.id,
             title: goal.title || `Goal #${goal.id}`,
+            description: goal.description,
             type: "goal",
             mainStatus,
             v2Substatus: substatus,
@@ -865,7 +977,22 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             displayIcon,
             archived: goal.archived || substatus === "archived",
             updatedAt: goal.updatedAt,
+            latestUpdatedAt,
         };
+    })
+        // ソート: latestUpdatedAt を使用（子タスクの最新日時を含む）
+        .sort((a, b) => {
+        let cmp;
+        if (sortField === "updatedAt") {
+            const aTime = a.latestUpdatedAt || a.updatedAt || "";
+            const bTime = b.latestUpdatedAt || b.updatedAt || "";
+            cmp = aTime.localeCompare(bTime);
+        }
+        else {
+            // デフォルト: id でソート
+            cmp = compareTaskIds(a.id, b.id);
+        }
+        return sortOrder === "asc" ? cmp : -cmp;
     });
     // ページネーション: totalGoals はフィルタリング後の件数
     const totalGoals = v2Goals.length;
@@ -913,7 +1040,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
         const status = convertToV2Status(t);
         return status.substatus === "completed" || status.substatus === "archived";
     }).length;
-    const actionRequiredCount = tasks.filter((t) => t.category === "action_required" && t.status !== "completed").length;
+    const actionRequiredCount = tasks.filter((t) => t.actionRequired === true && t.status !== "completed").length;
     const reviewPendingCount = tasks.filter((t) => t.reviewStatus === "pending" || t.reviewStatus === "in_review").length;
     // 提案カウント: closed/cancelled/archivedを除外
     const proposalCount = tasks.filter((t) => {
@@ -963,11 +1090,11 @@ export async function generateV2DashboardData(projectPath, options = {}) {
 export function mapLegacyToV2Status(legacyStatus, legacySubstatus) {
     switch (legacyStatus) {
         case "pending":
-            return { mainStatus: "open", v2Substatus: "paused" };
+            return { mainStatus: "open", v2Substatus: "pending" };
         case "assigned":
-            return { mainStatus: "open", v2Substatus: "active" };
+            return { mainStatus: "open", v2Substatus: "assigned" };
         case "working":
-            return { mainStatus: "open", v2Substatus: "active" };
+            return { mainStatus: "open", v2Substatus: "working" };
         case "blocked":
             if (legacySubstatus === "waiting") {
                 return { mainStatus: "open", v2Substatus: "waiting" };
@@ -978,8 +1105,8 @@ export function mapLegacyToV2Status(legacyStatus, legacySubstatus) {
         case "cancelled":
             return { mainStatus: "cancelled", v2Substatus: "archived" };
         default:
-            console.warn(`[mapLegacyToV2Status] Unknown legacyStatus: ${legacyStatus}, defaulting to open/paused`);
-            return { mainStatus: "open", v2Substatus: "paused" };
+            console.warn(`[mapLegacyToV2Status] Unknown legacyStatus: ${legacyStatus}, defaulting to open/pending`);
+            return { mainStatus: "open", v2Substatus: "pending" };
     }
 }
 /**

@@ -78,14 +78,19 @@ export function createTaskApiRoutes(deps = {}) {
             const txId = req.get("X-Transaction-Id");
             const { 
             // 既存フィールド
-            status, substatus, summary, reportPath, 
+            status, substatus, summary, reportPath, title, description, priority, 
             // V2.1 拡張フィールド
-            mainStatus, v2Substatus, type, size, tentative, blockedBy, artifacts, artifactAdd, reviewStatus, } = req.body;
+            mainStatus, v2Substatus, type, size, tentative, blockedBy, artifacts, artifactAdd, reviewStatus, 
+            // V2.1 追加フィールド
+            archived, actionRequired, starred, } = req.body;
             const result = await executeUpdateTask(projectPath, {
                 taskId: req.params.id,
                 status,
                 substatus,
                 summary,
+                title,
+                description,
+                priority,
                 reportPath,
                 // V2.1 拡張
                 mainStatus,
@@ -97,6 +102,10 @@ export function createTaskApiRoutes(deps = {}) {
                 artifacts,
                 artifactAdd,
                 reviewStatus,
+                // V2.1 追加
+                archived,
+                actionRequired,
+                starred,
             });
             if (!result.success) {
                 res.status(404).json({ error: "Task not found", taskId: req.params.id });

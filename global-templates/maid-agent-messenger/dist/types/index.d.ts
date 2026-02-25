@@ -34,7 +34,7 @@ export declare const UPDATABLE_STATUSES: readonly ["working", "completed", "bloc
 export type UpdatableStatus = (typeof UPDATABLE_STATUSES)[number];
 export declare const MAID_UPDATABLE_SUBSTATUSES: readonly ["working", "checkpoint", "completed"];
 export type MaidUpdatableSubstatus = (typeof MAID_UPDATABLE_SUBSTATUSES)[number];
-export declare const TASK_CATEGORIES: readonly ["task", "action_required", "skill_candidate", "improvement"];
+export declare const TASK_CATEGORIES: readonly ["task", "skill_candidate", "improvement"];
 export type TaskCategory = (typeof TASK_CATEGORIES)[number];
 export type TaskStatus = LegacyTaskStatus;
 /**

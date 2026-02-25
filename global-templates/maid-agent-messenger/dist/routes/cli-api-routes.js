@@ -175,7 +175,7 @@ export function createCliApiRoutes(deps = {}) {
             const projectPath = getProjectPathFromRequest(req);
             const txId = req.get("X-Transaction-Id");
             const agentId = req.params.id;
-            const { status, summary, escalation } = req.body;
+            const { status, summary, actionRequired } = req.body;
             // バリデーション: agentId
             if (!MAID_IDS.includes(agentId)) {
                 res.status(400).json({
@@ -202,7 +202,7 @@ export function createCliApiRoutes(deps = {}) {
                 agentId,
                 status: status,
                 summary: summary || undefined,
-                escalation: escalation || false,
+                actionRequired: actionRequired || false,
             });
             // WebSocket通知: ステータス更新をリアルタイム配信
             if (wsServer) {

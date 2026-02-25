@@ -29,7 +29,7 @@ const mockGoals: V2Goal[] = [
     title: "ダッシュボード構造改善",
     type: "goal",
     mainStatus: "open",
-    v2Substatus: "active",
+    v2Substatus: "working",
     size: "complex",
     reviewStatus: "pending",
     assignees: [
@@ -59,7 +59,7 @@ const mockGoals: V2Goal[] = [
         title: "設計",
         type: "phase",
         mainStatus: "open",
-        v2Substatus: "active",
+        v2Substatus: "working",
         reviewStatus: "pending",
         actions: [
           {
@@ -74,7 +74,7 @@ const mockGoals: V2Goal[] = [
             title: "モックアップ作成",
             type: "action",
             mainStatus: "open",
-            v2Substatus: "active",
+            v2Substatus: "working",
           },
         ],
       },
@@ -155,8 +155,8 @@ describe("generateGoalTreeHtml - Goalグルーピング表示", () => {
   it("Goalのステータスバッジが表示される", () => {
     const html = generateGoalTreeHtml(mockGoals, "/project");
 
-    // active Goal
-    expect(html).toContain("status-active");
+    // working Goal
+    expect(html).toContain("status-working");
     expect(html).toContain("🔵");
     // completed Goal
     expect(html).toContain("status-completed");

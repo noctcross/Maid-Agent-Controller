@@ -149,13 +149,13 @@ maidctl notify emma "新しいタスクがあります。maidctl my-task で確�
 | 状況 | 対応 |
 |-----|------|
 | 他メイドの意見で解決できそう | 追加タスクとして該当メイドに割り振り |
-| 技術的判断が必要（escalation: true） | `maidctl task update TASK_ID --category action_required` |
-| 完了タスクの確認が必要 | `maidctl task update TASK_ID --category action_required`（status は completed のまま） |
+| 技術的判断が必要（escalation: true） | `maidctl task update TASK_ID --action-required` |
+| 完了タスクの確認が必要 | `maidctl task update TASK_ID --action-required`（status は completed のまま） |
 
 ### ご主人様向けタスク作成
 
 ```bash
-maidctl task create --title "判断が必要: API設計" --description "詳細..." --category action_required
+maidctl task create --title "判断が必要: API設計" --description "詳細..." --action-required
 ```
 
 ### ご主人様のアクション後

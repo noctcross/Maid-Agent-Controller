@@ -75,7 +75,7 @@ PATH 設定済みのため、`maidctl` コマンドとして直接実行可能�
 | 値 | 用途 |
 |----|------|
 | `task` | 通常タスク（デフォルト） |
-| `action_required` | 🚨 要対応（ご主人様判断待ち） |
+| （`--action-required` フラグ） | 🚨 要対応（ご主人様判断待ち） |
 | `skill_candidate` | 📚 スキル化候補 |
 | `improvement` | 💡 改善提案 |
 

@@ -1964,12 +1964,12 @@ export function getV2DashboardScript() {
       });
       var taskInfoBase64 = btoa(unescape(encodeURIComponent(taskInfoJson)));
 
-      // Phaseを再帰的にレンダリング
-      var phasesHtml = '';
-      var hasChildren = goal.phases && goal.phases.length > 0;
+      // Workを再帰的にレンダリング（V2.1: phases → works）
+      var worksHtml = '';
+      var hasChildren = goal.works && goal.works.length > 0;
       if (hasChildren) {
-        phasesHtml = '<div class="goal-content"><div class="phase-tree">' +
-          goal.phases.map(function(phase) { return renderPhaseItem(phase); }).join('\\n') +
+        worksHtml = '<div class="goal-content"><div class="phase-tree">' +
+          goal.works.map(function(work) { return renderPhaseItem(work); }).join('\\n') +
           '</div></div>';
       }
 
@@ -1977,15 +1977,15 @@ export function getV2DashboardScript() {
       var toggleIcon = hasChildren ? '▼' : '●';
       var toggleClass = hasChildren ? 'collapsed' : 'collapsed no-children';
 
-      // 全Phase完了判定（手動クローズボタン表示用）
-      var allPhasesCompleted = hasChildren && goal.phases.every(function(p) {
-        return p.v2Substatus === 'completed' || p.mainStatus === 'closed';
+      // 全Work完了判定（手動クローズボタン表示用）
+      var allWorksCompleted = hasChildren && goal.works.every(function(w) {
+        return w.v2Substatus === 'completed' || w.mainStatus === 'closed';
       });
       var isOpen = goal.mainStatus === 'open';
 
-      // 手動クローズボタン: mainStatus=open かつ 全Phase完了の場合のみ表示
+      // 手動クローズボタン: mainStatus=open かつ 全Work完了の場合のみ表示
       var closeHtml = '';
-      if (isOpen && allPhasesCompleted) {
+      if (isOpen && allWorksCompleted) {
         closeHtml = '<button class="close-goal-btn" data-task-id="' + escapeHtmlClient(goal.id) + '" title="Goalを完了にする" onclick="event.stopPropagation()">✅完了</button>';
       }
 
@@ -2020,14 +2020,14 @@ export function getV2DashboardScript() {
           closeHtml +
           archiveHtml +
         '</div>' +
-        phasesHtml +
+        worksHtml +
       '</div>';
     }
 
     /**
-     * PhaseアイテムのHTMLを生成
+     * WorkアイテムのHTMLを生成（V2.1: Phase → Work）
      */
-    function renderPhaseItem(phase) {
+    function renderPhaseItem(work) {
       // V2.1: working が正式、active/paused は後方互換
       var statusIcons = {
         working: '🔵', active: '🔵', assigned: '📋', pending: '⏳', paused: '⏸️',
@@ -2046,14 +2046,14 @@ export function getV2DashboardScript() {
         alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
       };
 
-      var statusIcon = statusIcons[phase.v2Substatus] || '❓';
-      var statusClass = statusClasses[phase.v2Substatus] || '';
-      var statusText = statusTextJp[phase.v2Substatus] || phase.v2Substatus;
+      var statusIcon = statusIcons[work.v2Substatus] || '❓';
+      var statusClass = statusClasses[work.v2Substatus] || '';
+      var statusText = statusTextJp[work.v2Substatus] || work.v2Substatus;
 
       // 担当者HTML
       var assigneesHtml = '';
-      if (phase.assignees && phase.assignees.length > 0) {
-        var items = phase.assignees.filter(function(a) { return a && a.agentId; }).map(function(a) {
+      if (work.assignees && work.assignees.length > 0) {
+        var items = work.assignees.filter(function(a) { return a && a.agentId; }).map(function(a) {
           var icon = maidIcons[a.agentId.toLowerCase()] || '👤';
           return '<span class="assignee-item"><span class="assignee-icon">' + icon + '</span><span class="assignee-name">' + escapeHtmlClient(a.agentId) + '</span></span>';
         }).join(' ');
@@ -2066,38 +2066,38 @@ export function getV2DashboardScript() {
       }
 
       // 報告書リンク
-      var reportLink = '<a href="/report?task=' + encodeURIComponent(phase.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="Phase報告書を開く">📄</a>';
+      var reportLink = '<a href="/report?task=' + encodeURIComponent(work.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="Work報告書を開く">📄</a>';
 
       // タスク詳細データ（JSON → Base64エンコード）
       var taskInfoJson = JSON.stringify({
-        id: phase.id,
-        title: phase.title,
-        description: phase.description || '',
-        status: phase.v2Substatus,
-        assignees: (phase.assignees || []).map(function(a) { return a.agentId; }).join(', ') || '担当なし',
-        updatedAt: phase.updatedAt || ''
+        id: work.id,
+        title: work.title,
+        description: work.description || '',
+        status: work.v2Substatus,
+        assignees: (work.assignees || []).map(function(a) { return a.agentId; }).join(', ') || '担当なし',
+        updatedAt: work.updatedAt || ''
       });
       var taskInfoBase64 = btoa(unescape(encodeURIComponent(taskInfoJson)));
 
-      // Actionをレンダリング
-      var actionsHtml = '';
-      if (phase.actions && phase.actions.length > 0) {
-        actionsHtml = '<div class="action-list">' +
-          phase.actions.map(function(action, idx, arr) {
-            return renderActionItem(action, idx === arr.length - 1);
+      // Stepをレンダリング（V2.1: actions → steps）
+      var stepsHtml = '';
+      if (work.steps && work.steps.length > 0) {
+        stepsHtml = '<div class="action-list">' +
+          work.steps.map(function(step, idx, arr) {
+            return renderActionItem(step, idx === arr.length - 1);
           }).join('\\n') +
           '</div>';
       }
 
-      return '<div class="phase-item ' + (phase.v2Substatus === 'active' ? 'highlight' : '') + '" data-id="' + escapeHtmlClient(phase.id) + '">' +
+      return '<div class="phase-item ' + (work.v2Substatus === 'active' ? 'highlight' : '') + '" data-id="' + escapeHtmlClient(work.id) + '">' +
         '<div class="phase-header">' +
-          '<span class="phase-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(phase.id) + '</span>' +
-          '<span class="phase-name">[' + escapeHtmlClient(phase.title) + '] Phase</span>' +
+          '<span class="phase-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(work.id) + '</span>' +
+          '<span class="phase-name">[' + escapeHtmlClient(work.title) + '] Work</span>' +
           '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + statusText + '</span></span>' +
           assigneesHtml +
           reportLink +
         '</div>' +
-        actionsHtml +
+        stepsHtml +
       '</div>';
     }
 

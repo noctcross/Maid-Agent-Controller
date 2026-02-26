@@ -10,7 +10,7 @@ export interface DashboardRoutesDeps {
     generateDashboardHtml: (data: DashboardData, editorScheme?: string) => string;
     generateTaskHtml: (tasks: any[], type: string, projectPath: string, scheme?: string) => string;
     composeMasterWaitingHtml: (masterWaitingTasks: any[], masterReviewTasks: any[], projectPath: string, scheme?: string) => string;
-    generateGoalTreeHtml?: (goals: any[], projectPath: string) => string;
+    generateTaskTreeHtml?: (tasks: any[], projectPath: string) => string;
     generateReviewQueueHtml?: (reviewTasks: any[], projectPath: string) => string;
     generateArtifactsHtml?: (artifacts: any[], projectPath: string) => string;
     generateV2StatsHtml?: (stats: any) => string;

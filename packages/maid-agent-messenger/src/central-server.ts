@@ -29,7 +29,7 @@ import { generateTopPageHtml } from "./views/top-page-html.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js";
 // V2.1 ビュー
 import {
-  generateGoalTreeHtml,
+  generateTaskTreeHtml,
   generateReviewQueueHtml,
   generateArtifactsHtml,
   generateV2StatsHtml,
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
     generateDashboardHtml,
     generateTaskHtml,
     composeMasterWaitingHtml,
-    generateGoalTreeHtml,
+    generateTaskTreeHtml,
     generateReviewQueueHtml,
     generateArtifactsHtml,
     generateV2StatsHtml,

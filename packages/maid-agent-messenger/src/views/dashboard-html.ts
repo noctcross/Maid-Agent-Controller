@@ -24,13 +24,13 @@ import {
   getReportOverlayHtml,
   type DashboardBodyParams,
 } from "./dashboard-template.js";
-// V2.1: Goal階層表示・レビューキュー・成果物・統計
+// V2.1: Task階層表示・レビューキュー・成果物・統計
 import {
-  generateGoalTreeHtml,
+  generateTaskTreeHtml,
   generateReviewQueueHtml,
   generateArtifactsHtml,
   generateV2StatsHtml,
-  type V2Goal,
+  type V2Task,
   type V2ReviewTask,
   type V2Artifact,
   type V2Stats,
@@ -102,8 +102,8 @@ export interface DashboardData {
     completedTodayCount: number;
   };
   serverUrl: string; // サーバーの実URL（ポーリング用）
-  // V2.1: Goal階層表示用データ（オプション）
-  v2Goals?: V2Goal[];
+  // V2.1: Task階層表示用データ（オプション）
+  v2Goals?: V2Task[];
   v2ReviewQueue?: V2ReviewTask[];
   v2Artifacts?: V2Artifact[];
   v2Stats?: V2Stats;
@@ -233,9 +233,9 @@ export function generateDashboardHtml(
     projectPath
   );
 
-  // V2.1: Goal階層・レビューキュー・成果物・統計HTML生成
-  const v2GoalsHtml = data.v2Goals
-    ? generateGoalTreeHtml(data.v2Goals, projectPath)
+  // V2.1: Task階層・レビューキュー・成果物・統計HTML生成
+  const v2TasksHtml = data.v2Goals
+    ? generateTaskTreeHtml(data.v2Goals, projectPath)
     : "";
   const v2ReviewQueueHtml = data.v2ReviewQueue
     ? generateReviewQueueHtml(data.v2ReviewQueue, projectPath)
@@ -315,38 +315,67 @@ export function generateDashboardHtml(
         ${v2StatsHtml}
       </div>` : ""}
 
-      ${v2GoalsHtml ? `
-      <div class="card v2-goals-section" data-section="v2-goals">
+      <!-- 🚨 要対応セクション（常に表示） -->
+      <div class="card v2-master-waiting-section card-action-required" data-section="v2-master-waiting">
         <div class="card-header collapsible-header">
-          <span class="card-title">🎯 Goal階層</span>
-          <span class="count-badge" id="v2-goals-count">${data.v2Goals?.length || 0}</span>
+          <span class="card-title">🚨 要対応</span>
+          <span class="count-badge count-badge-alert">${masterWaiting.length + masterReview.length}</span>
+        </div>
+        <div class="collapsible-content">
+          ${(masterWaiting.length > 0 || masterReview.length > 0) ? masterWaitingSectionHtml : '<div class="empty-message">ご主人様判断待ちのタスクはありません</div>'}
+        </div>
+      </div>
+
+      ${v2TasksHtml ? `
+      <!-- 進行中セクション -->
+      <div class="card v2-goals-open-section" data-section="v2-goals-open">
+        <div class="card-header collapsible-header">
+          <span class="card-title">🔵 進行中</span>
+          <span class="count-badge" id="v2-goals-open-count">0</span>
           <div class="v2-goals-pagination-wrapper">
-            <div class="inline-pagination" id="v2-goals-pagination"></div>
+            <div class="inline-pagination" id="v2-goals-open-pagination"></div>
           </div>
           <div class="v2-filter-controls">
-            <div class="v2-toggle-group" id="v2-goals-status-group">
-              <button class="v2-toggle-btn active" data-value="open">Open</button>
-              <button class="v2-toggle-btn" data-value="closed">Closed</button>
-              <button class="v2-toggle-btn" data-value="all">All</button>
+            <div class="v2-sort-controls">
+              <button id="v2-goals-open-sort-id" class="sort-toggle-btn active" title="タスク番号でソート">#↓</button>
+              <button id="v2-goals-open-sort-updated" class="sort-toggle-btn" title="更新日時でソート">📅</button>
             </div>
+            <div class="v2-toggle-group" id="v2-goals-open-limit-group">
+              <button class="v2-toggle-btn" data-value="5">5</button>
+              <button class="v2-toggle-btn active" data-value="10">10</button>
+              <button class="v2-toggle-btn" data-value="20">20</button>
+            </div>
+          </div>
+        </div>
+        <div class="collapsible-content goal-tree-container" id="v2-goals-open-list">
+        </div>
+      </div>
+
+      <!-- 完了済みセクション -->
+      <div class="card v2-goals-closed-section" data-section="v2-goals-closed">
+        <div class="card-header collapsible-header">
+          <span class="card-title">✅ 完了済み</span>
+          <span class="count-badge" id="v2-goals-closed-count">0</span>
+          <div class="v2-goals-pagination-wrapper">
+            <div class="inline-pagination" id="v2-goals-closed-pagination"></div>
+          </div>
+          <div class="v2-filter-controls">
             <label class="v2-filter-checkbox">
               <input type="checkbox" id="v2-goals-show-archived">
               <span>Archived</span>
             </label>
             <div class="v2-sort-controls">
-              <button id="v2-goals-sort-id" class="sort-toggle-btn active" title="タスク番号でソート">#↓</button>
-              <button id="v2-goals-sort-updated" class="sort-toggle-btn" title="更新日時でソート">📅</button>
+              <button id="v2-goals-closed-sort-id" class="sort-toggle-btn active" title="タスク番号でソート">#↓</button>
+              <button id="v2-goals-closed-sort-updated" class="sort-toggle-btn" title="更新日時でソート">📅</button>
             </div>
-            <div class="v2-toggle-group" id="v2-goals-limit-group">
+            <div class="v2-toggle-group" id="v2-goals-closed-limit-group">
               <button class="v2-toggle-btn active" data-value="10">10</button>
               <button class="v2-toggle-btn" data-value="20">20</button>
               <button class="v2-toggle-btn" data-value="50">50</button>
-              <button class="v2-toggle-btn" data-value="100">100</button>
             </div>
           </div>
         </div>
-        <div class="collapsible-content goal-tree-container" id="v2-goals-list">
-          ${v2GoalsHtml}
+        <div class="collapsible-content goal-tree-container" id="v2-goals-closed-list">
         </div>
       </div>` : ""}
 
@@ -370,6 +399,31 @@ export function generateDashboardHtml(
         <div class="collapsible-content">
           ${v2ArtifactsHtml}
         </div>
+      </div>` : ""}
+
+      ${(skillCandidates.length > 0 || improvements.length > 0) ? `
+      <!-- スキル候補・改善提案セクション（左右分割） -->
+      <div class="v2-skill-improvement-row" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+        ${skillCandidates.length > 0 ? `
+        <div class="card v2-skill-candidates-section card-skill" data-section="v2-skill-candidates">
+          <div class="card-header collapsible-header">
+            <span class="card-title">📚 スキル候補</span>
+            <span class="count-badge count-badge-purple">${skillCandidates.length}</span>
+          </div>
+          <div class="collapsible-content">
+            ${skillCandidatesHtml}
+          </div>
+        </div>` : '<div></div>'}
+        ${improvements.length > 0 ? `
+        <div class="card v2-improvements-section card-improvement" data-section="v2-improvements">
+          <div class="card-header collapsible-header">
+            <span class="card-title">💡 改善提案</span>
+            <span class="count-badge count-badge-orange">${improvements.length}</span>
+          </div>
+          <div class="collapsible-content">
+            ${improvementsHtml}
+          </div>
+        </div>` : '<div></div>'}
       </div>` : ""}
     </div>`
     : "";

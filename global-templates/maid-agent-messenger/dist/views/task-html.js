@@ -155,8 +155,18 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
       </div>`;
         }
         else if (type === "skill_candidate") {
+            // タスク詳細情報をBase64エンコード（モーダル表示用）
+            const taskInfoJson = JSON.stringify({
+                id: task.id,
+                title: title,
+                description: task.description || "",
+                status: task.status || "pending",
+                assignees: "",
+                updatedAt: task.updatedAt || "",
+            });
+            const taskInfoBase64 = Buffer.from(taskInfoJson, "utf-8").toString("base64");
             return `<div class="task-item skill-item" data-id="${task.id}">
-        <span class="task-id">${task.id}</span>
+        <span class="task-id task-id-clickable" data-task-info="${taskInfoBase64}">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
@@ -164,8 +174,18 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
       </div>`;
         }
         else if (type === "improvement") {
+            // タスク詳細情報をBase64エンコード（モーダル表示用）
+            const taskInfoJson = JSON.stringify({
+                id: task.id,
+                title: title,
+                description: task.description || "",
+                status: task.status || "pending",
+                assignees: "",
+                updatedAt: task.updatedAt || "",
+            });
+            const taskInfoBase64 = Buffer.from(taskInfoJson, "utf-8").toString("base64");
             return `<div class="task-item improvement-item" data-id="${task.id}">
-        <span class="task-id">${task.id}</span>
+        <span class="task-id task-id-clickable" data-task-info="${taskInfoBase64}">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}

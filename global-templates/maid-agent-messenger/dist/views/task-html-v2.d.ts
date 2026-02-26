@@ -2,17 +2,17 @@
  * V2.1 ダッシュボードUI用HTML生成関数
  *
  * Phase 5: ダッシュボードUI実装
- * - Goalグルーピング表示
- * - Phase/Action階層表示
+ * - Taskグルーピング表示
+ * - Work/Step階層表示
  * - 成果物パネル
  * - 統計サマリーの種別対応
  * - レビューキュー表示
  */
-export interface V2Action {
+export interface V2Step {
     id: string;
     title: string;
     description?: string;
-    type: "action";
+    type: "step";
     mainStatus: string;
     v2Substatus: string;
     assignees?: Array<{
@@ -20,25 +20,25 @@ export interface V2Action {
     }>;
     updatedAt?: string;
 }
-export interface V2Phase {
+export interface V2Work {
     id: string;
     title: string;
     description?: string;
-    type: "phase";
+    type: "work";
     mainStatus: string;
     v2Substatus: string;
     reviewStatus?: string;
     assignees?: Array<{
         agentId: string;
     }>;
-    actions: V2Action[];
+    steps: V2Step[];
     updatedAt?: string;
 }
-export interface V2Goal {
+export interface V2Task {
     id: string;
     title: string;
     description?: string;
-    type: "goal";
+    type: "task";
     mainStatus: string;
     v2Substatus: string;
     size?: string;
@@ -46,12 +46,15 @@ export interface V2Goal {
     assignees: Array<{
         agentId: string;
     }>;
-    phases: V2Phase[];
+    works: V2Work[];
     displayStatus?: string;
     displayIcon?: string;
     archived?: boolean;
     updatedAt?: string;
 }
+export type V2Goal = V2Task;
+export type V2Phase = V2Work;
+export type V2Action = V2Step;
 export interface V2ReviewTask {
     id: string;
     title: string;
@@ -71,18 +74,19 @@ export interface V2Artifact {
     createdAt: string;
 }
 export interface V2Stats {
-    goalCount: number;
-    phaseCount: number;
-    actionCount: number;
+    taskCount: number;
+    workCount: number;
+    stepCount: number;
     completedCount: number;
     actionRequiredCount: number;
     reviewPendingCount: number;
     proposalCount: number;
 }
 /**
- * Goal一覧をツリー形式のHTMLで生成
+ * Task一覧をツリー形式のHTMLで生成
  */
-export declare function generateGoalTreeHtml(goals: V2Goal[], projectPath: string): string;
+export declare function generateTaskTreeHtml(tasks: V2Task[], projectPath: string): string;
+export declare const generateGoalTreeHtml: typeof generateTaskTreeHtml;
 /**
  * レビューキューのHTMLを生成
  */

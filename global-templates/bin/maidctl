@@ -18,12 +18,12 @@ VALID_AGENTS="emma sophia lily rose alice may flora luna"
 VALID_STATUSES="working completed blocked"
 
 # V2.1: 有効なタスク種別
-VALID_TASK_TYPES="goal phase action investigation"
+VALID_TASK_TYPES="task work step investigation"
 
 # V2.1: 有効なサブステータス（active/paused は後方互換）
 VALID_V2_SUBSTATUSES="pending assigned working waiting checkpoint completed archived"
 
-# V2.1: 有効なGoalサイズ
+# V2.1: 有効なTaskサイズ
 VALID_GOAL_SIZES="simple standard complex"
 
 # 終了コード
@@ -453,9 +453,9 @@ cmd_task_create() {
         echo "  --category, -c CAT      カテゴリ (task/action_required/skill_candidate/improvement)"
         echo ""
         echo "V2.1 オプション:"
-        echo "  --type TYPE             タスク種別 (goal/phase/action/investigation)"
-        echo "  --size SIZE             Goalサイズ (simple/standard/complex) ※goal専用"
-        echo "  --tentative             暫定Goal ※goal専用"
+        echo "  --type TYPE             タスク種別 (task/work/step/investigation)"
+        echo "  --size SIZE             Taskサイズ (simple/standard/complex) ※task専用"
+        echo "  --tentative             暫定Task ※task専用"
         echo "  --blocked-by IDS        依存先タスクID（カンマ区切り）"
         echo "  --json                  JSON出力"
         return 0
@@ -542,6 +542,7 @@ cmd_task_update() {
   local title=""
   local description=""
   local priority=""
+  local category=""
   local blocked_by=""
   local archived=""
   local review_status=""
@@ -557,6 +558,7 @@ cmd_task_update() {
       --title) title="$2"; shift 2 ;;
       --description) description="$2"; shift 2 ;;
       --priority) priority="$2"; shift 2 ;;
+      --category|-c) category="$2"; shift 2 ;;
       --blocked-by) blocked_by="$2"; shift 2 ;;
       --archived) archived="true"; shift ;;
       --review-status) review_status="$2"; shift 2 ;;
@@ -575,6 +577,7 @@ cmd_task_update() {
         echo "  --title TEXT         タイトル変更"
         echo "  --description TEXT   説明変更"
         echo "  --priority PRIORITY  優先度 (high/medium/low)"
+        echo "  --category, -c CAT   カテゴリ (task/skill_candidate/improvement)"
         echo "  --blocked-by IDS     依存先タスクID (カンマ区切り)"
         echo "  --archived           アーカイブフラグ設定"
         echo "  --review-status ST   レビュー状態 (none/pending/in_review/approved/rejected)"
@@ -607,6 +610,13 @@ cmd_task_update() {
   if [ -n "$priority" ] && ! echo "high medium low" | grep -qw "$priority"; then
     echo "エラー: 無効な優先度: $priority" >&2
     echo "有効な優先度: high, medium, low" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # バリデーション: カテゴリ
+  if [ -n "$category" ] && ! echo "task skill_candidate improvement" | grep -qw "$category"; then
+    echo "エラー: 無効なカテゴリ: $category" >&2
+    echo "有効なカテゴリ: task, skill_candidate, improvement" >&2
     exit $EXIT_INVALID_ARGS
   fi
 
@@ -654,6 +664,11 @@ cmd_task_update() {
   if [ -n "$priority" ]; then
     [ "$first" = false ] && data="${data}, "
     data="${data}\"priority\": \"$priority\""
+    first=false
+  fi
+  if [ -n "$category" ]; then
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"category\": \"$category\""
     first=false
   fi
   if [ -n "$blocked_by" ]; then
@@ -855,7 +870,7 @@ cmd_my_status() {
   local agent_id=""
   local status=""
   local summary=""
-  local escalation=false
+  local action_required=false
   local json_output=false
   # V2.1 拡張
   local v2_substatus=""
@@ -865,7 +880,7 @@ cmd_my_status() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --summary|-m) summary="$2"; shift 2 ;;
-      --escalation) escalation=true; shift ;;
+      --action-required) action_required=true; shift ;;
       # V2.1 オプション
       --substatus) v2_substatus="$2"; shift 2 ;;
       --blocked-by) blocked_by="$2"; shift 2 ;;
@@ -880,7 +895,7 @@ cmd_my_status() {
         echo ""
         echo "オプション:"
         echo "  --summary, -m TEXT  サマリメッセージ"
-        echo "  --escalation        エスカレーションフラグ"
+        echo "  --action-required   対応必要フラグ"
         echo "  --json              JSON出力"
         echo ""
         echo "V2.1 オプション:"
@@ -961,7 +976,7 @@ cmd_my_status() {
     escaped_summary=$(json_escape "$summary")
     data="${data}, \"summary\": \"$escaped_summary\""
   fi
-  [ "$escalation" = true ] && data="${data}, \"escalation\": true"
+  [ "$action_required" = true ] && data="${data}, \"actionRequired\": true"
 
   # V2.1 フィールド
   if [ -n "$v2_substatus" ]; then
@@ -1258,12 +1273,12 @@ maidctl - Maid Agent CLI Tool v${VERSION}
   --help, -h     ヘルプを表示
   --version, -v  バージョンを表示
 
-V2.1 タスク種別: goal, phase, action, investigation
+V2.1 タスク種別: task, work, step, investigation
 V2.1 サブステータス: active, paused, checkpoint, waiting, completed, archived
 
 例:
   maidctl task list --status pending
-  maidctl task create --title "新機能実装" --type goal --size standard
+  maidctl task create --title "新機能実装" --type task --size standard
   maidctl task create --title "調査" --type investigation --parent 310
   maidctl task assign 173 --to emma
   maidctl my-task emma

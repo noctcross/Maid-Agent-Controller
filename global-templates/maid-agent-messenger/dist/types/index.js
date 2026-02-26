@@ -18,9 +18,9 @@ export const ALL_AGENT_IDS = ["butler", "chief", ...MAID_IDS];
 // V2.1: タスク種別
 // =============================================================================
 export const TASK_TYPES = [
-    "goal", // 目標タスク（ご主人様の指示単位）
-    "phase", // フェーズ（成果物単位の作業グループ）
-    "action", // アクション（メイド1人で完結する作業）
+    "task", // タスク（ご主人様の指示単位）- 旧 goal
+    "work", // ワーク（成果物単位の作業グループ）- 旧 phase
+    "step", // ステップ（メイド1人で完結する作業）- 旧 action
     "investigation", // 調査タスク（docs/昇格対象）
 ];
 // =============================================================================
@@ -44,12 +44,12 @@ export const OPEN_SUBSTATUSES = ["pending", "assigned", "working", "waiting", "c
 // closed 時の有効なサブステータス
 export const CLOSED_SUBSTATUSES = ["completed"];
 // =============================================================================
-// V2.1: Goal サイズ
+// V2.1: Task サイズ
 // =============================================================================
-export const GOAL_SIZES = [
-    "simple", // 0-1 phases, typo修正、設定変更、調査のみ
-    "standard", // 2-4 phases, 機能追加、バグ修正
-    "complex", // 5+ phases, 大規模リファクタリング
+export const TASK_SIZES = [
+    "simple", // 0-1 works, typo修正、設定変更、調査のみ
+    "standard", // 2-4 works, 機能追加、バグ修正
+    "complex", // 5+ works, 大規模リファクタリング
 ];
 // =============================================================================
 // V2.1: レビューステータス

@@ -185,19 +185,19 @@ describe("V2.1: checkGoalAutoClose - Goal自動クローズ判定", () => {
     // Goal作成
     const goal = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "テストGoal",
-      type: "goal",
+      type: "task",
       size: "standard",
     });
 
     // Phase作成
     const phase1 = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "Phase1",
-      type: "phase",
+      type: "work",
       parentId: goal.taskId,
     });
     const phase2 = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "Phase2",
-      type: "phase",
+      type: "work",
       parentId: goal.taskId,
     });
 
@@ -239,19 +239,19 @@ describe("V2.1: checkGoalAutoClose - Goal自動クローズ判定", () => {
   it("simple Goal は自動クローズ不可（手動クローズが必要）", async () => {
     const goal = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "Simple Goal",
-      type: "goal",
+      type: "task",
       size: "simple",
     });
 
     const result = await checkGoalAutoClose(TEST_PROJECT_PATH, goal.taskId);
     expect(result.canAutoClose).toBe(false);
-    expect(result.reason).toContain("Simple goal");
+    expect(result.reason).toContain("Simple task");
   });
 
   it("tentative Goal は自動クローズ不可", async () => {
     const goal = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "Tentative Goal",
-      type: "goal",
+      type: "task",
       tentative: true,
     });
 
@@ -263,13 +263,13 @@ describe("V2.1: checkGoalAutoClose - Goal自動クローズ判定", () => {
   it("未完了のPhaseがあるGoalは自動クローズ不可", async () => {
     const goal = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "Incomplete Goal",
-      type: "goal",
+      type: "task",
       size: "standard",
     });
 
     const phase1 = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "Phase1",
-      type: "phase",
+      type: "work",
       parentId: goal.taskId,
     });
 
@@ -283,7 +283,7 @@ describe("V2.1: checkGoalAutoClose - Goal自動クローズ判定", () => {
   it("除外カテゴリ（skill_candidate等）のGoalは自動クローズ不可", async () => {
     const goal = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "Skill Candidate Goal",
-      type: "goal",
+      type: "task",
       size: "standard",
       category: "skill_candidate",
     });
@@ -342,7 +342,7 @@ describe("V2.1: migrateToV2 - マイグレーション", () => {
     // V2.1形式のタスク作成
     await executeCreateTask(TEST_PROJECT_PATH, {
       title: "V2.1タスク",
-      type: "action",
+      type: "step",
     });
 
     // マイグレーション実行
@@ -363,12 +363,12 @@ describe("V2.1: migrateToV2 - マイグレーション", () => {
 
     // 確認
     const parentResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: parentId });
-    expect((parentResult.task as Task)?.type).toBe("goal");
+    expect((parentResult.task as Task)?.type).toBe("task");
 
     // 子タスクのIDを取得
     const data = await readTasksYaml();
     const childTask = data?.tasks.find((t) => t.parentId === parentId);
-    expect(childTask?.type).toBe("action");
+    expect(childTask?.type).toBe("step");
   });
 
   it("completed状態の旧タスクはclosed/completedに変換される", async () => {
@@ -452,12 +452,12 @@ describe("V2.1: inferTaskType - タスク種別推定", () => {
 
   it("parentId が null の場合は goal", () => {
     const task = { parentId: null } as Task;
-    expect(inferTaskType(task)).toBe("goal");
+    expect(inferTaskType(task)).toBe("task");
   });
 
   it("parentId がある場合は action", () => {
     const task = { parentId: "001" } as Task;
-    expect(inferTaskType(task)).toBe("action");
+    expect(inferTaskType(task)).toBe("step");
   });
 });
 
@@ -606,7 +606,7 @@ describe("V2.1: migrateTaskToV2 - 単一タスクマイグレーション", () =
 
     expect(result.mainStatus).toBe("open");
     expect(result.v2Substatus).toBe("working");
-    expect(result.type).toBe("goal"); // parentId が null なので goal
+    expect(result.type).toBe("task"); // parentId が null なので goal
     expect(result.archived).toBe(false);
     expect(result.archivedAt).toBeNull();
   });
@@ -652,7 +652,7 @@ describe("V2.1: migrateTaskToV2 - 単一タスクマイグレーション", () =
 
     const result = migrateTaskToV2(task);
 
-    expect(result.type).toBe("goal");
+    expect(result.type).toBe("task");
     expect(result.size).toBe("standard");
     expect(result.tentative).toBe(false);
   });

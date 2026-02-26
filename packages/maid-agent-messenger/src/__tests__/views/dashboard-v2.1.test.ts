@@ -2,8 +2,8 @@
  * Dashboard V2.1 UI テスト
  *
  * Phase 5: ダッシュボードUI実装
- * - Goalグルーピング表示
- * - Phase/Action階層表示
+ * - Taskグルーピング表示
+ * - Work/Step階層表示
  * - 成果物パネル
  * - 統計サマリーの種別対応
  * - レビューキュー表示
@@ -11,11 +11,11 @@
 
 import { describe, it, expect } from "@jest/globals";
 import {
-  generateGoalTreeHtml,
+  generateTaskTreeHtml,
   generateReviewQueueHtml,
   generateArtifactsHtml,
   generateV2StatsHtml,
-  type V2Goal,
+  type V2Task,
   type V2ReviewTask,
   type V2Artifact,
   type V2Stats,
@@ -23,11 +23,11 @@ import {
 
 // === テストデータ ===
 
-const mockGoals: V2Goal[] = [
+const mockTasks: V2Task[] = [
   {
     id: "289",
     title: "ダッシュボード構造改善",
-    type: "goal",
+    type: "task",
     mainStatus: "open",
     v2Substatus: "working",
     size: "complex",
@@ -36,19 +36,19 @@ const mockGoals: V2Goal[] = [
       { agentId: "emma" },
       { agentId: "sophia" },
     ],
-    phases: [
+    works: [
       {
         id: "289-P1",
         title: "調査",
-        type: "phase",
+        type: "work",
         mainStatus: "closed",
         v2Substatus: "completed",
         reviewStatus: "approved",
-        actions: [
+        steps: [
           {
             id: "289-1",
             title: "要件調査",
-            type: "action",
+            type: "step",
             mainStatus: "closed",
             v2Substatus: "completed",
           },
@@ -57,22 +57,22 @@ const mockGoals: V2Goal[] = [
       {
         id: "289-P2",
         title: "設計",
-        type: "phase",
+        type: "work",
         mainStatus: "open",
         v2Substatus: "working",
         reviewStatus: "pending",
-        actions: [
+        steps: [
           {
             id: "289-2",
             title: "設計書作成",
-            type: "action",
+            type: "step",
             mainStatus: "closed",
             v2Substatus: "completed",
           },
           {
             id: "289-3",
             title: "モックアップ作成",
-            type: "action",
+            type: "step",
             mainStatus: "open",
             v2Substatus: "working",
           },
@@ -83,13 +83,13 @@ const mockGoals: V2Goal[] = [
   {
     id: "301",
     title: "APIリファクタリング",
-    type: "goal",
+    type: "task",
     mainStatus: "closed",
     v2Substatus: "completed",
     size: "standard",
     reviewStatus: "approved",
     assignees: [{ agentId: "rose" }],
-    phases: [],
+    works: [],
   },
 ];
 
@@ -97,7 +97,7 @@ const mockReviewQueue: V2ReviewTask[] = [
   {
     id: "301",
     title: "API設計レビュー",
-    type: "phase",
+    type: "work",
     reviewStatus: "pending",
     priority: "high",
     completedAt: "2026-02-22T08:00:00Z",
@@ -106,7 +106,7 @@ const mockReviewQueue: V2ReviewTask[] = [
   {
     id: "289",
     title: "ダッシュボード改善",
-    type: "goal",
+    type: "task",
     reviewStatus: "pending",
     priority: "normal",
     completedAt: "2026-02-22T06:00:00Z",
@@ -132,49 +132,49 @@ const mockArtifacts: V2Artifact[] = [
 ];
 
 const mockV2Stats: V2Stats = {
-  goalCount: 3,
-  phaseCount: 12,
-  actionCount: 24,
+  taskCount: 3,
+  workCount: 12,
+  stepCount: 24,
   completedCount: 45,
   actionRequiredCount: 3,
   reviewPendingCount: 4,
   proposalCount: 3,
 };
 
-// === Goalツリー表示テスト ===
+// === Taskツリー表示テスト ===
 
-describe("generateGoalTreeHtml - Goalグルーピング表示", () => {
-  it("Goal一覧が正しく表示される", () => {
-    const html = generateGoalTreeHtml(mockGoals, "/project");
+describe("generateTaskTreeHtml - Taskグルーピング表示", () => {
+  it("Task一覧が正しく表示される", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
 
     expect(html).toContain("#289");
     expect(html).toContain("ダッシュボード構造改善");
-    expect(html).toContain("goal-item");
+    expect(html).toContain("task-item");
   });
 
-  it("Goalのステータスバッジが表示される", () => {
-    const html = generateGoalTreeHtml(mockGoals, "/project");
+  it("Taskのステータスバッジが表示される", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
 
-    // working Goal
+    // working Task
     expect(html).toContain("status-working");
     expect(html).toContain("🔵");
-    // completed Goal
+    // completed Task
     expect(html).toContain("status-completed");
     expect(html).toContain("✅");
   });
 
-  it("Goal配下のPhaseが階層表示される", () => {
-    const html = generateGoalTreeHtml(mockGoals, "/project");
+  it("Task配下のWorkが階層表示される", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
 
-    expect(html).toContain("phase-tree");
+    expect(html).toContain("work-tree");
     expect(html).toContain("289-P1");
     expect(html).toContain("調査");
     expect(html).toContain("289-P2");
     expect(html).toContain("設計");
   });
 
-  it("Phase配下のActionが表示される", () => {
-    const html = generateGoalTreeHtml(mockGoals, "/project");
+  it("Work配下のStepが表示される", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
 
     expect(html).toContain("289-1");
     expect(html).toContain("要件調査");
@@ -183,31 +183,99 @@ describe("generateGoalTreeHtml - Goalグルーピング表示", () => {
   });
 
   it("レビューステータスバッジが表示される", () => {
-    const html = generateGoalTreeHtml(mockGoals, "/project");
+    const html = generateTaskTreeHtml(mockTasks, "/project");
 
     expect(html).toContain("review-pending");
     expect(html).toContain("review-approved");
   });
 
   it("担当者が表示される", () => {
-    const html = generateGoalTreeHtml(mockGoals, "/project");
+    const html = generateTaskTreeHtml(mockTasks, "/project");
 
     expect(html).toContain("emma");
     expect(html).toContain("sophia");
   });
 
-  it("空のGoal配列の場合は「なし」を表示", () => {
-    const html = generateGoalTreeHtml([], "/project");
+  it("空のTask配列の場合は「なし」を表示", () => {
+    const html = generateTaskTreeHtml([], "/project");
 
     expect(html).toContain("empty-message");
     expect(html).toContain("なし");
   });
 
-  it("closed/completedのGoalは視覚的に区別される", () => {
-    const html = generateGoalTreeHtml(mockGoals, "/project");
+  it("closed/completedのTaskは視覚的に区別される", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
 
     // #301 は completed なので、completed クラスを持つべき
-    expect(html).toMatch(/goal-item[^>]*data-status="closed"/);
+    expect(html).toMatch(/task-item[^>]*data-status="closed"/);
+  });
+
+  it("サブタスク有りのTaskは展開アイコン▼が表示される", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
+
+    // ID 289 は works が2つあるので ▼ が表示される
+    // task-item data-id="289" の中の task-toggle に ▼ があること
+    const task289Match = html.match(/data-id="289"[^>]*>[\s\S]*?<span class="task-toggle[^"]*">(.*?)<\/span>/);
+    expect(task289Match).not.toBeNull();
+    expect(task289Match![1]).toBe("▼");
+  });
+
+  it("サブタスク無しのTaskは単独アイコン●が表示される", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
+
+    // ID 301 は works が空なので ● が表示される
+    const task301Match = html.match(/data-id="301"[^>]*>[\s\S]*?<span class="task-toggle[^"]*">(.*?)<\/span>/);
+    expect(task301Match).not.toBeNull();
+    expect(task301Match![1]).toBe("●");
+  });
+
+  it("サブタスク無しのTaskはno-childrenクラスを持つ", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
+
+    // ID 301 は works が空なので no-children クラスを持つ
+    expect(html).toMatch(/data-id="301"[\s\S]*?task-toggle[^"]*no-children/);
+  });
+
+  it("Taskのアーカイブボタンはクライアントサイドで生成される（サーバーサイドでは出力なし）", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
+
+    // アーカイブボタン/バッジはクライアントサイドで生成される
+    // サーバーサイドでは出力しない（重複防止）
+    expect(html).not.toContain('archive-placeholder');
+    expect(html).not.toContain('archive-btn');
+  });
+
+  it("未完了Taskにはアーカイブボタンが表示されない", () => {
+    const html = generateTaskTreeHtml(mockTasks, "/project");
+
+    // ID 289 は working なのでアーカイブボタンが表示されない
+    // task-item data-id="289" 内に archive-btn がないことを確認
+    const task289Section = html.match(/data-id="289"[\s\S]*?(?=data-id="301"|$)/);
+    expect(task289Section).not.toBeNull();
+    expect(task289Section![0]).not.toContain("archive-btn");
+  });
+
+  it("アーカイブ済みTaskにはアーカイブプレースホルダーとdata-archivedが設定される", () => {
+    const archivedTasks: V2Task[] = [
+      {
+        id: "400",
+        title: "アーカイブ済みタスク",
+        type: "task",
+        mainStatus: "closed",
+        v2Substatus: "completed",
+        archived: true,
+        assignees: [],
+        works: [],
+      },
+    ];
+    const html = generateTaskTreeHtml(archivedTasks, "/project");
+
+    // アーカイブボタン/バッジはクライアントサイドで生成される
+    // サーバーサイドではdata-archived属性のみ出力（ボタンは出力しない）
+    expect(html).toContain('data-archived="true"');
+    // プレースホルダー・ボタンはサーバーサイドで出力されない
+    expect(html).not.toContain('archive-placeholder');
+    expect(html).not.toContain('archive-btn');
   });
 });
 
@@ -287,15 +355,15 @@ describe("generateArtifactsHtml - 成果物パネル", () => {
 // === V2.1統計サマリーテスト ===
 
 describe("generateV2StatsHtml - V2.1統計サマリー", () => {
-  it("Goal/Phase/Action件数が表示される", () => {
+  it("Task/Work/Step件数が表示される", () => {
     const html = generateV2StatsHtml(mockV2Stats);
 
-    expect(html).toContain("3"); // goalCount
-    expect(html).toContain("🎯"); // Goal icon
-    expect(html).toContain("12"); // phaseCount
-    expect(html).toContain("📋"); // Phase icon
-    expect(html).toContain("24"); // actionCount
-    expect(html).toContain("⚡"); // Action icon
+    expect(html).toContain("3"); // taskCount
+    expect(html).toContain("🎯"); // Task icon
+    expect(html).toContain("12"); // workCount
+    expect(html).toContain("📋"); // Work icon
+    expect(html).toContain("24"); // stepCount
+    expect(html).toContain("⚡"); // Step icon
   });
 
   it("完了件数が表示される", () => {

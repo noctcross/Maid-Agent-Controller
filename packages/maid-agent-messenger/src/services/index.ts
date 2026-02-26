@@ -42,7 +42,7 @@ export {
   type TaskType,
   type TaskMainStatus,
   type TaskSubstatus,
-  type GoalSize,
+  type TaskSize,
   type ReviewStatus,
   type RetentionLevel,
   type TaskArtifact,
@@ -50,6 +50,10 @@ export {
   type MigrationResult,
   // V2.1 ダッシュボードデータ型
   type V2DashboardData,
+  type V2TaskData,
+  type V2WorkData,
+  type V2StepData,
+  // 後方互換エイリアス
   type V2GoalData,
   type V2PhaseData,
   type V2ActionData,

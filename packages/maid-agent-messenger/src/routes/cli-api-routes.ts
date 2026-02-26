@@ -82,6 +82,18 @@ router.post("/api/tasks", async (req: Request, res: Response) => {
         task: result.task,
         txId,
       });
+
+      // 親タスクが再オープンされた場合、追加で taskUpdated イベントを発火
+      if (result.reopenedParent) {
+        wsServer.broadcast(projectPath, {
+          type: "taskUpdated",
+          taskId: result.reopenedParent.id,
+          task: result.reopenedParent,
+          field: "mainStatus",
+          value: result.reopenedParent.mainStatus,
+          txId,
+        });
+      }
     }
 
     res.status(201).json({
@@ -189,6 +201,7 @@ router.get("/api/agents/:id/task", async (req: Request, res: Response) => {
       queueMaidPath: paths.queueMaidPath,
       agentId,
       summaryOnly,
+      projectPath,  // 親タスク情報取得用
     });
 
     res.json(result);

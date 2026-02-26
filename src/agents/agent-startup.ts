@@ -190,7 +190,7 @@ export function getFallbackRolePrompt(ctx: AgentContext, agentId: string, role: 
 
 /**
  * エージェントでClaude Codeを起動し、役割を認識させる
- * --append-system-promptで役割情報をシステムプロンプトに注入（コンパクション耐性あり）
+ * --add-dir で roles/{agentId} のCLAUDE.mdを読み込み（コンパクション耐性あり）
  * 初期プロンプトを引数として渡すことで、起動と指示を1コマンドで実行
  */
 export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {
@@ -198,46 +198,36 @@ export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, r
     if (!agent || !ctx.tmuxManager) return;
 
     // 役割に応じた指示を作成
-    // 注: 指示書・ペルソナは --append-system-prompt-file でシステムプロンプトに注入済み
+    // 注: 指示書・ペルソナは .maid-agent/roles/{agentId}/CLAUDE.md から読み込み
     let instruction: string;
     switch (role) {
         case 'butler':
-            instruction = 'あなたは執事のシルヴィアです。システムプロンプトを確認し、自分の役割とルールを把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
+            instruction = 'あなたは執事のシルヴィアです。CLAUDE.mdを確認し、自分の役割とルールを把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
             break;
         case 'chiefMaid':
-            instruction = 'あなたはメイド長のビオラです。システムプロンプトを確認し、自分の役割とルールを把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
+            instruction = 'あなたはメイド長のビオラです。CLAUDE.mdを確認し、自分の役割とルールを把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
             break;
         case 'maid':
-            instruction = `あなたはメイドの${maidName || 'メイド'}です。システムプロンプトを確認し、自分の役割とルールを把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
+            instruction = `あなたはメイドの${maidName || 'メイド'}です。CLAUDE.mdを確認し、自分の役割とルールを把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
             break;
     }
 
     // シェルエスケープ（シングルクォートをエスケープ）
     const escapedInstruction = instruction.replace(/'/g, "'\\''");
 
-    // システムプロンプトファイルを生成
-    const promptFilePath = ctx.getSystemPromptFilePath(agentId, role, maidName);
-
     // tmuxウィンドウが準備できるまで待つ
     await ctx.delay(500);
 
     // Claude Code を初期プロンプト付きで起動（tmux send-keys経由）
-    // --append-system-prompt-file: 外部ファイルからシステムプロンプトを読み込み
+    // --add-dir: .maid-agent/core と .maid-agent/roles/{agentId} のCLAUDE.mdを読み込み
+    // CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1: 追加ディレクトリのCLAUDE.mdも読み込む
     // --model: settings.yaml で設定されたLLMモデル（未設定時は省略）
     const model = getModelForAgent(ctx.settings, agentId, role);
     const modelFlag = model ? ` --model ${model}` : '';
 
-    let command: string;
-    if (promptFilePath) {
-        // ファイルから読み込み（推奨）
-        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt-file '${promptFilePath}' '${escapedInstruction}'`;
-    } else {
-        // フォールバック: ファイル生成失敗時は従来の方式
-        ctx.log('[prompt] フォールバック: ハードコードプロンプトを使用');
-        const rolePrompt = ctx.getFallbackRolePrompt(agentId, role, maidName);
-        const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt '${escapedRolePrompt}' '${escapedInstruction}'`;
-    }
+    // 環境変数とコマンドを構築
+    const envVar = 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1';
+    const command = `${envVar} claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId} -- '${escapedInstruction}'`;
     ctx.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
 
     const roleLabel = agent.role === 'butler' ? '執事' :
@@ -373,45 +363,25 @@ export function startClaudeOnAgent(ctx: AgentContext, agentId: string): void {
     const agent = ctx.agents.get(agentId);
     if (!agent) return;
 
-    // システムプロンプトファイルを生成
-    const promptFilePath = ctx.getSystemPromptFilePath(agentId, agent.role, agent.name);
-
     // Claude Code を権限スキップモードで起動（役割情報付き）
     const model = getModelForAgent(ctx.settings, agentId, agent.role);
     const modelFlag = model ? ` --model ${model}` : '';
 
-    let command: string;
-    if (promptFilePath) {
-        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt-file '${promptFilePath}'`;
-    } else {
-        // フォールバック: ファイル生成失敗時は従来の方式
-        ctx.log('[prompt] フォールバック: ハードコードプロンプトを使用');
-        const rolePrompt = ctx.getFallbackRolePrompt(agentId, agent.role, agent.name);
-        const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-        command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt '${escapedRolePrompt}'`;
-    }
+    // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${agentId}を追加
+    const envVar = 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1';
+    const command = `${envVar} claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
     ctx.sendToAgent(agentId, command);
 }
 
 export async function startClaudeOnAllAgents(ctx: AgentContext): Promise<void> {
     let count = 0;
     for (const [id, agent] of ctx.agents) {
-        // システムプロンプトファイルを生成
-        const promptFilePath = ctx.getSystemPromptFilePath(id, agent.role, agent.name);
-
         const model = getModelForAgent(ctx.settings, id, agent.role);
         const modelFlag = model ? ` --model ${model}` : '';
 
-        let command: string;
-        if (promptFilePath) {
-            command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt-file '${promptFilePath}'`;
-        } else {
-            // フォールバック: ファイル生成失敗時は従来の方式
-            ctx.log('[prompt] フォールバック: ハードコードプロンプトを使用');
-            const rolePrompt = ctx.getFallbackRolePrompt(id, agent.role, agent.name);
-            const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-            command = `claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --append-system-prompt '${escapedRolePrompt}'`;
-        }
+        // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${id}を追加
+        const envVar = 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1';
+        const command = `${envVar} claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --add-dir .maid-agent/roles/${id}`;
         ctx.sendToAgent(id, command);
         await ctx.delay(500); // 各エージェント間で少し待つ
         count++;

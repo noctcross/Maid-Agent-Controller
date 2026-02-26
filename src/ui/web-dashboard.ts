@@ -128,6 +128,8 @@ async function refreshDashboardData(ctx: ViewContext, panel: vscode.WebviewPanel
             stats: { pendingCount: number; workingCount: number; masterWaitingCount: number; completedTodayCount: number; timestamp: string };
             tasks: { pending: string; working: string; masterWaiting: string; masterReview: string; completed?: string };
             completedMeta?: { changed: boolean; hash: string; total: number };
+            v2Html?: { goals?: string; reviewQueue?: string; artifacts?: string; stats?: string };
+            v2?: unknown;
         };
 
         // ハッシュを更新
@@ -135,12 +137,14 @@ async function refreshDashboardData(ctx: ViewContext, panel: vscode.WebviewPanel
             ctx.completedViewState.hash = data.completedMeta.hash;
         }
 
-        // postMessageでWebviewにデータを送信
+        // postMessageでWebviewにデータを送信（v2Html/v2を含む）
         panel.webview.postMessage({
             type: 'dashboardUpdate',
             stats: data.stats,
             tasks: data.tasks,
-            completedMeta: data.completedMeta
+            completedMeta: data.completedMeta,
+            v2Html: data.v2Html,
+            v2: data.v2
         });
 
         ctx.log('[Dashboard] refreshDashboardData: データ更新送信');
@@ -321,6 +325,10 @@ export async function initializeDashboard(ctx: ViewContext, serverUrl: string, p
                     } else if (message.tasks && typeof updateTaskLists === 'function') {
                         updateTaskLists(message.tasks);
                     }
+                    // V2セクションの更新（v2Htmlが含まれている場合）
+                    if (message.v2Html && typeof updateV2Sections === 'function') {
+                        updateV2Sections(message.v2Html, message.v2);
+                    }
                 } else if (message.type === 'showReport') {
                     if (typeof showReportOverlay === 'function') {
                         showReportOverlay(message.html, message.fileName);
@@ -374,6 +382,8 @@ export async function updateDashboardData(ctx: ViewContext, serverUrl: string, p
         stats: { pendingCount: number; workingCount: number; masterWaitingCount: number; completedTodayCount: number; timestamp: string };
         tasks: { pending: string; working: string; masterWaiting: string; masterReview: string; completed?: string };
         completedMeta?: { changed: boolean; hash: string; total: number };
+        v2Html?: { goals?: string; reviewQueue?: string; artifacts?: string; stats?: string };
+        v2?: unknown;
     };
 
     // ハッシュを更新
@@ -381,13 +391,15 @@ export async function updateDashboardData(ctx: ViewContext, serverUrl: string, p
         ctx.completedViewState.hash = data.completedMeta.hash;
     }
 
-    // postMessageでWebviewにデータを送信
-    // Webview側のリスナーがupdateStats/updateTaskListsWithMetaを呼び出す
+    // postMessageでWebviewにデータを送信（v2Html/v2を含む）
+    // Webview側のリスナーがupdateStats/updateTaskListsWithMeta/updateV2Sectionsを呼び出す
     ctx.dashboardPanel.webview.postMessage({
         type: 'dashboardUpdate',
         stats: data.stats,
         tasks: data.tasks,
-        completedMeta: data.completedMeta
+        completedMeta: data.completedMeta,
+        v2Html: data.v2Html,
+        v2: data.v2
     });
 
     ctx.log('[Dashboard] JSON APIで部分更新送信');

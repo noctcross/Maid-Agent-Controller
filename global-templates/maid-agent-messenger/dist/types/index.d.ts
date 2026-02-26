@@ -6,7 +6,7 @@ export declare const MAID_IDS: readonly ["emma", "sophia", "lily", "rose", "alic
 export type MaidId = (typeof MAID_IDS)[number];
 export declare const ALL_AGENT_IDS: readonly ["butler", "chief", "emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"];
 export type AgentId = (typeof ALL_AGENT_IDS)[number];
-export declare const TASK_TYPES: readonly ["goal", "phase", "action", "investigation"];
+export declare const TASK_TYPES: readonly ["task", "work", "step", "investigation"];
 export type TaskType = (typeof TASK_TYPES)[number];
 export declare const TASK_MAIN_STATUSES: readonly ["open", "closed", "cancelled"];
 export type TaskMainStatus = (typeof TASK_MAIN_STATUSES)[number];
@@ -16,8 +16,8 @@ export declare const OPEN_SUBSTATUSES: readonly ["pending", "assigned", "working
 export type OpenSubstatus = (typeof OPEN_SUBSTATUSES)[number];
 export declare const CLOSED_SUBSTATUSES: readonly ["completed"];
 export type ClosedSubstatus = (typeof CLOSED_SUBSTATUSES)[number];
-export declare const GOAL_SIZES: readonly ["simple", "standard", "complex"];
-export type GoalSize = (typeof GOAL_SIZES)[number];
+export declare const TASK_SIZES: readonly ["simple", "standard", "complex"];
+export type TaskSize = (typeof TASK_SIZES)[number];
 export declare const REVIEW_STATUSES: readonly ["pending", "in_review", "approved", "rejected"];
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 export declare const RETENTION_LEVELS: readonly ["L1", "L2", "L3"];
@@ -49,7 +49,7 @@ export interface TaskV2 {
     type: TaskType;
     status: TaskMainStatus;
     substatus: TaskSubstatus;
-    size?: GoalSize;
+    size?: TaskSize;
     tentative?: boolean;
     blockedBy?: string[];
     artifacts?: TaskArtifact[];

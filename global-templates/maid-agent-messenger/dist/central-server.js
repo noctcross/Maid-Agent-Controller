@@ -25,7 +25,7 @@ import { generateDashboardHtml } from "./views/dashboard-html.js";
 import { generateTopPageHtml } from "./views/top-page-html.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js";
 // V2.1 ビュー
-import { generateGoalTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, } from "./views/task-html-v2.js";
+import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, } from "./views/task-html-v2.js";
 import { loopbackOnly } from "./middleware/loopback-only.js";
 import { DashboardWebSocketServer } from "./websocket/dashboard-ws.js";
 const app = express();
@@ -72,7 +72,7 @@ async function main() {
         generateDashboardHtml,
         generateTaskHtml,
         composeMasterWaitingHtml,
-        generateGoalTreeHtml,
+        generateTaskTreeHtml,
         generateReviewQueueHtml,
         generateArtifactsHtml,
         generateV2StatsHtml,

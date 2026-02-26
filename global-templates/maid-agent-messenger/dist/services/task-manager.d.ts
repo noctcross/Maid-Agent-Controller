@@ -5,10 +5,10 @@
  * tasks.yaml を単一ファイルで管理
  */
 export type TaskStatus = "pending" | "assigned" | "working" | "completed" | "blocked" | "cancelled";
-export type TaskType = "goal" | "phase" | "action" | "investigation";
+export type TaskType = "task" | "work" | "step" | "investigation";
 export type TaskMainStatus = "open" | "closed" | "cancelled";
 export type TaskSubstatus = "pending" | "assigned" | "working" | "checkpoint" | "waiting" | "completed" | "archived";
-export type GoalSize = "simple" | "standard" | "complex";
+export type TaskSize = "simple" | "standard" | "complex";
 export type ReviewStatus = "pending" | "in_review" | "approved" | "rejected";
 export type OperatorRole = "maid" | "chief" | "butler" | "master";
 export interface StatusTransitionValidation {
@@ -55,7 +55,7 @@ export interface Task {
     type?: TaskType;
     mainStatus?: TaskMainStatus;
     v2Substatus?: TaskSubstatus;
-    size?: GoalSize;
+    size?: TaskSize;
     tentative?: boolean;
     blockedBy?: string[];
     artifacts?: TaskArtifact[];
@@ -86,13 +86,14 @@ export interface CreateTaskParams {
     parentId?: string;
     category?: TaskCategory;
     type?: TaskType;
-    size?: GoalSize;
+    size?: TaskSize;
     tentative?: boolean;
     blockedBy?: string[];
 }
 export interface CreateTaskResult {
     taskId: string;
     task: Task;
+    reopenedParent?: Task;
 }
 /**
  * タスク作成
@@ -162,7 +163,7 @@ export interface UpdateTaskParams {
     mainStatus?: TaskMainStatus;
     v2Substatus?: TaskSubstatus;
     type?: TaskType;
-    size?: GoalSize;
+    size?: TaskSize;
     tentative?: boolean;
     blockedBy?: string[];
     artifacts?: TaskArtifact[];
@@ -259,7 +260,7 @@ export declare function convertToV2Status(task: Task): {
 export declare function computeGoalDisplayStatus(goalSubstatus: string, phases: Array<{
     v2Substatus: string;
     mainStatus?: string;
-}>): {
+}>, goalMainStatus?: string): {
     displayStatus: string;
     displayIcon: string;
 };
@@ -286,11 +287,11 @@ export interface V2DashboardData {
     v2Stats: V2StatsData;
     totalGoals: number;
 }
-export interface V2ActionData {
+export interface V2StepData {
     id: string;
     title: string;
     description?: string;
-    type: "action";
+    type: "step";
     mainStatus: string;
     v2Substatus: string;
     assignees?: Array<{
@@ -298,25 +299,25 @@ export interface V2ActionData {
     }>;
     updatedAt?: string;
 }
-export interface V2PhaseData {
+export interface V2WorkData {
     id: string;
     title: string;
     description?: string;
-    type: "phase";
+    type: "work";
     mainStatus: string;
     v2Substatus: string;
     reviewStatus?: string;
     assignees?: Array<{
         agentId: string;
     }>;
-    actions: V2ActionData[];
+    steps: V2StepData[];
     updatedAt?: string;
 }
-export interface V2GoalData {
+export interface V2TaskData {
     id: string;
     title: string;
     description?: string;
-    type: "goal";
+    type: "task";
     mainStatus: string;
     v2Substatus: string;
     size?: string;
@@ -324,13 +325,16 @@ export interface V2GoalData {
     assignees: Array<{
         agentId: string;
     }>;
-    phases: V2PhaseData[];
+    works: V2WorkData[];
     displayStatus?: string;
     displayIcon?: string;
     archived?: boolean;
     updatedAt?: string;
     latestUpdatedAt?: string;
 }
+export type V2GoalData = V2TaskData;
+export type V2PhaseData = V2WorkData;
+export type V2ActionData = V2StepData;
 export interface V2ReviewTaskData {
     id: string;
     title: string;
@@ -350,9 +354,9 @@ export interface V2ArtifactData {
     createdAt: string;
 }
 export interface V2StatsData {
-    goalCount: number;
-    phaseCount: number;
-    actionCount: number;
+    taskCount: number;
+    workCount: number;
+    stepCount: number;
     completedCount: number;
     actionRequiredCount: number;
     reviewPendingCount: number;
@@ -408,9 +412,9 @@ export interface MigrationResult {
  * 既存タスクを V2.1 形式にマイグレーション
  *
  * 設計書より:
- * 1. 既存タスクに type: action を付与（デフォルト）
- * 2. 親タスクを type: goal に変更
- * 3. サブタスクグループを type: phase に変更（直接の親が goal の場合）
+ * 1. 既存タスクに type: step を付与（デフォルト）
+ * 2. 親タスクを type: task に変更
+ * 3. サブタスクグループを type: work に変更（直接の親が task の場合）
  * 4. 調査系タスクを type: investigation に変更
  * 5. mainStatus/v2Substatus を旧 status から変換
  */

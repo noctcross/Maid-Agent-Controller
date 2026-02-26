@@ -74,6 +74,10 @@ export function getV2DashboardStyles() {
       color: var(--v2-accent-purple);
     }
 
+    .stat-card.alert .number {
+      color: var(--v2-accent-red);
+    }
+
     /* V2.1 Goals Pagination */
     .v2-goals-pagination-wrapper {
       display: flex;
@@ -194,6 +198,13 @@ export function getV2DashboardStyles() {
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     }
 
+    /* デスクトップ向け: モーダル横幅を1.5倍に拡大 */
+    @media (min-width: 768px) {
+      .task-detail-popup {
+        max-width: 750px;
+      }
+    }
+
     .task-detail-header {
       display: flex;
       align-items: center;
@@ -282,12 +293,7 @@ export function getV2DashboardStyles() {
       background: var(--v2-bg-archived, rgba(100, 100, 100, 0.3));
     }
 
-    .goal-item[data-archived="true"] .goal-header::after,
-    .phase-item[data-archived="true"]::after {
-      content: "📦";
-      margin-left: auto;
-      font-size: 0.75rem;
-    }
+    /* アーカイブ📦アイコンはJavaScriptで生成するため、::after疑似要素は削除 */
 
     .goal-item {
       background: var(--v2-bg-card);
@@ -324,6 +330,11 @@ export function getV2DashboardStyles() {
 
     .goal-toggle.collapsed, .phase-toggle.collapsed {
       transform: rotate(-90deg);
+    }
+
+    .goal-toggle.no-children {
+      transform: none;
+      cursor: default;
     }
 
     .phase-header {
@@ -884,9 +895,12 @@ export function getV2DashboardStyles() {
     }
 
     .v2-goals-section,
+    .v2-goals-open-section,
+    .v2-goals-closed-section,
+    .v2-master-waiting-section,
     .v2-review-section,
     .v2-artifacts-section {
-      margin-bottom: 15px;
+      margin-bottom: 16px;
     }
 
     .v2-goals-header-row {
@@ -1511,6 +1525,63 @@ export function getDashboardStyles() {
     .task-report-links { display: flex; gap: 6px; flex-wrap: wrap; }
     .report-link { color: var(--accent-color); text-decoration: none; padding: 1px 5px; background: rgba(86, 156, 214, 0.1); border-radius: 3px; font-size: 0.75rem; }
     .report-link:hover { background: rgba(86, 156, 214, 0.2); text-decoration: underline; }
+    /* アーカイブボタン・バッジ */
+    .archive-btn {
+      background: rgba(255, 193, 7, 0.15);
+      border: 1px solid rgba(255, 193, 7, 0.4);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: #ffc107;
+      transition: all 0.15s;
+    }
+    .archive-btn:hover {
+      background: rgba(255, 193, 7, 0.3);
+      border-color: #ffc107;
+    }
+    .archive-btn:disabled,
+    .archive-btn-disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      background: rgba(158, 158, 158, 0.1);
+      border-color: rgba(158, 158, 158, 0.3);
+      color: #9e9e9e;
+    }
+    .archived-badge,
+    .archive-btn.archived-badge {
+      background: rgba(86, 156, 214, 0.15);
+      border: 1px solid rgba(86, 156, 214, 0.4);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 0.75rem;
+      color: #569cd6;
+      cursor: pointer;
+    }
+    .archive-btn.archived-badge:hover {
+      background: rgba(86, 156, 214, 0.3);
+      border-color: #569cd6;
+    }
+    /* Goal手動クローズボタン */
+    .close-goal-btn {
+      background: rgba(76, 175, 80, 0.15);
+      border: 1px solid rgba(76, 175, 80, 0.4);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: #4caf50;
+      transition: all 0.15s;
+      margin-right: 4px;
+    }
+    .close-goal-btn:hover {
+      background: rgba(76, 175, 80, 0.3);
+      border-color: #4caf50;
+    }
+    .close-goal-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
     .path-link { color: var(--accent-color); text-decoration: none; border-bottom: 1px dotted var(--accent-color); cursor: pointer; }
     .path-link:hover { text-decoration: underline; background: rgba(86, 156, 214, 0.1); }
     /* Phase 3: フィルタ/検索 */

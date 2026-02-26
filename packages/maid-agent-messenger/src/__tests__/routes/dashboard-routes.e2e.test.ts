@@ -23,9 +23,9 @@ const mockGenerateV2DashboardData = jest.fn<any>().mockResolvedValue({
   v2ReviewQueue: [],
   v2Artifacts: [],
   v2Stats: {
-    goalCount: 0,
-    phaseCount: 0,
-    actionCount: 0,
+    taskCount: 0,
+    workCount: 0,
+    stepCount: 0,
     completedCount: 0,
     actionRequiredCount: 0,
     reviewPendingCount: 0,

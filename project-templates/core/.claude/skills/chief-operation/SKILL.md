@@ -1,8 +1,8 @@
 ---
 name: chief-operation
 description: "[chiefOnly] メイド長の運用手順。タスク割り当て時・メイドの報告受領時・エスカレーション対応時・執事への報告時に参照。推測で行動せずパターンを確認すること。"
-version: 1.0
-patterns: ["task-distribution", "report-collection", "escalation-handling", "skill-aggregation", "action-required", "dependency-progression"]
+version: 2.1
+patterns: ["task-distribution", "report-collection", "escalation-handling", "skill-aggregation", "action-required", "dependency-progression", "substatus-handling", "dependency-auto-notify", "review-queue-management", "investigation-promotion", "peer-review"]
 ---
 
 # Chief Operation - メイド長運用スキル
@@ -12,19 +12,26 @@ patterns: ["task-distribution", "report-collection", "escalation-handling", "ski
 メイド長としての運用手順を体系化したスキル。
 タスク管理の中核を担い、執事からの指示をメイドへ適切に配分し、報告を収集・集約する。
 
+**V2.1 更新**: substatus対応、レビューキュー、Investigation昇格、ピアレビュー追加。
+
 ## Quick Start
 
 ### 基本フロー
 
-```
+**基本は Goal → Phase の2段階運用**。Phase をメイドに直接割り当てる。
+
 1. 執事から通知受領
-2. maidctl task list --status pending --summary でタスク確認
-3. maidctl task assign TASK_ID --to AGENT で配分
+2. maidctl task list --status pending --summary で未着手 **Phase** 確認
+3. maidctl task assign TASK_ID --to AGENT で **Phase を直接メイドに配分**
 4. maidctl notify {メイド} で通知
 5. 停止（完了報告を待つ）
 6. メイド完了後、報告収集
-7. maidctl task update TASK_ID --status completed で更新
-```
+7. 【V2.1】レビューキュー確認・Investigation昇格判断
+8. maidctl task update TASK_ID --status completed で更新
+
+※ 複雑な Phase の場合のみ Action に分割して配分
+
+**修正タスクの命名規則**: タイトルに元Phase番号を明記（`#XXX-Y 修正内容`）
 
 詳細は [task-distribution.md](resources/patterns/task-distribution.md) 参照。
 

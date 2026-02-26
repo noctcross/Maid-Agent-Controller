@@ -7,7 +7,7 @@
 - [判断基準](#判断基準)
 - [フロー1: ご主人様判断が必要な場合](#フロー1-ご主人様判断が必要な場合)
 - [フロー2: メイド長で解決可能な場合](#フロー2-メイド長で解決可能な場合)
-- [--escalation パラメータの役割](#--escalation-パラメータの役割)
+- [--action-required パラメータの役割](#--action-required-パラメータの役割)
 - [他メイドへの相談依頼](#他メイドへの相談依頼)
 - [注意点](#注意点)
 - [事例](#事例)
@@ -26,8 +26,8 @@
 
 ## 判断基準
 
-| 状況 | --escalation | フロー |
-|------|-------------|--------|
+| 状況 | --action-required | フロー |
+|------|-------------------|--------|
 | ご主人様の判断が必要（技術方針・ライセンス・重要決定等） | あり | フロー1 |
 | メイド長で解決可能（依存タスク待ち・リソース調整等） | なし | フロー2 |
 
@@ -53,17 +53,17 @@
 ## 問題・注意点
 {問題の詳細説明}
 
-## エスカレーション
-escalation:
+## 対応必要（actionRequired）
+actionRequired:
   required: true
-  title: "{エスカレーション件名}"
+  title: "{対応件名}"
   detail: "{詳細な説明、判断に必要な情報}"
 ```
 
 ### 2. ステータスを blocked に更新
 
 ```bash
-maidctl my-status blocked --summary "{エスカレーション件名}" --escalation
+maidctl my-status blocked --summary "{対応件名}" --action-required
 ```
 
 ### 3. メイド長に通知
@@ -85,7 +85,7 @@ maidctl notify chief "{件名}でブロックされました。ご主人様の�
 
 ```bash
 maidctl my-status blocked --summary "{ブロック理由}"
-# --escalation は省略（デフォルト false）
+# --action-required は省略（デフォルト false）
 ```
 
 ### 3. メイド長に通知
@@ -94,12 +94,12 @@ maidctl my-status blocked --summary "{ブロック理由}"
 maidctl notify chief "ブロックされました。{ブロック理由}。"
 ```
 
-## --escalation パラメータの役割
+## --action-required パラメータの役割
 
 | 要素 | 役割 |
 |------|------|
-| `--escalation` フラグ | メイド長への構造化シグナル（機械的に検知可能） |
-| 報告書の `escalation` セクション | 詳細情報（なぜ必要かの背景） |
+| `--action-required` フラグ | メイド長への構造化シグナル（機械的に検知可能） |
+| 報告書の `actionRequired` セクション | 詳細情報（なぜ必要かの背景） |
 
 **両者は補完関係。片方だけでは不十分。**
 
@@ -134,14 +134,14 @@ maidctl notify chief "ソフィアさんへの相談依頼: APIの設計につ�
 
 ```bash
 # 報告書に記載
-## エスカレーション
-escalation:
+## 対応必要（actionRequired）
+actionRequired:
   required: true
   title: "MITライセンスライブラリの使用可否確認"
   detail: "依存ライブラリにMITライセンスのものが含まれています。プロジェクトでの使用可否をご確認ください。"
 
 # コマンド実行
-maidctl my-status blocked --summary "ライセンス確認待ち" --escalation
+maidctl my-status blocked --summary "ライセンス確認待ち" --action-required
 maidctl notify chief "MITライセンスライブラリの使用可否確認でブロックされました。ご主人様のご判断が必要です。"
 ```
 

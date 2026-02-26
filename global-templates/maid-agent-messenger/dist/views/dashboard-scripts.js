@@ -516,6 +516,8 @@ export function getDashboardMainScript(params) {
       item.addEventListener('click', function(e) {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
         if (e.target.closest('a') || e.target.closest('button')) return;
+        // スキル候補・改善提案・レビューキューはモーダル表示に統一（アコーディオン無効化）
+        if (this.classList.contains('skill-item') || this.classList.contains('improvement-item') || this.classList.contains('review-item')) return;
         this.classList.toggle('expanded');
       });
       addTaskItemButtonListeners(item);
@@ -676,13 +678,31 @@ export function getDashboardMainScript(params) {
     }
 
     // ダッシュボードデータを再取得（IDE/ブラウザ判定）
+    // タブ復帰時の連続リクエストを防ぐためのタイムスタンプ
+    var lastRefreshTime = 0;
+    var REFRESH_THROTTLE_MS = 2000; // 2秒以内の連続リクエストを防止
+
     function refreshDashboard() {
+      // スロットリング: 前回のリフレッシュから一定時間経過していない場合はスキップ
+      var now = Date.now();
+      if (now - lastRefreshTime < REFRESH_THROTTLE_MS) {
+        console.log('[refreshDashboard] Throttled (last refresh was', now - lastRefreshTime, 'ms ago)');
+        return;
+      }
+      lastRefreshTime = now;
+
+      console.log('[refreshDashboard] Refreshing dashboard data...');
+
       if (_vscodeApi) {
         // IDE Webview: extension側にデータ再取得を依頼（fetchがブロックされるため）
         _vscodeApi.postMessage({ command: 'refreshDashboard' });
       } else {
         // ブラウザ: 直接API呼び出し
         fetchTasks();
+        // V2 Goals セクションも更新
+        if (typeof refreshGoals === 'function') {
+          refreshGoals();
+        }
       }
     }
 
@@ -1059,6 +1079,8 @@ export function getDashboardMainScript(params) {
           // フォーム要素やリンクのクリックでは展開/折りたたみしない
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
           if (e.target.closest('a') || e.target.closest('button')) return;
+          // スキル候補・改善提案・レビューキューはモーダル表示に統一（アコーディオン無効化）
+          if (this.classList.contains('skill-item') || this.classList.contains('improvement-item') || this.classList.contains('review-item')) return;
           this.classList.toggle('expanded');
         });
 
@@ -1164,14 +1186,27 @@ export function getV2DashboardScript() {
     // V2.1 Dashboard Scripts
     // ========================================
 
-    // V2.1 Goals ページネーション状態
+    // V2.1 Goals ページネーション状態（Open/Closed 別管理）
+    // Open（進行中）- ページネーションあり
+    var v2GoalsOpenCurrentPage = 0;
+    var v2GoalsOpenLimit = 10;
+    var v2GoalsOpenTotal = 0;
+    var v2GoalsOpenSortField = 'id';
+    var v2GoalsOpenSortOrder = 'desc';
+
+    // Closed（完了済み）- ページネーションあり
+    var v2GoalsClosedCurrentPage = 0;
+    var v2GoalsClosedLimit = 10;
+    var v2GoalsClosedTotal = 0;
+    var v2GoalsClosedSortField = 'id';
+    var v2GoalsClosedSortOrder = 'desc';
+
+    // 後方互換用（古いコードで参照されている場合用）
     var v2GoalsCurrentPage = 0;
     var v2GoalsLimit = 10;
     var v2GoalsTotal = 0;
-
-    // V2.1 Goals ソート状態
-    var v2GoalsSortField = 'id';    // 'id' | 'updatedAt'
-    var v2GoalsSortOrder = 'desc';  // 'asc' | 'desc'
+    var v2GoalsSortField = 'id';
+    var v2GoalsSortOrder = 'desc';
 
     /**
      * Goal展開/折りたたみを切り替える
@@ -1227,18 +1262,94 @@ export function getV2DashboardScript() {
       setupGoalTreeEventDelegation();
       initGoalsFilter();
       initTaskIdClickHandler();
-      // ソートボタンのイベントリスナー
-      var sortIdBtn = document.getElementById('v2-goals-sort-id');
-      var sortUpdBtn = document.getElementById('v2-goals-sort-updated');
-      if (sortIdBtn) {
-        sortIdBtn.addEventListener('click', function() { sortGoals('id'); });
+      initArchiveButtons();
+      initCloseGoalButtons();
+      initSpecialSectionModalClick();
+
+      // 進行中セクションのソートボタン
+      var sortOpenIdBtn = document.getElementById('v2-goals-open-sort-id');
+      var sortOpenUpdBtn = document.getElementById('v2-goals-open-sort-updated');
+      if (sortOpenIdBtn) {
+        sortOpenIdBtn.addEventListener('click', function() { sortGoalsOpen('id'); });
       }
-      if (sortUpdBtn) {
-        sortUpdBtn.addEventListener('click', function() { sortGoals('updated'); });
+      if (sortOpenUpdBtn) {
+        sortOpenUpdBtn.addEventListener('click', function() { sortGoalsOpen('updated'); });
       }
-      // 初期フィルタを適用（Open表示）
+
+      // 進行中セクションの件数制限ボタン
+      var limitGroupOpen = document.getElementById('v2-goals-open-limit-group');
+      if (limitGroupOpen) {
+        limitGroupOpen.addEventListener('click', function(e) {
+          var btn = e.target.closest('.v2-toggle-btn');
+          if (!btn) return;
+          if (btn.classList.contains('active')) return;
+          limitGroupOpen.querySelectorAll('.v2-toggle-btn').forEach(function(b) {
+            b.classList.remove('active');
+          });
+          btn.classList.add('active');
+          v2GoalsOpenLimit = parseInt(btn.dataset.value, 10) || 10;
+          v2GoalsOpenCurrentPage = 0;
+          refreshGoalsOpen();
+        });
+      }
+
+      // 進行中セクションのページネーション
+      var paginationRootOpen = document.getElementById('v2-goals-open-pagination');
+      if (paginationRootOpen) {
+        paginationRootOpen.addEventListener('click', function(e) {
+          var btn = e.target.closest('.v2-goals-open-page-btn');
+          if (!btn || btn.disabled) return;
+          var page = parseInt(btn.dataset.page, 10);
+          if (!isNaN(page)) {
+            goV2GoalsOpenPage(page);
+          }
+        });
+      }
+
+      // 完了済みセクションのソートボタン
+      var sortClosedIdBtn = document.getElementById('v2-goals-closed-sort-id');
+      var sortClosedUpdBtn = document.getElementById('v2-goals-closed-sort-updated');
+      if (sortClosedIdBtn) {
+        sortClosedIdBtn.addEventListener('click', function() { sortGoalsClosed('id'); });
+      }
+      if (sortClosedUpdBtn) {
+        sortClosedUpdBtn.addEventListener('click', function() { sortGoalsClosed('updated'); });
+      }
+
+      // 完了済みセクションの件数制限ボタン
+      var limitGroup = document.getElementById('v2-goals-closed-limit-group');
+      if (limitGroup) {
+        limitGroup.addEventListener('click', function(e) {
+          var btn = e.target.closest('.v2-toggle-btn');
+          if (!btn) return;
+          if (btn.classList.contains('active')) return;
+          limitGroup.querySelectorAll('.v2-toggle-btn').forEach(function(b) {
+            b.classList.remove('active');
+          });
+          btn.classList.add('active');
+          v2GoalsClosedLimit = parseInt(btn.dataset.value, 10) || 10;
+          v2GoalsClosedCurrentPage = 0;
+          refreshGoalsClosed();
+        });
+      }
+
+      // 完了済みセクションのページネーション
+      var paginationRoot = document.getElementById('v2-goals-closed-pagination');
+      if (paginationRoot) {
+        paginationRoot.addEventListener('click', function(e) {
+          var btn = e.target.closest('.v2-goals-closed-page-btn');
+          if (!btn || btn.disabled) return;
+          var page = parseInt(btn.dataset.page, 10);
+          if (!isNaN(page)) {
+            goV2GoalsClosedPage(page);
+          }
+        });
+      }
+
+      // 両セクションを初期化
       setTimeout(function() {
-        refreshGoals();
+        refreshGoalsOpen();
+        refreshGoalsClosed();
       }, 0);
     }
 
@@ -1334,73 +1445,21 @@ export function getV2DashboardScript() {
 
     /**
      * Goalsフィルタの初期化
-     * ステータスフィルタとarchivedチェックボックスの監視
+     * archivedチェックボックスの監視（完了済みセクション用）
+     * 注: ページネーション・件数制限はinitV2Dashboard()で設定済み
      */
     function initGoalsFilter() {
       console.log('[V2.1] initGoalsFilter called');
-      var statusGroup = document.getElementById('v2-goals-status-group');
       var archivedCheckbox = document.getElementById('v2-goals-show-archived');
-      var limitGroup = document.getElementById('v2-goals-limit-group');
 
-      console.log('[V2.1] statusGroup:', statusGroup ? 'found' : 'not found');
       console.log('[V2.1] archivedCheckbox:', archivedCheckbox ? 'found' : 'not found');
-      console.log('[V2.1] limitGroup:', limitGroup ? 'found' : 'not found');
 
-      // ステータスフィルタ（トグルボタン）
-      if (statusGroup) {
-        statusGroup.addEventListener('click', function(e) {
-          var btn = e.target.closest('.v2-toggle-btn');
-          if (!btn) return;
-          // 既にactiveなら何もしない
-          if (btn.classList.contains('active')) return;
-          // 他のボタンからactiveを外す
-          statusGroup.querySelectorAll('.v2-toggle-btn').forEach(function(b) {
-            b.classList.remove('active');
-          });
-          btn.classList.add('active');
-          console.log('[V2.1] Status filter changed to:', btn.dataset.value);
-          v2GoalsCurrentPage = 0;
-          refreshGoals();
-        });
-      }
-
+      // アーカイブ表示チェックボックス（完了済みセクション用）
       if (archivedCheckbox) {
         archivedCheckbox.addEventListener('change', function() {
           console.log('[V2.1] Archived checkbox changed to:', archivedCheckbox.checked);
-          v2GoalsCurrentPage = 0; // フィルタ変更時はページ1に戻す
-          refreshGoals();
-        });
-      }
-
-      // ページネーションボタンのイベント委任
-      var paginationRoot = document.getElementById('v2-goals-pagination');
-      if (paginationRoot) {
-        paginationRoot.addEventListener('click', function(e) {
-          var btn = e.target.closest('.v2-goals-page-btn');
-          if (btn && !btn.disabled) {
-            var page = parseInt(btn.dataset.page, 10);
-            goV2GoalsPage(page);
-          }
-        });
-      }
-
-      // 表示件数（トグルボタン）
-      if (limitGroup) {
-        limitGroup.addEventListener('click', function(e) {
-          var btn = e.target.closest('.v2-toggle-btn');
-          if (!btn) return;
-          // 既にactiveなら何もしない
-          if (btn.classList.contains('active')) return;
-          // 他のボタンからactiveを外す
-          limitGroup.querySelectorAll('.v2-toggle-btn').forEach(function(b) {
-            b.classList.remove('active');
-          });
-          btn.classList.add('active');
-          var newLimit = parseInt(btn.dataset.value, 10);
-          console.log('[V2.1] Limit changed to:', newLimit);
-          v2GoalsLimit = newLimit;
-          v2GoalsCurrentPage = 0;
-          refreshGoals();
+          v2GoalsClosedCurrentPage = 0; // フィルタ変更時はページ1に戻す
+          refreshGoalsClosed();
         });
       }
     }
@@ -1521,9 +1580,257 @@ export function getV2DashboardScript() {
     }
 
     /**
-     * Goals一覧をサーバーから取得（ページネーション対応）
+     * 進行中（Open）Goals一覧をサーバーから取得（ページネーション対応）
+     */
+    function refreshGoalsOpen() {
+      var offset = v2GoalsOpenCurrentPage * v2GoalsOpenLimit;
+
+      var url = '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
+        '&offset=' + offset +
+        '&limit=' + v2GoalsOpenLimit +
+        '&status=open' +
+        '&archived=false' +
+        '&sort=' + v2GoalsOpenSortField +
+        '&order=' + v2GoalsOpenSortOrder;
+
+      console.log('[refreshGoalsOpen] Fetching:', url);
+
+      fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          updateV2GoalsOpenSection(data.goals, data.total, data.offset, data.limit);
+        })
+        .catch(function(err) {
+          console.error('[refreshGoalsOpen] Error:', err);
+        });
+    }
+
+    /**
+     * 完了済み（Closed）Goals一覧をサーバーから取得（ページネーション対応）
+     */
+    function refreshGoalsClosed() {
+      var archivedCheckbox = document.getElementById('v2-goals-show-archived');
+      var showArchived = archivedCheckbox ? archivedCheckbox.checked : false;
+      var offset = v2GoalsClosedCurrentPage * v2GoalsClosedLimit;
+
+      var url = '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
+        '&offset=' + offset +
+        '&limit=' + v2GoalsClosedLimit +
+        '&status=closed' +
+        '&archived=' + showArchived +
+        '&sort=' + v2GoalsClosedSortField +
+        '&order=' + v2GoalsClosedSortOrder;
+
+      console.log('[refreshGoalsClosed] Fetching:', url);
+
+      fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          updateV2GoalsClosedSection(data.goals, data.total, data.offset, data.limit);
+        })
+        .catch(function(err) {
+          console.error('[refreshGoalsClosed] Error:', err);
+        });
+    }
+
+    /**
+     * 進行中セクションを更新
+     */
+    function updateV2GoalsOpenSection(goals, total, offset, limit) {
+      var goalsList = document.getElementById('v2-goals-open-list');
+      if (!goalsList) return;
+
+      v2GoalsOpenTotal = total;
+
+      if (goals && goals.length > 0) {
+        var html = goals.map(function(goal) {
+          return renderGoalItem(goal);
+        }).join('\\n');
+        goalsList.innerHTML = html;
+      } else {
+        goalsList.innerHTML = '<div class="empty-message">進行中のタスクはありません</div>';
+      }
+
+      // カウントバッジを更新
+      var countBadge = document.getElementById('v2-goals-open-count');
+      if (countBadge) {
+        countBadge.textContent = String(total);
+      }
+
+      // ページネーションUIを更新
+      updateV2GoalsOpenPagination(total, offset, limit);
+
+      initGoalTree();
+      console.log('[updateV2GoalsOpenSection] Updated: total=' + total + ', offset=' + offset);
+    }
+
+    /**
+     * 完了済みセクションを更新
+     */
+    function updateV2GoalsClosedSection(goals, total, offset, limit) {
+      var goalsList = document.getElementById('v2-goals-closed-list');
+      if (!goalsList) return;
+
+      v2GoalsClosedTotal = total;
+
+      if (goals && goals.length > 0) {
+        var html = goals.map(function(goal) {
+          return renderGoalItem(goal);
+        }).join('\\n');
+        goalsList.innerHTML = html;
+      } else {
+        goalsList.innerHTML = '<div class="empty-message">完了済みタスクはありません</div>';
+      }
+
+      // カウントバッジを更新
+      var countBadge = document.getElementById('v2-goals-closed-count');
+      if (countBadge) {
+        countBadge.textContent = String(total);
+      }
+
+      // ページネーションUIを更新
+      updateV2GoalsClosedPagination(total, offset, limit);
+
+      initGoalTree();
+      console.log('[updateV2GoalsClosedSection] Updated: total=' + total + ', offset=' + offset);
+    }
+
+    /**
+     * 完了済みセクションのページネーションを更新
+     */
+    function updateV2GoalsClosedPagination(total, offset, limit) {
+      var paginationEl = document.getElementById('v2-goals-closed-pagination');
+      if (!paginationEl) return;
+
+      var totalPages = Math.ceil(total / limit);
+      var currentPage = Math.floor(offset / limit);
+
+      if (totalPages <= 1) {
+        paginationEl.innerHTML = '<span class="pagination-info">' + total + '件</span>';
+      } else {
+        paginationEl.innerHTML =
+          '<button class="pagination-btn v2-goals-closed-page-btn" data-page="' + (currentPage - 1) + '" ' + (currentPage === 0 ? 'disabled' : '') + '>◀</button>' +
+          '<span class="pagination-info">' + (currentPage + 1) + '/' + totalPages + '</span>' +
+          '<button class="pagination-btn v2-goals-closed-page-btn" data-page="' + (currentPage + 1) + '" ' + (currentPage >= totalPages - 1 ? 'disabled' : '') + '>▶</button>';
+      }
+    }
+
+    /**
+     * 完了済みセクションのページを変更
+     */
+    function goV2GoalsClosedPage(page) {
+      if (page < 0) return;
+      var totalPages = Math.ceil(v2GoalsClosedTotal / v2GoalsClosedLimit);
+      if (page >= totalPages) return;
+      v2GoalsClosedCurrentPage = page;
+      refreshGoalsClosed();
+    }
+
+    /**
+     * 進行中セクションのページネーションを更新
+     */
+    function updateV2GoalsOpenPagination(total, offset, limit) {
+      var paginationEl = document.getElementById('v2-goals-open-pagination');
+      if (!paginationEl) return;
+
+      var totalPages = Math.ceil(total / limit);
+      var currentPage = Math.floor(offset / limit);
+
+      if (totalPages <= 1) {
+        paginationEl.innerHTML = '<span class="pagination-info">' + total + '件</span>';
+      } else {
+        paginationEl.innerHTML =
+          '<button class="pagination-btn v2-goals-open-page-btn" data-page="' + (currentPage - 1) + '" ' + (currentPage === 0 ? 'disabled' : '') + '>◀</button>' +
+          '<span class="pagination-info">' + (currentPage + 1) + '/' + totalPages + '</span>' +
+          '<button class="pagination-btn v2-goals-open-page-btn" data-page="' + (currentPage + 1) + '" ' + (currentPage >= totalPages - 1 ? 'disabled' : '') + '>▶</button>';
+      }
+    }
+
+    /**
+     * 進行中セクションのページを変更
+     */
+    function goV2GoalsOpenPage(page) {
+      if (page < 0) return;
+      var totalPages = Math.ceil(v2GoalsOpenTotal / v2GoalsOpenLimit);
+      if (page >= totalPages) return;
+      v2GoalsOpenCurrentPage = page;
+      refreshGoalsOpen();
+    }
+
+    /**
+     * 進行中セクションのソート
+     */
+    function sortGoalsOpen(field) {
+      if (v2GoalsOpenSortField === field) {
+        v2GoalsOpenSortOrder = v2GoalsOpenSortOrder === 'desc' ? 'asc' : 'desc';
+      } else {
+        v2GoalsOpenSortField = field;
+        v2GoalsOpenSortOrder = 'desc';
+      }
+      v2GoalsOpenCurrentPage = 0;  // ソート変更時はページをリセット
+      updateGoalsOpenSortButtons();
+      refreshGoalsOpen();
+    }
+
+    /**
+     * 完了済みセクションのソート
+     */
+    function sortGoalsClosed(field) {
+      if (v2GoalsClosedSortField === field) {
+        v2GoalsClosedSortOrder = v2GoalsClosedSortOrder === 'desc' ? 'asc' : 'desc';
+      } else {
+        v2GoalsClosedSortField = field;
+        v2GoalsClosedSortOrder = 'desc';
+      }
+      updateGoalsClosedSortButtons();
+      v2GoalsClosedCurrentPage = 0;
+      refreshGoalsClosed();
+    }
+
+    /**
+     * 進行中セクションのソートボタン表示を更新
+     */
+    function updateGoalsOpenSortButtons() {
+      var idBtn = document.getElementById('v2-goals-open-sort-id');
+      var updBtn = document.getElementById('v2-goals-open-sort-updated');
+      if (idBtn) {
+        idBtn.classList.toggle('active', v2GoalsOpenSortField === 'id');
+        idBtn.textContent = v2GoalsOpenSortField === 'id' && v2GoalsOpenSortOrder === 'asc' ? '#↑' : '#↓';
+      }
+      if (updBtn) {
+        updBtn.classList.toggle('active', v2GoalsOpenSortField === 'updatedAt');
+        updBtn.textContent = v2GoalsOpenSortField === 'updatedAt' && v2GoalsOpenSortOrder === 'asc' ? '📅↑' : '📅↓';
+      }
+    }
+
+    /**
+     * 完了済みセクションのソートボタン表示を更新
+     */
+    function updateGoalsClosedSortButtons() {
+      var idBtn = document.getElementById('v2-goals-closed-sort-id');
+      var updBtn = document.getElementById('v2-goals-closed-sort-updated');
+      if (idBtn) {
+        idBtn.classList.toggle('active', v2GoalsClosedSortField === 'id');
+        idBtn.textContent = v2GoalsClosedSortField === 'id' && v2GoalsClosedSortOrder === 'asc' ? '#↑' : '#↓';
+      }
+      if (updBtn) {
+        updBtn.classList.toggle('active', v2GoalsClosedSortField === 'updatedAt');
+        updBtn.textContent = v2GoalsClosedSortField === 'updatedAt' && v2GoalsClosedSortOrder === 'asc' ? '📅↑' : '📅↓';
+      }
+    }
+
+    /**
+     * Goals一覧をサーバーから取得（後方互換用 - 両セクションを更新）
      */
     function refreshGoals() {
+      refreshGoalsOpen();
+      refreshGoalsClosed();
+    }
+
+    /**
+     * Goals一覧をサーバーから取得（旧実装 - 使用されなくなったがWebSocket等での呼び出し用に残す）
+     */
+    function refreshGoalsLegacy() {
       var statusGroup = document.getElementById('v2-goals-status-group');
       var archivedCheckbox = document.getElementById('v2-goals-show-archived');
 
@@ -1607,9 +1914,26 @@ export function getV2DashboardScript() {
         alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
       };
 
-      var statusIcon = goal.displayIcon || statusIcons[goal.v2Substatus] || '❓';
-      var statusText = goal.displayStatus || goal.v2Substatus;
-      var statusClass = statusClasses[goal.v2Substatus] || '';
+      // ステータス日本語化マッピング
+      var statusTextJp = {
+        pending: '未着手',
+        assigned: '割当済',
+        working: '進行中',
+        checkpoint: '確認待ち',
+        waiting: '待機中',
+        completed: '完了',
+        archived: 'アーカイブ'
+      };
+
+      // mainStatus=closed または v2Substatus=completed の場合は「完了」を表示
+      var effectiveSubstatus = goal.v2Substatus;
+      if (goal.mainStatus === 'closed' || goal.v2Substatus === 'completed') {
+        effectiveSubstatus = 'completed';
+      }
+
+      var statusIcon = goal.displayIcon || statusIcons[effectiveSubstatus] || '❓';
+      var statusText = goal.displayStatus || statusTextJp[effectiveSubstatus] || effectiveSubstatus;
+      var statusClass = statusClasses[effectiveSubstatus] || '';
 
       // 担当者HTML
       var assigneesHtml = '';
@@ -1642,15 +1966,50 @@ export function getV2DashboardScript() {
 
       // Phaseを再帰的にレンダリング
       var phasesHtml = '';
-      if (goal.phases && goal.phases.length > 0) {
+      var hasChildren = goal.phases && goal.phases.length > 0;
+      if (hasChildren) {
         phasesHtml = '<div class="goal-content"><div class="phase-tree">' +
           goal.phases.map(function(phase) { return renderPhaseItem(phase); }).join('\\n') +
           '</div></div>';
       }
 
+      // サブタスク有り: ▼（展開可能）、サブタスク無し: ●（単独タスク）
+      var toggleIcon = hasChildren ? '▼' : '●';
+      var toggleClass = hasChildren ? 'collapsed' : 'collapsed no-children';
+
+      // 全Phase完了判定（手動クローズボタン表示用）
+      var allPhasesCompleted = hasChildren && goal.phases.every(function(p) {
+        return p.v2Substatus === 'completed' || p.mainStatus === 'closed';
+      });
+      var isOpen = goal.mainStatus === 'open';
+
+      // 手動クローズボタン: mainStatus=open かつ 全Phase完了の場合のみ表示
+      var closeHtml = '';
+      if (isOpen && allPhasesCompleted) {
+        closeHtml = '<button class="close-goal-btn" data-task-id="' + escapeHtmlClient(goal.id) + '" title="Goalを完了にする" onclick="event.stopPropagation()">✅完了</button>';
+      }
+
+      // アーカイブ関連: 常にアイコンを表示（列ずれ防止）
+      // - アーカイブ済み: クリックで解除（青色）
+      // - 完了: クリックでアーカイブ（通常色）
+      // - 未完了: グレーアウト（disabled）
+      var isArchived = goal.archived === true;
+      var isCompleted = goal.v2Substatus === 'completed' || goal.mainStatus === 'closed';
+      var archiveHtml;
+      if (isArchived) {
+        // アーカイブ済み: クリックで解除可能
+        archiveHtml = '<button class="archive-btn archived-badge" data-task-id="' + escapeHtmlClient(goal.id) + '" title="アーカイブ済み（クリックで解除）" onclick="event.stopPropagation()">📦</button>';
+      } else if (isCompleted) {
+        // 完了: クリックでアーカイブ可能
+        archiveHtml = '<button class="archive-btn" data-task-id="' + escapeHtmlClient(goal.id) + '" title="アーカイブする" onclick="event.stopPropagation()">📦</button>';
+      } else {
+        // 未完了: グレーアウト（disabled）
+        archiveHtml = '<button class="archive-btn archive-btn-disabled" disabled title="完了後にアーカイブ可能" onclick="event.stopPropagation()">📦</button>';
+      }
+
       return '<div class="goal-item" data-id="' + escapeHtmlClient(goal.id) + '" data-status="' + goal.mainStatus + '" data-substatus="' + goal.v2Substatus + '" data-archived="' + (goal.archived === true || goal.v2Substatus === 'archived') + '" data-updated="' + (goal.updatedAt || '') + '">' +
         '<div class="goal-header">' +
-          '<span class="goal-toggle collapsed">▼</span>' +
+          '<span class="goal-toggle ' + toggleClass + '">' + toggleIcon + '</span>' +
           '<span class="goal-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(goal.id) + '</span>' +
           '<span class="goal-title">' + escapeHtmlClient(goal.title) + '</span>' +
           '<span class="badge badge-goal">Goal</span>' +
@@ -1658,6 +2017,8 @@ export function getV2DashboardScript() {
           '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + escapeHtmlClient(statusText) + '</span></span>' +
           assigneesHtml +
           reportLink +
+          closeHtml +
+          archiveHtml +
         '</div>' +
         phasesHtml +
       '</div>';
@@ -1676,6 +2037,10 @@ export function getV2DashboardScript() {
         working: 'status-active', active: 'status-active', assigned: 'status-assigned', pending: 'status-pending', paused: 'status-paused',
         checkpoint: 'status-checkpoint', waiting: 'status-waiting', completed: 'status-completed', archived: 'status-archived'
       };
+      var statusTextJp = {
+        pending: '未着手', assigned: '割当済', working: '進行中', active: '進行中',
+        checkpoint: '確認待ち', waiting: '待機中', completed: '完了', archived: 'アーカイブ'
+      };
       var maidIcons = {
         emma: '☕', sophia: '❄️', lily: '🎀', rose: '🌹',
         alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
@@ -1683,6 +2048,7 @@ export function getV2DashboardScript() {
 
       var statusIcon = statusIcons[phase.v2Substatus] || '❓';
       var statusClass = statusClasses[phase.v2Substatus] || '';
+      var statusText = statusTextJp[phase.v2Substatus] || phase.v2Substatus;
 
       // 担当者HTML
       var assigneesHtml = '';
@@ -1727,7 +2093,7 @@ export function getV2DashboardScript() {
         '<div class="phase-header">' +
           '<span class="phase-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(phase.id) + '</span>' +
           '<span class="phase-name">[' + escapeHtmlClient(phase.title) + '] Phase</span>' +
-          '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + phase.v2Substatus + '</span></span>' +
+          '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + statusText + '</span></span>' +
           assigneesHtml +
           reportLink +
         '</div>' +
@@ -1744,6 +2110,10 @@ export function getV2DashboardScript() {
         working: '🔵', active: '🔵', assigned: '📋', pending: '⏳', paused: '⏸️',
         checkpoint: '🔶', waiting: '⏳', completed: '✅', archived: '📦'
       };
+      var statusTextJp = {
+        pending: '未着手', assigned: '割当済', working: '進行中', active: '進行中',
+        checkpoint: '確認待ち', waiting: '待機中', completed: '完了', archived: 'アーカイブ'
+      };
       var maidIcons = {
         emma: '☕', sophia: '❄️', lily: '🎀', rose: '🌹',
         alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
@@ -1754,6 +2124,7 @@ export function getV2DashboardScript() {
       var icon = isLast ? '└' : '├';
       var statusBadge = action.v2Substatus === 'working' ? '<span class="current-marker">← 現在ここ</span>' : '';
       var statusIcon = statusIcons[action.v2Substatus] || '⏳';
+      var statusText = statusTextJp[action.v2Substatus] || action.v2Substatus;
 
       // 担当者HTML
       var assigneesHtml = '';
@@ -1785,7 +2156,7 @@ export function getV2DashboardScript() {
         '<span class="action-icon">' + icon + '</span>' +
         '<span class="action-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(action.id) + '</span>' +
         '<span class="action-title"> ' + escapeHtmlClient(action.title) + '</span>' +
-        '<span class="action-status ' + action.v2Substatus + '">' + statusIcon + '<span class="status-text"> ' + action.v2Substatus + '</span></span>' +
+        '<span class="action-status ' + action.v2Substatus + '">' + statusIcon + '<span class="status-text"> ' + statusText + '</span></span>' +
         assigneesHtml +
         statusBadge +
       '</div>';
@@ -1863,16 +2234,20 @@ export function getV2DashboardScript() {
 
     /**
      * タスクID クリックイベントの初期化（イベント委任）
+     * document.bodyに設定することで、全セクション（進行中/完了済み/スキル候補等）に対応
      */
     function initTaskIdClickHandler() {
-      var goalsContainer = document.getElementById('v2-goals-list');
-      if (!goalsContainer) {
-        console.log('[initTaskIdClickHandler] v2-goals-list not found');
+      // 既に設定済みならスキップ
+      if (document.body.dataset.taskIdClickDelegation === 'true') {
+        console.log('[initTaskIdClickHandler] Already set up');
         return;
       }
-      console.log('[initTaskIdClickHandler] Setting up click handler');
+      document.body.dataset.taskIdClickDelegation = 'true';
+      console.log('[initTaskIdClickHandler] Setting up click handler on document.body');
 
-      goalsContainer.addEventListener('click', function(e) {
+      // キャプチャフェーズ(true)でイベントを処理
+      // 理由: アコーディオンのクリックハンドラより先に処理して伝播を停止するため
+      document.body.addEventListener('click', function(e) {
         var clickable = e.target.closest('.task-id-clickable');
         if (!clickable) return;
 
@@ -1898,7 +2273,256 @@ export function getV2DashboardScript() {
         } catch (err) {
           console.error('[initTaskIdClickHandler] Failed to parse task info:', err);
         }
+      }, true);  // キャプチャフェーズで処理
+    }
+
+    /**
+     * アーカイブボタンの初期化（イベントデリゲーション）
+     */
+    function initArchiveButtons() {
+      console.log('[V2.1] initArchiveButtons called');
+
+      // 既に設定済みならスキップ
+      if (document.body.dataset.archiveBtnDelegation === 'true') {
+        console.log('[V2.1] Archive button delegation already set up');
+        return;
+      }
+      document.body.dataset.archiveBtnDelegation = 'true';
+
+      // キャプチャフェーズ(true)でイベントを処理
+      // 理由: アーカイブボタンに onclick="event.stopPropagation()" が設定されており、
+      // バブリングフェーズではイベントがここに到達しないため
+      document.body.addEventListener('click', function(e) {
+        var archiveBtn = e.target.closest('.archive-btn');
+        if (!archiveBtn) return;
+
+        // disabled状態のボタンは無視
+        if (archiveBtn.disabled || archiveBtn.classList.contains('archive-btn-disabled')) {
+          return;
+        }
+
+        e.stopPropagation();
+        e.preventDefault();
+
+        var taskId = archiveBtn.getAttribute('data-task-id');
+        if (!taskId) {
+          console.error('[initArchiveButtons] No data-task-id attribute');
+          return;
+        }
+
+        // 現在のアーカイブ状態を取得（トグル動作）
+        var goalItem = archiveBtn.closest('.goal-item');
+        var isCurrentlyArchived = goalItem && goalItem.getAttribute('data-archived') === 'true';
+
+        console.log('[initArchiveButtons] Archive button clicked for task:', taskId, 'currently archived:', isCurrentlyArchived);
+
+        // 確認なしで即座にAPIを呼び出し（トグル）
+        toggleArchive(taskId, archiveBtn, !isCurrentlyArchived);
+      }, true);
+
+      console.log('[V2.1] Archive button delegation set up on document.body');
+    }
+
+    /**
+     * アーカイブ状態をトグルする（API呼び出し）
+     */
+    function toggleArchive(taskId, btn, newArchivedState) {
+      console.log('[toggleArchive] taskId:', taskId, 'newState:', newArchivedState);
+
+      // ボタンを無効化
+      btn.disabled = true;
+      var originalText = btn.textContent;
+      btn.textContent = '⏳';
+
+      var projectPath = window.v2ProjectPath || '';
+
+      // LAN公開用エンドポイントを使用
+      fetch('/dashboard/tasks/' + encodeURIComponent(taskId) + '/archive?project=' + encodeURIComponent(projectPath), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ archived: newArchivedState })
+      })
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error('API error: ' + response.status);
+        }
+        return response.json();
+      })
+      .then(function(data) {
+        console.log('[toggleArchive] Success:', data);
+
+        var goalItem = btn.closest('.goal-item');
+
+        if (newArchivedState) {
+          // アーカイブ: ボタンをバッジに変更
+          btn.classList.add('archived-badge');
+          btn.classList.remove('archive-btn');
+          btn.title = 'アーカイブ済み（クリックで解除）';
+          btn.disabled = false;
+          btn.textContent = '📦';
+          if (goalItem) {
+            goalItem.setAttribute('data-archived', 'true');
+          }
+
+          // アーカイブ非表示設定の場合はアイテムを非表示に
+          var archivedCheckbox = document.getElementById('v2-goals-show-archived');
+          if (archivedCheckbox && !archivedCheckbox.checked && goalItem) {
+            goalItem.style.display = 'none';
+          }
+        } else {
+          // アーカイブ解除: バッジをボタンに変更
+          btn.classList.remove('archived-badge');
+          btn.classList.add('archive-btn');
+          btn.title = 'アーカイブする';
+          btn.disabled = false;
+          btn.textContent = '📦';
+          if (goalItem) {
+            goalItem.setAttribute('data-archived', 'false');
+          }
+        }
+      })
+      .catch(function(err) {
+        console.error('[toggleArchive] Error:', err);
+
+        // ボタンを元に戻す
+        btn.disabled = false;
+        btn.textContent = originalText;
       });
+    }
+
+    /**
+     * Goalクローズボタンの初期化（イベントデリゲーション）
+     */
+    function initCloseGoalButtons() {
+      console.log('[V2.1] initCloseGoalButtons called');
+
+      // 既に設定済みならスキップ
+      if (document.body.dataset.closeGoalBtnDelegation === 'true') {
+        console.log('[V2.1] Close goal button delegation already set up');
+        return;
+      }
+      document.body.dataset.closeGoalBtnDelegation = 'true';
+
+      document.body.addEventListener('click', function(e) {
+        var closeBtn = e.target.closest('.close-goal-btn');
+        if (!closeBtn) return;
+
+        e.stopPropagation();
+        e.preventDefault();
+
+        var taskId = closeBtn.getAttribute('data-task-id');
+        if (!taskId) {
+          console.error('[initCloseGoalButtons] No data-task-id attribute');
+          return;
+        }
+
+        console.log('[initCloseGoalButtons] Close button clicked for goal:', taskId);
+        closeGoal(taskId, closeBtn);
+      }, true);
+
+      console.log('[V2.1] Close goal button delegation set up on document.body');
+    }
+
+    /**
+     * Goalを完了にする（API呼び出し）
+     */
+    function closeGoal(taskId, btn) {
+      console.log('[closeGoal] taskId:', taskId);
+
+      // ボタンを無効化
+      btn.disabled = true;
+      var originalText = btn.textContent;
+      btn.textContent = '⏳';
+
+      var projectPath = window.v2ProjectPath || '';
+
+      // タスク更新APIを呼び出し（/dashboard/tasks/:id/close）
+      fetch('/dashboard/tasks/' + encodeURIComponent(taskId) + '/close?project=' + encodeURIComponent(projectPath), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error('API error: ' + response.status);
+        }
+        return response.json();
+      })
+      .then(function(data) {
+        console.log('[closeGoal] Success:', data);
+
+        // セクションを更新（進行中から完了済みへ移動するため両方更新）
+        refreshGoalsOpen();
+        refreshGoalsClosed();
+      })
+      .catch(function(err) {
+        console.error('[closeGoal] Error:', err);
+
+        // ボタンを元に戻す
+        btn.disabled = false;
+        btn.textContent = originalText;
+      });
+    }
+
+    /**
+     * スキル候補・改善提案セクションのタスク全体クリックでモーダル表示
+     * アコーディオン動作を廃止し、モーダル表示に統一
+     */
+    function initSpecialSectionModalClick() {
+      console.log('[V2.1] initSpecialSectionModalClick called');
+
+      // 既に設定済みならスキップ
+      if (document.body.dataset.specialSectionModalDelegation === 'true') {
+        console.log('[V2.1] Special section modal delegation already set up');
+        return;
+      }
+      document.body.dataset.specialSectionModalDelegation = 'true';
+
+      // キャプチャフェーズでイベントを処理（アコーディオンより先に処理）
+      document.body.addEventListener('click', function(e) {
+        // スキル候補・改善提案セクション内の.task-itemをチェック
+        var taskItem = e.target.closest('.skill-item, .improvement-item, .review-item');
+        if (!taskItem) return;
+
+        // task-id-clickable のクリックは既存ハンドラで処理されるのでスキップ
+        if (e.target.closest('.task-id-clickable')) return;
+
+        // リンクやボタンのクリックは除外
+        if (e.target.closest('a') || e.target.closest('button')) return;
+
+        console.log('[initSpecialSectionModalClick] Task item clicked:', taskItem.dataset.id);
+
+        // イベント伝播を停止（アコーディオン動作を抑制）
+        e.stopPropagation();
+        e.preventDefault();
+
+        // タスク内の task-id-clickable から data-task-info を取得
+        var clickable = taskItem.querySelector('.task-id-clickable');
+        if (!clickable) {
+          console.error('[initSpecialSectionModalClick] No task-id-clickable found');
+          return;
+        }
+
+        var taskInfoBase64 = clickable.getAttribute('data-task-info');
+        if (!taskInfoBase64) {
+          console.error('[initSpecialSectionModalClick] No data-task-info attribute');
+          return;
+        }
+
+        try {
+          var taskInfoJson = decodeURIComponent(escape(atob(taskInfoBase64)));
+          var taskInfo = JSON.parse(taskInfoJson);
+          console.log('[initSpecialSectionModalClick] Showing modal for task:', taskInfo.id);
+          showTaskDetailPopup(taskInfo);
+        } catch (err) {
+          console.error('[initSpecialSectionModalClick] Failed to parse task info:', err);
+        }
+      }, true);  // キャプチャフェーズで処理
+
+      console.log('[V2.1] Special section modal delegation set up on document.body');
     }
 
     /**

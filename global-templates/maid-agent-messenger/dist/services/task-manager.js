@@ -107,11 +107,36 @@ export async function executeCreateTask(projectPath, params) {
     return withTasksLock(projectPath, async (data) => {
         // 新しいタスクID生成
         let taskId;
+        let reopenedParent; // 再オープンされた親タスク
         if (params.parentId) {
             // サブタスクの場合: 親ID-連番
             const siblings = data.tasks.filter((t) => t.parentId === params.parentId);
             const nextSeq = siblings.length + 1;
             taskId = `${params.parentId}-${nextSeq}`;
+            // 親タスクの自動再オープン
+            // 子タスクが追加されたら、親タスクは作業中のはずなので再オープン
+            const parentTask = data.tasks.find((t) => t.id === params.parentId);
+            if (parentTask) {
+                let parentUpdated = false;
+                // 親が closed の場合 → open/working に変更
+                if (parentTask.mainStatus === "closed") {
+                    parentTask.mainStatus = "open";
+                    parentTask.v2Substatus = "working";
+                    parentTask.status = "working"; // 旧ステータスも同期
+                    parentTask.updatedAt = getTimestamp();
+                    parentUpdated = true;
+                }
+                // 親が archived の場合 → archived:false に変更
+                if (parentTask.archived === true) {
+                    parentTask.archived = false;
+                    parentTask.updatedAt = getTimestamp();
+                    parentUpdated = true;
+                }
+                // 親タスクが更新された場合、reopenedParent に設定
+                if (parentUpdated) {
+                    reopenedParent = { ...parentTask }; // コピーを作成
+                }
+            }
         }
         else {
             // メインタスクの場合: 連番（3桁ゼロ埋め）
@@ -119,8 +144,8 @@ export async function executeCreateTask(projectPath, params) {
             taskId = String(data.lastTaskNumber).padStart(3, "0");
         }
         const now = getTimestamp();
-        // V2.1: タスク種別の決定（デフォルト: action）
-        const taskType = params.type || "action";
+        // V2.1: タスク種別の決定（デフォルト: step）
+        const taskType = params.type || "step";
         // V2.1: 初期ステータスの設定
         // - blockedBy があれば waiting
         // - それ以外は pending（未着手）
@@ -148,14 +173,14 @@ export async function executeCreateTask(projectPath, params) {
             type: taskType,
             mainStatus: "open",
             v2Substatus: initialV2Substatus,
-            size: taskType === "goal" ? (params.size || "standard") : undefined,
-            tentative: taskType === "goal" ? (params.tentative || false) : undefined,
+            size: taskType === "task" ? (params.size || "standard") : undefined,
+            tentative: taskType === "task" ? (params.tentative || false) : undefined,
             blockedBy: params.blockedBy || [],
             artifacts: [],
             reviewStatus: undefined,
         };
         data.tasks.push(newTask);
-        return { data, result: { taskId, task: newTask } };
+        return { data, result: { taskId, task: newTask, reopenedParent } };
     });
 }
 /**
@@ -309,6 +334,34 @@ export async function executeUpdateTask(projectPath, params) {
             if (params.status === "completed") {
                 task.completedAt = now;
             }
+            // V2.1: 旧ステータス→V2.1ステータス自動同期
+            // params.v2Substatus が明示的に指定されている場合はそちらを優先
+            if (params.v2Substatus === undefined) {
+                if (params.status === "working") {
+                    task.mainStatus = "open";
+                    task.v2Substatus = "working";
+                }
+                else if (params.status === "completed") {
+                    task.mainStatus = "closed";
+                    task.v2Substatus = "completed";
+                }
+                else if (params.status === "blocked") {
+                    task.mainStatus = "open";
+                    task.v2Substatus = "checkpoint";
+                }
+                else if (params.status === "assigned") {
+                    task.mainStatus = "open";
+                    task.v2Substatus = "assigned";
+                }
+                else if (params.status === "pending") {
+                    task.mainStatus = "open";
+                    task.v2Substatus = "pending";
+                }
+                else if (params.status === "cancelled") {
+                    task.mainStatus = "cancelled";
+                    task.v2Substatus = "archived";
+                }
+            }
         }
         if (params.substatus !== undefined) {
             task.substatus = params.substatus;
@@ -424,10 +477,10 @@ export async function executeUpdateTask(projectPath, params) {
         if (params.type !== undefined) {
             task.type = params.type;
         }
-        if (params.size !== undefined && task.type === "goal") {
+        if (params.size !== undefined && task.type === "task") {
             task.size = params.size;
         }
-        if (params.tentative !== undefined && task.type === "goal") {
+        if (params.tentative !== undefined && task.type === "task") {
             task.tentative = params.tentative;
         }
         if (params.blockedBy !== undefined) {
@@ -505,10 +558,10 @@ export async function executeUpdateTask(projectPath, params) {
                 // 依存解消失敗は握りつぶす（メイン処理に影響させない）
             }
         }
-        // V2.1: Phase完了時に親Goalの自動クローズ判定
+        // V2.1: Work完了時に親Taskの自動クローズ判定
         if (isCompleted && result.task) {
             const taskType = inferTaskType(result.task);
-            if (taskType === "phase" && result.task.parentId) {
+            if (taskType === "work" && result.task.parentId) {
                 try {
                     const autoCloseResult = await checkGoalAutoClose(projectPath, result.task.parentId);
                     if (autoCloseResult.canAutoClose) {
@@ -586,8 +639,8 @@ export function inferTaskType(task) {
     if (task.type) {
         return task.type;
     }
-    // 後方互換: parentId があればサブタスク（action）、なければ親タスク（goal）
-    return task.parentId ? "action" : "goal";
+    // 後方互換: parentId があればサブタスク（step）、なければ親タスク（task）
+    return task.parentId ? "step" : "task";
 }
 // 役割の階層（数値が大きいほど上位）
 const ROLE_HIERARCHY = {
@@ -708,7 +761,11 @@ export function convertToV2Status(task) {
  * - いずれかPhase waiting/checkpoint → Goal「ブロック中」⚠️
  * - 全Phase completed → Goal「完了可能」✅
  */
-export function computeGoalDisplayStatus(goalSubstatus, phases) {
+export function computeGoalDisplayStatus(goalSubstatus, phases, goalMainStatus) {
+    // Goal自身が closed/completed の場合は「完了」を返す
+    if (goalMainStatus === "closed" || goalSubstatus === "completed") {
+        return { displayStatus: "完了", displayIcon: "✅" };
+    }
     // Phaseがない場合はGoal自身のステータスを使用
     if (phases.length === 0) {
         return mapSubstatusToDisplay(goalSubstatus);
@@ -718,7 +775,7 @@ export function computeGoalDisplayStatus(goalSubstatus, phases) {
     if (substatuses.some((s) => s === "waiting" || s === "checkpoint")) {
         return { displayStatus: "ブロック中", displayIcon: "⚠️" };
     }
-    // 全Phase完了
+    // 全Phase完了（Goalがまだopenの場合）
     if (phases.every((p) => p.v2Substatus === "completed" || p.mainStatus === "closed")) {
         return { displayStatus: "完了可能", displayIcon: "✅" };
     }
@@ -776,25 +833,25 @@ export async function checkGoalAutoClose(projectPath, goalId) {
     const data = await loadTasksReadOnly(projectPath);
     const goal = data.tasks.find((t) => t.id === goalId);
     if (!goal) {
-        return { canAutoClose: false, reason: "Goal not found" };
+        return { canAutoClose: false, reason: "Task not found" };
     }
-    if (inferTaskType(goal) !== "goal") {
-        return { canAutoClose: false, reason: "Not a goal" };
+    if (inferTaskType(goal) !== "task") {
+        return { canAutoClose: false, reason: "Not a task" };
     }
     // 除外カテゴリチェック（V2.1: action_required は actionRequired フラグに移行）
     if (["skill_candidate", "improvement"].includes(goal.category)) {
         return { canAutoClose: false, reason: `Excluded category: ${goal.category}` };
     }
-    // tentative Goal は手動クローズ
+    // tentative Task は手動クローズ
     if (goal.tentative) {
-        return { canAutoClose: false, reason: "Tentative goal requires manual close" };
+        return { canAutoClose: false, reason: "Tentative task requires manual close" };
     }
-    // simple Goal (Phase省略) は手動クローズ
+    // simple Task (Work省略) は手動クローズ
     if (goal.size === "simple") {
-        return { canAutoClose: false, reason: "Simple goal requires manual close" };
+        return { canAutoClose: false, reason: "Simple task requires manual close" };
     }
-    // 子Phaseを取得
-    const phases = data.tasks.filter((t) => t.parentId === goalId && inferTaskType(t) === "phase");
+    // 子Workを取得
+    const phases = data.tasks.filter((t) => t.parentId === goalId && inferTaskType(t) === "work");
     if (phases.length === 0) {
         return { canAutoClose: false, reason: "No phases found" };
     }
@@ -831,47 +888,47 @@ export async function generateV2DashboardData(projectPath, options = {}) {
     /**
      * タスク種別を判定（親タスクの情報も使用）
      * 1. type が 'goal', 'phase', 'investigation' の場合はそのまま使用
-     * 2. type が 'action' または未設定の場合は親タスク構造で判定:
-     *    - parentId がない → goal
-     *    - parentId があり、親の parentId がない → phase（Goalの直接の子）
-     *    - parentId があり、親の parentId もある → action（孫タスク）
+     * 2. type が 'step' または未設定の場合は親タスク構造で判定:
+     *    - parentId がない → task
+     *    - parentId があり、親の parentId がない → work（Taskの直接の子）
+     *    - parentId があり、親の parentId もある → step（孫タスク）
      */
     function inferTypeWithContext(task) {
-        // type が 'goal', 'phase', 'investigation' の場合はそのまま使用
-        if (task.type === "goal" || task.type === "phase" || task.type === "investigation") {
+        // type が 'task', 'work', 'investigation' の場合はそのまま使用
+        if (task.type === "task" || task.type === "work" || task.type === "investigation") {
             return task.type;
         }
-        // type が 'action' または未設定の場合は親タスク構造で判定
+        // type が 'step' または未設定の場合は親タスク構造で判定
         if (!task.parentId)
-            return "goal";
+            return "task";
         // 親タスクを取得
         const parent = taskMap.get(task.parentId);
-        // 親タスクが存在し、その親がない場合はphase（Goalの直接の子）
+        // 親タスクが存在し、その親がない場合はwork（Taskの直接の子）
         if (parent && !parent.parentId)
-            return "phase";
-        // それ以外はaction（孫タスク）
-        return "action";
+            return "work";
+        // それ以外はstep（孫タスク）
+        return "step";
     }
-    // Goal/Phase/Action を分類
+    // Task/Work/Step を分類
     const goals = [];
     const phases = [];
     const actions = [];
     const investigations = [];
-    // Goal階層から除外するカテゴリ（提案は別パネルで表示、actionRequired はフラグで管理）
+    // Task階層から除外するカテゴリ（提案は別パネルで表示、actionRequired はフラグで管理）
     const excludedCategories = ["skill_candidate", "improvement"];
     for (const task of tasks) {
         const taskType = inferTypeWithContext(task);
         switch (taskType) {
-            case "goal":
-                // 提案・要対応カテゴリはGoal階層から除外
+            case "task":
+                // 提案・要対応カテゴリはTask階層から除外
                 if (!excludedCategories.includes(task.category || "task")) {
                     goals.push(task);
                 }
                 break;
-            case "phase":
+            case "work":
                 phases.push(task);
                 break;
-            case "action":
+            case "step":
                 actions.push(task);
                 break;
             case "investigation":
@@ -918,9 +975,9 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             const bTime = b.updatedAt || b.createdAt || "";
             return bTime.localeCompare(aTime);
         });
-        const v2Phases = goalPhases.map((phase) => {
+        const v2Works = goalPhases.map((phase) => {
             const phaseStatus = convertToV2Status(phase);
-            // このPhaseに属するActionを取得（updatedAt降順でソート）
+            // このWorkに属するStepを取得（updatedAt降順でソート）
             const phaseActions = actions
                 .filter((a) => a.parentId === phase.id)
                 .sort((a, b) => {
@@ -928,13 +985,13 @@ export async function generateV2DashboardData(projectPath, options = {}) {
                 const bTime = b.updatedAt || b.createdAt || "";
                 return bTime.localeCompare(aTime);
             });
-            const v2Actions = phaseActions.map((action) => {
+            const v2Steps = phaseActions.map((action) => {
                 const actionStatus = convertToV2Status(action);
                 return {
                     id: action.id,
-                    title: action.title || `Action #${action.id}`,
+                    title: action.title || `Step #${action.id}`,
                     description: action.description,
-                    type: "action",
+                    type: "step",
                     mainStatus: actionStatus.mainStatus,
                     v2Substatus: actionStatus.substatus,
                     assignees: action.assignees?.map((a) => ({ agentId: a.agentId })),
@@ -943,36 +1000,37 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             });
             return {
                 id: phase.id,
-                title: phase.title || `Phase #${phase.id}`,
+                title: phase.title || `Work #${phase.id}`,
                 description: phase.description,
-                type: "phase",
+                type: "work",
                 mainStatus: phaseStatus.mainStatus,
                 v2Substatus: phaseStatus.substatus,
                 reviewStatus: phase.reviewStatus,
                 assignees: phase.assignees?.map((a) => ({ agentId: a.agentId })),
-                actions: v2Actions,
+                steps: v2Steps,
                 updatedAt: phase.updatedAt,
             };
         });
-        // Goal階層連動: 子Phaseの状態から表示ステータスを計算
-        const { displayStatus, displayIcon } = computeGoalDisplayStatus(substatus, v2Phases.map((p) => ({ v2Substatus: p.v2Substatus, mainStatus: p.mainStatus })));
-        // 最新更新日時を計算（Goal自身 + 配下のPhase/Action）
-        const childUpdates = v2Phases.flatMap((p) => [p.updatedAt, ...p.actions.map((a) => a.updatedAt)]).filter((d) => Boolean(d));
+        // Task階層連動: 子Workの状態から表示ステータスを計算
+        // Task自身が closed の場合は「完了」を返す
+        const { displayStatus, displayIcon } = computeGoalDisplayStatus(substatus, v2Works.map((w) => ({ v2Substatus: w.v2Substatus, mainStatus: w.mainStatus })), mainStatus);
+        // 最新更新日時を計算（Task自身 + 配下のWork/Step）
+        const childUpdates = v2Works.flatMap((w) => [w.updatedAt, ...w.steps.map((s) => s.updatedAt)]).filter((d) => Boolean(d));
         const allUpdates = [goal.updatedAt, ...childUpdates].filter((d) => Boolean(d));
         const latestUpdatedAt = allUpdates.length > 0
             ? allUpdates.sort().pop()
             : goal.updatedAt;
         return {
             id: goal.id,
-            title: goal.title || `Goal #${goal.id}`,
+            title: goal.title || `Task #${goal.id}`,
             description: goal.description,
-            type: "goal",
+            type: "task",
             mainStatus,
             v2Substatus: substatus,
             size: goal.size,
             reviewStatus: goal.reviewStatus,
             assignees: goal.assignees?.map((a) => ({ agentId: a.agentId })) || [],
-            phases: v2Phases,
+            works: v2Works,
             displayStatus,
             displayIcon,
             archived: goal.archived || substatus === "archived",
@@ -1063,9 +1121,9 @@ export async function generateV2DashboardData(projectPath, options = {}) {
         return true;
     }).length;
     const v2Stats = {
-        goalCount: goals.length,
-        phaseCount: phases.length,
-        actionCount: actions.length + investigations.length,
+        taskCount: goals.length,
+        workCount: phases.length,
+        stepCount: actions.length + investigations.length,
         completedCount,
         actionRequiredCount,
         reviewPendingCount,
@@ -1136,9 +1194,9 @@ export function migrateTaskToV2(task) {
         v2Substatus,
         archived,
         archivedAt: archived ? (task.reviewedAt || task.completedAt || null) : null,
-        // Goal専用フィールドの初期化
-        size: type === "goal" ? (task.size || "standard") : undefined,
-        tentative: type === "goal" ? (task.tentative || false) : undefined,
+        // Task専用フィールドの初期化
+        size: type === "task" ? (task.size || "standard") : undefined,
+        tentative: type === "task" ? (task.tentative || false) : undefined,
         // 配列フィールドの初期化
         artifacts: task.artifacts || [],
         blockedBy: task.blockedBy || [],
@@ -1148,9 +1206,9 @@ export function migrateTaskToV2(task) {
  * 既存タスクを V2.1 形式にマイグレーション
  *
  * 設計書より:
- * 1. 既存タスクに type: action を付与（デフォルト）
- * 2. 親タスクを type: goal に変更
- * 3. サブタスクグループを type: phase に変更（直接の親が goal の場合）
+ * 1. 既存タスクに type: step を付与（デフォルト）
+ * 2. 親タスクを type: task に変更
+ * 3. サブタスクグループを type: work に変更（直接の親が task の場合）
  * 4. 調査系タスクを type: investigation に変更
  * 5. mainStatus/v2Substatus を旧 status から変換
  */
@@ -1179,20 +1237,20 @@ export async function migrateToV2(projectPath, options = {}) {
             // 1. type の決定
             if (!task.type) {
                 if (!task.parentId) {
-                    // 親タスクなし → Goal
-                    task.type = "goal";
-                    changes.type = "goal";
+                    // 親タスクなし → Task
+                    task.type = "task";
+                    changes.type = "task";
                 }
                 else {
                     // 親タスクあり
                     const parent = data.tasks.find((t) => t.id === task.parentId);
                     if (parent && !parent.parentId) {
-                        // 親が Goal (parentId なし) → 子は Phase の可能性
-                        // サブタスクがある場合は Phase、ない場合は Action
+                        // 親が Task (parentId なし) → 子は Work の可能性
+                        // サブタスクがある場合は Work、ない場合は Step
                         const hasChildren = data.tasks.some((t) => t.parentId === task.id);
                         if (hasChildren) {
-                            task.type = "phase";
-                            changes.type = "phase";
+                            task.type = "work";
+                            changes.type = "work";
                         }
                         else {
                             // タイトルに「調査」「分析」「リサーチ」が含まれる場合は Investigation
@@ -1200,14 +1258,14 @@ export async function migrateToV2(projectPath, options = {}) {
                             const titleLower = (task.title || "").toLowerCase();
                             const descLower = (task.description || "").toLowerCase();
                             const isInvestigation = investigationKeywords.some((kw) => titleLower.includes(kw) || descLower.includes(kw));
-                            task.type = isInvestigation ? "investigation" : "action";
+                            task.type = isInvestigation ? "investigation" : "step";
                             changes.type = task.type;
                         }
                     }
                     else {
-                        // 孫タスク → Action
-                        task.type = "action";
-                        changes.type = "action";
+                        // 孫タスク → Step
+                        task.type = "step";
+                        changes.type = "step";
                     }
                 }
             }
@@ -1219,16 +1277,16 @@ export async function migrateToV2(projectPath, options = {}) {
                 changes.mainStatus = mainStatus;
                 changes.v2Substatus = substatus;
             }
-            // 3. Goal 専用フィールドの初期化
-            if (task.type === "goal") {
+            // 3. Task 専用フィールドの初期化
+            if (task.type === "task") {
                 if (task.size === undefined) {
                     // 子タスク数から size を推定
                     const children = data.tasks.filter((t) => t.parentId === task.id);
-                    const phaseCount = children.filter((c) => c.type === "phase" || data.tasks.some((t) => t.parentId === c.id)).length;
-                    if (phaseCount === 0 || phaseCount === 1) {
+                    const workCount = children.filter((c) => c.type === "work" || data.tasks.some((t) => t.parentId === c.id)).length;
+                    if (workCount === 0 || workCount === 1) {
                         task.size = "simple";
                     }
-                    else if (phaseCount <= 4) {
+                    else if (workCount <= 4) {
                         task.size = "standard";
                     }
                     else {

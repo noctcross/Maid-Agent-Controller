@@ -30,7 +30,7 @@ export interface DashboardRoutesDeps {
   generateTaskHtml: (tasks: any[], type: string, projectPath: string, scheme?: string) => string;
   composeMasterWaitingHtml: (masterWaitingTasks: any[], masterReviewTasks: any[], projectPath: string, scheme?: string) => string;
   // V2.1 HTML生成関数（SSE更新用）
-  generateGoalTreeHtml?: (goals: any[], projectPath: string) => string;
+  generateTaskTreeHtml?: (tasks: any[], projectPath: string) => string;
   generateReviewQueueHtml?: (reviewTasks: any[], projectPath: string) => string;
   generateArtifactsHtml?: (artifacts: any[], projectPath: string) => string;
   generateV2StatsHtml?: (stats: any) => string;
@@ -42,7 +42,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     generateDashboardHtml,
     generateTaskHtml,
     composeMasterWaitingHtml,
-    generateGoalTreeHtml,
+    generateTaskTreeHtml,
     generateReviewQueueHtml,
     generateArtifactsHtml,
     generateV2StatsHtml,
@@ -284,7 +284,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         v2: v2Data,
         // V2.1 HTML（関数が提供されている場合）
         v2Html: {
-          goals: generateGoalTreeHtml ? generateGoalTreeHtml(v2Data.v2Goals, projectPath) : undefined,
+          goals: generateTaskTreeHtml ? generateTaskTreeHtml(v2Data.v2Goals, projectPath) : undefined,
           reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
           artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
           stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
@@ -376,7 +376,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
           // V2.1 HTMLを生成（関数が提供されている場合）
           const v2Html = {
-            goals: generateGoalTreeHtml ? generateGoalTreeHtml(v2Data.v2Goals, projectPath) : undefined,
+            goals: generateTaskTreeHtml ? generateTaskTreeHtml(v2Data.v2Goals, projectPath) : undefined,
             reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
             artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
             stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
@@ -513,6 +513,76 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({ error: "Star toggle failed", details: message });
+    }
+  });
+
+  // PATCH /dashboard/tasks/:id/archive - アーカイブトグル（LAN公開）
+  router.patch("/dashboard/tasks/:id/archive", async (req: Request, res: Response) => {
+    try {
+      const projectPath = getProjectPathFromRequest(req);
+      const txId = req.get("X-Transaction-Id");
+      const { archived } = req.body;
+
+      const result = await executeUpdateTask(projectPath, {
+        taskId: req.params.id,
+        archived: archived !== undefined ? archived : true,
+      });
+
+      if (!result.success) {
+        res.status(404).json({ error: "Task not found", taskId: req.params.id });
+        return;
+      }
+
+      // WebSocket通知: タスク更新をリアルタイム配信
+      if (wsServer) {
+        wsServer.broadcast(projectPath, {
+          type: "taskUpdated",
+          taskId: req.params.id,
+          field: "archived",
+          value: result.task?.archived,
+          txId,
+        });
+      }
+
+      res.json({ success: true, archived: result.task?.archived, archivedAt: result.task?.archivedAt });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Archive toggle failed", details: message });
+    }
+  });
+
+  // PATCH /dashboard/tasks/:id/close - Goal完了（LAN公開）
+  router.patch("/dashboard/tasks/:id/close", async (req: Request, res: Response) => {
+    try {
+      const projectPath = getProjectPathFromRequest(req);
+      const txId = req.get("X-Transaction-Id");
+
+      const result = await executeUpdateTask(projectPath, {
+        taskId: req.params.id,
+        mainStatus: "closed",
+        v2Substatus: "completed",
+      });
+
+      if (!result.success) {
+        res.status(404).json({ error: "Task not found", taskId: req.params.id });
+        return;
+      }
+
+      // WebSocket通知: タスク更新をリアルタイム配信
+      if (wsServer) {
+        wsServer.broadcast(projectPath, {
+          type: "taskUpdated",
+          taskId: req.params.id,
+          field: "status",
+          value: "completed",
+          txId,
+        });
+      }
+
+      res.json({ success: true, mainStatus: result.task?.mainStatus, v2Substatus: result.task?.v2Substatus });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Close goal failed", details: message });
     }
   });
 

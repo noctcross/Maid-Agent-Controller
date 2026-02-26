@@ -24,9 +24,9 @@ export type AgentId = (typeof ALL_AGENT_IDS)[number];
 // V2.1: タスク種別
 // =============================================================================
 export const TASK_TYPES = [
-  "goal",          // 目標タスク（ご主人様の指示単位）
-  "phase",         // フェーズ（成果物単位の作業グループ）
-  "action",        // アクション（メイド1人で完結する作業）
+  "task",          // タスク（ご主人様の指示単位）- 旧 goal
+  "work",          // ワーク（成果物単位の作業グループ）- 旧 phase
+  "step",          // ステップ（メイド1人で完結する作業）- 旧 action
   "investigation", // 調査タスク（docs/昇格対象）
 ] as const;
 
@@ -64,15 +64,15 @@ export const CLOSED_SUBSTATUSES = ["completed"] as const;
 export type ClosedSubstatus = (typeof CLOSED_SUBSTATUSES)[number];
 
 // =============================================================================
-// V2.1: Goal サイズ
+// V2.1: Task サイズ
 // =============================================================================
-export const GOAL_SIZES = [
-  "simple",    // 0-1 phases, typo修正、設定変更、調査のみ
-  "standard",  // 2-4 phases, 機能追加、バグ修正
-  "complex",   // 5+ phases, 大規模リファクタリング
+export const TASK_SIZES = [
+  "simple",    // 0-1 works, typo修正、設定変更、調査のみ
+  "standard",  // 2-4 works, 機能追加、バグ修正
+  "complex",   // 5+ works, 大規模リファクタリング
 ] as const;
 
-export type GoalSize = (typeof GOAL_SIZES)[number];
+export type TaskSize = (typeof TASK_SIZES)[number];
 
 // =============================================================================
 // V2.1: レビューステータス
@@ -170,9 +170,9 @@ export interface TaskV2 {
   status: TaskMainStatus;           // open/closed
   substatus: TaskSubstatus;         // pending/assigned/working/checkpoint/waiting/completed/archived
 
-  // === V2.1: Goal専用フィールド ===
-  size?: GoalSize;                  // simple/standard/complex（Goal only）
-  tentative?: boolean;              // 暫定Goal（Goal only）
+  // === V2.1: Task専用フィールド ===
+  size?: TaskSize;                  // simple/standard/complex（Task only）
+  tentative?: boolean;              // 暫定Task（Task only）
 
   // === V2.1: 依存関係 ===
   blockedBy?: string[];             // 依存先タスクID（waiting時）

@@ -2,8 +2,8 @@
  * V2.1 ダッシュボードUI用HTML生成関数
  *
  * Phase 5: ダッシュボードUI実装
- * - Goalグルーピング表示
- * - Phase/Action階層表示
+ * - Taskグルーピング表示
+ * - Work/Step階層表示
  * - 成果物パネル
  * - 統計サマリーの種別対応
  * - レビューキュー表示
@@ -29,6 +29,12 @@ const STATUS_CLASSES = {
     completed: "status-completed",
     archived: "status-archived",
 };
+const STATUS_TEXT_JP = {
+    pending: "未着手",
+    working: "進行中",
+    completed: "完了",
+    checkpoint: "確認待ち",
+};
 // メイドアイコンマッピング（settings.yaml より）
 const MAID_ICONS = {
     emma: "☕",
@@ -49,9 +55,9 @@ function getMaidIcon(agentId) {
     return MAID_ICONS[agentId.toLowerCase()] || "👤";
 }
 const TYPE_ICONS = {
-    goal: "🎯",
-    phase: "📋",
-    action: "⚡",
+    task: "🎯",
+    work: "📋",
+    step: "⚡",
     investigation: "🔍",
 };
 const ARTIFACT_TYPE_ICONS = {
@@ -85,99 +91,107 @@ function generateAssigneesHtml(assignees, className) {
     }
     return `<span class="${className}">${items}</span>`;
 }
-// === Goalツリー表示 ===
+// === Taskツリー表示 ===
 /**
- * Goal一覧をツリー形式のHTMLで生成
+ * Task一覧をツリー形式のHTMLで生成
  */
-export function generateGoalTreeHtml(goals, projectPath) {
-    if (!goals || goals.length === 0) {
+export function generateTaskTreeHtml(tasks, projectPath) {
+    if (!tasks || tasks.length === 0) {
         return '<div class="empty-message">なし</div>';
     }
-    return goals.map((goal) => generateGoalItemHtml(goal, projectPath)).join("\n");
+    return tasks.map((task) => generateTaskItemHtml(task, projectPath)).join("\n");
 }
+// 後方互換エイリアス
+export const generateGoalTreeHtml = generateTaskTreeHtml;
 /**
- * 単一GoalのHTML生成
+ * 単一TaskのHTML生成
  */
-function generateGoalItemHtml(goal, projectPath) {
-    // Goal階層連動: displayStatus/displayIconがある場合は優先使用
-    const statusIcon = goal.displayIcon || STATUS_ICONS[goal.v2Substatus] || "❓";
-    const statusText = goal.displayStatus || goal.v2Substatus;
-    const statusClass = STATUS_CLASSES[goal.v2Substatus] || "";
-    // 初期状態は全Goal折りたたみ（ユーザーが展開する）
-    const isCollapsed = true;
-    const toggleClass = "collapsed";
+function generateTaskItemHtml(task, projectPath) {
+    // Task階層連動: displayStatus/displayIconがある場合は優先使用
+    const statusIcon = task.displayIcon || STATUS_ICONS[task.v2Substatus] || "❓";
+    const statusText = task.displayStatus || STATUS_TEXT_JP[task.v2Substatus] || task.v2Substatus;
+    const statusClass = STATUS_CLASSES[task.v2Substatus] || "";
+    // 初期状態は全Task折りたたみ（ユーザーが展開する）
+    const hasChildren = task.works.length > 0;
+    // サブタスク有り: ▼（展開可能）、サブタスク無し: ●（単独タスク）
+    const toggleIcon = hasChildren ? "▼" : "●";
+    const toggleClass = hasChildren ? "collapsed" : "collapsed no-children";
     // 担当者表示（アイコンとメイド名を分離してスマホ対応）
-    const assigneesHtml = generateAssigneesHtml(goal.assignees, "goal-assignees-inline");
-    const reviewBadge = goal.reviewStatus ? generateReviewBadgeHtml(goal.reviewStatus) : "";
-    // 報告書リンク: Goalには統合サマリーへのリンク
-    const reportLink = generateReportLinkHtml(goal.id, "goal", projectPath);
-    const phasesHtml = goal.phases.length > 0
-        ? `<div class="goal-content">
-        <div class="phase-tree">
-          ${goal.phases.map((phase) => generatePhaseItemHtml(phase, projectPath)).join("\n")}
+    const assigneesHtml = generateAssigneesHtml(task.assignees, "task-assignees-inline");
+    const reviewBadge = task.reviewStatus ? generateReviewBadgeHtml(task.reviewStatus) : "";
+    // 報告書リンク: Taskには統合サマリーへのリンク
+    const reportLink = generateReportLinkHtml(task.id, "task", projectPath);
+    // アーカイブ関連: クライアントサイド（dashboard-scripts.ts）でのみ生成
+    // サーバーサイドでは何も出力しない（重複防止）
+    const archiveHtml = "";
+    const worksHtml = task.works.length > 0
+        ? `<div class="task-content">
+        <div class="work-tree">
+          ${task.works.map((work) => generateWorkItemHtml(work, projectPath)).join("\n")}
         </div>
       </div>`
         : "";
-    return `<div class="goal-item" data-id="${escapeHtml(goal.id)}" data-status="${goal.mainStatus}" data-substatus="${goal.v2Substatus}" data-archived="${goal.archived === true || goal.v2Substatus === 'archived'}" data-updated="${goal.updatedAt || ""}">
-    <div class="goal-header">
-      <span class="goal-toggle ${toggleClass}">▼</span>
-      <span class="goal-id">#${escapeHtml(goal.id)}</span>
-      <span class="goal-title">${escapeHtml(goal.title)}</span>
-      <span class="badge badge-goal">Goal</span>
-      ${goal.size ? `<span class="badge badge-size">${escapeHtml(goal.size)}</span>` : ""}
+    return `<div class="task-item" data-id="${escapeHtml(task.id)}" data-status="${task.mainStatus}" data-substatus="${task.v2Substatus}" data-archived="${task.archived === true || task.v2Substatus === 'archived'}" data-updated="${task.updatedAt || ""}">
+    <div class="task-header">
+      <span class="task-toggle ${toggleClass}">${toggleIcon}</span>
+      <span class="task-id">#${escapeHtml(task.id)}</span>
+      <span class="task-title">${escapeHtml(task.title)}</span>
+      <span class="badge badge-task">Task</span>
+      ${task.size ? `<span class="badge badge-size">${escapeHtml(task.size)}</span>` : ""}
       <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${escapeHtml(statusText)}</span></span>
       ${assigneesHtml}
       ${reviewBadge}
       ${reportLink}
+      ${archiveHtml}
     </div>
-    ${phasesHtml}
+    ${worksHtml}
   </div>`;
 }
 /**
- * Phase単体のHTML生成
+ * Work単体のHTML生成
  */
-function generatePhaseItemHtml(phase, projectPath) {
-    const statusIcon = STATUS_ICONS[phase.v2Substatus] || "❓";
-    const statusClass = STATUS_CLASSES[phase.v2Substatus] || "";
-    const reviewBadge = phase.reviewStatus ? generateReviewBadgeHtml(phase.reviewStatus) : "";
-    // 報告書リンク: PhaseにはPhase別報告書へのリンク
-    const reportLink = generateReportLinkHtml(phase.id, "phase", projectPath);
+function generateWorkItemHtml(work, projectPath) {
+    const statusIcon = STATUS_ICONS[work.v2Substatus] || "❓";
+    const statusClass = STATUS_CLASSES[work.v2Substatus] || "";
+    const reviewBadge = work.reviewStatus ? generateReviewBadgeHtml(work.reviewStatus) : "";
+    // 報告書リンク: WorkにはWork別報告書へのリンク
+    const reportLink = generateReportLinkHtml(work.id, "work", projectPath);
     // 担当者表示（アイコンとメイド名を分離してスマホ対応）
-    const assigneesBadge = generateAssigneesHtml(phase.assignees, "phase-assignees");
-    const actionsHtml = phase.actions.length > 0
-        ? `<div class="action-list">
-        ${phase.actions.map((action, idx, arr) => generateActionItemHtml(action, idx === arr.length - 1)).join("\n")}
+    const assigneesBadge = generateAssigneesHtml(work.assignees, "work-assignees");
+    const stepsHtml = work.steps.length > 0
+        ? `<div class="step-list">
+        ${work.steps.map((step, idx, arr) => generateStepItemHtml(step, idx === arr.length - 1)).join("\n")}
       </div>`
         : "";
-    return `<div class="phase-item ${phase.v2Substatus === "working" ? "highlight" : ""}" data-id="${escapeHtml(phase.id)}">
-    <div class="phase-header">
-      <span class="phase-id">#${escapeHtml(phase.id)}</span>
-      <span class="phase-name">[${escapeHtml(phase.title)}] Phase</span>
-      <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${phase.v2Substatus}</span></span>
+    return `<div class="work-item ${work.v2Substatus === "working" ? "highlight" : ""}" data-id="${escapeHtml(work.id)}">
+    <div class="work-header">
+      <span class="work-id">#${escapeHtml(work.id)}</span>
+      <span class="work-name">[${escapeHtml(work.title)}] Work</span>
+      <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${STATUS_TEXT_JP[work.v2Substatus] || work.v2Substatus}</span></span>
       ${assigneesBadge}
       ${reviewBadge}
       ${reportLink}
     </div>
-    ${actionsHtml}
+    ${stepsHtml}
   </div>`;
 }
 /**
- * Action単体のHTML生成
+ * Step単体のHTML生成
  */
-function generateActionItemHtml(action, isLast) {
-    const statusClass = action.v2Substatus === "completed" ? "completed" :
-        action.v2Substatus === "working" ? "current" : "";
+function generateStepItemHtml(step, isLast) {
+    const statusClass = step.v2Substatus === "completed" ? "completed" :
+        step.v2Substatus === "working" ? "current" : "";
     const icon = isLast ? "└" : "├";
-    const statusBadge = action.v2Substatus === "working"
+    const statusBadge = step.v2Substatus === "working"
         ? '<span class="current-marker">← 現在ここ</span>'
         : "";
-    const statusIcon = STATUS_ICONS[action.v2Substatus] || "⏳";
+    const statusIcon = STATUS_ICONS[step.v2Substatus] || "⏳";
     // 担当者表示（アイコンとメイド名を分離してスマホ対応）
-    const assigneesBadge = generateAssigneesHtml(action.assignees, "action-assignees");
-    return `<div class="action-item ${statusClass}">
-    <span class="action-icon">${icon}</span>
-    <span class="action-name">#${escapeHtml(action.id)} ${escapeHtml(action.title)}</span>
-    <span class="action-status ${action.v2Substatus}">${statusIcon}<span class="status-text"> ${action.v2Substatus}</span></span>
+    const assigneesBadge = generateAssigneesHtml(step.assignees, "step-assignees");
+    return `<div class="step-item ${statusClass}">
+    <span class="step-icon">${icon}</span>
+    <span class="step-name">#${escapeHtml(step.id)} ${escapeHtml(step.title)}</span>
+    <span class="step-status ${step.v2Substatus}">${statusIcon}<span class="status-text"> ${STATUS_TEXT_JP[step.v2Substatus] || step.v2Substatus}</span></span>
     ${assigneesBadge}
     ${statusBadge}
   </div>`;
@@ -200,11 +214,11 @@ function generateReviewBadgeHtml(reviewStatus) {
 /**
  * 報告書リンクのHTML生成
  * @param taskId タスクID
- * @param taskType タスク種別（goal/phase）
+ * @param taskType タスク種別（task/work）
  * @param projectPath プロジェクトパス
  */
 function generateReportLinkHtml(taskId, taskType, projectPath) {
-    const title = taskType === "goal" ? "統合サマリーを開く" : "Phase報告書を開く";
+    const title = taskType === "task" ? "統合サマリーを開く" : "Work報告書を開く";
     return `<a href="/report?task=${encodeURIComponent(taskId)}&project=${encodeURIComponent(projectPath)}" class="report-link" title="${title}">📄</a>`;
 }
 // === レビューキュー表示 ===
@@ -220,11 +234,21 @@ export function generateReviewQueueHtml(reviewTasks, projectPath) {
         const priorityClass = task.priority === "high" ? "high" :
             task.priority === "low" ? "low" : "normal";
         const relativeTime = formatRelativeTime(task.completedAt);
+        // タスク詳細情報をBase64エンコード（モーダル表示用）
+        const taskInfoJson = JSON.stringify({
+            id: task.id,
+            title: task.title,
+            description: "",
+            status: task.reviewStatus || "pending",
+            assignees: task.assignees?.map((a) => a.agentId).join(", ") || "",
+            updatedAt: task.completedAt || "",
+        });
+        const taskInfoBase64 = Buffer.from(taskInfoJson, "utf-8").toString("base64");
         return `<div class="review-item" data-id="${escapeHtml(task.id)}">
       <span>${typeIcon}</span>
       <span class="review-priority ${priorityClass}">${task.priority}</span>
       <div style="flex:1">
-        <div>#${escapeHtml(task.id)} [${escapeHtml(task.type.charAt(0).toUpperCase() + task.type.slice(1))}] ${escapeHtml(task.title)}</div>
+        <div><span class="task-id-clickable" data-task-info="${taskInfoBase64}">#${escapeHtml(task.id)}</span> [${escapeHtml(task.type.charAt(0).toUpperCase() + task.type.slice(1))}] ${escapeHtml(task.title)}</div>
       </div>
       <span class="action-time">${relativeTime}</span>
     </div>`;
@@ -257,22 +281,22 @@ export function generateArtifactsHtml(artifacts, projectPath) {
 export function generateV2StatsHtml(stats) {
     return `<div class="grid grid-stats">
     <div class="stat-card">
-      <div class="number">${stats.goalCount}</div>
-      <div class="label">🎯 Goal</div>
+      <div class="number">${stats.taskCount}</div>
+      <div class="label">🎯 Task</div>
     </div>
     <div class="stat-card">
-      <div class="number">${stats.phaseCount}</div>
-      <div class="label">📋 Phase</div>
+      <div class="number">${stats.workCount}</div>
+      <div class="label">📋 Work</div>
     </div>
     <div class="stat-card">
-      <div class="number">${stats.actionCount}</div>
-      <div class="label">⚡ Action</div>
+      <div class="number">${stats.stepCount}</div>
+      <div class="label">⚡ Step</div>
     </div>
     <div class="stat-card success">
       <div class="number">${stats.completedCount}</div>
       <div class="label">✅ 完了</div>
     </div>
-    <div class="stat-card warning">
+    <div class="stat-card warning${stats.actionRequiredCount >= 1 ? ' alert' : ''}">
       <div class="number">${stats.actionRequiredCount}</div>
       <div class="label">⚠️ 要対応</div>
     </div>

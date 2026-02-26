@@ -127,11 +127,13 @@ patterns: ["task-workflow", "report-format", "blocked-handling", "checkpoint-vs-
 
 ### タスク種別
 
+**基本は Phase を直接受領**。複雑な Phase の場合のみ Action に分割される。
+
 | 種別 | 説明 | 実行者 |
 |------|------|--------|
 | goal | ご主人様指示単位の目標 | - |
-| phase | Goal分解、成果物単位 | - |
-| action | メイド作業単位 | メイド |
+| phase | Goal分解、成果物単位 | **メイド**（直接受領） |
+| action | 複雑なPhaseを分割した作業単位 | メイド |
 | investigation | 調査タスク（docs/昇格対象） | メイド |
 
 ### Investigation 昇格推奨

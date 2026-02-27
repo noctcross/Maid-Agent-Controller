@@ -390,7 +390,8 @@ export function generateDashboardHtml(
         </div>
       </div>` : ""}
 
-      ${v2ArtifactsHtml ? `
+      ${/* 成果物セクション: 運用ルール・UI未実装のため非表示（NOTES.md 2026-02-26 #396-2）
+      v2ArtifactsHtml ? `
       <div class="card v2-artifacts-section" data-section="v2-artifacts">
         <div class="card-header collapsible-header">
           <span class="card-title">📄 成果物</span>
@@ -399,7 +400,7 @@ export function generateDashboardHtml(
         <div class="collapsible-content">
           ${v2ArtifactsHtml}
         </div>
-      </div>` : ""}
+      </div>` : "" */ ""}
 
       ${(skillCandidates.length > 0 || improvements.length > 0) ? `
       <!-- スキル候補・改善提案セクション（左右分割） -->

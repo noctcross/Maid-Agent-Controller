@@ -62,6 +62,7 @@ export interface Task {
     reviewStatus?: ReviewStatus;
     archived?: boolean;
     archivedAt?: string | null;
+    stepRequired?: boolean;
 }
 /**
  * 軽量版タスク（summaryOnly: true 時に返却）
@@ -94,6 +95,7 @@ export interface CreateTaskResult {
     taskId: string;
     task: Task;
     reopenedParent?: Task;
+    reopenedAncestors?: Task[];
 }
 /**
  * タスク作成
@@ -185,6 +187,7 @@ export interface SideEffectResults {
         previousSubstatus: string;
     }>;
     goalAutoClosed?: string;
+    autoClosedParents?: string[];
 }
 export interface UpdateTaskResult {
     success: boolean;
@@ -276,6 +279,23 @@ export declare function computeGoalDisplayStatus(goalSubstatus: string, phases: 
 export declare function checkGoalAutoClose(projectPath: string, goalId: string): Promise<{
     canAutoClose: boolean;
     reason?: string;
+}>;
+/**
+ * 子タスク完了時に親タスクを再帰的に自動クローズ
+ *
+ * 処理フロー:
+ * 1. タスクが completed になったとき
+ * 2. 親タスクを取得
+ * 3. 親の全子タスクが completed かチェック
+ * 4. 全完了なら親も completed に変更
+ * 5. 再帰的に祖先までチェック
+ *
+ * @param projectPath プロジェクトパス
+ * @param completedTaskId 完了したタスクのID
+ * @returns 自動クローズされた親タスクのID配列
+ */
+export declare function checkAndAutoCloseParent(projectPath: string, completedTaskId: string): Promise<{
+    autoClosedIds: string[];
 }>;
 /**
  * V2.1 ダッシュボードデータ
@@ -372,6 +392,7 @@ export interface V2DashboardOptions {
     limit?: number;
     sortField?: "id" | "updatedAt";
     sortOrder?: "asc" | "desc";
+    sortBy?: "id" | "updated";
 }
 /**
  * タスク一覧からV2.1ダッシュボードデータを生成

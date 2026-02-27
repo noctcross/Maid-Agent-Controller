@@ -107,35 +107,45 @@ export async function executeCreateTask(projectPath, params) {
     return withTasksLock(projectPath, async (data) => {
         // 新しいタスクID生成
         let taskId;
-        let reopenedParent; // 再オープンされた親タスク
+        let reopenedParent; // 直接の親タスク（後方互換）
+        const reopenedAncestors = []; // 全ての再オープンされた祖先
         if (params.parentId) {
             // サブタスクの場合: 親ID-連番
             const siblings = data.tasks.filter((t) => t.parentId === params.parentId);
             const nextSeq = siblings.length + 1;
             taskId = `${params.parentId}-${nextSeq}`;
-            // 親タスクの自動再オープン
-            // 子タスクが追加されたら、親タスクは作業中のはずなので再オープン
-            const parentTask = data.tasks.find((t) => t.id === params.parentId);
-            if (parentTask) {
-                let parentUpdated = false;
-                // 親が closed の場合 → open/working に変更
-                if (parentTask.mainStatus === "closed") {
-                    parentTask.mainStatus = "open";
-                    parentTask.v2Substatus = "working";
-                    parentTask.status = "working"; // 旧ステータスも同期
-                    parentTask.updatedAt = getTimestamp();
-                    parentUpdated = true;
+            // 祖先タスクの自動再オープン
+            // 子タスクが追加されたら、全ての祖先を open/working に変更
+            let currentParentId = params.parentId;
+            while (currentParentId) {
+                const ancestorTask = data.tasks.find((t) => t.id === currentParentId);
+                if (!ancestorTask)
+                    break;
+                let ancestorUpdated = false;
+                // 祖先が closed の場合 → open/working に変更
+                if (ancestorTask.mainStatus === "closed") {
+                    ancestorTask.mainStatus = "open";
+                    ancestorTask.v2Substatus = "working";
+                    ancestorTask.status = "working"; // 旧ステータスも同期
+                    ancestorTask.updatedAt = getTimestamp();
+                    ancestorUpdated = true;
                 }
-                // 親が archived の場合 → archived:false に変更
-                if (parentTask.archived === true) {
-                    parentTask.archived = false;
-                    parentTask.updatedAt = getTimestamp();
-                    parentUpdated = true;
+                // 祖先が archived の場合 → archived:false に変更
+                if (ancestorTask.archived === true) {
+                    ancestorTask.archived = false;
+                    ancestorTask.updatedAt = getTimestamp();
+                    ancestorUpdated = true;
                 }
-                // 親タスクが更新された場合、reopenedParent に設定
-                if (parentUpdated) {
-                    reopenedParent = { ...parentTask }; // コピーを作成
+                // 祖先タスクが更新された場合、リストに追加
+                if (ancestorUpdated) {
+                    reopenedAncestors.push({ ...ancestorTask }); // コピーを作成
+                    // 最初の祖先（直接の親）を後方互換のために保持
+                    if (!reopenedParent) {
+                        reopenedParent = { ...ancestorTask };
+                    }
                 }
+                // 次の祖先へ
+                currentParentId = ancestorTask.parentId;
             }
         }
         else {
@@ -180,7 +190,7 @@ export async function executeCreateTask(projectPath, params) {
             reviewStatus: undefined,
         };
         data.tasks.push(newTask);
-        return { data, result: { taskId, task: newTask, reopenedParent } };
+        return { data, result: { taskId, task: newTask, reopenedParent, reopenedAncestors: reopenedAncestors.length > 0 ? reopenedAncestors : undefined } };
     });
 }
 /**
@@ -558,32 +568,20 @@ export async function executeUpdateTask(projectPath, params) {
                 // 依存解消失敗は握りつぶす（メイン処理に影響させない）
             }
         }
-        // V2.1: Work完了時に親Taskの自動クローズ判定
-        if (isCompleted && result.task) {
-            const taskType = inferTaskType(result.task);
-            if (taskType === "work" && result.task.parentId) {
-                try {
-                    const autoCloseResult = await checkGoalAutoClose(projectPath, result.task.parentId);
-                    if (autoCloseResult.canAutoClose) {
-                        // 親Goalを自動クローズ
-                        await withTasksLock(projectPath, async (data) => {
-                            const goal = data.tasks.find((t) => t.id === result.task.parentId);
-                            if (goal) {
-                                goal.mainStatus = "closed";
-                                goal.v2Substatus = "completed";
-                                goal.status = "completed";
-                                goal.completedAt = getTimestamp();
-                                goal.updatedAt = getTimestamp();
-                            }
-                            return { data, result: null };
-                        });
-                        result.sideEffects = result.sideEffects || {};
-                        result.sideEffects.goalAutoClosed = result.task.parentId;
-                    }
+        // V2.1: 子タスク完了時に親タスクを再帰的に自動クローズ
+        // Step完了→親Work、Work完了→親Task、さらに祖先まで連鎖
+        if (isCompleted && result.task && result.task.parentId) {
+            try {
+                const autoCloseResult = await checkAndAutoCloseParent(projectPath, params.taskId);
+                if (autoCloseResult.autoClosedIds.length > 0) {
+                    result.sideEffects = result.sideEffects || {};
+                    result.sideEffects.autoClosedParents = autoCloseResult.autoClosedIds;
+                    // 後方互換: 最初にクローズされた親を goalAutoClosed に設定
+                    result.sideEffects.goalAutoClosed = autoCloseResult.autoClosedIds[0];
                 }
-                catch {
-                    // Goal自動クローズ失敗は握りつぶす
-                }
+            }
+            catch {
+                // 親自動クローズ失敗は握りつぶす
             }
         }
     }
@@ -874,10 +872,106 @@ export async function checkGoalAutoClose(projectPath, goalId) {
     return { canAutoClose: true };
 }
 /**
+ * 子タスク完了時に親タスクを再帰的に自動クローズ
+ *
+ * 処理フロー:
+ * 1. タスクが completed になったとき
+ * 2. 親タスクを取得
+ * 3. 親の全子タスクが completed かチェック
+ * 4. 全完了なら親も completed に変更
+ * 5. 再帰的に祖先までチェック
+ *
+ * @param projectPath プロジェクトパス
+ * @param completedTaskId 完了したタスクのID
+ * @returns 自動クローズされた親タスクのID配列
+ */
+export async function checkAndAutoCloseParent(projectPath, completedTaskId) {
+    const autoClosedIds = [];
+    // 再帰的に親をチェック
+    let currentTaskId = completedTaskId;
+    while (true) {
+        const data = await loadTasksReadOnly(projectPath);
+        const currentTask = data.tasks.find((t) => t.id === currentTaskId);
+        if (!currentTask || !currentTask.parentId) {
+            // 親がない場合は終了
+            break;
+        }
+        const parentId = currentTask.parentId;
+        const parent = data.tasks.find((t) => t.id === parentId);
+        if (!parent) {
+            break;
+        }
+        // 親がすでに完了している場合はスキップ
+        const { substatus: parentSubstatus } = convertToV2Status(parent);
+        if (parentSubstatus === "completed" || parentSubstatus === "archived") {
+            // 親がすでに完了していても、さらに上の親をチェック
+            currentTaskId = parentId;
+            continue;
+        }
+        // 除外条件チェック
+        // 1. stepRequired フラグがある場合は自動クローズしない（将来拡張用）
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (parent.stepRequired) {
+            break;
+        }
+        // 2. category が skill_candidate/improvement の場合は自動クローズしない
+        if (["skill_candidate", "improvement"].includes(parent.category)) {
+            break;
+        }
+        // 3. tentative Task は手動クローズ
+        if (parent.tentative) {
+            break;
+        }
+        // 4. simple Task (Work省略) は手動クローズ
+        if (parent.size === "simple") {
+            break;
+        }
+        // 親の全子タスクを取得
+        const siblings = data.tasks.filter((t) => t.parentId === parentId);
+        if (siblings.length === 0) {
+            break;
+        }
+        // 全子タスクが completed かチェック
+        const allSiblingsCompleted = siblings.every((s) => {
+            const { substatus } = convertToV2Status(s);
+            return substatus === "completed" || substatus === "archived";
+        });
+        if (!allSiblingsCompleted) {
+            // 全子が完了していない場合は終了
+            break;
+        }
+        // レビューが必要な子タスクの approved チェック（reviewStatus がある場合）
+        const reviewSiblings = siblings.filter((s) => s.reviewStatus !== undefined);
+        if (reviewSiblings.length > 0) {
+            const allReviewsApproved = reviewSiblings.every((s) => s.reviewStatus === "approved");
+            if (!allReviewsApproved) {
+                break;
+            }
+        }
+        // 親を自動クローズ
+        await withTasksLock(projectPath, async (lockData) => {
+            const parentTask = lockData.tasks.find((t) => t.id === parentId);
+            if (parentTask) {
+                const now = getTimestamp();
+                parentTask.mainStatus = "closed";
+                parentTask.v2Substatus = "completed";
+                parentTask.status = "completed";
+                parentTask.completedAt = now;
+                parentTask.updatedAt = now;
+            }
+            return { data: lockData, result: null };
+        });
+        autoClosedIds.push(parentId);
+        // 次の親をチェック
+        currentTaskId = parentId;
+    }
+    return { autoClosedIds };
+}
+/**
  * タスク一覧からV2.1ダッシュボードデータを生成
  */
 export async function generateV2DashboardData(projectPath, options = {}) {
-    const { showArchived = false, statusFilter = "open", offset = 0, limit = 10, sortField = "id", sortOrder = "desc" } = options;
+    const { showArchived = false, statusFilter = "open", offset = 0, limit = 10, sortField = "id", sortOrder = "desc", sortBy = "updated" } = options;
     const data = await loadTasksReadOnly(projectPath);
     const tasks = data.tasks;
     // タスクのMapを作成（親タスク参照用）
@@ -967,23 +1061,37 @@ export async function generateV2DashboardData(projectPath, options = {}) {
     })
         .map((goal) => {
         const { mainStatus, substatus } = convertToV2Status(goal);
-        // このGoalに属するPhaseを取得（updatedAt降順でソート）
+        // このGoalに属するPhaseを取得（sortByに応じてソート）
         const goalPhases = phases
             .filter((p) => p.parentId === goal.id)
             .sort((a, b) => {
-            const aTime = a.updatedAt || a.createdAt || "";
-            const bTime = b.updatedAt || b.createdAt || "";
-            return bTime.localeCompare(aTime);
-        });
-        const v2Works = goalPhases.map((phase) => {
-            const phaseStatus = convertToV2Status(phase);
-            // このWorkに属するStepを取得（updatedAt降順でソート）
-            const phaseActions = actions
-                .filter((a) => a.parentId === phase.id)
-                .sort((a, b) => {
+            if (sortBy === "id") {
+                // ID順（昇順）
+                return compareTaskIds(a.id, b.id);
+            }
+            else {
+                // updatedAt順（降順）
                 const aTime = a.updatedAt || a.createdAt || "";
                 const bTime = b.updatedAt || b.createdAt || "";
                 return bTime.localeCompare(aTime);
+            }
+        });
+        const v2Works = goalPhases.map((phase) => {
+            const phaseStatus = convertToV2Status(phase);
+            // このWorkに属するStepを取得（sortByに応じてソート）
+            const phaseActions = actions
+                .filter((a) => a.parentId === phase.id)
+                .sort((a, b) => {
+                if (sortBy === "id") {
+                    // ID順（昇順）
+                    return compareTaskIds(a.id, b.id);
+                }
+                else {
+                    // updatedAt順（降順）
+                    const aTime = a.updatedAt || a.createdAt || "";
+                    const bTime = b.updatedAt || b.createdAt || "";
+                    return bTime.localeCompare(aTime);
+                }
             });
             const v2Steps = phaseActions.map((action) => {
                 const actionStatus = convertToV2Status(action);

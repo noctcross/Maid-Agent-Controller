@@ -290,7 +290,7 @@ export function getV2DashboardStyles(): string {
     /* V2.1 archived タスクのスタイル */
     .goal-item[data-archived="true"],
     .phase-item[data-archived="true"],
-    .action-item[data-archived="true"] {
+    .step-item[data-archived="true"] {
       opacity: 0.5;
       background: var(--v2-bg-archived, rgba(100, 100, 100, 0.3));
     }
@@ -393,7 +393,7 @@ export function getV2DashboardStyles(): string {
     }
 
     .phase-assignees,
-    .action-assignees {
+    .step-assignees {
       font-size: 0.7rem;
       color: var(--v2-text-secondary);
       min-width: 60px;
@@ -563,44 +563,45 @@ export function getV2DashboardStyles(): string {
       color: var(--v2-status-paused);
     }
 
-    /* V2.1 Action List - Compact */
-    .action-list {
+    /* V2.1 Step List - Compact */
+    .step-list {
       margin-top: 4px;
       padding-left: 15px;
       font-size: 0.8rem;
       color: var(--v2-text-secondary);
     }
 
-    .v2-sections .action-item {
+    .step-item {
       display: flex;
       align-items: center;
       padding: 2px 0;
       gap: 6px;
+      width: 100%;
     }
 
-    .action-icon {
+    .step-icon {
       color: var(--v2-text-secondary);
     }
 
-    .action-name {
+    .step-name {
       flex: 1;
-      min-width: 0;
+      min-width: 80px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
-    .v2-sections .action-item.completed .action-name {
+    .step-item.completed .step-name {
       text-decoration: line-through;
       opacity: 0.6;
     }
 
-    .v2-sections .action-item.current {
+    .step-item.current {
       color: var(--v2-accent-blue);
       font-weight: 500;
     }
 
-    .action-status {
+    .step-status {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -612,12 +613,12 @@ export function getV2DashboardStyles(): string {
       text-align: center;
     }
 
-    .action-status.completed {
+    .step-status.completed {
       background: rgba(76, 175, 80, 0.2);
       color: var(--v2-status-completed);
     }
 
-    .action-status.active {
+    .step-status.active {
       background: rgba(74, 144, 217, 0.2);
       color: var(--v2-status-active);
     }
@@ -628,21 +629,21 @@ export function getV2DashboardStyles(): string {
       margin-left: 8px;
     }
 
-    .action-content {
+    .step-content {
       flex: 1;
     }
 
-    .action-title {
+    .step-title {
       font-weight: 500;
       margin-bottom: 2px;
     }
 
-    .action-meta {
+    .step-meta {
       font-size: 0.8rem;
       color: var(--v2-text-secondary);
     }
 
-    .action-time {
+    .step-time {
       font-size: 0.8rem;
       color: var(--v2-text-secondary);
     }
@@ -1030,13 +1031,13 @@ export function getV2DashboardStyles(): string {
       /* V2.1 スマホ: ステータスはアイコンのみ表示（テキスト非表示） */
       .goal-header .status-text,
       .phase-header .status-text,
-      .action-item .status-text {
+      .step-item .status-text {
         display: none;
       }
       /* V2.1 スマホ: ステータス要素のmin-widthを解除、背景色なしに統一 */
       .goal-header .status,
       .phase-header .status,
-      .action-item .action-status {
+      .step-item .step-status {
         min-width: auto;
         padding: 1px 4px;
         gap: 0;
@@ -1049,7 +1050,7 @@ export function getV2DashboardStyles(): string {
       /* V2.1 スマホ: 担当者エリアに固定幅を設定して縦揃え、背景色なし */
       .goal-assignees-inline,
       .phase-assignees,
-      .action-assignees {
+      .step-assignees {
         min-width: 20px;
         background: transparent;
         padding: 0;
@@ -1109,16 +1110,16 @@ export function getV2DashboardStyles(): string {
         padding: 2px 8px;
       }
 
-      /* V2.1 アクションリスト */
-      .action-list {
+      /* V2.1 ステップリスト */
+      .step-list {
         font-size: 0.85rem;
         padding-left: 14px;
       }
-      .v2-sections .action-item {
+      .step-item {
         padding: 4px 0;
         gap: 6px;
       }
-      .action-status {
+      .step-status {
         font-size: 0.8rem;
         padding: 2px 6px;
       }

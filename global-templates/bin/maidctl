@@ -460,8 +460,12 @@ cmd_task_create() {
         echo "  --json                  JSON出力"
         return 0
         ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
       *)
-        # 引数としてタイトルを受け付ける
+        # 引数としてタイトルを受け付ける（オプションではない引数）
         if [ -z "$title" ]; then
           title="$1"
         fi

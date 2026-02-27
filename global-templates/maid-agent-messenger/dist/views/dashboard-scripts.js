@@ -1240,18 +1240,18 @@ export function getV2DashboardScript() {
       var phaseItem = header.closest('.phase-item');
       if (!phaseItem) return;
 
-      var actionList = phaseItem.querySelector('.action-list');
-      if (!actionList) return;
+      var stepList = phaseItem.querySelector('.step-list');
+      if (!stepList) return;
 
       // 折りたたみ状態を切り替え
       if (phaseItem.classList.contains('collapsed')) {
         // 展開する
         phaseItem.classList.remove('collapsed');
-        actionList.style.display = '';
+        stepList.style.display = '';
       } else {
         // 折りたたむ
         phaseItem.classList.add('collapsed');
-        actionList.style.display = 'none';
+        stepList.style.display = 'none';
       }
     }
 
@@ -1426,9 +1426,9 @@ export function getV2DashboardScript() {
 
       // phase-headerのphase-item.collapsedも初期化
       document.querySelectorAll('.phase-item.collapsed').forEach(function(phaseItem) {
-        var actionList = phaseItem.querySelector('.action-list');
-        if (actionList) {
-          actionList.style.display = 'none';
+        var stepList = phaseItem.querySelector('.step-list');
+        if (stepList) {
+          stepList.style.display = 'none';
         }
       });
     }
@@ -1965,11 +1965,34 @@ export function getV2DashboardScript() {
       var taskInfoBase64 = btoa(unescape(encodeURIComponent(taskInfoJson)));
 
       // Workを再帰的にレンダリング（V2.1: phases → works）
+      // Task ソート連動: goalsSortState に基づいて Work もソート
       var worksHtml = '';
       var hasChildren = goal.works && goal.works.length > 0;
       if (hasChildren) {
+        var sortedWorks = goal.works.slice().sort(function(a, b) {
+          if (goalsSortState === 'id-desc' || goalsSortState === 'id-asc') {
+            var cmp = compareGoalIds(a.id || '', b.id || '');
+            return goalsSortState === 'id-desc' ? -cmp : cmp;
+          } else {
+            // updated-desc/asc: 更新日時でソート
+            var updA = a.updatedAt || '';
+            var updB = b.updatedAt || '';
+            if (updA && updB) {
+              var timeA = new Date(updA).getTime();
+              var timeB = new Date(updB).getTime();
+              var cmp = timeA - timeB;
+              return goalsSortState === 'updated-desc' ? -cmp : cmp;
+            } else if (updA && !updB) {
+              return goalsSortState === 'updated-desc' ? -1 : 1;
+            } else if (!updA && updB) {
+              return goalsSortState === 'updated-desc' ? 1 : -1;
+            }
+            // フォールバック: ID降順
+            return -compareGoalIds(a.id || '', b.id || '');
+          }
+        });
         worksHtml = '<div class="goal-content"><div class="phase-tree">' +
-          goal.works.map(function(work) { return renderPhaseItem(work); }).join('\\n') +
+          sortedWorks.map(function(work) { return renderPhaseItem(work); }).join('\\n') +
           '</div></div>';
       }
 
@@ -2080,11 +2103,34 @@ export function getV2DashboardScript() {
       var taskInfoBase64 = btoa(unescape(encodeURIComponent(taskInfoJson)));
 
       // Stepをレンダリング（V2.1: actions → steps）
+      // Task ソート連動: goalsSortState に基づいて Step もソート
       var stepsHtml = '';
       if (work.steps && work.steps.length > 0) {
-        stepsHtml = '<div class="action-list">' +
-          work.steps.map(function(step, idx, arr) {
-            return renderActionItem(step, idx === arr.length - 1);
+        var sortedSteps = work.steps.slice().sort(function(a, b) {
+          if (goalsSortState === 'id-desc' || goalsSortState === 'id-asc') {
+            var cmp = compareGoalIds(a.id || '', b.id || '');
+            return goalsSortState === 'id-desc' ? -cmp : cmp;
+          } else {
+            // updated-desc/asc: 更新日時でソート
+            var updA = a.updatedAt || '';
+            var updB = b.updatedAt || '';
+            if (updA && updB) {
+              var timeA = new Date(updA).getTime();
+              var timeB = new Date(updB).getTime();
+              var cmp = timeA - timeB;
+              return goalsSortState === 'updated-desc' ? -cmp : cmp;
+            } else if (updA && !updB) {
+              return goalsSortState === 'updated-desc' ? -1 : 1;
+            } else if (!updA && updB) {
+              return goalsSortState === 'updated-desc' ? 1 : -1;
+            }
+            // フォールバック: ID降順
+            return -compareGoalIds(a.id || '', b.id || '');
+          }
+        });
+        stepsHtml = '<div class="step-list">' +
+          sortedSteps.map(function(step, idx, arr) {
+            return renderStepItem(step, idx === arr.length - 1);
           }).join('\\n') +
           '</div>';
       }
@@ -2102,9 +2148,9 @@ export function getV2DashboardScript() {
     }
 
     /**
-     * ActionアイテムのHTMLを生成
+     * StepアイテムのHTMLを生成
      */
-    function renderActionItem(action, isLast) {
+    function renderStepItem(step, isLast) {
       // V2.1: working が正式、active/paused は後方互換
       var statusIcons = {
         working: '🔵', active: '🔵', assigned: '📋', pending: '⏳', paused: '⏸️',
@@ -2119,45 +2165,49 @@ export function getV2DashboardScript() {
         alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
       };
 
-      var statusClass = action.v2Substatus === 'completed' ? 'completed' :
-                        action.v2Substatus === 'working' ? 'current' : '';
+      var statusClass = step.v2Substatus === 'completed' ? 'completed' :
+                        step.v2Substatus === 'working' ? 'current' : '';
       var icon = isLast ? '└' : '├';
-      var statusBadge = action.v2Substatus === 'working' ? '<span class="current-marker">← 現在ここ</span>' : '';
-      var statusIcon = statusIcons[action.v2Substatus] || '⏳';
-      var statusText = statusTextJp[action.v2Substatus] || action.v2Substatus;
+      var statusBadge = step.v2Substatus === 'working' ? '<span class="current-marker">← 現在ここ</span>' : '';
+      var statusIcon = statusIcons[step.v2Substatus] || '⏳';
+      var statusText = statusTextJp[step.v2Substatus] || step.v2Substatus;
 
       // 担当者HTML
       var assigneesHtml = '';
-      if (action.assignees && action.assignees.length > 0) {
-        var items = action.assignees.filter(function(a) { return a && a.agentId; }).map(function(a) {
+      if (step.assignees && step.assignees.length > 0) {
+        var items = step.assignees.filter(function(a) { return a && a.agentId; }).map(function(a) {
           var maidIcon = maidIcons[a.agentId.toLowerCase()] || '👤';
           return '<span class="assignee-item"><span class="assignee-icon">' + maidIcon + '</span><span class="assignee-name">' + escapeHtmlClient(a.agentId) + '</span></span>';
         }).join(' ');
         if (items) {
-          assigneesHtml = '<span class="action-assignees">' + items + '</span>';
+          assigneesHtml = '<span class="step-assignees">' + items + '</span>';
         }
       }
       if (!assigneesHtml) {
-        assigneesHtml = '<span class="action-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
+        assigneesHtml = '<span class="step-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
       }
 
       // タスク詳細データ（JSON → Base64エンコード）
       var taskInfoJson = JSON.stringify({
-        id: action.id,
-        title: action.title,
-        description: action.description || '',
-        status: action.v2Substatus,
-        assignees: (action.assignees || []).map(function(a) { return a.agentId; }).join(', ') || '担当なし',
-        updatedAt: action.updatedAt || ''
+        id: step.id,
+        title: step.title,
+        description: step.description || '',
+        status: step.v2Substatus,
+        assignees: (step.assignees || []).map(function(a) { return a.agentId; }).join(', ') || '担当なし',
+        updatedAt: step.updatedAt || ''
       });
       var taskInfoBase64 = btoa(unescape(encodeURIComponent(taskInfoJson)));
 
-      return '<div class="action-item ' + statusClass + '">' +
-        '<span class="action-icon">' + icon + '</span>' +
-        '<span class="action-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(action.id) + '</span>' +
-        '<span class="action-title"> ' + escapeHtmlClient(action.title) + '</span>' +
-        '<span class="action-status ' + action.v2Substatus + '">' + statusIcon + '<span class="status-text"> ' + statusText + '</span></span>' +
+      // 報告書リンク
+      var reportLink = '<a href="/report?task=' + encodeURIComponent(step.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="Step報告書を開く">📄</a>';
+
+      return '<div class="step-item ' + statusClass + '">' +
+        '<span class="step-icon">' + icon + '</span>' +
+        '<span class="step-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(step.id) + '</span>' +
+        '<span class="step-title"> ' + escapeHtmlClient(step.title) + '</span>' +
+        '<span class="step-status ' + step.v2Substatus + '">' + statusIcon + '<span class="status-text"> ' + statusText + '</span></span>' +
         assigneesHtml +
+        reportLink +
         statusBadge +
       '</div>';
     }

@@ -160,7 +160,7 @@ function generateWorkItemHtml(work, projectPath) {
     const assigneesBadge = generateAssigneesHtml(work.assignees, "work-assignees");
     const stepsHtml = work.steps.length > 0
         ? `<div class="step-list">
-        ${work.steps.map((step, idx, arr) => generateStepItemHtml(step, idx === arr.length - 1)).join("\n")}
+        ${work.steps.map((step, idx, arr) => generateStepItemHtml(step, idx === arr.length - 1, projectPath)).join("\n")}
       </div>`
         : "";
     return `<div class="work-item ${work.v2Substatus === "working" ? "highlight" : ""}" data-id="${escapeHtml(work.id)}">
@@ -178,7 +178,7 @@ function generateWorkItemHtml(work, projectPath) {
 /**
  * Step単体のHTML生成
  */
-function generateStepItemHtml(step, isLast) {
+function generateStepItemHtml(step, isLast, projectPath) {
     const statusClass = step.v2Substatus === "completed" ? "completed" :
         step.v2Substatus === "working" ? "current" : "";
     const icon = isLast ? "└" : "├";
@@ -188,11 +188,14 @@ function generateStepItemHtml(step, isLast) {
     const statusIcon = STATUS_ICONS[step.v2Substatus] || "⏳";
     // 担当者表示（アイコンとメイド名を分離してスマホ対応）
     const assigneesBadge = generateAssigneesHtml(step.assignees, "step-assignees");
+    // 報告書リンク: StepにはStep報告書へのリンク
+    const reportLink = generateReportLinkHtml(step.id, "step", projectPath);
     return `<div class="step-item ${statusClass}">
     <span class="step-icon">${icon}</span>
     <span class="step-name">#${escapeHtml(step.id)} ${escapeHtml(step.title)}</span>
     <span class="step-status ${step.v2Substatus}">${statusIcon}<span class="status-text"> ${STATUS_TEXT_JP[step.v2Substatus] || step.v2Substatus}</span></span>
     ${assigneesBadge}
+    ${reportLink}
     ${statusBadge}
   </div>`;
 }
@@ -214,11 +217,16 @@ function generateReviewBadgeHtml(reviewStatus) {
 /**
  * 報告書リンクのHTML生成
  * @param taskId タスクID
- * @param taskType タスク種別（task/work）
+ * @param taskType タスク種別（task/work/step）
  * @param projectPath プロジェクトパス
  */
 function generateReportLinkHtml(taskId, taskType, projectPath) {
-    const title = taskType === "task" ? "統合サマリーを開く" : "Work報告書を開く";
+    const titleMap = {
+        task: "統合サマリーを開く",
+        work: "Work報告書を開く",
+        step: "Step報告書を開く",
+    };
+    const title = titleMap[taskType] || "報告書を開く";
     return `<a href="/report?task=${encodeURIComponent(taskId)}&project=${encodeURIComponent(projectPath)}" class="report-link" title="${title}">📄</a>`;
 }
 // === レビューキュー表示 ===

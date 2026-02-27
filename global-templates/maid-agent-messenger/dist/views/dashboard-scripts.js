@@ -698,6 +698,8 @@ export function getDashboardMainScript(params) {
         _vscodeApi.postMessage({ command: 'refreshDashboard' });
       } else {
         // ブラウザ: 直接API呼び出し
+        // fetchTasks()はupdateTaskListsWithMetaを呼ぶが、V2モード対応済み (#374-11)
+        // V2モードでは要対応セクション(v2-master-waiting)のみ更新、V1セクションはスキップ
         fetchTasks();
         // V2 Goals セクションも更新
         if (typeof refreshGoals === 'function') {
@@ -717,9 +719,32 @@ export function getDashboardMainScript(params) {
           break;
 
         case 'tasks':
-          updateTaskListsWithMeta(event.data, null);
-          // V2.1セクションの更新（v2Htmlが含まれている場合）
-          if (event.v2Html) {
+          // V2モード判定: V2専用セクションが存在するかチェック (#374-7)
+          var isV2Mode = document.querySelector('[data-section="v2-goals-open"]') !== null;
+          if (isV2Mode) {
+            if (_vscodeApi) {
+              // IDE V2モード: Extension経由でデータを取得（fetchがブロックされるため）(#374-8)
+              console.log('[WS] V2 mode (IDE), calling debouncedRefreshDashboard');
+              debouncedRefreshDashboard();
+            } else {
+              // ブラウザ V2モード: Goals系のrefresh関数を直接呼ぶ
+              console.log('[WS] V2 mode (browser), calling refreshGoals functions');
+              if (typeof refreshGoalsOpen === 'function') {
+                refreshGoalsOpen();
+              }
+              if (typeof refreshGoalsClosed === 'function') {
+                refreshGoalsClosed();
+              }
+              if (typeof refreshGoalsLegacy === 'function') {
+                refreshGoalsLegacy();
+              }
+            }
+          } else {
+            // V1モード: 従来のupdateTaskListsWithMeta
+            updateTaskListsWithMeta(event.data, null);
+          }
+          // V2.1セクションの更新（v2Htmlが含まれている場合）- ブラウザ版のみ
+          if (event.v2Html && !_vscodeApi) {
             updateV2Sections(event.v2Html, event.v2);
           }
           break;
@@ -805,9 +830,11 @@ export function getDashboardMainScript(params) {
 
     // サーバーURLを動的に取得（ブラウザ: location.origin、VSCode Webview: サーバー設定値）
     // 0.0.0.0 はリッスンアドレスであり接続先として不適切なため 127.0.0.1 にfallback
-    const serverBaseUrl = (typeof acquireVsCodeApi !== 'undefined')
+    // window.serverBaseUrl: 他の<script>ブロック（V2 Dashboard Scripts等）からも参照可能にする（#374-7）
+    var serverBaseUrl = (typeof acquireVsCodeApi !== 'undefined')
       ? '${serverUrl}'.replace('0.0.0.0', '127.0.0.1')
       : window.location.origin;
+    window.serverBaseUrl = serverBaseUrl;
 
     function updateTaskListsWithMeta(tasks, completedMeta) {
       if (!tasks) return;
@@ -815,23 +842,46 @@ export function getDashboardMainScript(params) {
       // 現在の展開状態を保存
       saveExpandedStates();
 
-      // 完了以外のセクションを更新
-      if (tasks.pending) {
-        updateTaskSection('[data-section="pending"]', tasks.pending);
-      }
-      if (tasks.working) {
-        updateTaskSection('[data-section="working"]', tasks.working);
-      }
-      if (tasks.masterWaiting !== undefined || tasks.masterReview !== undefined) {
-        // ⚠️対応待ちセクション全体を更新
-        updateTaskSection('[data-section="master-waiting"]',
-          (tasks.masterWaiting || '') + (tasks.masterReview || ''));
-      }
-      if (tasks.skillCandidates) {
-        updateTaskSection('[data-section="skill-candidates"]', tasks.skillCandidates);
-      }
-      if (tasks.improvements) {
-        updateTaskSection('[data-section="improvements"]', tasks.improvements);
+      // V2モード判定 (#374-11)
+      var isV2Mode = document.querySelector('[data-section="v2-goals-open"]') !== null;
+
+      if (isV2Mode) {
+        // V2モード: V1セクション（pending, working）は存在しないので更新しない
+        // 要対応セクションはV2用のセレクタで更新
+        if (tasks.masterWaiting !== undefined || tasks.masterReview !== undefined) {
+          updateTaskSection('[data-section="v2-master-waiting"]',
+            (tasks.masterWaiting || '') + (tasks.masterReview || ''));
+          // カウントバッジも更新
+          var v2MasterWaitingBadge = document.querySelector('.v2-master-waiting-section .count-badge');
+          if (v2MasterWaitingBadge) {
+            // HTMLからタスク数をカウント（task-itemクラスの数）
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = (tasks.masterWaiting || '') + (tasks.masterReview || '');
+            var count = tempDiv.querySelectorAll('.task-item').length;
+            v2MasterWaitingBadge.textContent = String(count);
+          }
+        }
+        console.log('[updateTaskListsWithMeta] V2 mode: updated v2-master-waiting section');
+      } else {
+        // V1モード: 従来通り
+        // 完了以外のセクションを更新
+        if (tasks.pending) {
+          updateTaskSection('[data-section="pending"]', tasks.pending);
+        }
+        if (tasks.working) {
+          updateTaskSection('[data-section="working"]', tasks.working);
+        }
+        if (tasks.masterWaiting !== undefined || tasks.masterReview !== undefined) {
+          // ⚠️対応待ちセクション全体を更新
+          updateTaskSection('[data-section="master-waiting"]',
+            (tasks.masterWaiting || '') + (tasks.masterReview || ''));
+        }
+        if (tasks.skillCandidates) {
+          updateTaskSection('[data-section="skill-candidates"]', tasks.skillCandidates);
+        }
+        if (tasks.improvements) {
+          updateTaskSection('[data-section="improvements"]', tasks.improvements);
+        }
       }
 
       // 完了セクション: ハッシュ比較で変更があった場合のみ更新
@@ -883,9 +933,12 @@ export function getDashboardMainScript(params) {
       // Goals セクション
       // サーバーから送られるHTMLは初回ロード時のパラメータ（全件）なので、
       // 現在のフィルタ状態を維持するために refreshGoals() で再取得する
-      if (v2Html.goals) {
-        console.log('[updateV2Sections] Goals update detected, refreshing with current filters');
+      // ただしIDE版ではfetchがブロックされるため、Extension側でデータ取得済み (#374-8)
+      if (v2Html.goals && !_vscodeApi) {
+        console.log('[updateV2Sections] Goals update detected, refreshing with current filters (browser mode)');
         refreshGoals();
+      } else if (v2Html.goals && _vscodeApi) {
+        console.log('[updateV2Sections] Goals update detected, skipping refreshGoals (IDE mode - data from Extension)');
       }
 
       // Review Queue セクション
@@ -1185,6 +1238,9 @@ export function getV2DashboardScript() {
     // ========================================
     // V2.1 Dashboard Scripts
     // ========================================
+
+    // サーバーURLを取得（getDashboardMainScriptで設定されたグローバル変数を参照）（#374-7）
+    var serverBaseUrl = window.serverBaseUrl || window.location.origin;
 
     // V2.1 Goals ページネーション状態（Open/Closed 別管理）
     // Open（進行中）- ページネーションあり
@@ -1585,7 +1641,8 @@ export function getV2DashboardScript() {
     function refreshGoalsOpen() {
       var offset = v2GoalsOpenCurrentPage * v2GoalsOpenLimit;
 
-      var url = '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
+      // IDE版対応: 相対URLではなく絶対URLを使用（#374-6）
+      var url = serverBaseUrl + '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
         '&offset=' + offset +
         '&limit=' + v2GoalsOpenLimit +
         '&status=open' +
@@ -1613,7 +1670,8 @@ export function getV2DashboardScript() {
       var showArchived = archivedCheckbox ? archivedCheckbox.checked : false;
       var offset = v2GoalsClosedCurrentPage * v2GoalsClosedLimit;
 
-      var url = '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
+      // IDE版対応: 相対URLではなく絶対URLを使用（#374-6）
+      var url = serverBaseUrl + '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
         '&offset=' + offset +
         '&limit=' + v2GoalsClosedLimit +
         '&status=closed' +
@@ -1840,7 +1898,8 @@ export function getV2DashboardScript() {
       var showArchived = archivedCheckbox ? archivedCheckbox.checked : false;
 
       var offset = v2GoalsCurrentPage * v2GoalsLimit;
-      var url = '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
+      // IDE版対応: 相対URLではなく絶対URLを使用（#374-6）
+      var url = serverBaseUrl + '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
         '&offset=' + offset +
         '&limit=' + v2GoalsLimit +
         '&status=' + status +

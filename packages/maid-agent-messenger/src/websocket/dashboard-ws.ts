@@ -152,11 +152,20 @@ export class DashboardWebSocketServer {
    * 特定プロジェクトの全クライアントにイベントを配信
    */
   public broadcast(projectPath: string, event: DashboardEvent): void {
+    let sentCount = 0;
+    let matchedCount = 0;
     this.clients.forEach(({ ws, client }) => {
-      if (client.projectPath === projectPath && ws.readyState === WebSocket.OPEN) {
-        this.send(ws, event);
+      if (client.projectPath === projectPath) {
+        matchedCount++;
+        if (ws.readyState === WebSocket.OPEN) {
+          this.send(ws, event);
+          sentCount++;
+        }
       }
     });
+    // デバッグログ: 送信状況を記録
+    const eventType = "type" in event ? event.type : "unknown";
+    console.log(`[WS] Broadcast ${eventType} to ${projectPath}: sent to ${sentCount}/${matchedCount} matched clients (total: ${this.clients.size})`);
   }
 
   /**

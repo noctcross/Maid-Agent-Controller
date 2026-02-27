@@ -119,7 +119,17 @@ async function refreshDashboardData(ctx: ViewContext, panel: vscode.WebviewPanel
         if (state.hash) dataUrl += `&completedHash=${state.hash}`;
         if (state.completedSortField) dataUrl += `&completedSortField=${state.completedSortField}`;
 
-        const response = await fetch(dataUrl);
+        // V2 Goals APIのURL（#374-8: IDE版用にExtensionでfetchを代行）
+        const v2GoalsOpenUrl = `${serverUrl}/dashboard/v2/goals?project=${encodeURIComponent(normalizedPath)}&status=open&archived=false&limit=10&offset=0`;
+        const v2GoalsClosedUrl = `${serverUrl}/dashboard/v2/goals?project=${encodeURIComponent(normalizedPath)}&status=closed&archived=false&limit=10&offset=0`;
+
+        // 並列でfetch
+        const [response, goalsOpenResponse, goalsClosedResponse] = await Promise.all([
+            fetch(dataUrl),
+            fetch(v2GoalsOpenUrl).catch(() => null),
+            fetch(v2GoalsClosedUrl).catch(() => null)
+        ]);
+
         if (!response.ok) {
             throw new Error(`Dashboard data fetch failed: ${response.status}`);
         }
@@ -132,22 +142,36 @@ async function refreshDashboardData(ctx: ViewContext, panel: vscode.WebviewPanel
             v2?: unknown;
         };
 
+        // V2 Goals データを取得（#374-8）
+        type V2GoalsResponse = { goals: unknown[]; total: number; offset: number; limit: number };
+        let v2GoalsOpen: V2GoalsResponse | null = null;
+        let v2GoalsClosed: V2GoalsResponse | null = null;
+        if (goalsOpenResponse?.ok) {
+            v2GoalsOpen = await goalsOpenResponse.json() as V2GoalsResponse;
+        }
+        if (goalsClosedResponse?.ok) {
+            v2GoalsClosed = await goalsClosedResponse.json() as V2GoalsResponse;
+        }
+
         // ハッシュを更新
         if (data.completedMeta?.hash) {
             ctx.completedViewState.hash = data.completedMeta.hash;
         }
 
-        // postMessageでWebviewにデータを送信（v2Html/v2を含む）
+        // postMessageでWebviewにデータを送信（v2Html/v2/v2GoalsOpen/v2GoalsClosedを含む）
         panel.webview.postMessage({
             type: 'dashboardUpdate',
             stats: data.stats,
             tasks: data.tasks,
             completedMeta: data.completedMeta,
             v2Html: data.v2Html,
-            v2: data.v2
+            v2: data.v2,
+            // IDE版用: V2 Goals データ（#374-8）
+            v2GoalsOpen,
+            v2GoalsClosed
         });
 
-        ctx.log('[Dashboard] refreshDashboardData: データ更新送信');
+        ctx.log('[Dashboard] refreshDashboardData: データ更新送信' + (v2GoalsOpen ? ' (v2GoalsOpen含む)' : '') + (v2GoalsClosed ? ' (v2GoalsClosed含む)' : ''));
     } catch (error) {
         ctx.log(`[Dashboard] refreshDashboardData error: ${error}`);
     }
@@ -319,14 +343,39 @@ export async function initializeDashboard(ctx: ViewContext, serverUrl: string, p
                     if (message.stats && typeof updateStats === 'function') {
                         updateStats(message.stats);
                     }
-                    // completedMeta付きの場合はupdateTaskListsWithMetaを使用
-                    if (message.tasks && typeof updateTaskListsWithMeta === 'function') {
-                        updateTaskListsWithMeta(message.tasks, message.completedMeta);
-                    } else if (message.tasks && typeof updateTaskLists === 'function') {
-                        updateTaskLists(message.tasks);
+                    // V2モード判定: V2専用セクションが存在するかチェック (#374-7)
+                    var isV2Mode = document.querySelector('[data-section="v2-goals-open"]') !== null;
+                    if (isV2Mode) {
+                        // V2モード: Extension から受け取った V2 Goals データで更新 (#374-8)
+                        // IDE Webview では fetch がブロックされるため、refreshGoals系は使用しない
+                        console.log('[postMessage] V2 mode detected, using v2GoalsOpen/v2GoalsClosed data');
+                        if (message.v2GoalsOpen && typeof updateV2GoalsOpenSection === 'function') {
+                            console.log('[postMessage] Updating v2GoalsOpen:', message.v2GoalsOpen.total, 'total');
+                            updateV2GoalsOpenSection(message.v2GoalsOpen.goals, message.v2GoalsOpen.total, message.v2GoalsOpen.offset, message.v2GoalsOpen.limit);
+                        }
+                        if (message.v2GoalsClosed && typeof updateV2GoalsClosedSection === 'function') {
+                            console.log('[postMessage] Updating v2GoalsClosed:', message.v2GoalsClosed.total, 'total');
+                            updateV2GoalsClosedSection(message.v2GoalsClosed.goals, message.v2GoalsClosed.total, message.v2GoalsClosed.offset, message.v2GoalsClosed.limit);
+                        }
+                        // V2モードでも要対応セクションを更新 (#374-11)
+                        // updateTaskListsWithMetaはV2モード対応済みで、v2-master-waitingを更新する
+                        if (message.tasks && typeof updateTaskListsWithMeta === 'function') {
+                            console.log('[postMessage] V2 mode: updating v2-master-waiting via updateTaskListsWithMeta');
+                            updateTaskListsWithMeta(message.tasks, message.completedMeta);
+                        }
+                    } else {
+                        // V1モード: 従来のupdateTaskListsWithMeta
+                        // completedMeta付きの場合はupdateTaskListsWithMetaを使用
+                        if (message.tasks && typeof updateTaskListsWithMeta === 'function') {
+                            updateTaskListsWithMeta(message.tasks, message.completedMeta);
+                        } else if (message.tasks && typeof updateTaskLists === 'function') {
+                            updateTaskLists(message.tasks);
+                        }
                     }
-                    // V2セクションの更新（v2Htmlが含まれている場合）
+                    // V2セクションの更新（v2Htmlが含まれている場合）- Goals以外（reviewQueue, artifacts等）
                     if (message.v2Html && typeof updateV2Sections === 'function') {
+                        // Goals は上で直接更新したので、updateV2Sections では refreshGoals を呼ばないようにする
+                        // updateV2Sections は Goals 以外のセクション（reviewQueue, artifacts, stats）を更新
                         updateV2Sections(message.v2Html, message.v2);
                     }
                 } else if (message.type === 'showReport') {
@@ -352,6 +401,13 @@ export async function initializeDashboard(ctx: ViewContext, serverUrl: string, p
     ctx.dashboardPanel.webview.html = html;
     ctx.log('[Dashboard] 初回HTML設定完了（postMessageリスナー追加済み）');
     ctx.dashboardConsecutiveFailures = 0;
+
+    // IDE版: 初回ロード後にV2 Goalsデータを送信 (#374-9)
+    // initV2Dashboard()内のrefreshGoalsOpen()/refreshGoalsClosed()はfetchがブロックされるため、
+    // Extension側でfetchしてpostMessageで送る
+    refreshDashboardData(ctx, ctx.dashboardPanel).catch((err) => {
+        ctx.log(`[Dashboard] 初回V2 Goalsデータ取得エラー: ${err}`);
+    });
 }
 
 /**

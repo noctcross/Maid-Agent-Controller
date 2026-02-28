@@ -222,6 +222,8 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
           if (data.v2Html) {
             updateV2Sections(data.v2Html, data.v2);
           }
+          // チーム状態セクションの更新
+          if (data.teamStatusHtml) updateTeamStatus(data.teamStatusHtml);
         })
         .catch(function(err) {
           console.error('[fetchTasks] Error:', err);

@@ -1342,6 +1342,10 @@ export function getV2DashboardScript() {
     function toggleArchive(taskId, btn, newArchivedState) {
       console.log('[toggleArchive] taskId:', taskId, 'newState:', newArchivedState);
 
+      // トランザクションID生成（自己操作の識別用）
+      var txId = generateUUID();
+      addPendingTransaction(txId);
+
       // ボタンを無効化
       btn.disabled = true;
       var originalText = btn.textContent;
@@ -1353,7 +1357,8 @@ export function getV2DashboardScript() {
       fetch('/dashboard/tasks/' + encodeURIComponent(taskId) + '/archive?project=' + encodeURIComponent(projectPath), {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Transaction-Id': txId
         },
         body: JSON.stringify({ archived: newArchivedState })
       })

@@ -8,7 +8,7 @@
  *
  * task-manager.ts のファイルサイズ制限のため別ファイルに分離。
  */
-import type { Task, Assignee, UpdateTaskParams, SideEffectResults } from "./task-manager.js";
+import type { Task, Assignee, UpdateTaskParams, SideEffectResults } from "../types/task-manager-types.js";
 /**
  * 報告書ファイルからタスクIDを抽出
  *

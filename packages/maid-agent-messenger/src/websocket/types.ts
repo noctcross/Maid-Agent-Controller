@@ -2,6 +2,8 @@
  * WebSocket イベント型定義
  */
 
+import { TIMEOUTS } from "../utils/constants.js";
+
 export interface DashboardStats {
   pendingCount: number;
   workingCount: number;
@@ -66,7 +68,7 @@ export interface WebSocketConfig {
 }
 
 export const DEFAULT_WS_CONFIG: WebSocketConfig = {
-  pingInterval: 30000,
+  pingInterval: TIMEOUTS.PING_INTERVAL,
   pongTimeout: 10000,
   maxClients: 100,
 };

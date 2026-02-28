@@ -316,6 +316,8 @@ export async function executeListTasks(projectPath, params = {}) {
         hasMore: offset + tasks.length < total,
     };
 }
+// === Phase 3: update_task ===
+// 型定義は ../types/task-manager-types.ts から再エクスポート
 /**
  * タスク更新
  *

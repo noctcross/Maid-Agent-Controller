@@ -8,6 +8,7 @@
  */
 
 import { escapeHtml } from "../markdown-utils.js";
+import { TIMEOUTS } from "../utils/constants.js";
 
 /**
  * スクリプト生成に必要なパラメータ
@@ -695,7 +696,7 @@ export function getDashboardMainScript(params: DashboardScriptParams): string {
     // ダッシュボードデータを再取得（IDE/ブラウザ判定）
     // タブ復帰時の連続リクエストを防ぐためのタイムスタンプ
     var lastRefreshTime = 0;
-    var REFRESH_THROTTLE_MS = 2000; // 2秒以内の連続リクエストを防止
+    var REFRESH_THROTTLE_MS = ${TIMEOUTS.REFRESH_THROTTLE}; // 連続リクエストを防止
 
     function refreshDashboard() {
       // スロットリング: 前回のリフレッシュから一定時間経過していない場合はスキップ

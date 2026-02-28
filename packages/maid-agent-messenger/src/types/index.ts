@@ -4,6 +4,9 @@
  */
 
 // エージェントID
+// ⚠️ 一貫性注意: この定義は VSCode拡張側 (src/utils/agents.ts の DEFAULT_MAID_ORDER) と
+//    同じ値・同じ順序を維持する必要があります。変更時は両方を更新してください。
+//    一貫性テスト: src/utils/__tests__/maid-id-consistency.test.ts
 export const MAID_IDS = [
   "emma",
   "sophia",

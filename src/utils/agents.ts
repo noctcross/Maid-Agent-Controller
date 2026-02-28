@@ -4,6 +4,27 @@
 import type { AgentConfig, AgentId, MaidId, AgentColorConfig } from '../types/agent';
 
 /**
+ * エージェントカラーパレット
+ * 各エージェント固有のアクセントカラーを定義
+ */
+export const AGENT_COLOR_PALETTE = {
+    // 共通背景色
+    BG_PRIMARY: '#1a1a2e',
+
+    // エージェント固有アクセントカラー
+    BUTLER_TEAL: '#008080',
+    CHIEF_TEAL: '#008080',
+    EMMA_BROWN: '#8B5A2B',
+    SOPHIA_BLUE: '#4169E1',
+    LILY_PINK: '#FFB6C1',
+    ROSE_RED: '#DC143C',
+    ALICE_GOLD: '#DAA520',
+    MAY_GREY: '#808080',
+    FLORA_GREEN: '#228B22',
+    LUNA_PURPLE: '#800080',
+} as const;
+
+/**
  * 全エージェント情報のマスターデータ
  * - 唯一の情報源（Single Source of Truth）
  */
@@ -13,70 +34,70 @@ export const AGENTS_MAP: Record<AgentId, AgentConfig> = {
         name: 'シルヴィア',
         role: 'butler',
         emoji: '🎩',
-        color: { bg: '#1a1a2e', accent: '#008080' }  // ティール
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.BUTLER_TEAL }
     },
     chief: {
         id: 'chief',
         name: 'ビオラ',
         role: 'chiefMaid',
         emoji: '👑',
-        color: { bg: '#1a1a2e', accent: '#008080' }  // ティール
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.CHIEF_TEAL }
     },
     emma: {
         id: 'emma',
         name: 'エマ',
         role: 'maid',
         emoji: '☕',
-        color: { bg: '#1a1a2e', accent: '#8B5A2B' }  // ブラウン
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.EMMA_BROWN }
     },
     sophia: {
         id: 'sophia',
         name: 'ソフィア',
         role: 'maid',
         emoji: '❄️',
-        color: { bg: '#1a1a2e', accent: '#4169E1' }  // ブルー
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.SOPHIA_BLUE }
     },
     lily: {
         id: 'lily',
         name: 'リリー',
         role: 'maid',
         emoji: '🎀',
-        color: { bg: '#1a1a2e', accent: '#FFB6C1' }  // ピンク
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.LILY_PINK }
     },
     rose: {
         id: 'rose',
         name: 'ローズ',
         role: 'maid',
         emoji: '🌹',
-        color: { bg: '#1a1a2e', accent: '#DC143C' }  // レッド
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.ROSE_RED }
     },
     alice: {
         id: 'alice',
         name: 'アリス',
         role: 'maid',
         emoji: '✨',
-        color: { bg: '#1a1a2e', accent: '#DAA520' }  // ゴールド
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.ALICE_GOLD }
     },
     may: {
         id: 'may',
         name: 'メイ',
         role: 'maid',
         emoji: '🕊️',
-        color: { bg: '#1a1a2e', accent: '#808080' }  // グレー
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.MAY_GREY }
     },
     flora: {
         id: 'flora',
         name: 'フローラ',
         role: 'maid',
         emoji: '🌿',
-        color: { bg: '#1a1a2e', accent: '#228B22' }  // グリーン
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.FLORA_GREEN }
     },
     luna: {
         id: 'luna',
         name: 'ルナ',
         role: 'maid',
         emoji: '🌙',
-        color: { bg: '#1a1a2e', accent: '#800080' }  // パープル
+        color: { bg: AGENT_COLOR_PALETTE.BG_PRIMARY, accent: AGENT_COLOR_PALETTE.LUNA_PURPLE }
     }
 };
 
@@ -90,6 +111,11 @@ export const MAIDS_MAP: { [key: string]: AgentConfig } = Object.fromEntries(
 
 /**
  * メイドIDの配列（DEFAULT_MAID_ORDER 後方互換）
+ *
+ * ⚠️ 一貫性注意: この定義は maid-agent-messenger パッケージ
+ *    (packages/maid-agent-messenger/src/types/index.ts の MAID_IDS) と
+ *    同じ値・同じ順序を維持する必要があります。変更時は両方を更新してください。
+ *    一貫性テスト: src/utils/__tests__/maid-id-consistency.test.ts
  */
 export const DEFAULT_MAID_ORDER: MaidId[] = [
     'emma', 'sophia', 'lily', 'rose', 'alice', 'may', 'flora', 'luna'

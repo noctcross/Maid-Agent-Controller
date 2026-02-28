@@ -13,6 +13,7 @@ import express, { Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { loadConfig, getServerUrl } from "./utils/config-loader.js";
 import { getTimestamp } from "./utils/yaml-helper.js";
+import { TIMEOUTS } from "./utils/constants.js";
 
 // ルーター
 import legacyRoutes from "./routes/legacy-routes.js";
@@ -74,7 +75,7 @@ async function main(): Promise<void> {
   // ========================================
   const server = createServer(app);
   const wsServer = new DashboardWebSocketServer(server, {
-    pingInterval: config.keepalive.ping_interval || 30000,
+    pingInterval: config.keepalive.ping_interval || TIMEOUTS.PING_INTERVAL,
     pongTimeout: 10000,
   });
 

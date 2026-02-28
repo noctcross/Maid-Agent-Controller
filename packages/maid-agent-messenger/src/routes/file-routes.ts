@@ -37,6 +37,27 @@ router.get("/file", async (req: Request, res: Response) => {
       filePath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
     }
 
+    // パストラバーサル対策: projectPathが指定されている場合、その配下に限定
+    if (projectPath) {
+      // 正規化されたprojectPathを取得（末尾のスラッシュを統一）
+      const normalizedProjectPath = path.resolve(projectPath);
+      // シンボリックリンクを解決した実際のパスを取得
+      let resolvedFilePath: string;
+      try {
+        resolvedFilePath = await fs.realpath(filePath);
+      } catch {
+        // ファイルが存在しない場合は path.resolve で正規化
+        resolvedFilePath = path.resolve(filePath);
+      }
+      // projectPath配下かどうかを確認
+      if (!resolvedFilePath.startsWith(normalizedProjectPath + path.sep) &&
+          resolvedFilePath !== normalizedProjectPath) {
+        console.warn(`[file-routes] Path traversal blocked: ${filePath} is outside ${projectPath}`);
+        res.status(403).send("Access denied: path is outside project directory");
+        return;
+      }
+    }
+
     // ファイル読み込み
     const content = await fs.readFile(filePath, "utf-8");
     const fileName = path.basename(filePath);

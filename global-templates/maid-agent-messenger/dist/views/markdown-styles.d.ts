@@ -3,6 +3,8 @@
  *
  * レポートビューア、レポートオーバーレイで共通利用。
  * dashboard-styles.ts, web-dashboard.ts から参照される。
+ *
+ * 注: CSS変数は shared-styles.ts で定義。
  */
 /**
  * Markdownコンテンツ表示用スタイル

@@ -11,7 +11,7 @@
 
 import * as path from "path";
 import * as fs from "fs/promises";
-import type { Task, Assignee, UpdateTaskParams, SideEffectResults } from "./task-manager.js";
+import type { Task, Assignee, UpdateTaskParams, SideEffectResults } from "../types/task-manager-types.js";
 import {
   readYamlFile,
   writeYamlFile,

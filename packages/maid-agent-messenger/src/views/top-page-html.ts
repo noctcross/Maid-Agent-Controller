@@ -4,6 +4,7 @@
 
 import type { ProjectEntry } from "../services/project-registry.js";
 import { escapeHtml } from "../markdown-utils.js";
+import { COLORS } from "./shared-styles.js";
 
 export interface ProjectWithStats extends ProjectEntry {
   stats: {
@@ -97,16 +98,16 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
   <title>Maid Agent - プロジェクト一覧</title>
   <style>
     :root {
-      --bg-primary: #1a1a2e;
-      --bg-secondary: #16213e;
-      --bg-card: #1e2a4a;
-      --text-primary: #e0e0e0;
-      --text-secondary: #a0a0a0;
-      --accent: #4fc3f7;
-      --border: #2a3a5a;
+      --bg-primary: ${COLORS.BG_PRIMARY};
+      --bg-secondary: ${COLORS.BG_SECONDARY};
+      --bg-card: ${COLORS.BG_CARD_ALT};
+      --text-primary: ${COLORS.TEXT_PRIMARY};
+      --text-secondary: ${COLORS.TEXT_SECONDARY};
+      --accent: ${COLORS.LINK_CYAN};
+      --border: ${COLORS.BORDER_PRIMARY};
       --stat-pending: #ffd54f;
-      --stat-working: #4fc3f7;
-      --stat-completed: #81c784;
+      --stat-working: ${COLORS.LINK_CYAN};
+      --stat-completed: ${COLORS.ACCENT_GREEN_LIGHT};
       --stat-unavailable: #ef5350;
     }
 

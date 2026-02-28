@@ -7,6 +7,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import * as yaml from "yaml";
+import { TIMEOUTS } from "./constants.js";
 const DEFAULT_CONFIG = {
     server: {
         mode: "hybrid",
@@ -15,10 +16,10 @@ const DEFAULT_CONFIG = {
     },
     central: {
         connection_timeout: 3000,
-        reconnect_interval: 30000,
+        reconnect_interval: TIMEOUTS.RECONNECT_INTERVAL,
         max_reconnect_attempts: 10,
         reconnect_backoff_factor: 1.5,
-        max_reconnect_interval: 120000,
+        max_reconnect_interval: TIMEOUTS.MAX_RECONNECT_INTERVAL,
     },
     fallback: {
         enabled: true,
@@ -33,8 +34,8 @@ const DEFAULT_CONFIG = {
         http_keepalive_timeout: 65000,
         http_headers_timeout: 66000,
         ping_enabled: true,
-        ping_interval: 30000,
-        ping_timeout: 5000,
+        ping_interval: TIMEOUTS.PING_INTERVAL,
+        ping_timeout: TIMEOUTS.PING_TIMEOUT,
         max_missed_pings: 2,
     },
     pm2: {

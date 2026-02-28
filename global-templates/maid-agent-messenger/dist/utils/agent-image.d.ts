@@ -4,9 +4,8 @@
  * 報告書ファイル名からエージェントIDを抽出し、
  * 対応するイラスト画像を検索する機能を提供。
  */
-/** 全エージェントID */
-export declare const AGENT_IDS: readonly ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna", "butler", "chief"];
-export type AgentId = (typeof AGENT_IDS)[number];
+import { ALL_AGENT_IDS, type AgentId } from "../types/index.js";
+export { ALL_AGENT_IDS as AGENT_IDS, type AgentId };
 /** サポートする画像拡張子 */
 export declare const IMAGE_EXTENSIONS: readonly ["png", "jpg", "jpeg", "gif", "webp"];
 /** .maid-agent 内の画像ディレクトリの相対パス */

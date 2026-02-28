@@ -8,11 +8,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { Agent, AgentContext } from '../types';
-import { MAID_AGENT_DIR, AGENTS_MAP, isValidAgentId } from '../constants';
-import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion, isWslAvailable, windowsToWslPath } from '../utils/environment';
-import { getSessionNameFromPath, getGlobalMaidAgentPath } from '../utils/helpers';
+import { AGENTS_MAP, isValidAgentId } from '../constants';
+import { CURRENT_ENV, isTmuxAvailable, windowsToWslPath } from '../utils/environment';
+import { getSessionNameFromPath } from '../utils/helpers';
 import { TmuxManager } from '../tmux/tmux-manager';
-import * as WslSetup from '../setup/wsl-setup';
 import { getModelForAgent } from '../utils/settings-loader';
 import { generateSystemPromptFile } from '../utils/prompt-loader';
 

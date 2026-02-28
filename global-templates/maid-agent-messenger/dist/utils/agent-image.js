@@ -6,12 +6,9 @@
  */
 import * as fs from "fs/promises";
 import path from "path";
-/** 全エージェントID */
-export const AGENT_IDS = [
-    "emma", "sophia", "lily", "rose",
-    "alice", "may", "flora", "luna",
-    "butler", "chief",
-];
+import { ALL_AGENT_IDS } from "../types/index.js";
+// 後方互換性のため re-export
+export { ALL_AGENT_IDS as AGENT_IDS };
 /** サポートする画像拡張子 */
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp"];
 /** ステータス名（画像検索で除外対象） */
@@ -57,7 +54,7 @@ export function extractAgentIdFromPath(filePath) {
  * 文字列が有効なエージェントIDかどうか判定する
  */
 function isAgentId(id) {
-    return AGENT_IDS.includes(id);
+    return ALL_AGENT_IDS.includes(id);
 }
 /**
  * 指定ディレクトリからエージェントの画像ファイル名一覧を取得する

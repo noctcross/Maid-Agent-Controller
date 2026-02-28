@@ -7,15 +7,10 @@
 
 import * as fs from "fs/promises";
 import path from "path";
+import { ALL_AGENT_IDS, type AgentId } from "../types/index.js";
 
-/** 全エージェントID */
-export const AGENT_IDS = [
-  "emma", "sophia", "lily", "rose",
-  "alice", "may", "flora", "luna",
-  "butler", "chief",
-] as const;
-
-export type AgentId = (typeof AGENT_IDS)[number];
+// 後方互換性のため re-export
+export { ALL_AGENT_IDS as AGENT_IDS, type AgentId };
 
 /** サポートする画像拡張子 */
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp"] as const;
@@ -69,7 +64,7 @@ export function extractAgentIdFromPath(filePath: string): string | null {
  * 文字列が有効なエージェントIDかどうか判定する
  */
 function isAgentId(id: string): id is AgentId {
-  return (AGENT_IDS as readonly string[]).includes(id);
+  return (ALL_AGENT_IDS as readonly string[]).includes(id);
 }
 
 /**

@@ -7,7 +7,6 @@ import { SetupContext } from '../types';
 import { MAID_AGENT_DIR, MAIDS } from '../constants';
 import { getGlobalMaidAgentPath } from '../utils/helpers';
 import { CURRENT_ENV } from '../utils/environment';
-import { checkAndSetupWsl, checkAndInstallJq } from './wsl-setup';
 import { setupClaudeSettings } from './claude-settings-setup';
 import { parseRuleModules, parseGlobalSkills, showRuleSelectionUI, showSkillSelectionUI, copySelectedRules, copySelectedSkills } from './rules-skills';
 

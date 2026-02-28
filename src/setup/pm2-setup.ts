@@ -6,7 +6,6 @@ import { execSync } from 'child_process';
 import { SetupContext } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { windowsToWslPath } from '../utils/environment';
-import { DASHBOARD_SERVER_URL } from '../constants';
 import { checkPasswordlessSudo, setupPasswordlessSudo, promptWslPassword, showPasswordHelp } from './wsl-setup';
 import { detectPackageManager, PM_CONFIG, PackageManager } from '../utils/package-manager';
 

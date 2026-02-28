@@ -2,28 +2,8 @@
  * トップページ（プロジェクト一覧）HTML生成
  */
 import { escapeHtml } from "../markdown-utils.js";
+import { formatRelativeTime } from "../utils/yaml-helper.js";
 import { COLORS } from "./shared-styles.js";
-/**
- * 相対時間表示
- */
-function formatRelativeTime(isoDate) {
-    const date = new Date(isoDate);
-    const now = Date.now();
-    const diffMs = now - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1)
-        return "たった今";
-    if (diffMins < 60)
-        return `${diffMins}分前`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24)
-        return `${diffHours}時間前`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 30)
-        return `${diffDays}日前`;
-    const diffMonths = Math.floor(diffDays / 30);
-    return `${diffMonths}ヶ月前`;
-}
 /**
  * パスを省略表示
  */

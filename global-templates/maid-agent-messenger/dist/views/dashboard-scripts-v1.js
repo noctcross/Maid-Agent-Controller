@@ -79,9 +79,10 @@ export function getDashboardMainScript(params) {
     var completedSearchTerm = '';
 
     function filterTasks() {
-      const searchTerm = searchBox.value.toLowerCase();
-      const priority = priorityFilter.value;
-      const assignee = assigneeFilter.value;
+      // V2モードでは検索ボックスが存在しない場合がある
+      const searchTerm = searchBox?.value?.toLowerCase() || '';
+      const priority = priorityFilter?.value || '';
+      const assignee = assigneeFilter?.value || '';
 
       // 進行中タスクはクライアントサイドでフィルタ
       document.querySelectorAll('.task-item').forEach(item => {

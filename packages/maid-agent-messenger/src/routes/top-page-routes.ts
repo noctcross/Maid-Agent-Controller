@@ -11,18 +11,9 @@ import {
   togglePin,
   toggleHide,
   recordProjectAccess,
-  type ProjectEntry,
 } from "../services/project-registry.js";
 import { executeListTasks } from "../services/index.js";
-
-export interface ProjectWithStats extends ProjectEntry {
-  stats: {
-    pendingCount: number;
-    workingCount: number;
-    completedTodayCount: number;
-  } | null;
-  status: "available" | "unavailable";
-}
+import type { ProjectWithStats } from "../views/top-page-html.js";
 
 export interface TopPageRoutesDeps {
   generateTopPageHtml: (projects: ProjectWithStats[]) => string;

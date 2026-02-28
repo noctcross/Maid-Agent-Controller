@@ -93,9 +93,11 @@ vi.mock('../../constants', () => ({
 }));
 
 import type { ViewContext } from '../../types';
+import type { DataFetcherContext } from '../dashboard';
 
 describe('web-dashboard', () => {
     let mockCtx: ViewContext;
+    let mockDataCtx: DataFetcherContext;
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -131,6 +133,23 @@ describe('web-dashboard', () => {
                 tasks: { pending: '', working: '', masterWaiting: '', masterReview: '' },
             }),
         });
+
+        // DataFetcherContext モック（initializeDashboard / updateDashboardData 用）
+        mockDataCtx = {
+            dashboardPanel: undefined,
+            workspaceRoot: '/test/workspace',
+            dashboardInitialized: false,
+            dashboardConsecutiveFailures: 0,
+            completedViewState: {
+                limit: 10,
+                offset: 0,
+                reviewed: undefined,
+                starred: undefined,
+                hash: '',
+                completedSortField: undefined,
+            },
+            log: vi.fn(),
+        };
     });
 
     afterEach(() => {
@@ -139,10 +158,10 @@ describe('web-dashboard', () => {
 
     describe('initializeDashboard', () => {
         it('MCPサーバーからHTMLを取得してWebviewに設定すること', async () => {
-            const { initializeDashboard } = await import('../web-dashboard');
+            const { initializeDashboard } = await import('../dashboard');
 
             // dashboardPanel を設定
-            mockCtx.dashboardPanel = {
+            const mockPanel = {
                 webview: {
                     html: '',
                     postMessage: mockPostMessage,
@@ -150,12 +169,13 @@ describe('web-dashboard', () => {
                 },
                 reveal: mockReveal,
                 onDidDispose: mockOnDidDispose,
-            } as unknown as typeof mockCtx.dashboardPanel;
+            };
+            mockDataCtx.dashboardPanel = mockPanel as unknown as typeof mockCtx.dashboardPanel;
 
             const serverUrl = 'http://localhost:3100';
             const projectPath = '/test/project';
 
-            await initializeDashboard(mockCtx, serverUrl, projectPath);
+            await initializeDashboard(mockDataCtx, serverUrl, projectPath);
 
             // fetch が正しいURLで呼ばれたことを確認
             expect(mockFetch).toHaveBeenCalledWith(
@@ -163,14 +183,14 @@ describe('web-dashboard', () => {
             );
 
             // HTMLが設定されたことを確認
-            expect(mockCtx.dashboardPanel!.webview.html).toContain('<script>');
-            expect(mockCtx.dashboardPanel!.webview.html).toContain('dashboardUpdate');
+            expect(mockPanel.webview.html).toContain('<script>');
+            expect(mockPanel.webview.html).toContain('dashboardUpdate');
         });
 
         it('postMessageリスナースクリプトが注入されること', async () => {
-            const { initializeDashboard } = await import('../web-dashboard');
+            const { initializeDashboard } = await import('../dashboard');
 
-            mockCtx.dashboardPanel = {
+            const mockPanel = {
                 webview: {
                     html: '',
                     postMessage: mockPostMessage,
@@ -178,11 +198,12 @@ describe('web-dashboard', () => {
                 },
                 reveal: mockReveal,
                 onDidDispose: mockOnDidDispose,
-            } as unknown as typeof mockCtx.dashboardPanel;
+            };
+            mockDataCtx.dashboardPanel = mockPanel as unknown as typeof mockCtx.dashboardPanel;
 
-            await initializeDashboard(mockCtx, 'http://localhost:3100', '/test/project');
+            await initializeDashboard(mockDataCtx, 'http://localhost:3100', '/test/project');
 
-            const html = mockCtx.dashboardPanel!.webview.html;
+            const html = mockPanel.webview.html;
 
             // postMessageリスナーが含まれていることを確認
             expect(html).toContain("window.addEventListener('message'");
@@ -194,9 +215,9 @@ describe('web-dashboard', () => {
 
     describe('updateDashboardData', () => {
         it('JSON APIでデータを取得してpostMessageで送信すること', async () => {
-            const { updateDashboardData } = await import('../web-dashboard');
+            const { updateDashboardData } = await import('../dashboard');
 
-            mockCtx.dashboardPanel = {
+            const mockPanel = {
                 webview: {
                     html: '',
                     postMessage: mockPostMessage,
@@ -204,12 +225,13 @@ describe('web-dashboard', () => {
                 },
                 reveal: mockReveal,
                 onDidDispose: mockOnDidDispose,
-            } as unknown as typeof mockCtx.dashboardPanel;
+            };
+            mockDataCtx.dashboardPanel = mockPanel as unknown as typeof mockCtx.dashboardPanel;
 
             const serverUrl = 'http://localhost:3100';
             const projectPath = '/test/project';
 
-            await updateDashboardData(mockCtx, serverUrl, projectPath);
+            await updateDashboardData(mockDataCtx, serverUrl, projectPath);
 
             // JSON APIが呼ばれたことを確認
             expect(mockFetch).toHaveBeenCalled();
@@ -229,9 +251,9 @@ describe('web-dashboard', () => {
         });
 
         it('v2Html/v2データがpostMessageに含まれること', async () => {
-            const { updateDashboardData } = await import('../web-dashboard');
+            const { updateDashboardData } = await import('../dashboard');
 
-            mockCtx.dashboardPanel = {
+            const mockPanel = {
                 webview: {
                     html: '',
                     postMessage: mockPostMessage,
@@ -239,7 +261,8 @@ describe('web-dashboard', () => {
                 },
                 reveal: mockReveal,
                 onDidDispose: mockOnDidDispose,
-            } as unknown as typeof mockCtx.dashboardPanel;
+            };
+            mockDataCtx.dashboardPanel = mockPanel as unknown as typeof mockCtx.dashboardPanel;
 
             // v2Html/v2を含むレスポンス
             mockFetch.mockResolvedValueOnce({
@@ -252,7 +275,7 @@ describe('web-dashboard', () => {
                 }),
             });
 
-            await updateDashboardData(mockCtx, 'http://localhost:3100', '/test/project');
+            await updateDashboardData(mockDataCtx, 'http://localhost:3100', '/test/project');
 
             expect(mockPostMessage).toHaveBeenCalledWith(
                 expect.objectContaining({

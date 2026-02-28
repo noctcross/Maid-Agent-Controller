@@ -89,22 +89,31 @@ describe('Phase 2: extension.ts async/await patterns', () => {
 });
 
 describe('Phase 3: dispose() timer cleanup', () => {
-    it('should cleanup pendingReportChecks in dispose() method', () => {
-        const controllerContent = fs.readFileSync(path.join(SRC_DIR, 'controller.ts'), 'utf-8');
+    it('should cleanup pendingReportChecks via FileWatcher module', () => {
+        // #425-5 責務分割: pendingReportChecksのクリーンアップはfile-watcher.tsに移動
 
-        // dispose()メソッド内でpendingReportChecksのクリーンアップが行われているか確認
+        // 1. controller.ts の dispose() が FileWatcher.disposeFileWatcher を呼び出していることを確認
+        const controllerContent = fs.readFileSync(path.join(SRC_DIR, 'controller.ts'), 'utf-8');
         const disposeMethodMatch = controllerContent.match(/public dispose\(\): void \{([\s\S]*?)\n\s{4}\}/);
 
         expect(disposeMethodMatch, 'dispose() method should exist').toBeTruthy();
 
         if (disposeMethodMatch) {
             const disposeBody = disposeMethodMatch[1];
+            const delegationPattern = /FileWatcher\.disposeFileWatcher/;
+            expect(disposeBody, 'dispose() should call FileWatcher.disposeFileWatcher').toMatch(delegationPattern);
+        }
 
-            // pendingReportChecksのクリーンアップパターンをチェック
-            // 期待: this.pendingReportChecks.forEach(...) または for...of
+        // 2. file-watcher.ts の disposeFileWatcher が pendingReportChecks をクリーンアップしていることを確認
+        const fileWatcherContent = fs.readFileSync(path.join(SRC_DIR, 'events', 'file-watcher.ts'), 'utf-8');
+        const disposeFileWatcherMatch = fileWatcherContent.match(/export function disposeFileWatcher\([^)]+\)[^{]*\{([\s\S]*?)\n\}/);
+
+        expect(disposeFileWatcherMatch, 'disposeFileWatcher function should exist').toBeTruthy();
+
+        if (disposeFileWatcherMatch) {
+            const functionBody = disposeFileWatcherMatch[1];
             const cleanupPattern = /(pendingReportChecks\.forEach|for\s*\(.*pendingReportChecks)/;
-
-            expect(disposeBody, 'dispose() should cleanup pendingReportChecks').toMatch(cleanupPattern);
+            expect(functionBody, 'disposeFileWatcher should cleanup pendingReportChecks').toMatch(cleanupPattern);
         }
     });
 });
@@ -196,14 +205,15 @@ describe('Phase 6: localhost:3100 constant extraction', () => {
 
 describe('Phase 8: setTimeout async try-catch in checkMaidReportToChief', () => {
     it('should have outer try-catch wrapping entire async callback in setTimeout', () => {
-        const controllerContent = fs.readFileSync(path.join(SRC_DIR, 'controller.ts'), 'utf-8');
+        // checkMaidReportToChief は file-watcher.ts に移動（#425-5 責務分割）
+        const fileWatcherContent = fs.readFileSync(path.join(SRC_DIR, 'events', 'file-watcher.ts'), 'utf-8');
 
         // checkMaidReportToChief関数を抽出
-        const checkMethodMatch = controllerContent.match(
-            /private checkMaidReportToChief\([^)]+\)[^{]*\{([\s\S]*?)(?=\n\s{4}(?:private|public|protected|\}))/
+        const checkMethodMatch = fileWatcherContent.match(
+            /function checkMaidReportToChief\([^)]+\)[^{]*\{([\s\S]*?)(?=\n(?:export\s+)?function|\n\}$)/
         );
 
-        expect(checkMethodMatch, 'checkMaidReportToChief method should exist').toBeTruthy();
+        expect(checkMethodMatch, 'checkMaidReportToChief function should exist in file-watcher.ts').toBeTruthy();
 
         if (checkMethodMatch) {
             const methodBody = checkMethodMatch[1];

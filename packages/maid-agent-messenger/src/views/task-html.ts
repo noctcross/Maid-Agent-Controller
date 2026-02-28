@@ -32,6 +32,7 @@ export function generateReportLinksHtml(
  * タスクリストのHTMLを生成するヘルパー関数
  * SSEエンドポイントとJSON APIエンドポイントの両方で使用
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 部分的なタスクオブジェクトも許容
 export function generateTaskHtml(tasks: any[], type: string, projectPath: string, scheme: string = "vscode"): string {
   const priorityClass: Record<string, string> = {
     high: "priority-high",
@@ -45,7 +46,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
 
   return tasks.map((task) => {
     const title = task.title || task.description?.split("\n")[0].substring(0, 50) || "";
-    const assigneeStr = task.assignees?.map((a: any) => a.agentId).join(", ") || "";
+    const assigneeStr = task.assignees?.map((a: { agentId: string }) => a.agentId).join(", ") || "";
     const createdDate = task.createdAt
       ? formatDateJstShort(new Date(task.createdAt))
       : "";
@@ -204,6 +205,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
  * masterWaiting（アクティブ）と masterReview（確認待ち）を適切に結合し、
  * 両方空の場合は「なし」を1つだけ表示する
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 部分的なタスクオブジェクトも許容
 export function composeMasterWaitingHtml(
   masterWaitingTasks: any[],
   masterReviewTasks: any[],

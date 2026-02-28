@@ -26,6 +26,9 @@ import { logger } from "../utils/logger.js";
 // DashboardData型を再エクスポート
 export type { DashboardData };
 
+// 依存関数の型定義
+// 部分的なタスクオブジェクトや異なる型の配列を許容するため any[] を使用
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface DashboardRoutesDeps {
   generateDashboardHtml: (data: DashboardData, editorScheme?: string) => string;
   generateTaskHtml: (tasks: any[], type: string, projectPath: string, scheme?: string) => string;
@@ -253,7 +256,10 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
       // 待機中から特殊カテゴリとactionRequiredを除外
       const specialCategories = ["skill_candidate", "improvement"];
-      const filteredPendingTasks = pending.tasks.filter((t: any) => (!t.category || !specialCategories.includes(t.category)) && !t.actionRequired);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Task | TaskSummary のユニオン型対応
+      const filteredPendingTasks = pending.tasks.filter((t: any) => {
+        return (!t.category || !specialCategories.includes(t.category)) && !t.actionRequired;
+      });
 
       // 完了セクションのHTML生成とハッシュ計算
       const completedHtml = generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme);
@@ -356,7 +362,10 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
           // 待機中から特殊カテゴリとactionRequiredを除外
           const sseSpecialCategories = ["skill_candidate", "improvement"];
-          const sseFilteredPending = pending.tasks.filter((t: any) => (!t.category || !sseSpecialCategories.includes(t.category)) && !t.actionRequired);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Task | TaskSummary のユニオン型対応
+          const sseFilteredPending = pending.tasks.filter((t: any) => {
+            return (!t.category || !sseSpecialCategories.includes(t.category)) && !t.actionRequired;
+          });
 
           const stats = {
             pendingCount: sseFilteredPending.length,

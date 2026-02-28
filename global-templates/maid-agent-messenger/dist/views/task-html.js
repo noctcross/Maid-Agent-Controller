@@ -26,6 +26,7 @@ export function generateReportLinksHtml(reportPaths, projectPath) {
  * タスクリストのHTMLを生成するヘルパー関数
  * SSEエンドポイントとJSON APIエンドポイントの両方で使用
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 部分的なタスクオブジェクトも許容
 export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
     const priorityClass = {
         high: "priority-high",
@@ -200,6 +201,7 @@ export function generateTaskHtml(tasks, type, projectPath, scheme = "vscode") {
  * masterWaiting（アクティブ）と masterReview（確認待ち）を適切に結合し、
  * 両方空の場合は「なし」を1つだけ表示する
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 部分的なタスクオブジェクトも許容
 export function composeMasterWaitingHtml(masterWaitingTasks, masterReviewTasks, projectPath, scheme) {
     if (masterWaitingTasks.length === 0 && masterReviewTasks.length === 0) {
         return '<div class="empty-message">なし</div>';

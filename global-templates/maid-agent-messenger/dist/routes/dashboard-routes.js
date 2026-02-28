@@ -191,7 +191,10 @@ export function createDashboardRoutes(deps) {
             }).length;
             // 待機中から特殊カテゴリとactionRequiredを除外
             const specialCategories = ["skill_candidate", "improvement"];
-            const filteredPendingTasks = pending.tasks.filter((t) => (!t.category || !specialCategories.includes(t.category)) && !t.actionRequired);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Task | TaskSummary のユニオン型対応
+            const filteredPendingTasks = pending.tasks.filter((t) => {
+                return (!t.category || !specialCategories.includes(t.category)) && !t.actionRequired;
+            });
             // 完了セクションのHTML生成とハッシュ計算
             const completedHtml = generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme);
             const completedHash = createHash("md5").update(completedHtml).digest("hex").substring(0, 16);
@@ -283,7 +286,10 @@ export function createDashboardRoutes(deps) {
                     }).length;
                     // 待機中から特殊カテゴリとactionRequiredを除外
                     const sseSpecialCategories = ["skill_candidate", "improvement"];
-                    const sseFilteredPending = pending.tasks.filter((t) => (!t.category || !sseSpecialCategories.includes(t.category)) && !t.actionRequired);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Task | TaskSummary のユニオン型対応
+                    const sseFilteredPending = pending.tasks.filter((t) => {
+                        return (!t.category || !sseSpecialCategories.includes(t.category)) && !t.actionRequired;
+                    });
                     const stats = {
                         pendingCount: sseFilteredPending.length,
                         workingCount: working.total,

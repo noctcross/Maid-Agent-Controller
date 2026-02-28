@@ -142,8 +142,7 @@ export async function checkAndAutoCloseParent(projectPath, completedTaskId) {
             continue;
         }
         // 除外条件チェック
-        // 1. stepRequired フラグがある場合は自動クローズしない（将来拡張用）
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // 1. stepRequired フラグがある場合は自動クローズしない
         if (parent.stepRequired) {
             break;
         }

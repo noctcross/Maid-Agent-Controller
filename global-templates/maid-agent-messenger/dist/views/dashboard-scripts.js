@@ -861,7 +861,31 @@ export function getDashboardMainScript(params) {
             v2MasterWaitingBadge.textContent = String(count);
           }
         }
-        console.log('[updateTaskListsWithMeta] V2 mode: updated v2-master-waiting section');
+        // スキル候補セクションもV2用のセレクタで更新 (#411)
+        if (tasks.skillCandidates) {
+          updateTaskSection('[data-section="v2-skill-candidates"]', tasks.skillCandidates);
+          // カウントバッジも更新
+          var v2SkillCandidatesBadge = document.querySelector('.v2-skill-candidates-section .count-badge');
+          if (v2SkillCandidatesBadge) {
+            var tempDiv2 = document.createElement('div');
+            tempDiv2.innerHTML = tasks.skillCandidates;
+            var count2 = tempDiv2.querySelectorAll('.task-item').length;
+            v2SkillCandidatesBadge.textContent = String(count2);
+          }
+        }
+        // 改善提案セクションもV2用のセレクタで更新 (#411)
+        if (tasks.improvements) {
+          updateTaskSection('[data-section="v2-improvements"]', tasks.improvements);
+          // カウントバッジも更新
+          var v2ImprovementsBadge = document.querySelector('.v2-improvements-section .count-badge');
+          if (v2ImprovementsBadge) {
+            var tempDiv3 = document.createElement('div');
+            tempDiv3.innerHTML = tasks.improvements;
+            var count3 = tempDiv3.querySelectorAll('.task-item').length;
+            v2ImprovementsBadge.textContent = String(count3);
+          }
+        }
+        console.log('[updateTaskListsWithMeta] V2 mode: updated v2-master-waiting, v2-skill-candidates, v2-improvements sections');
       } else {
         // V1モード: 従来通り
         // 完了以外のセクションを更新
@@ -1001,6 +1025,29 @@ export function getDashboardMainScript(params) {
           timestampEl.classList.add('fade-in');
           setTimeout(() => timestampEl.classList.remove('fade-in'), 300);
         }
+      }
+    }
+
+    // チーム状態セクションを更新
+    function updateTeamStatus(teamStatusHtml) {
+      if (!teamStatusHtml) return;
+
+      const teamSection = document.querySelector('.v2-team-status-section .collapsible-content');
+      if (teamSection) {
+        teamSection.innerHTML = teamStatusHtml;
+        // フェードインアニメーション
+        const cards = teamSection.querySelectorAll('.v2-team-card');
+        cards.forEach(card => {
+          card.classList.add('fade-in');
+          setTimeout(() => card.classList.remove('fade-in'), 300);
+        });
+      }
+
+      // バッジの更新（チーム人数）
+      const countBadge = document.querySelector('.v2-team-status-section .count-badge');
+      if (countBadge) {
+        const cardCount = document.querySelectorAll('.v2-team-status-section .v2-team-card').length;
+        countBadge.textContent = cardCount;
       }
     }
 
@@ -1257,6 +1304,14 @@ export function getV2DashboardScript() {
     var v2GoalsClosedSortField = 'id';
     var v2GoalsClosedSortOrder = 'desc';
 
+    // 検索・絞り込みフィルター状態
+    var v2FilterState = {
+      search: '',
+      priority: '',
+      assignee: ''
+    };
+    var v2SearchDebounceTimer = null;
+
     // 後方互換用（古いコードで参照されている場合用）
     var v2GoalsCurrentPage = 0;
     var v2GoalsLimit = 10;
@@ -1317,6 +1372,7 @@ export function getV2DashboardScript() {
       initGoalTree();
       setupGoalTreeEventDelegation();
       initGoalsFilter();
+      initSearchFilter();  // 検索・絞り込みセクション初期化
       initTaskIdClickHandler();
       initArchiveButtons();
       initCloseGoalButtons();
@@ -1520,6 +1576,99 @@ export function getV2DashboardScript() {
       }
     }
 
+    /**
+     * 検索・絞り込みセクションの初期化
+     */
+    function initSearchFilter() {
+      console.log('[V2.1] initSearchFilter called');
+
+      var searchBox = document.getElementById('v2-search-box');
+      var priorityFilter = document.getElementById('v2-priority-filter');
+      var assigneeFilter = document.getElementById('v2-assignee-filter');
+      var clearBtn = document.getElementById('v2-filter-clear-btn');
+
+      // 検索実行関数
+      function executeSearch() {
+        v2GoalsOpenCurrentPage = 0;
+        v2GoalsClosedCurrentPage = 0;
+        refreshGoalsOpen();
+        refreshGoalsClosed();
+        updateFilterActiveState();
+      }
+
+      // フィルターアクティブ状態を更新
+      function updateFilterActiveState() {
+        if (searchBox) {
+          searchBox.classList.toggle('has-value', !!v2FilterState.search);
+        }
+        if (priorityFilter) {
+          priorityFilter.classList.toggle('active', !!v2FilterState.priority);
+        }
+        if (assigneeFilter) {
+          assigneeFilter.classList.toggle('active', !!v2FilterState.assignee);
+        }
+      }
+
+      // 検索ボックスの入力イベント（デバウンス付き）
+      if (searchBox) {
+        searchBox.addEventListener('input', function() {
+          v2FilterState.search = searchBox.value.trim();
+          // デバウンス: 300ms
+          if (v2SearchDebounceTimer) {
+            clearTimeout(v2SearchDebounceTimer);
+          }
+          v2SearchDebounceTimer = setTimeout(function() {
+            console.log('[V2.1] Search debounced:', v2FilterState.search);
+            executeSearch();
+          }, 300);
+        });
+
+        // Enterキーで即座に検索
+        searchBox.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') {
+            if (v2SearchDebounceTimer) {
+              clearTimeout(v2SearchDebounceTimer);
+            }
+            v2FilterState.search = searchBox.value.trim();
+            console.log('[V2.1] Search on Enter:', v2FilterState.search);
+            executeSearch();
+          }
+        });
+      }
+
+      // 優先度フィルター
+      if (priorityFilter) {
+        priorityFilter.addEventListener('change', function() {
+          v2FilterState.priority = priorityFilter.value;
+          console.log('[V2.1] Priority filter changed:', v2FilterState.priority);
+          executeSearch();
+        });
+      }
+
+      // 担当者フィルター
+      if (assigneeFilter) {
+        assigneeFilter.addEventListener('change', function() {
+          v2FilterState.assignee = assigneeFilter.value;
+          console.log('[V2.1] Assignee filter changed:', v2FilterState.assignee);
+          executeSearch();
+        });
+      }
+
+      // クリアボタン
+      if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+          console.log('[V2.1] Clear filters');
+          v2FilterState.search = '';
+          v2FilterState.priority = '';
+          v2FilterState.assignee = '';
+          if (searchBox) searchBox.value = '';
+          if (priorityFilter) priorityFilter.value = '';
+          if (assigneeFilter) assigneeFilter.value = '';
+          executeSearch();
+        });
+      }
+    }
+
     // Goalsソート状態管理
     var goalsSortState = 'id-desc'; // 'id-desc' | 'id-asc' | 'updated-desc'
 
@@ -1650,6 +1799,17 @@ export function getV2DashboardScript() {
         '&sort=' + v2GoalsOpenSortField +
         '&order=' + v2GoalsOpenSortOrder;
 
+      // 検索・絞り込みパラメータを追加
+      if (v2FilterState.search) {
+        url += '&search=' + encodeURIComponent(v2FilterState.search);
+      }
+      if (v2FilterState.priority) {
+        url += '&priority=' + encodeURIComponent(v2FilterState.priority);
+      }
+      if (v2FilterState.assignee) {
+        url += '&assignee=' + encodeURIComponent(v2FilterState.assignee);
+      }
+
       console.log('[refreshGoalsOpen] Fetching:', url);
 
       fetch(url)
@@ -1678,6 +1838,17 @@ export function getV2DashboardScript() {
         '&archived=' + showArchived +
         '&sort=' + v2GoalsClosedSortField +
         '&order=' + v2GoalsClosedSortOrder;
+
+      // 検索・絞り込みパラメータを追加
+      if (v2FilterState.search) {
+        url += '&search=' + encodeURIComponent(v2FilterState.search);
+      }
+      if (v2FilterState.priority) {
+        url += '&priority=' + encodeURIComponent(v2FilterState.priority);
+      }
+      if (v2FilterState.assignee) {
+        url += '&assignee=' + encodeURIComponent(v2FilterState.assignee);
+      }
 
       console.log('[refreshGoalsClosed] Fetching:', url);
 

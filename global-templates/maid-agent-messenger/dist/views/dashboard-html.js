@@ -14,6 +14,103 @@ import { getDashboardHeadScript, getDashboardMainScript, getReportOverlayScript,
 import { getDashboardBodyTemplate, getReportOverlayHtml, } from "./dashboard-template.js";
 // V2.1: Task階層表示・レビューキュー・成果物・統計
 import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, } from "./task-html-v2.js";
+// メイド名マッピング（日本語表示用）
+const MAID_DISPLAY_NAMES = {
+    emma: "Emma",
+    sophia: "Sophia",
+    lily: "Lily",
+    rose: "Rose",
+    alice: "Alice",
+    may: "May",
+    flora: "Flora",
+    luna: "Luna",
+};
+// ステータスアイコン・ラベルマッピング
+const STATUS_CONFIG = {
+    working: { icon: "🔧", label: "作業中", color: "var(--v2-accent-blue)" },
+    completed: { icon: "✅", label: "完了", color: "var(--v2-accent-green)" },
+    assigned: { icon: "📋", label: "割当済", color: "var(--v2-accent-purple)" },
+    blocked: { icon: "⏸", label: "ブロック", color: "var(--v2-accent-orange)" },
+    idle: { icon: "💤", label: "待機", color: "var(--v2-text-secondary)" },
+    unknown: { icon: "❓", label: "不明", color: "var(--v2-text-secondary)" },
+};
+/**
+ * V2チーム状態セクションのHTML生成
+ * 各メイドの現在の状態をカード形式で表示
+ */
+export function generateV2TeamStatusHtml(teamStatus) {
+    if (!teamStatus || teamStatus.length === 0) {
+        return '<div class="empty-message">チーム情報がありません</div>';
+    }
+    // 経過時間をフォーマット
+    const formatElapsedTime = (startedAt) => {
+        if (!startedAt)
+            return "";
+        const start = new Date(startedAt).getTime();
+        const now = Date.now();
+        const diffMs = now - start;
+        const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins < 60)
+            return `${diffMins}m`;
+        const hours = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        return `${hours}h ${mins}m`;
+    };
+    const agentCards = teamStatus.map((agent) => {
+        const displayName = MAID_DISPLAY_NAMES[agent.id] || agent.id;
+        const statusConfig = STATUS_CONFIG[agent.status] || STATUS_CONFIG.unknown;
+        const taskId = agent.task_id ? `#${agent.task_id.replace("task-", "")}` : "";
+        const elapsedTime = agent.started_at ? formatElapsedTime(agent.started_at) : "";
+        const taskTitle = agent.task_title ? escapeHtml(agent.task_title) : "";
+        // 2行構成レイアウト
+        // 行1: 名前 アイコン （右寄せ）経過時間
+        // 行2: タスクID タスク名（長い場合は末尾省略）
+        return `
+      <div class="v2-team-card v2-team-card-${agent.status}" data-agent="${agent.id}">
+        <div class="v2-team-row1">
+          <span class="v2-team-name">${escapeHtml(displayName)}</span>
+          <span class="v2-team-icon">${statusConfig.icon}</span>
+          ${elapsedTime ? `<span class="v2-team-elapsed">${elapsedTime}</span>` : ""}
+        </div>
+        ${taskId ? `
+        <div class="v2-team-row2">
+          <span class="v2-team-task">[${taskId}]</span>
+          ${taskTitle ? `<span class="v2-team-title">${taskTitle}</span>` : ""}
+        </div>` : ""}
+      </div>`;
+    }).join("\n");
+    return `<div class="v2-team-grid">${agentCards}</div>`;
+}
+/**
+ * V2検索・絞り込みセクションのHTML生成
+ * 検索ボックスと優先度・担当者フィルターを表示
+ */
+export function generateV2SearchFilterHtml(teamStatus) {
+    // 担当者リストを生成（teamStatusから動的に取得 + すべてオプション）
+    const assigneeOptions = [
+        '<option value="">すべて</option>',
+        ...Object.entries(MAID_DISPLAY_NAMES).map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`)
+    ].join("\n              ");
+    // 1行コンパクトレイアウト: [検索ボックス] [優先度] [担当者] [クリア]
+    return `
+    <div class="v2-search-filter-row">
+      <div class="v2-search-input-wrapper">
+        <span class="v2-search-icon">🔍</span>
+        <input type="text" id="v2-search-box" class="v2-search-box" placeholder="検索..." />
+      </div>
+      <select id="v2-priority-filter" class="v2-filter-select" title="優先度">
+        <option value="">優先度</option>
+        <option value="high">🔴高</option>
+        <option value="medium">🟡中</option>
+        <option value="low">🟢低</option>
+      </select>
+      <select id="v2-assignee-filter" class="v2-filter-select" title="担当者">
+        <option value="">担当者</option>
+        ${Object.entries(MAID_DISPLAY_NAMES).map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join("")}
+      </select>
+      <button id="v2-filter-clear-btn" class="v2-filter-clear-btn" title="フィルタをクリア">✕</button>
+    </div>`;
+}
 /**
  * ダッシュボードHTMLを生成
  *
@@ -57,9 +154,9 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         const elapsedTime = agent.started_at
             ? formatElapsedTime(agent.started_at)
             : "";
-        const taskDesc = agent.task_description
-            ? escapeHtml(agent.task_description.substring(0, 30)) +
-                (agent.task_description.length > 30 ? "..." : "")
+        const taskDesc = agent.task_title
+            ? escapeHtml(agent.task_title.substring(0, 30)) +
+                (agent.task_title.length > 30 ? "..." : "")
             : "";
         const substatusInfo = agent.substatus
             ? `<span class="agent-substatus">⚠️ ${escapeHtml(agent.substatus)}</span>`
@@ -175,6 +272,27 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         ${v2StatsHtml}
       </div>` : ""}
 
+      <!-- 👥 チーム状態セクション -->
+      <div class="card v2-team-status-section" data-section="v2-team-status">
+        <div class="card-header collapsible-header">
+          <span class="card-title">👥 チーム状態</span>
+          <span class="count-badge">${teamStatus.length}</span>
+        </div>
+        <div class="collapsible-content">
+          ${generateV2TeamStatusHtml(teamStatus)}
+        </div>
+      </div>
+
+      <!-- 🔍 検索・絞り込みセクション -->
+      <div class="card v2-search-filter-section" data-section="v2-search-filter">
+        <div class="card-header collapsible-header">
+          <span class="card-title">🔍 検索・絞り込み</span>
+        </div>
+        <div class="collapsible-content">
+          ${generateV2SearchFilterHtml(teamStatus)}
+        </div>
+      </div>
+
       <!-- 🚨 要対応セクション（常に表示） -->
       <div class="card v2-master-waiting-section card-action-required" data-section="v2-master-waiting">
         <div class="card-header collapsible-header">
@@ -264,7 +382,7 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
 
       ${(skillCandidates.length > 0 || improvements.length > 0) ? `
       <!-- スキル候補・改善提案セクション（左右分割） -->
-      <div class="v2-skill-improvement-row" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+      <div class="v2-skill-improvement-row">
         ${skillCandidates.length > 0 ? `
         <div class="card v2-skill-candidates-section card-skill" data-section="v2-skill-candidates">
           <div class="card-header collapsible-header">

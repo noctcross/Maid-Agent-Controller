@@ -332,6 +332,7 @@ export interface AgentStatus {
   task_id: string | null;
   // Phase 2: チーム状態詳細化用フィールド
   started_at?: string | null;
+  task_title?: string | null;
   task_description?: string | null;
   substatus?: string | null;
 }

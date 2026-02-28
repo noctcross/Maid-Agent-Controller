@@ -393,6 +393,9 @@ export interface V2DashboardOptions {
     sortField?: "id" | "updatedAt";
     sortOrder?: "asc" | "desc";
     sortBy?: "id" | "updated";
+    search?: string;
+    priority?: "high" | "medium" | "low";
+    assignee?: string;
 }
 /**
  * タスク一覧からV2.1ダッシュボードデータを生成

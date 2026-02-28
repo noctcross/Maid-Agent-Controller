@@ -12,7 +12,7 @@ import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 export function createDashboardRoutes(deps) {
-    const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, wsServer, } = deps;
+    const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, generateV2TeamStatusHtml, wsServer, } = deps;
     const router = Router();
     // GET /dashboard - HTMLダッシュボード（ブラウザ用）
     router.get("/dashboard", async (req, res) => {
@@ -161,7 +161,7 @@ export function createDashboardRoutes(deps) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const ACTIVE_STATUSES = ["pending", "assigned", "working", "blocked"];
-            const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, v2Data] = await Promise.all([
+            const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, v2Data, teamStatus] = await Promise.all([
                 executeListTasks(projectPath, { status: ["pending"] }),
                 executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
                 executeListTasks(projectPath, {
@@ -180,6 +180,7 @@ export function createDashboardRoutes(deps) {
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
                 executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
                 generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
+                executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }), // チーム状態
             ]);
             const completedTodayCount = completedAll.tasks.filter((task) => {
                 if (!task.completedAt)
@@ -227,6 +228,8 @@ export function createDashboardRoutes(deps) {
                     artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
                     stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
                 },
+                // チーム状態HTML
+                teamStatusHtml: generateV2TeamStatusHtml ? generateV2TeamStatusHtml(teamStatus.agents) : undefined,
             };
             res.setHeader("Content-Type", "application/json");
             res.json(data);
@@ -372,7 +375,14 @@ export function createDashboardRoutes(deps) {
             const sortField = sortFieldParam === "updatedAt" ? "updatedAt" : "id";
             const sortOrderParam = req.query.order;
             const sortOrder = sortOrderParam === "asc" ? "asc" : "desc";
-            // V2.1 ダッシュボードデータを取得（ページネーション・ソート適用）
+            // 検索・絞り込みパラメータ
+            const search = req.query.search;
+            const priorityParam = req.query.priority;
+            const priority = priorityParam === "high" || priorityParam === "medium" || priorityParam === "low"
+                ? priorityParam
+                : undefined;
+            const assignee = req.query.assignee;
+            // V2.1 ダッシュボードデータを取得（ページネーション・ソート・フィルタ適用）
             const v2Data = await generateV2DashboardData(projectPath, {
                 offset,
                 limit,
@@ -380,6 +390,9 @@ export function createDashboardRoutes(deps) {
                 showArchived,
                 sortField,
                 sortOrder,
+                search,
+                priority,
+                assignee,
             });
             res.json({
                 goals: v2Data.v2Goals,

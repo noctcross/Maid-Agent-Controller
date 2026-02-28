@@ -142,6 +142,7 @@ export interface AgentStatus {
     status: string;
     task_id: string | null;
     started_at?: string | null;
+    task_title?: string | null;
     task_description?: string | null;
     substatus?: string | null;
 }

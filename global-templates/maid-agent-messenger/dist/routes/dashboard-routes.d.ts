@@ -14,6 +14,7 @@ export interface DashboardRoutesDeps {
     generateReviewQueueHtml?: (reviewTasks: any[], projectPath: string) => string;
     generateArtifactsHtml?: (artifacts: any[], projectPath: string) => string;
     generateV2StatsHtml?: (stats: any) => string;
+    generateV2TeamStatusHtml?: (teamStatus: any[]) => string;
     wsServer?: DashboardWebSocketServer;
 }
 export declare function createDashboardRoutes(deps: DashboardRoutesDeps): Router;

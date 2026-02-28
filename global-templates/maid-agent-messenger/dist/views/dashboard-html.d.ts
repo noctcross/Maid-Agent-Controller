@@ -9,6 +9,16 @@
  */
 import type { AgentStatus } from "../types/index.js";
 import { type V2Task, type V2ReviewTask, type V2Artifact, type V2Stats } from "./task-html-v2.js";
+/**
+ * V2チーム状態セクションのHTML生成
+ * 各メイドの現在の状態をカード形式で表示
+ */
+export declare function generateV2TeamStatusHtml(teamStatus: AgentStatus[]): string;
+/**
+ * V2検索・絞り込みセクションのHTML生成
+ * 検索ボックスと優先度・担当者フィルターを表示
+ */
+export declare function generateV2SearchFilterHtml(teamStatus: AgentStatus[]): string;
 export interface DashboardData {
     projectPath: string;
     timestamp: string;

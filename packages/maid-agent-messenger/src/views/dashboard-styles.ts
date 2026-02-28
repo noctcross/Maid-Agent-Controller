@@ -1216,6 +1216,275 @@ export function getV2DashboardStyles(): string {
         font-size: 0.9rem;
         padding: 10px 16px;
       }
+
+      /* V2.1 チーム状態 - レスポンシブ（コンパクト） */
+      .v2-team-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .v2-team-card {
+        padding: 2px 4px;
+        font-size: 0.7rem;
+      }
+    }
+
+    /* ========================================
+     * V2.1 Team Status Styles - 2行構成
+     * ======================================== */
+
+    /* チーム状態セクション */
+    .v2-team-status-section {
+      margin-bottom: 0.5rem;
+    }
+
+    /* チーム状態グリッド - 4列（2行構成のため幅を確保） */
+    .v2-team-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      padding: 4px 0;
+    }
+
+    /* チーム状態カード - 2行構成 */
+    .v2-team-card {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 3px;
+      padding: 4px 6px;
+      border-left: 2px solid transparent;
+      font-size: 0.75rem;
+      overflow: hidden;
+    }
+
+    .v2-team-card:hover {
+      background: rgba(255,255,255,0.06);
+    }
+
+    /* ステータス別のボーダーカラー */
+    .v2-team-card-working {
+      border-left-color: var(--v2-accent-blue, #4a90a4);
+    }
+
+    .v2-team-card-completed {
+      border-left-color: var(--v2-accent-green, #4caf50);
+    }
+
+    .v2-team-card-blocked {
+      border-left-color: var(--v2-accent-orange, #ff9800);
+    }
+
+    .v2-team-card-assigned {
+      border-left-color: var(--v2-accent-purple, #9b59b6);
+    }
+
+    .v2-team-card-idle {
+      border-left-color: var(--v2-text-secondary, #888);
+    }
+
+    /* 行1: 名前 アイコン （右寄せ）経過時間 */
+    .v2-team-row1 {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .v2-team-name {
+      font-weight: 600;
+      color: var(--v2-text-primary, #e0e0e0);
+      flex-shrink: 0;
+    }
+
+    .v2-team-icon {
+      flex-shrink: 0;
+    }
+
+    .v2-team-elapsed {
+      color: var(--v2-text-secondary, #888);
+      font-size: 0.65rem;
+      margin-left: auto;
+    }
+
+    /* 行2: タスクID タスク名（省略あり） */
+    .v2-team-row2 {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.7rem;
+      overflow: hidden;
+    }
+
+    .v2-team-task {
+      color: var(--v2-accent-blue, #4a90a4);
+      font-family: monospace;
+      flex-shrink: 0;
+    }
+
+    .v2-team-title {
+      color: var(--v2-text-secondary, #aaa);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* レスポンシブ: 1200px以下で3列 */
+    @media (max-width: 1200px) {
+      .v2-team-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    /* レスポンシブ: 600px以下で2列 */
+    @media (max-width: 600px) {
+      .v2-team-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* ========================================
+     * V2.1 スキル候補・改善提案の2列レイアウト
+     * ======================================== */
+    .v2-skill-improvement-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 500px) {
+      .v2-skill-improvement-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+      }
+
+      /* V2.1 スマホ: ヘッダー内コントロールを縦並びに */
+      .v2-goals-open-section .card-header,
+      .v2-goals-closed-section .card-header {
+        flex-wrap: wrap;
+      }
+
+      .v2-goals-pagination-wrapper {
+        width: 100%;
+        order: 10;
+        margin-top: 4px;
+      }
+
+      .v2-filter-controls {
+        width: 100%;
+        margin-top: 4px;
+      }
+    }
+  `;
+}
+
+/**
+ * V2検索・絞り込みセクションのCSS
+ */
+export function getV2SearchFilterStyles(): string {
+  return `
+    /* ===========================================
+       V2 検索・絞り込みセクション - 1行コンパクト
+       =========================================== */
+    .v2-search-filter-section {
+      margin-bottom: 8px;
+    }
+
+    /* 1行レイアウト: [検索] [優先度] [担当者] [クリア] */
+    .v2-search-filter-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding: 4px;
+    }
+
+    .v2-search-input-wrapper {
+      flex: 1;
+      min-width: 120px;
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      padding: 0 6px;
+    }
+
+    .v2-search-input-wrapper:focus-within {
+      border-color: var(--v2-accent-blue, #4a90a4);
+    }
+
+    .v2-search-icon {
+      font-size: 12px;
+      margin-right: 4px;
+      opacity: 0.6;
+    }
+
+    .v2-search-box {
+      flex: 1;
+      min-width: 80px;
+      background: transparent;
+      border: none;
+      color: var(--v2-text-primary, #e0e0e0);
+      font-size: 12px;
+      padding: 5px 0;
+      outline: none;
+    }
+
+    .v2-search-box::placeholder {
+      color: var(--v2-text-secondary, #888);
+    }
+
+    .v2-filter-select {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      color: var(--v2-text-primary, #e0e0e0);
+      font-size: 12px;
+      padding: 4px 6px;
+      min-width: 70px;
+      cursor: pointer;
+    }
+
+    .v2-filter-select:focus {
+      outline: none;
+      border-color: var(--v2-accent-blue, #4a90a4);
+    }
+
+    .v2-filter-select option {
+      background: #1e2d32;
+      color: #e0e0e0;
+    }
+
+    .v2-filter-clear-btn {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      color: var(--v2-text-secondary, #888);
+      font-size: 12px;
+      padding: 4px 8px;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .v2-filter-clear-btn:hover {
+      background: rgba(255,255,255,0.05);
+      color: var(--v2-text-primary, #e0e0e0);
+    }
+
+    /* フィルターアクティブ状態 */
+    .v2-filter-select.active,
+    .v2-search-box.has-value {
+      border-color: var(--v2-accent-blue, #4a90a4);
+    }
+
+    /* レスポンシブ: 狭い画面では折り返し */
+    @media (max-width: 500px) {
+      .v2-search-filter-row {
+        flex-wrap: wrap;
+      }
+      .v2-search-input-wrapper {
+        width: 100%;
+        flex: none;
+      }
     }
   `;
 }
@@ -1745,5 +2014,6 @@ export function getDashboardStyles(): string {
       to { transform: translateX(100%); opacity: 0; }
     }
     ${getV2DashboardStyles()}
+    ${getV2SearchFilterStyles()}
   `;
 }

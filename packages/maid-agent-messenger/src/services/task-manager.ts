@@ -1490,6 +1490,10 @@ export interface V2DashboardOptions {
   sortField?: "id" | "updatedAt";              // ソートフィールド（デフォルト: "id"）
   sortOrder?: "asc" | "desc";                   // ソート順（デフォルト: "desc"）
   sortBy?: "id" | "updated";                    // Work/Stepのソート: "id"=ID昇順, "updated"=updatedAt降順（デフォルト: "updated"）
+  // 検索・絞り込みフィルター
+  search?: string;                              // タスクID/タイトル検索（部分一致）
+  priority?: "high" | "medium" | "low";         // 優先度フィルター
+  assignee?: string;                            // 担当者フィルター（agentId）
 }
 
 /**
@@ -1499,7 +1503,18 @@ export async function generateV2DashboardData(
   projectPath: string,
   options: V2DashboardOptions = {}
 ): Promise<V2DashboardData> {
-  const { showArchived = false, statusFilter = "open", offset = 0, limit = 10, sortField = "id", sortOrder = "desc", sortBy = "updated" } = options;
+  const {
+    showArchived = false,
+    statusFilter = "open",
+    offset = 0,
+    limit = 10,
+    sortField = "id",
+    sortOrder = "desc",
+    sortBy = "updated",
+    search,
+    priority,
+    assignee,
+  } = options;
   const data = await loadTasksReadOnly(projectPath);
   const tasks = data.tasks;
 
@@ -1576,6 +1591,45 @@ export async function generateV2DashboardData(
     return 0;
   };
 
+  // 検索・フィルター用ヘルパー関数
+  const matchesSearch = (task: Task, searchTerm: string): boolean => {
+    const term = searchTerm.toLowerCase();
+    const idMatch = task.id.toLowerCase().includes(term);
+    const titleMatch = (task.title || "").toLowerCase().includes(term);
+    return idMatch || titleMatch;
+  };
+
+  const hasAssignee = (task: Task, targetAssignee: string): boolean => {
+    return task.assignees?.some((a) => a.agentId === targetAssignee) ?? false;
+  };
+
+  // 階層全体で検索・担当者がマッチするか判定
+  const matchesHierarchy = (
+    goal: Task,
+    searchTerm: string | undefined,
+    targetAssignee: string | undefined
+  ): boolean => {
+    // Goalレベルでマッチ
+    if (searchTerm && matchesSearch(goal, searchTerm)) return true;
+    if (targetAssignee && hasAssignee(goal, targetAssignee)) return true;
+
+    // Work/Stepレベルでマッチを検索
+    const goalWorks = phases.filter((p) => p.parentId === goal.id);
+    for (const work of goalWorks) {
+      if (searchTerm && matchesSearch(work, searchTerm)) return true;
+      if (targetAssignee && hasAssignee(work, targetAssignee)) return true;
+
+      const workSteps = actions.filter((a) => a.parentId === work.id);
+      for (const step of workSteps) {
+        if (searchTerm && matchesSearch(step, searchTerm)) return true;
+        if (targetAssignee && hasAssignee(step, targetAssignee)) return true;
+      }
+    }
+
+    // searchTermもtargetAssigneeも指定なしの場合はtrue
+    return !searchTerm && !targetAssignee;
+  };
+
   // V2Goals: Goal階層構造を構築（フィルタ → 変換 → ソートの順で処理）
   const v2Goals: V2GoalData[] = goals
     // archivedフィルタ: デフォルトでarchivedを除外
@@ -1588,6 +1642,10 @@ export async function generateV2DashboardData(
       if (statusFilter === "closed") return mainStatus === "closed";
       return true;
     })
+    // 優先度フィルタ
+    .filter((g) => !priority || g.priority === priority)
+    // 検索・担当者フィルタ（階層全体で検索）
+    .filter((g) => matchesHierarchy(g, search, assignee))
     .map((goal) => {
       const { mainStatus, substatus } = convertToV2Status(goal);
 

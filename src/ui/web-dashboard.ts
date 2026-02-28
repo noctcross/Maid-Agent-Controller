@@ -378,6 +378,10 @@ export async function initializeDashboard(ctx: ViewContext, serverUrl: string, p
                         // updateV2Sections は Goals 以外のセクション（reviewQueue, artifacts, stats）を更新
                         updateV2Sections(message.v2Html, message.v2);
                     }
+                    // チーム状態セクションの更新
+                    if (message.teamStatusHtml && typeof updateTeamStatus === 'function') {
+                        updateTeamStatus(message.teamStatusHtml);
+                    }
                 } else if (message.type === 'showReport') {
                     if (typeof showReportOverlay === 'function') {
                         showReportOverlay(message.html, message.fileName);

@@ -24,7 +24,7 @@ import fileRoutes from "./routes/file-routes.js";
 import imageRoutes from "./routes/image-routes.js";
 
 // ビュー
-import { generateDashboardHtml } from "./views/dashboard-html.js";
+import { generateDashboardHtml, generateV2TeamStatusHtml } from "./views/dashboard-html.js";
 import { generateTopPageHtml } from "./views/top-page-html.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js";
 // V2.1 ビュー
@@ -94,6 +94,7 @@ async function main(): Promise<void> {
     generateReviewQueueHtml,
     generateArtifactsHtml,
     generateV2StatsHtml,
+    generateV2TeamStatusHtml,
     wsServer,
   }));
   app.use(fileRoutes);

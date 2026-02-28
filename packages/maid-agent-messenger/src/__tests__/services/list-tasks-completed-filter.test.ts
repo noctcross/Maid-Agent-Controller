@@ -32,15 +32,17 @@ jest.unstable_mockModule("../../utils/file-lock.js", () => ({
   withFileLock: jest.fn(),
 }));
 
+// task-core.js のloadTasksReadOnlyを直接モック（モジュール分割対応）
+const mockLoadTasksReadOnly = jest.fn<() => Promise<{ lastTaskNumber: number; tasks: unknown[] }>>();
+jest.unstable_mockModule("../../services/task-core.js", () => ({
+  loadTasksReadOnly: mockLoadTasksReadOnly,
+  withTasksLock: jest.fn(),
+}));
+
 // dynamic import（モック設定後に読み込み）
 const { executeListTasks, compareTaskIds } = await import(
   "../../services/task-manager.js"
 );
-const fs = await import("fs/promises");
-const { fileExists } = await import("../../utils/yaml-helper.js");
-
-const mockedReadFile = fs.readFile as jest.MockedFunction<typeof fs.readFile>;
-const mockedFileExists = fileExists as jest.MockedFunction<typeof fileExists>;
 
 const PROJECT_PATH = "/test/project";
 
@@ -164,13 +166,12 @@ const createTestTasksYaml = () => {
       },
     ],
   };
-  return stringify(data);
+  return data;
 };
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockedFileExists.mockResolvedValue(true);
-  mockedReadFile.mockResolvedValue(createTestTasksYaml());
+  mockLoadTasksReadOnly.mockResolvedValue(createTestTasksYaml());
 });
 
 describe("executeListTasks - reviewed/starred フィルタ", () => {
@@ -533,7 +534,7 @@ describe("executeListTasks - sortField='completedAt' ソート", () => {
         },
       ],
     };
-    mockedReadFile.mockResolvedValue(stringify(dataWithNull));
+    mockLoadTasksReadOnly.mockResolvedValue(dataWithNull);
 
     const result = await executeListTasks(PROJECT_PATH, {
       status: ["completed"],

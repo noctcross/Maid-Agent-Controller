@@ -9,6 +9,7 @@ import fs from "fs/promises";
 import { parse } from "yaml";
 import type { GetMyTaskOutput } from "../types/index.js";
 import { readYamlFile, getFirstLine, fileExists } from "../utils/yaml-helper.js";
+import { logger } from "../utils/logger.js";
 
 export interface GetMyTaskParams {
   queueMaidPath: string;
@@ -60,7 +61,7 @@ async function loadTasksYaml(projectPath: string): Promise<TasksYamlData | null>
     const content = await fs.readFile(tasksFilePath, "utf-8");
     return parse(content) as TasksYamlData;
   } catch {
-    console.error("[get-my-task] Failed to parse tasks.yaml");
+    logger.error("Failed to parse tasks.yaml");
     return null;
   }
 }

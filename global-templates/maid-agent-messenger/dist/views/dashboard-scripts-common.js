@@ -23,7 +23,9 @@ export function getDashboardHeadScript(params) {
       if (typeof acquireVsCodeApi !== 'undefined') {
         _vscodeApi = acquireVsCodeApi();
       }
-    } catch (e) {}
+    } catch (e) {
+      // ブラウザ環境ではacquireVsCodeApiは存在しないため、エラーは無視
+    }
 
     // V2.1 Goals API用プロジェクトパス
     window.v2ProjectPath = '${escapeHtml(projectPath)}';

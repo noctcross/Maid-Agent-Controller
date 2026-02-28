@@ -6,6 +6,7 @@
  */
 import { loadTasksReadOnly } from "./task-core.js";
 import { inferTaskType, convertToV2Status } from "./task-v2-migration.js";
+import { logger } from "../utils/logger.js";
 /**
  * V2.1: Goal階層連動 - 子Phaseの状態から親Goalの表示ステータスを計算
  *
@@ -47,7 +48,7 @@ export function computeGoalDisplayStatus(goalSubstatus, phases, goalMainStatus) 
         return { displayStatus: "未着手", displayIcon: "⏸️" };
     }
     // フォールバック
-    console.warn(`[computeGoalDisplayStatus] Unexpected phase states: ${substatuses.join(", ")}, defaulting to 進行中`);
+    logger.warn(`Unexpected phase states: ${substatuses.join(", ")}, defaulting to 進行中`);
     return { displayStatus: "進行中", displayIcon: "🔵" };
 }
 /**

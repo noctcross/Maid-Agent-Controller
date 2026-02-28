@@ -54,10 +54,14 @@ router.get("/api/tasks", async (req: Request, res: Response) => {
       filter.parentId = req.query.parentId === "null" ? null : (req.query.parentId as string);
     }
     if (req.query.limit) {
-      filter.limit = parseInt(req.query.limit as string, 10);
+      const limit = parseInt(req.query.limit as string, 10);
+      if (!Number.isNaN(limit)) {
+        filter.limit = limit;
+      }
     }
     if (req.query.offset) {
-      filter.offset = parseInt(req.query.offset as string, 10);
+      const offset = parseInt(req.query.offset as string, 10);
+      filter.offset = Number.isNaN(offset) ? 0 : offset;
     }
     if (req.query.sortField) {
       filter.sortField = req.query.sortField as "createdAt" | "priority" | "status" | "id";
@@ -169,7 +173,8 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
 router.get("/api/tasks/:id/report", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const limit = parsedLimit !== undefined && !Number.isNaN(parsedLimit) ? parsedLimit : undefined;
 
     const result = await executeGetReport(projectPath, {
       taskId: req.params.id,

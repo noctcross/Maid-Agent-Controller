@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs/promises";
 import { parse } from "yaml";
 import { readYamlFile, getFirstLine, fileExists } from "../utils/yaml-helper.js";
+import { logger } from "../utils/logger.js";
 async function loadTasksYaml(projectPath) {
     const tasksFilePath = path.join(projectPath, ".maid-agent", "system", "data", "tasks.yaml");
     if (!(await fileExists(tasksFilePath))) {
@@ -17,7 +18,7 @@ async function loadTasksYaml(projectPath) {
         return parse(content);
     }
     catch {
-        console.error("[get-my-task] Failed to parse tasks.yaml");
+        logger.error("Failed to parse tasks.yaml");
         return null;
     }
 }

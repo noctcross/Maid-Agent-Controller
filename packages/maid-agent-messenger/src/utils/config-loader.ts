@@ -9,6 +9,7 @@ import * as os from "os";
 import * as path from "path";
 import * as yaml from "yaml";
 import { TIMEOUTS } from "./constants.js";
+import { logger } from "./logger.js";
 
 export interface KeepAliveConfig {
   // Phase 1
@@ -152,9 +153,9 @@ export async function loadConfig(): Promise<McpServerConfig> {
     };
 
     return cachedConfig;
-  } catch (error) {
+  } catch {
     // 設定ファイルがない場合はデフォルト値を使用
-    console.error(`Config file not found at ${configPath}, using defaults`);
+    logger.info(`Config file not found at ${configPath}, using defaults`);
     cachedConfig = DEFAULT_CONFIG;
     return cachedConfig;
   }

@@ -21,6 +21,7 @@ import type { DashboardData } from "../views/dashboard-html.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
+import { logger } from "../utils/logger.js";
 
 // DashboardData型を再エクスポート
 export type { DashboardData };
@@ -133,7 +134,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
       // アクセス記録（非同期、レスポンスをブロックしない）
       recordProjectAccess(projectPath).catch((err) =>
-        console.error("Failed to record project access:", err)
+        logger.error("Failed to record project access", err instanceof Error ? err : { error: err })
       );
 
       res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -389,7 +390,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
 
           res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data, v2Html })}\n\n`);
         } catch (e) {
-          console.error("SSE update error:", e);
+          logger.error("SSE update error", e instanceof Error ? e : { error: e });
         }
       }, 10000);
 

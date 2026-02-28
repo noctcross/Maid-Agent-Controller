@@ -11,6 +11,7 @@ import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markd
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
+import { logger } from "../utils/logger.js";
 export function createDashboardRoutes(deps) {
     const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, generateV2TeamStatusHtml, wsServer, } = deps;
     const router = Router();
@@ -86,7 +87,7 @@ export function createDashboardRoutes(deps) {
                 dashboardVersion,
             }, editorScheme);
             // アクセス記録（非同期、レスポンスをブロックしない）
-            recordProjectAccess(projectPath).catch((err) => console.error("Failed to record project access:", err));
+            recordProjectAccess(projectPath).catch((err) => logger.error("Failed to record project access", err instanceof Error ? err : { error: err }));
             res.setHeader("Content-Type", "text/html; charset=utf-8");
             res.send(html);
         }
@@ -312,7 +313,7 @@ export function createDashboardRoutes(deps) {
                     res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data, v2Html })}\n\n`);
                 }
                 catch (e) {
-                    console.error("SSE update error:", e);
+                    logger.error("SSE update error", e instanceof Error ? e : { error: e });
                 }
             }, 10000);
             // クライアント切断時のクリーンアップ

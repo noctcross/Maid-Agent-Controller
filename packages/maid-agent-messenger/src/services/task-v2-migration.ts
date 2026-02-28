@@ -19,6 +19,7 @@ import type {
 } from "../types/task-manager-types.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { withTasksLock, loadTasksReadOnly } from "./task-core.js";
+import { logger } from "../utils/logger.js";
 
 // 役割の階層（数値が大きいほど上位）
 const ROLE_HIERARCHY: Record<OperatorRole, number> = {
@@ -183,7 +184,7 @@ export function mapLegacyToV2Status(
     case "cancelled":
       return { mainStatus: "cancelled", v2Substatus: "archived" };
     default:
-      console.warn(`[mapLegacyToV2Status] Unknown legacyStatus: ${legacyStatus}, defaulting to open/pending`);
+      logger.warn(`Unknown legacyStatus: ${legacyStatus}, defaulting to open/pending`);
       return { mainStatus: "open", v2Substatus: "pending" };
   }
 }

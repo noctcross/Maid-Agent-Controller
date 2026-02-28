@@ -441,7 +441,8 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
           alert('ピン留めの変更に失敗しました');
         }
       } catch (e) {
-        alert('エラーが発生しました');
+        console.error('[togglePin] エラー:', e);
+        alert('エラーが発生しました: ' + (e.message || e));
       }
     }
 
@@ -456,7 +457,8 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
           alert('非表示の変更に失敗しました');
         }
       } catch (e) {
-        alert('エラーが発生しました');
+        console.error('[toggleHide] エラー:', e);
+        alert('エラーが発生しました: ' + (e.message || e));
       }
     }
 

@@ -23,6 +23,7 @@ import type {
 } from "../types/task-manager-types.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { withTasksLock, loadTasksReadOnly } from "./task-core.js";
+import { logger } from "../utils/logger.js";
 import { getAgentRole, validateStatusTransition, convertToV2Status } from "./task-v2-migration.js";
 import { checkAndAutoCloseParent, resolveBlockedTasks } from "./task-auto-close.js";
 
@@ -478,7 +479,7 @@ export async function executeUpdateTask(
 
       if (!validation.valid) {
         // 不正遷移: WARNログを出力
-        console.warn(`[WARN] Invalid status transition attempted`, {
+        logger.warn("Invalid status transition attempted", {
           taskId: task.id,
           currentStatus: currentSubstatus,
           attemptedStatus: params.v2Substatus,
@@ -584,11 +585,11 @@ export async function executeUpdateTask(
             return { data, result: null };
           });
         } catch (error) {
-          console.error("[task-crud] Failed to add archivePath to reportPaths:", error);
+          logger.error("Failed to add archivePath to reportPaths", error instanceof Error ? error : { error });
         }
       }
     } catch (error) {
-      console.error("[task-crud] Failed to execute side effects:", error);
+      logger.error("Failed to execute side effects", error instanceof Error ? error : { error });
     }
 
     // V2.1: タスク完了時に依存タスクを自動解消
@@ -608,7 +609,7 @@ export async function executeUpdateTask(
           result.sideEffects.unblockedTasks = dependencyResult.unblockedTasks;
         }
       } catch (error) {
-        console.error("[task-crud] Failed to resolve blocked tasks:", error);
+        logger.error("Failed to resolve blocked tasks", error instanceof Error ? error : { error });
       }
     }
 
@@ -624,7 +625,7 @@ export async function executeUpdateTask(
           result.sideEffects.goalAutoClosed = autoCloseResult.autoClosedIds[0];
         }
       } catch (error) {
-        console.error("[task-crud] Failed to auto-close parent tasks:", error);
+        logger.error("Failed to auto-close parent tasks", error instanceof Error ? error : { error });
       }
     }
   }

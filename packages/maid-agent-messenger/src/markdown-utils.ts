@@ -207,9 +207,6 @@ export function resolveToAbsolutePath(relativePath: string, projectPath: string)
   return path.join(projectPath, relativePath);
 }
 
-/** @deprecated resolveToAbsolutePath を使用してください */
-export const resolveToWindowsPath = resolveToAbsolutePath;
-
 /**
  * HTML内のプロジェクト相対パスをクリック可能なリンクに変換
  *

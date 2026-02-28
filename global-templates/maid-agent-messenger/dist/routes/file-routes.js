@@ -7,6 +7,7 @@ import path from "path";
 import * as fs from "fs/promises";
 import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { extractAgentIdFromPath, generateAgentBackgroundSnippet } from "../utils/agent-image.js";
+import { logger } from "../utils/logger.js";
 const router = Router();
 router.get("/file", async (req, res) => {
     try {
@@ -46,7 +47,7 @@ router.get("/file", async (req, res) => {
             // projectPath配下かどうかを確認
             if (!resolvedFilePath.startsWith(normalizedProjectPath + path.sep) &&
                 resolvedFilePath !== normalizedProjectPath) {
-                console.warn(`[file-routes] Path traversal blocked: ${filePath} is outside ${projectPath}`);
+                logger.warn(`Path traversal blocked: ${filePath} is outside ${projectPath}`);
                 res.status(403).send("Access denied: path is outside project directory");
                 return;
             }

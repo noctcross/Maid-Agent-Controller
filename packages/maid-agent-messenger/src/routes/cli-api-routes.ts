@@ -298,7 +298,8 @@ router.get("/api/team/status", async (req: Request, res: Response) => {
       filter.agentId = req.query.agentId as string;
     }
     if (req.query.includeCompleted) {
-      filter.includeCompleted = parseInt(req.query.includeCompleted as string, 10);
+      const includeCompleted = parseInt(req.query.includeCompleted as string, 10);
+      filter.includeCompleted = Number.isNaN(includeCompleted) ? 0 : includeCompleted;
     }
     if (req.query.summary === "true") {
       filter.summaryOnly = true;

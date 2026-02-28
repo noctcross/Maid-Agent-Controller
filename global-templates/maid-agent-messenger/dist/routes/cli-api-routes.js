@@ -253,7 +253,8 @@ export function createCliApiRoutes(deps = {}) {
                 filter.agentId = req.query.agentId;
             }
             if (req.query.includeCompleted) {
-                filter.includeCompleted = parseInt(req.query.includeCompleted, 10);
+                const includeCompleted = parseInt(req.query.includeCompleted, 10);
+                filter.includeCompleted = Number.isNaN(includeCompleted) ? 0 : includeCompleted;
             }
             if (req.query.summary === "true") {
                 filter.summaryOnly = true;

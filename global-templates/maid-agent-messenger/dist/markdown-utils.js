@@ -177,8 +177,6 @@ const EXT_PATTERN = new RegExp(`\\.(${FILE_EXTENSIONS.join("|")})(?=[\\s)<>」�
 export function resolveToAbsolutePath(relativePath, projectPath) {
     return path.join(projectPath, relativePath);
 }
-/** @deprecated resolveToAbsolutePath を使用してください */
-export const resolveToWindowsPath = resolveToAbsolutePath;
 /**
  * HTML内のプロジェクト相対パスをクリック可能なリンクに変換
  *

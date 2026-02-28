@@ -4,6 +4,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { URL } from "url";
 import { DEFAULT_WS_CONFIG, } from "./types.js";
+import { logger } from "../utils/logger.js";
 export class DashboardWebSocketServer {
     wss;
     clients = new Map();
@@ -35,7 +36,7 @@ export class DashboardWebSocketServer {
                 lastPong: Date.now(),
             };
             this.clients.set(sessionId, { ws, client });
-            console.log(`[WS] Client connected: ${sessionId} (project: ${projectPath})`);
+            logger.debug(`Client connected: ${sessionId} (project: ${projectPath})`);
             // 接続確認メッセージ送信
             this.send(ws, { type: "connected", sessionId });
             // Pingタイマー開始
@@ -50,7 +51,7 @@ export class DashboardWebSocketServer {
             });
             // エラーハンドラ
             ws.on("error", (error) => {
-                console.error(`[WS] Error on ${sessionId}:`, error);
+                logger.error(`WebSocket error on ${sessionId}`, error);
                 this.handleDisconnect(sessionId);
             });
         });
@@ -74,13 +75,13 @@ export class DashboardWebSocketServer {
             }
         }
         catch (error) {
-            console.error(`[WS] Invalid message from ${sessionId}:`, error);
+            logger.error(`Invalid message from ${sessionId}`, error instanceof Error ? error : { error });
         }
     }
     handleDisconnect(sessionId) {
         this.stopPingTimer(sessionId);
         this.clients.delete(sessionId);
-        console.log(`[WS] Client disconnected: ${sessionId}`);
+        logger.debug(`Client disconnected: ${sessionId}`);
     }
     startPingTimer(sessionId, ws) {
         const timer = setInterval(() => {
@@ -93,7 +94,7 @@ export class DashboardWebSocketServer {
             const timeSinceLastPong = Date.now() - entry.client.lastPong;
             if (timeSinceLastPong >
                 this.config.pingInterval + this.config.pongTimeout) {
-                console.log(`[WS] Client ${sessionId} timed out`);
+                logger.debug(`Client ${sessionId} timed out`);
                 ws.close(4002, "Pong timeout");
                 this.handleDisconnect(sessionId);
                 return;
@@ -128,7 +129,7 @@ export class DashboardWebSocketServer {
         });
         // デバッグログ: 送信状況を記録
         const eventType = "type" in event ? event.type : "unknown";
-        console.log(`[WS] Broadcast ${eventType} to ${projectPath}: sent to ${sentCount}/${matchedCount} matched clients (total: ${this.clients.size})`);
+        logger.debug(`Broadcast ${eventType} to ${projectPath}: sent to ${sentCount}/${matchedCount} matched clients (total: ${this.clients.size})`);
     }
     /**
      * 全クライアントにイベントを配信
@@ -144,14 +145,14 @@ export class DashboardWebSocketServer {
      * 特定プロジェクトにエスカレーション通知を配信
      */
     broadcastEscalation(projectPath, notification) {
-        console.log(`[WS] Broadcasting escalation to ${projectPath}: ${notification.title}`);
+        logger.debug(`Broadcasting escalation to ${projectPath}: ${notification.title}`);
         this.broadcast(projectPath, { type: "escalation", data: notification });
     }
     /**
      * 全クライアントにエスカレーション通知を配信
      */
     broadcastAllEscalation(notification) {
-        console.log(`[WS] Broadcasting escalation to all: ${notification.title}`);
+        logger.debug(`Broadcasting escalation to all: ${notification.title}`);
         this.broadcastAll({ type: "escalation", data: notification });
     }
     /**
@@ -183,7 +184,7 @@ export class DashboardWebSocketServer {
                 this.broadcast(projectPath, { type: "tasks", data: tasks });
             }
             catch (error) {
-                console.error("[WS] Periodic update error:", error);
+                logger.error("Periodic update error", error instanceof Error ? error : { error });
             }
         }, intervalMs);
     }

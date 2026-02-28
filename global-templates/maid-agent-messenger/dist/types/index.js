@@ -2,6 +2,7 @@
  * Maid Agent System - 型定義
  * V2.1: Goal/Phase/Action/Investigation 階層構造対応
  */
+import { logger } from "../utils/logger.js";
 // エージェントID
 // ⚠️ 一貫性注意: この定義は VSCode拡張側 (src/utils/agents.ts の DEFAULT_MAID_ORDER) と
 //    同じ値・同じ順序を維持する必要があります。変更時は両方を更新してください。
@@ -118,7 +119,7 @@ export function convertLegacyStatus(legacyStatus) {
         case "blocked":
             return { status: "open", substatus: "checkpoint" };
         default:
-            console.warn(`[convertLegacyStatus] Unknown legacyStatus: ${legacyStatus}, defaulting to open/pending`);
+            logger.warn(`Unknown legacyStatus: ${legacyStatus}, defaulting to open/pending`);
             return { status: "open", substatus: "pending" };
     }
 }

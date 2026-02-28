@@ -38,13 +38,14 @@ import {
 
 import { loopbackOnly } from "./middleware/loopback-only.js";
 import { DashboardWebSocketServer } from "./websocket/dashboard-ws.js";
+import { logger } from "./utils/logger.js";
 
 const app = express();
 app.use(express.json());
 
 // リクエストログ
 app.use((req: Request, _res: Response, next: NextFunction) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  logger.debug(`${req.method} ${req.path}`);
   next();
 });
 
@@ -108,17 +109,17 @@ async function main(): Promise<void> {
   // ========================================
 
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("Server error:", err);
+    logger.error("Server error", err);
     res.status(500).json({ error: "Internal server error" });
   });
 
   server.listen(port, host, () => {
-    console.log(`Central Dashboard Server v5.0.0 running on ${getServerUrl(config)}`);
-    console.log(`Health check: ${getServerUrl(config)}/health`);
-    console.log(`Dashboard: ${getServerUrl(config)}/dashboard`);
-    console.log(`Mode: Multi-Project Support`);
-    console.log(`Note: Requires X-Maid-Project-Path header for project identification`);
-    console.log(`WebSocket endpoint: ws://${host}:${port}/dashboard/ws`);
+    logger.info(`Central Dashboard Server v5.0.0 running on ${getServerUrl(config)}`);
+    logger.info(`Health check: ${getServerUrl(config)}/health`);
+    logger.info(`Dashboard: ${getServerUrl(config)}/dashboard`);
+    logger.info(`Mode: Multi-Project Support`);
+    logger.info(`Note: Requires X-Maid-Project-Path header for project identification`);
+    logger.info(`WebSocket endpoint: ws://${host}:${port}/dashboard/ws`);
   });
 
   // HTTP Keep-Alive タイムアウト設定
@@ -138,6 +139,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error("Server startup failed:", error);
+  logger.error("Server startup failed", error instanceof Error ? error : { error });
   process.exit(1);
 });

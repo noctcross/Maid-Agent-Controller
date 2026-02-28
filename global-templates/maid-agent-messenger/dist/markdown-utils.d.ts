@@ -33,8 +33,6 @@ export declare const FILE_EXTENSIONS: readonly ["md", "txt", "html", "htm", "ts"
  *   Windowsパスに変換するとisPathWithinRootでブロックされる）
  */
 export declare function resolveToAbsolutePath(relativePath: string, projectPath: string): string;
-/** @deprecated resolveToAbsolutePath を使用してください */
-export declare const resolveToWindowsPath: typeof resolveToAbsolutePath;
 /**
  * HTML内のプロジェクト相対パスをクリック可能なリンクに変換
  *

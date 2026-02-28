@@ -35,7 +35,7 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 
 ### 4. 報告規約
 - 上への報告はタスク状態を更新して待機（maidctl 使用）
-- 報告ファイル作成後、`maidctl my-status completed` で自動アーカイブ
+- 報告ファイル作成後、`maidctl set my-status completed` で自動アーカイブ
   ※ reports/ への直接ファイル作成は禁止
 
 ## 通信プロトコル
@@ -50,16 +50,19 @@ Claude Code と VSCode Terminal を活用したマルチエージェント開発
 PATH 設定済みのため、`maidctl` コマンドとして直接実行可能。
 フルパス指定は不要。
 
+> **v3.0.0 新コマンド体系**: 動詞先行の統一構文（`get`, `set`, `create`, `assign`, `run`）
+> 旧コマンドも後方互換で動作しますが、新コマンドの使用を推奨します。
+
 | コマンド | 用途 | 使用者 |
 |----------|------|--------|
-| `maidctl task create` | タスク/サブタスク作成 | 執事・メイド長 |
-| `maidctl task list` | タスク一覧取得 | 執事・メイド長 |
-| `maidctl task get ID` | タスク詳細取得 | 全員 |
-| `maidctl task update ID` | タスク更新 | メイド長 |
-| `maidctl task assign ID` | タスク割り当て | メイド長 |
-| `maidctl my-task` | 自分のタスク取得 | メイド |
-| `maidctl my-status STATUS` | ステータス更新 | メイド |
-| `maidctl team status` | チーム状況一覧 | メイド長・執事 |
+| `maidctl create task` | タスク/サブタスク作成 | 執事・メイド長 |
+| `maidctl get tasks` | タスク一覧取得 | 執事・メイド長 |
+| `maidctl get task ID` | タスク詳細取得 | 全員 |
+| `maidctl set task ID` | タスク更新 | メイド長 |
+| `maidctl assign task ID` | タスク割り当て | メイド長 |
+| `maidctl get my-task` | 自分のタスク取得 | メイド |
+| `maidctl set my-status STATUS` | ステータス更新 | メイド |
+| `maidctl get team` | チーム状況一覧 | メイド長・執事 |
 | `maidctl notify TARGET "MSG"` | 通知送信 | 全員 |
 
 **運用ルール**:

@@ -47,45 +47,48 @@ maidctl CLI v2.1.0 の詳細リファレンス。コマンド一覧、オプシ�
 
 ### コマンド一覧
 
+> **v3.0.0 新コマンド体系**: 動詞先行の統一構文（`get`, `set`, `create`, `assign`, `run`）
+> 旧コマンドも後方互換で動作しますが、新コマンドの使用を推奨します。
+
 #### タスク操作
 
-| コマンド | 用途 | 使用者 |
-|----------|------|--------|
-| `maidctl task list` | タスク一覧取得 | 執事・メイド長 |
-| `maidctl task get TASK_ID` | タスク詳細取得 | 全員 |
-| `maidctl task create` | タスク作成（V2.1対応） | 執事・メイド長（※） |
-| `maidctl task update TASK_ID` | タスク更新（V2.1対応） | メイド長 |
-| `maidctl task assign TASK_ID` | タスク割り当て | メイド長 |
+| コマンド（新） | コマンド（旧） | 用途 | 使用者 |
+|---------------|---------------|------|--------|
+| `maidctl get tasks` | `task list` | タスク一覧取得 | 執事・メイド長 |
+| `maidctl get task TASK_ID` | `task get` | タスク詳細取得 | 全員 |
+| `maidctl create task` | `task create` | タスク作成（V2.1対応） | 執事・メイド長（※） |
+| `maidctl set task TASK_ID` | `task update` | タスク更新（V2.1対応） | メイド長 |
+| `maidctl assign task TASK_ID` | `task assign` | タスク割り当て | メイド長 |
 
 ※ メイド長のcreate使用は🚨要対応/📚スキル候補/💡改善提案のみ
 
 #### メイド専用
 
-| コマンド | 用途 |
-|----------|------|
-| `maidctl my-task` | 自分のタスク取得 |
-| `maidctl my-status STATUS` | ステータス更新（V2.1対応） |
+| コマンド（新） | コマンド（旧） | 用途 |
+|---------------|---------------|------|
+| `maidctl get my-task` | `my-task` | 自分のタスク取得 |
+| `maidctl set my-status STATUS` | `my-status` | ステータス更新（V2.1対応） |
 
-#### チーム状態
+#### チーム状態・レポート
 
-| コマンド | 用途 | 使用者 |
-|----------|------|--------|
-| `maidctl team status` | チーム状況一覧 | メイド長・執事 |
-| `maidctl team report TASK_ID` | レポート取得 | 執事・メイド長 |
-| `maidctl report rearchive TASK_ID` | 報告書を再アーカイブ | 全員 |
+| コマンド（新） | コマンド（旧） | 用途 | 使用者 |
+|---------------|---------------|------|--------|
+| `maidctl get team` | `team status` | チーム状況一覧 | メイド長・執事 |
+| `maidctl get report TASK_ID` | `team report` | レポート取得 | 執事・メイド長 |
+| `maidctl rearchive TASK_ID` | `report rearchive` | 報告書を再アーカイブ | 全員 |
 
 #### V2.1 マイグレーション
 
-| コマンド | 用途 | 使用者 |
-|----------|------|--------|
-| `maidctl migrate status` | マイグレーション状況確認 | 執事・メイド長 |
-| `maidctl migrate run` | マイグレーション実行 | 執事・メイド長 |
+| コマンド（新） | コマンド（旧） | 用途 | 使用者 |
+|---------------|---------------|------|--------|
+| `maidctl get migrate` | `migrate status` | マイグレーション状況確認 | 執事・メイド長 |
+| `maidctl run migrate` | `migrate run` | マイグレーション実行 | 執事・メイド長 |
 
 #### 通知
 
 | コマンド | 用途 |
 |----------|------|
-| `maidctl notify TARGET "MSG"` | エージェントに通知 |
+| `maidctl notify TARGET "MSG"` | エージェントに通知（変更なし） |
 
 ---
 
@@ -132,23 +135,23 @@ maidctl CLI v2.1.0 の詳細リファレンス。コマンド一覧、オプシ�
 #### タスク作成例
 
 ```bash
-# Goal作成
-maidctl task create --title "新機能実装" --type goal --size standard
+# Goal作成（新コマンド）
+maidctl create task --title "新機能実装" --type goal --size standard
 
 # 暫定Goal（調査後に再定義）
-maidctl task create --title "MCP調査" --type goal --tentative
+maidctl create task --title "MCP調査" --type goal --tentative
 
 # Phase作成
-maidctl task create --title "設計" --type phase --parent 310
+maidctl create task --title "設計" --type phase --parent 310
 
 # Action作成
-maidctl task create --title "API実装" --type action --parent 310-1
+maidctl create task --title "API実装" --type action --parent 310-1
 
 # Investigation作成
-maidctl task create --title "ライブラリ調査" --type investigation --parent 310
+maidctl create task --title "ライブラリ調査" --type investigation --parent 310
 
 # 依存関係付き
-maidctl task create --title "テスト作成" --type action --parent 310-1 --blocked-by 310-1-1,310-1-2
+maidctl create task --title "テスト作成" --type action --parent 310-1 --blocked-by 310-1-1,310-1-2
 ```
 
 #### Goalサイズ
@@ -175,20 +178,20 @@ maidctl task create --title "テスト作成" --type action --parent 310-1 --blo
 #### ステータス更新例
 
 ```bash
-# 作業開始
-maidctl my-status working
+# 作業開始（新コマンド）
+maidctl set my-status working
 
 # 作業開始（サブステータス指定）
-maidctl my-status working --substatus working
+maidctl set my-status working --substatus working
 
 # チェックポイント到達（確認待ち）
-maidctl my-status blocked --substatus checkpoint --reason "設計確認待ち"
+maidctl set my-status blocked --substatus checkpoint --reason "設計確認待ち"
 
 # 依存タスク待ち
-maidctl my-status blocked --substatus waiting --blocked-by 310-1-1
+maidctl set my-status blocked --substatus waiting --blocked-by 310-1-1
 
 # 完了
-maidctl my-status completed
+maidctl set my-status completed
 ```
 
 ---

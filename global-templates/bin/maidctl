@@ -8,7 +8,7 @@ set -euo pipefail
 # 定数定義
 # =============================================================================
 
-VERSION="2.1.0"
+VERSION="2.2.0"
 API_BASE="http://localhost:3100"
 
 # 有効なエージェントID
@@ -1251,27 +1251,32 @@ show_help() {
   cat <<EOF
 maidctl - Maid Agent CLI Tool v${VERSION}
 
-使用法: maidctl <command> [options]
+使用法: maidctl <動詞> <対象> [オプション]
 
-コマンド:
-  task list      タスク一覧を取得
-  task get       タスク詳細を取得
-  task create    タスクを作成（V2.1: --type, --size, --tentative対応）
-  task update    タスクを更新
-  task assign    タスクを割り当て
+コマンド（推奨: 新形式）:
+  get tasks              タスク一覧を取得
+  get task <id>          タスク詳細を取得
+  get my-task            自分のタスクを取得（メイド用）
+  get team               チーム状況を取得
+  get report <id>        タスクのレポートを取得
+  get migrate            マイグレーション状況を確認
 
-  my-task        自分のタスクを取得（メイド用）
-  my-status      ステータスを更新（V2.1: --substatus対応）
+  set task <id>          タスクを更新
+  set my-status <status> ステータスを更新（メイド用）
 
-  team status    チーム状況を取得
-  team report    タスクのレポートを取得
+  create task            タスクを作成
+  assign task <id>       タスクを割り当て
+  rearchive <id>         報告書を再アーカイブ
+  run migrate            マイグレーションを実行
 
-  report rearchive  報告書を再アーカイブ
+  notify <target> "msg"  通知を送信
 
-  migrate status  V2.1マイグレーション状況確認
-  migrate run     V2.1マイグレーション実行
-
-  notify         他のエージェントに通知
+コマンド（旧形式・後方互換）:
+  task list/get/create/update/assign
+  my-task / my-status
+  team status/report
+  report rearchive
+  migrate status/run
 
 オプション:
   --help, -h     ヘルプを表示
@@ -1280,17 +1285,17 @@ maidctl - Maid Agent CLI Tool v${VERSION}
 V2.1 タスク種別: task, work, step, investigation
 V2.1 サブステータス: active, paused, checkpoint, waiting, completed, archived
 
-例:
-  maidctl task list --status pending
-  maidctl task create --title "新機能実装" --type task --size standard
-  maidctl task create --title "調査" --type investigation --parent 310
-  maidctl task assign 173 --to emma
-  maidctl my-task emma
-  maidctl my-status emma working --substatus active
-  maidctl my-status emma blocked --substatus checkpoint --reason "設計確認待ち"
-  maidctl team status --status working
-  maidctl migrate status
-  maidctl migrate run --dry-run
+例（新形式）:
+  maidctl get tasks --status pending
+  maidctl get task 173
+  maidctl create task --title "新機能実装" --type task
+  maidctl set task 173 --status working
+  maidctl assign task 173 --to emma
+  maidctl get my-task
+  maidctl set my-status working
+  maidctl get team --status working
+  maidctl get migrate
+  maidctl run migrate --dry-run
   maidctl notify chief "タスク完了しました"
 EOF
 }
@@ -1416,6 +1421,138 @@ main() {
   check_dependencies
 
   case "${1:-}" in
+    # =========================================================================
+    # 新コマンド体系（v2.2.0〜、動詞先行形式）
+    # =========================================================================
+    get)
+      shift
+      case "${1:-}" in
+        tasks) shift; cmd_task_list "$@" ;;
+        task) shift; cmd_task_get "$@" ;;
+        my-task) shift; cmd_my_task "$@" ;;
+        team) shift; cmd_team_status "$@" ;;
+        report) shift; cmd_team_report "$@" ;;
+        migrate) shift; cmd_migrate_status "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl get <対象> [オプション]"
+          echo ""
+          echo "対象:"
+          echo "  tasks      タスク一覧を取得"
+          echo "  task <id>  タスク詳細を取得"
+          echo "  my-task    自分のタスクを取得"
+          echo "  team       チーム状況を取得"
+          echo "  report <id> レポートを取得"
+          echo "  migrate    マイグレーション状況を取得"
+          ;;
+        "")
+          echo "エラー: 対象を指定してください"
+          echo "使用法: maidctl get <tasks|task|my-task|team|report|migrate>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明な対象: $1"
+          echo "使用法: maidctl get <tasks|task|my-task|team|report|migrate>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    set)
+      shift
+      case "${1:-}" in
+        task) shift; cmd_task_update "$@" ;;
+        my-status) shift; cmd_my_status "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl set <対象> [オプション]"
+          echo ""
+          echo "対象:"
+          echo "  task <id>        タスクを更新"
+          echo "  my-status <status>  自分のステータスを更新"
+          ;;
+        "")
+          echo "エラー: 対象を指定してください"
+          echo "使用法: maidctl set <task|my-status>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明な対象: $1"
+          echo "使用法: maidctl set <task|my-status>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    create)
+      shift
+      case "${1:-}" in
+        task) shift; cmd_task_create "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl create <対象> [オプション]"
+          echo ""
+          echo "対象:"
+          echo "  task    タスクを作成"
+          ;;
+        "")
+          echo "エラー: 対象を指定してください"
+          echo "使用法: maidctl create <task>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明な対象: $1"
+          echo "使用法: maidctl create <task>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    assign)
+      shift
+      case "${1:-}" in
+        task) shift; cmd_task_assign "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl assign <対象> [オプション]"
+          echo ""
+          echo "対象:"
+          echo "  task <id>    タスクを割り当て"
+          ;;
+        "")
+          echo "エラー: 対象を指定してください"
+          echo "使用法: maidctl assign <task>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明な対象: $1"
+          echo "使用法: maidctl assign <task>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    rearchive)
+      shift
+      cmd_report_rearchive "$@"
+      ;;
+    run)
+      shift
+      case "${1:-}" in
+        migrate) shift; cmd_migrate_run "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl run <対象> [オプション]"
+          echo ""
+          echo "対象:"
+          echo "  migrate    マイグレーションを実行"
+          ;;
+        "")
+          echo "エラー: 対象を指定してください"
+          echo "使用法: maidctl run <migrate>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明な対象: $1"
+          echo "使用法: maidctl run <migrate>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    # =========================================================================
+    # 旧コマンド体系（後方互換）
+    # =========================================================================
     task)
       shift
       case "${1:-}" in

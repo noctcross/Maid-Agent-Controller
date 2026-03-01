@@ -16,6 +16,7 @@ import {
   type Task,
 } from "../services/index.js";
 import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
+import { extractAgentIdFromPath, generateAgentBackgroundSnippet } from "../utils/agent-image.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import type { DashboardData } from "../views/dashboard-html.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
@@ -655,6 +656,21 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         </div>`;
       }).join("\n");
 
+      // エージェント背景イラスト（最初のレポートからエージェントIDを抽出）
+      let agentBgCss = "";
+      let agentBgHtml = "";
+      const firstReport = result.reports.find(r => r.path && !r.error);
+      if (firstReport) {
+        const agentId = extractAgentIdFromPath(firstReport.path);
+        if (agentId) {
+          const imageUrl = `/agent-image?agent=${encodeURIComponent(agentId)}&project=${encodeURIComponent(projectPath)}`;
+          const snippet = generateAgentBackgroundSnippet(imageUrl);
+          agentBgCss = snippet.css;
+          agentBgHtml = snippet.bodyHtml;
+        }
+      }
+
+      // /file エンドポイントと同じスタイルを使用
       const pageHtml = `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -662,33 +678,89 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>報告書 - ${escapeHtml(taskId)}</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
-    .container { max-width: 900px; margin: 0 auto; }
-    h1 { color: #f5a623; margin-bottom: 20px; }
-    .report-content { background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-    .report-path { color: #7fdbff; font-size: 0.9em; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #333; }
-    .report-body { line-height: 1.6; }
-    .report-body h1, .report-body h2, .report-body h3 { color: #f5a623; }
-    .report-body a { color: #7fdbff; }
-    .report-body code { background: #0d1b2a; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
-    .report-body pre { background: #0d1b2a; padding: 15px; border-radius: 8px; overflow-x: auto; }
-    .report-body pre code { padding: 0; }
-    .report-body ul, .report-body ol { padding-left: 20px; }
-    .report-body table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-    .report-body th, .report-body td { border: 1px solid #444; padding: 8px; text-align: left; }
-    .report-body th { background: #0d1b2a; }
-    .report-error { background: #3e1616; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
-    .error { color: #ff6b6b; }
-    .back-link { display: inline-block; margin-bottom: 20px; color: #7fdbff; text-decoration: none; }
+    :root {
+      --bg-start: #1a1a2e;
+      --bg-end: #16213e;
+      --text-color: #eee;
+      --h1-color: #e94560;
+      --h2-color: #ffc107;
+      --h3-color: #81c784;
+      --link-color: #4ec9b0;
+      --code-bg: #0a0a0a;
+      --border-color: #444;
+      --accent-color: #e94560;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", "Hiragino Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 100%);
+      color: var(--text-color);
+      line-height: 1.6;
+      padding: 16px 40px;
+      max-width: 900px;
+      margin: 0 auto;
+      min-height: 100vh;
+      font-size: 13px;
+    }
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+      border-bottom: 2px solid var(--accent-color);
+    }
+    .page-title { font-size: 1.2rem; color: var(--accent-color); }
+    .back-link { color: var(--link-color); text-decoration: none; }
     .back-link:hover { text-decoration: underline; }
+    .report-content { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .report-path { font-size: 0.9em; color: #808080; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
+    .report-body { line-height: 1.6; }
+    h1, h2, h3, h4, h5, h6 { margin: 1.5em 0 0.5em; }
+    h1 { font-size: 1.4em; color: var(--h1-color); border-bottom: 2px solid var(--h1-color); padding-bottom: 6px; }
+    h2 { font-size: 1.15em; color: var(--h2-color); border-bottom: 1px solid var(--border-color); padding-bottom: 4px; }
+    h3 { font-size: 1.05em; color: var(--h3-color); }
+    h4, h5, h6 { color: var(--h3-color); }
+    a { color: var(--link-color); }
+    code {
+      background: rgba(255,255,255,0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "Consolas", "Monaco", monospace;
+      font-size: 0.9em;
+    }
+    pre {
+      background: var(--code-bg);
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code { background: none; padding: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    th, td { border: 1px solid var(--border-color); padding: 6px 10px; text-align: left; }
+    th { background: rgba(255,255,255,0.1); color: var(--h2-color); }
+    ul { padding-left: 25px; }
+    li { margin: 4px 0; }
+    .checkbox { padding: 4px 0; }
+    .checkbox.checked { color: var(--h3-color); }
+    hr { border: none; border-top: 1px solid var(--border-color); margin: 16px 0; }
+    p { margin: 8px 0; }
+    strong { color: var(--h2-color); }
+    em { font-style: italic; color: #aaa; }
+    .path-link { color: var(--link-color); text-decoration: none; border-bottom: 1px dotted var(--link-color); cursor: pointer; }
+    .path-link:hover { text-decoration: underline; background: rgba(86, 156, 214, 0.1); }
+    .report-error { background: rgba(255,0,0,0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .error { color: #ff6b6b; }
+    ${agentBgCss}
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="page-header">
+    <div class="page-title">📄 報告書 - ${escapeHtml(taskId)}</div>
     <a href="/dashboard?project=${encodeURIComponent(projectPath)}" class="back-link">← ダッシュボードに戻る</a>
-    <h1>📄 報告書 - ${escapeHtml(taskId)}</h1>
-    ${reportsHtml}
   </div>
+  ${reportsHtml}
+  ${agentBgHtml}
 </body>
 </html>`;
 

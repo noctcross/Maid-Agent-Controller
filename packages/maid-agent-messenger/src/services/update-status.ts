@@ -8,6 +8,7 @@
 
 import path from "path";
 import type { UpdateStatusOutput, UpdatableStatus } from "../types/index.js";
+import type { EscalationInfo } from "../types/task-manager-types.js";
 import { readYamlFile, getTimestamp } from "../utils/yaml-helper.js";
 import { executeUpdateTask } from "./task-manager.js";
 import { normalizeTaskId } from "../utils/task-id.js";
@@ -22,6 +23,8 @@ export interface UpdateStatusParams {
   status: UpdatableStatus;
   summary?: string;
   actionRequired?: boolean;
+  /** エスカレーション情報（checkpoint時） */
+  escalation?: EscalationInfo;
 }
 
 /**
@@ -30,7 +33,7 @@ export interface UpdateStatusParams {
 export async function executeUpdateStatus(
   params: UpdateStatusParams
 ): Promise<UpdateStatusOutput> {
-  const { queueMaidPath, agentId, status, summary, actionRequired } = params;
+  const { queueMaidPath, agentId, status, summary, actionRequired, escalation } = params;
   const filePath = path.join(queueMaidPath, `${agentId}.yaml`);
   const timestamp = getTimestamp();
 
@@ -59,6 +62,7 @@ export async function executeUpdateStatus(
       summary: summary,
       agentId: agentId,
       actionRequired: actionRequired,
+      escalation: escalation,
     });
 
     const updatedFields: string[] = ["status"];

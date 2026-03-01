@@ -26,6 +26,7 @@ export {
   type ListTasksResult,
   executeGetTask,
   executeListTasks,
+  executeGetTaskChildren,
   compareTaskIds,
 } from "./task-crud-read.js";
 

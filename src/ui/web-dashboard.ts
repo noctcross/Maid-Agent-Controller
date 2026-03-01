@@ -47,6 +47,7 @@ function createMessageHandlerContext(ctx: ViewContext): MessageHandlerContext {
         openDashboardInBrowser: () => openDashboardInBrowser(ctx),
         showController: () => ctx.showController(),
         openFileWithPreview: (path: string) => openFileWithPreview(ctx, path),
+        openReport: (taskId: string, project: string) => openReport(ctx, taskId, project),
         toggleTaskReview: (taskId: string, reviewed: boolean, txId?: string) =>
             toggleTaskReview(ctx, taskId, reviewed, txId),
         toggleTaskStar: (taskId: string, starred: boolean, txId?: string) =>
@@ -217,6 +218,64 @@ export async function openFileWithPreview(ctx: ViewContext, filePath: string): P
     const fileCtx = createFileViewerContext(ctx);
     const state = await openFileWithPreviewImpl(fileCtx, filePath);
     applyFileViewerState(ctx, state);
+}
+
+/**
+ * 報告書を開く（タスクIDから報告書パスを取得してファイルを開く）
+ */
+export async function openReport(ctx: ViewContext, taskId: string, project: string): Promise<void> {
+    const { DASHBOARD_SERVER_URL } = await import('../constants');
+    const { CURRENT_ENV, windowsToWslPath } = await import('../utils/environment');
+
+    const projectPath = project || ctx.workspaceRoot;
+    if (!projectPath) {
+        vscode.window.showErrorMessage('プロジェクトパスが不明です');
+        return;
+    }
+
+    const normalizedPath = CURRENT_ENV === 'windows-native'
+        ? windowsToWslPath(projectPath)
+        : projectPath;
+
+    try {
+        // APIから報告書パスを取得
+        const response = await fetch(
+            `${DASHBOARD_SERVER_URL}/api/tasks/${encodeURIComponent(taskId)}/report`,
+            {
+                headers: {
+                    'X-Maid-Project-Path': normalizedPath,
+                },
+            }
+        );
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                vscode.window.showWarningMessage(`タスク #${taskId} の報告書が見つかりません`);
+            } else {
+                vscode.window.showErrorMessage(`報告書の取得に失敗しました: ${response.status}`);
+            }
+            return;
+        }
+
+        const data = await response.json() as {
+            success: boolean;
+            reports: Array<{ path: string; content: string | null; error?: string }>;
+            message?: string;
+        };
+
+        if (!data.success || data.reports.length === 0) {
+            vscode.window.showWarningMessage(data.message || `タスク #${taskId} には報告書が登録されていません`);
+            return;
+        }
+
+        // 最初の報告書ファイルを開く
+        const reportPath = data.reports[0].path;
+        await openFileWithPreview(ctx, reportPath);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.log(`[Dashboard] openReport failed: ${message}`);
+        vscode.window.showErrorMessage(`報告書を開けませんでした: ${message}`);
+    }
 }
 
 /**

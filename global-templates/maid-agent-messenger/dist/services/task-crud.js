@@ -13,6 +13,6 @@
 // === Create ===
 export { executeCreateTask, } from "./task-crud-create.js";
 // === Read ===
-export { executeGetTask, executeListTasks, compareTaskIds, } from "./task-crud-read.js";
+export { executeGetTask, executeListTasks, executeGetTaskChildren, compareTaskIds, } from "./task-crud-read.js";
 // === Update ===
 export { executeUpdateTask } from "./task-crud-update.js";

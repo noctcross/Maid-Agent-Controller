@@ -118,6 +118,11 @@ export function getSharedCssVariables() {
 export function getBaseResetStyles() {
     return `
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html {
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100%;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 13px;
@@ -125,6 +130,15 @@ export function getBaseResetStyles() {
       color: var(--text-color);
       padding: 20px;
       min-height: 100vh;
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100%;
+    }
+    /* スマホ対応: 320px〜500px */
+    @media (max-width: 500px) {
+      body {
+        padding: 10px;
+      }
     }
   `;
 }
@@ -140,6 +154,8 @@ export function getCardStyles() {
       padding: 10px;
       overflow: hidden;
       min-width: 0;
+      max-width: 100%;
+      width: 100%;
     }
     .card-header {
       display: flex;

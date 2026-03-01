@@ -252,6 +252,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
                     v2Substatus: actionStatus.substatus,
                     assignees: action.assignees?.map((a) => ({ agentId: a.agentId })),
                     updatedAt: action.updatedAt,
+                    hasReport: (action.reportPaths?.length ?? 0) > 0,
                 };
             });
             return {
@@ -265,6 +266,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
                 assignees: phase.assignees?.map((a) => ({ agentId: a.agentId })),
                 steps: v2Steps,
                 updatedAt: phase.updatedAt,
+                hasReport: (phase.reportPaths?.length ?? 0) > 0,
             };
         });
         // Task階層連動: 子Workの状態から表示ステータスを計算
@@ -292,6 +294,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             archived: goal.archived || substatus === "archived",
             updatedAt: goal.updatedAt,
             latestUpdatedAt,
+            hasReport: (goal.reportPaths?.length ?? 0) > 0,
         };
     })
         // ソート: latestUpdatedAt を使用（子タスクの最新日時を含む）

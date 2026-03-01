@@ -219,7 +219,7 @@ router.patch("/api/agents/:id/status", async (req: Request, res: Response) => {
     const projectPath = getProjectPathFromRequest(req);
     const txId = req.get("X-Transaction-Id");
     const agentId = req.params.id;
-    const { status, summary, actionRequired } = req.body;
+    const { status, summary, actionRequired, escalation } = req.body;
 
     // バリデーション: agentId
     if (!MAID_IDS.includes(agentId as typeof MAID_IDS[number])) {
@@ -251,6 +251,7 @@ router.patch("/api/agents/:id/status", async (req: Request, res: Response) => {
       status: status as UpdatableStatus,
       summary: summary || undefined,
       actionRequired: actionRequired || false,
+      escalation: escalation || undefined,
     });
 
     // WebSocket通知: ステータス更新をリアルタイム配信

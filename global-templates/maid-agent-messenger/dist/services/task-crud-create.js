@@ -46,6 +46,13 @@ export async function executeCreateTask(projectPath, params) {
                     ancestorTask.updatedAt = getTimestamp();
                     ancestorUpdated = true;
                 }
+                // 祖先が improvement カテゴリの場合 → task に昇格
+                // 子タスク（Work）が発行されたことで、改善提案から通常タスクに昇格
+                if (ancestorTask.category === "improvement") {
+                    ancestorTask.category = "task";
+                    ancestorTask.updatedAt = getTimestamp();
+                    ancestorUpdated = true;
+                }
                 // 祖先タスクが更新された場合、リストに追加
                 if (ancestorUpdated) {
                     reopenedAncestors.push({ ...ancestorTask }); // コピーを作成

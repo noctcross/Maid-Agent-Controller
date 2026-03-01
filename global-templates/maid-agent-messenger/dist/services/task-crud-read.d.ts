@@ -48,3 +48,10 @@ export declare function compareTaskIds(a: string, b: string): number;
  * タスク一覧取得
  */
 export declare function executeListTasks(projectPath: string, params?: ListTasksParams): Promise<ListTasksResult>;
+/**
+ * 子タスク取得
+ *
+ * 指定したparentIdを持つ子タスクを取得する。
+ * アサイン時・完了時のチェックで使用。
+ */
+export declare function executeGetTaskChildren(projectPath: string, parentId: string): Promise<Task[]>;

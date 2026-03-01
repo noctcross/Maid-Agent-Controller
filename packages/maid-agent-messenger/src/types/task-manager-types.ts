@@ -62,6 +62,12 @@ export interface Assignee {
   subTaskId: string | null;
 }
 
+// V2.1: エスカレーション情報
+export interface EscalationInfo {
+  title: string;        // エスカレーション件名
+  detail?: string;      // 詳細・背景（省略可）
+}
+
 export type TaskCategory = "task" | "skill_candidate" | "improvement";
 
 export interface Task {
@@ -105,6 +111,9 @@ export interface Task {
 
   // === V2.1: 自動クローズ制御 ===
   stepRequired?: boolean;           // Step必須フラグ（trueの場合、自動クローズ対象外）
+
+  // === V2.1: エスカレーション情報 ===
+  escalation?: EscalationInfo;      // エスカレーション情報（checkpoint時）
 }
 
 /**
@@ -155,6 +164,12 @@ export interface UpdateTaskParams {
   artifactAdd?: TaskArtifact;      // 成果物追加
   reviewStatus?: ReviewStatus;     // pending/in_review/approved/rejected
   archived?: boolean;              // アーカイブフラグ（独立フラグ）
+
+  // === 子タスクチェック制御 ===
+  force?: boolean;                 // 子タスクチェックをスキップ（未完了子がいても完了可能）
+
+  // === V2.1: エスカレーション情報 ===
+  escalation?: EscalationInfo;     // エスカレーション情報（checkpoint時）
 }
 
 export interface SideEffectResults {
@@ -181,4 +196,5 @@ export interface UpdateTaskResult {
   success: boolean;
   task: Task | null;
   sideEffects?: SideEffectResults;
+  error?: string;                  // エラーメッセージ（success=false時）
 }

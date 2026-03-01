@@ -16,7 +16,7 @@
 export { withTasksLock, loadTasksReadOnly, } from "./task-core.js";
 // === 分割モジュールの再エクスポート ===
 // CRUD操作
-export { executeCreateTask, executeGetTask, executeListTasks, executeUpdateTask, compareTaskIds, } from "./task-crud.js";
+export { executeCreateTask, executeGetTask, executeListTasks, executeGetTaskChildren, executeUpdateTask, compareTaskIds, } from "./task-crud.js";
 // V2.1 ステータス関連・マイグレーション
 export { inferTaskType, validateStatusTransition, getAgentRole, convertToV2Status, mapLegacyToV2Status, migrateTaskToV2, migrateToV2, checkMigrationStatus, } from "./task-v2-migration.js";
 // 統計・ダッシュボード

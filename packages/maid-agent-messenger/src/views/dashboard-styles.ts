@@ -18,9 +18,11 @@ export function getV2DashboardStyles(): string {
      * V2.1 Dashboard Styles
      * ======================================== */
 
-    /* V2.1 Container */
+    /* V2.1 Container - 幅制限で見切れ防止 */
     .v2-sections {
       margin-top: 1rem;
+      max-width: 100%;
+      overflow: hidden;
     }
 
     /* V2.1 Stats Layout - Flex based for compact display */
@@ -28,12 +30,14 @@ export function getV2DashboardStyles(): string {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
+      max-width: 100%;
     }
 
     .grid-main {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 20px;
+      max-width: 100%;
     }
 
     .grid-full {
@@ -683,6 +687,16 @@ export function getV2DashboardStyles(): string {
       opacity: 1.0;
     }
 
+    .v2-sections .report-link.report-link-empty {
+      opacity: 0.2;
+      pointer-events: none;
+      cursor: default;
+    }
+
+    .v2-sections .report-link.report-link-empty:hover {
+      opacity: 0.2;
+    }
+
     /* V2.1 担当なし表示 */
     .no-assignee {
       opacity: 0.5;
@@ -983,16 +997,34 @@ export function getV2DashboardStyles(): string {
 
     /* V2.1 スマホ対応: 500px以下 */
     @media (max-width: 500px) {
-      /* V2.1 統計カード - flex維持でコンパクト表示 */
+      /* ========================================
+       * V2.1 スマホ対応 (320px〜500px)
+       * 設計方針:
+       * - 全min-widthを0/autoに解除
+       * - flex-wrap: wrapで折り返し可能に
+       * - タップ領域44px以上を確保
+       * - フォントサイズ統一（本文0.85rem, ラベル0.75rem）
+       * ======================================== */
+
+      /* V2.1 統計カード - グリッド3列で折り返し（見切れ防止） */
+      .grid-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+      }
       .stat-card {
-        padding: 5px 6px;
-        min-width: 60px;
+        padding: 4px 6px;
+        min-width: 0;
+        flex: none;
       }
       .stat-card .number {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
       }
       .stat-card .label {
-        font-size: 0.65rem;
+        font-size: 0.6rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       /* V2.1 Goal階層 */
@@ -1000,12 +1032,16 @@ export function getV2DashboardStyles(): string {
         margin-bottom: 8px;
       }
       .goal-header {
-        padding: 10px 12px;
+        padding: 6px 8px;
         font-size: 0.9rem;
         gap: 6px;
+        flex-wrap: wrap;
       }
       .goal-toggle {
         font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       .goal-title {
         font-size: 0.9rem;
@@ -1014,6 +1050,15 @@ export function getV2DashboardStyles(): string {
       }
       .goal-id {
         font-size: 0.85rem;
+        min-width: 0;
+      }
+      /* V2.1 スマホ: 全てのmin-widthを解除して縮小可能に */
+      .phase-id,
+      .phase-name,
+      .step-name,
+      .step-status,
+      .stat-item {
+        min-width: 0;
       }
       /* V2.1 スマホ: バッジ類を非表示にしてタイトルを優先表示 */
       .goal-header .badge-goal,
@@ -1177,10 +1222,10 @@ export function getV2DashboardStyles(): string {
         font-size: 0.8rem;
       }
 
-      /* V2.1 チームメンバー */
+      /* V2.1 チームメンバー - スマホで1列 */
       .v2-sections .team-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
+        grid-template-columns: 1fr;
+        gap: 6px;
       }
       .team-member {
         padding: 10px 8px;
@@ -1217,12 +1262,41 @@ export function getV2DashboardStyles(): string {
         padding: 10px 16px;
       }
 
-      /* V2.1 チーム状態 - レスポンシブ（コンパクト） */
+      /* V2.1 チーム状態 - スマホで1列に変更（見切れ防止） */
       .v2-team-grid {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: 1fr;
+        gap: 4px;
       }
       .v2-team-card {
-        padding: 2px 4px;
+        display: flex;
+        flex-direction: column;
+        padding: 6px 8px;
+        font-size: 0.8rem;
+        align-items: stretch;
+        gap: 8px;
+      }
+      .v2-team-row1 {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .v2-team-elapsed {
+        margin-left: auto;
+      }
+      .v2-team-row2 {
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* V2.1 スマホ: specificity対応 - 親セレクタ付きで上書き */
+      .v2-sort-controls .sort-toggle-btn {
+        padding: 1px 6px;
+        font-size: 0.68rem;
+      }
+      .v2-goals-controls .filter-toggle-btn {
+        padding: 2px 7px;
         font-size: 0.7rem;
       }
     }
@@ -1476,14 +1550,32 @@ export function getV2SearchFilterStyles(): string {
       border-color: var(--v2-accent-blue, #4a90a4);
     }
 
-    /* レスポンシブ: 狭い画面では折り返し */
+    /* レスポンシブ: スマホ対応 (320px〜500px) */
     @media (max-width: 500px) {
       .v2-search-filter-row {
         flex-wrap: wrap;
+        gap: 8px;
       }
       .v2-search-input-wrapper {
         width: 100%;
         flex: none;
+        min-width: 0;
+        min-height: 44px;
+      }
+      .v2-search-box {
+        min-width: 0;
+        min-height: 36px;
+        font-size: 16px; /* iOS zoom防止 */
+      }
+      .v2-filter-select {
+        min-width: 0;
+        flex: 1;
+        min-height: 44px;
+        font-size: 16px; /* iOS zoom防止 */
+      }
+      .v2-filter-clear-btn {
+        min-height: 44px;
+        padding: 8px 12px;
       }
     }
   `;
@@ -1507,7 +1599,7 @@ export function getDashboardStyles(): string {
     .version-switch-link { color: #7fdbff; font-size: 0.75rem; margin-left: 8px; text-decoration: none; }
     .version-switch-link:hover { text-decoration: underline; }
     .version-switch-container { position: absolute; top: 60px; right: 20px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; max-width: 100%; overflow: hidden; }
     @media (max-width: 500px) { .grid { grid-template-columns: 1fr; gap: 6px; } }
     ${getCardStyles()}
     .task-item {
@@ -1531,8 +1623,8 @@ export function getDashboardStyles(): string {
     .priority-high { border-left: 3px solid var(--error-color); }
     .priority-medium { border-left: 3px solid var(--warning-color); }
     .priority-low { border-left: 3px solid var(--text-muted); }
-    .completed { opacity: 0.7; }
-    .completed.reviewed { opacity: 0.5; }
+    .completed { opacity: 1; }
+    .completed.reviewed { opacity: 0.8; }
     .task-actions { display: flex; gap: 4px; margin-left: auto; flex-shrink: 0; }
     .task-action-btn { background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 0.85rem; opacity: 0.5; transition: opacity 0.2s; line-height: 1; }
     .task-action-btn:hover { opacity: 1; }
@@ -1618,18 +1710,21 @@ export function getDashboardStyles(): string {
         font-size: 0.9rem;
       }
 
-      /* タスクアイテム: タッチしやすく */
+      /* タスクアイテム: スマホ用微調整（元の高さを維持） */
       .task-item {
-        padding: 8px 10px;
-        font-size: 0.9rem;
+        padding: 5px 8px;
+        font-size: 0.85rem;
         gap: 6px;
+        flex-wrap: wrap;
       }
       .task-id {
         font-size: 0.85rem;
-        min-width: 40px;
+        min-width: 0;
       }
       .task-title {
         font-size: 0.85rem;
+        min-width: 0;
+        flex: 1;
       }
       .task-priority,
       .task-assignee,
@@ -1638,14 +1733,17 @@ export function getDashboardStyles(): string {
         font-size: 0.75rem;
       }
       .task-action-btn {
-        font-size: 1rem;
-        padding: 4px 6px;
+        font-size: 0.85rem;
+        padding: 2px 4px;
+      }
+      .task-detail-label {
+        min-width: 0;
       }
 
-      /* チームグリッド: アイコン・名前を見やすく */
+      /* チームグリッド: スマホで1列に（見切れ防止） */
       .team-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
+        grid-template-columns: 1fr;
+        gap: 4px;
       }
       .agent-status {
         padding: 6px 8px;
@@ -1680,7 +1778,8 @@ export function getDashboardStyles(): string {
         gap: 6px;
       }
       .stat-item {
-        min-width: 70px;
+        min-width: 0;
+        flex: 1 1 auto;
         padding: 6px 8px;
       }
       .stat-value {
@@ -1688,6 +1787,18 @@ export function getDashboardStyles(): string {
       }
       .stat-label {
         font-size: 0.7rem;
+      }
+
+      /* 検索ボックス */
+      .search-box {
+        min-width: 0;
+        width: 100%;
+        min-height: 44px;
+        font-size: 16px; /* iOS zoom防止 */
+      }
+      .filter-select {
+        min-height: 44px;
+        font-size: 16px; /* iOS zoom防止 */
       }
 
       /* フィルタ関連 */
@@ -1729,18 +1840,23 @@ export function getDashboardStyles(): string {
         flex-shrink: 0;
       }
 
-      /* ソート・フィルタボタン */
+      /* ソート・フィルタボタン（元のサイズを維持） */
       .sort-toggle-btn {
-        font-size: 0.72rem;
-        padding: 2px 8px;
+        font-size: 0.68rem;
+        padding: 1px 6px;
       }
       .filter-toggle-btn {
+        font-size: 0.7rem;
+        padding: 2px 7px;
+      }
+      .pagination-btn {
         font-size: 0.75rem;
         padding: 3px 8px;
       }
-      .pagination-btn {
-        font-size: 0.8rem;
-        padding: 4px 10px;
+
+      /* V1互換: フレックス要素のmin-width解除 */
+      .task-right-group {
+        flex-wrap: wrap;
       }
     }
     .card-action-required { border-left: 3px solid var(--error-color); }
@@ -1798,6 +1914,12 @@ export function getDashboardStyles(): string {
     .task-report-links { display: flex; gap: 6px; flex-wrap: wrap; }
     .report-link { color: var(--accent-color); text-decoration: none; padding: 1px 5px; background: rgba(86, 156, 214, 0.1); border-radius: 3px; font-size: 0.75rem; }
     .report-link:hover { background: rgba(86, 156, 214, 0.2); text-decoration: underline; }
+    .report-link.report-link-empty { opacity: 0.3; pointer-events: none; cursor: default; }
+    .report-link.report-link-empty:hover { background: rgba(86, 156, 214, 0.1); text-decoration: none; }
+    /* エスカレーション詳細 */
+    .escalation-detail { background: rgba(255, 152, 0, 0.1); padding: 6px 10px; border-radius: 4px; border-left: 3px solid #ff9800; margin: 6px 0; }
+    .escalation-detail .task-detail-label { color: #ff9800; }
+    .escalation-detail .task-detail-value { color: var(--text-color); }
     /* アーカイブボタン・バッジ */
     .archive-btn {
       background: rgba(255, 193, 7, 0.15);

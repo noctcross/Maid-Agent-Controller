@@ -447,7 +447,7 @@ cmd_task_create() {
         echo ""
         echo "オプション:"
         echo "  --title, -t TITLE       タスクタイトル（必須）"
-        echo "  --description, -d DESC  説明"
+        echo "  --description, -d DESC  説明（必須）"
         echo "  --priority, -p PRIORITY 優先度 (high/medium/low)"
         echo "  --parent ID             親タスクID"
         echo "  --category, -c CAT      カテゴリ (task/action_required/skill_candidate/improvement)"
@@ -476,6 +476,12 @@ cmd_task_create() {
 
   if [ -z "$title" ]; then
     echo "エラー: タイトルを指定してください (--title または第1引数)" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  if [ -z "$description" ]; then
+    echo "エラー: 説明を指定してください (--description または -d)" >&2
+    echo "ヒント: タスクの目的・背景・完了条件などを記載してください" >&2
     exit $EXIT_INVALID_ARGS
   fi
 
@@ -552,6 +558,7 @@ cmd_task_update() {
   local review_status=""
   local action_required=""
   local starred=""
+  local artifact_add=""
   local json_output=false
 
   while [[ $# -gt 0 ]]; do
@@ -570,6 +577,7 @@ cmd_task_update() {
       --no-action-required) action_required="false"; shift ;;
       --starred) starred="true"; shift ;;
       --no-starred) starred="false"; shift ;;
+      --artifact-add) artifact_add="$2"; shift 2 ;;
       --json) json_output=true; shift ;;
       --help|-h)
         echo "使用法: maidctl task update <task-id> [オプション]"
@@ -589,6 +597,7 @@ cmd_task_update() {
         echo "  --no-action-required フラグ解除"
         echo "  --starred            スター付き"
         echo "  --no-starred         スター解除"
+        echo "  --artifact-add JSON  成果物追加 (例: '{\"path\":\"docs/xxx.md\",\"type\":\"document\"}')"
         echo "  --json               JSON出力"
         return 0
         ;;
@@ -701,6 +710,12 @@ cmd_task_update() {
   if [ -n "$starred" ]; then
     [ "$first" = false ] && data="${data}, "
     data="${data}\"starred\": $starred"
+    first=false
+  fi
+  if [ -n "$artifact_add" ]; then
+    # artifact_add はJSON形式で渡されることを期待
+    [ "$first" = false ] && data="${data}, "
+    data="${data}\"artifactAdd\": $artifact_add"
     first=false
   fi
   data="${data}}"
@@ -867,6 +882,79 @@ cmd_my_task() {
 }
 
 # =============================================================================
+# 品質チェック関数
+# =============================================================================
+
+# 品質チェックを実行
+# 引数: agent_id
+# 戻り値: 0=合格, 2=不合格
+# 注: 設計書では exit 10 だが、Claude Code Hooks の仕様に合わせて exit 2 を使用
+#     exit 2 = アクションブロック、stderr が Claude へフィードバック
+quality_check() {
+  local agent_id="$1"
+  local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  local report_file="$project_dir/.maid-agent/system/data/reports/current_${agent_id}.md"
+  local quality_script="$project_dir/.maid-agent/system/bin/quality-check.sh"
+  local llm_script="$project_dir/.maid-agent/system/bin/quality-check-llm.sh"
+  local settings_file="$project_dir/.maid-agent/system/config/settings.yaml"
+
+  # 品質チェックが有効かどうか確認
+  # quality_check: セクション配下の enabled を明示的に抽出（他セクションとの混同を防止）
+  if [ -f "$settings_file" ]; then
+    local enabled
+    enabled=$(sed -n '/^quality_check:/,/^[a-z_]*:/p' "$settings_file" 2>/dev/null | \
+              grep "^  enabled:" | head -1 | awk '{print $2}')
+    if [ "$enabled" = "false" ]; then
+      return 0  # 品質チェック無効、常に合格
+    fi
+  fi
+
+  # 報告書ファイルが存在しない場合はエラー
+  if [ ! -f "$report_file" ]; then
+    echo "エラー: 報告書ファイルが見つかりません: $report_file" >&2
+    echo "報告書を作成してから完了報告を行ってください。" >&2
+    return 2  # Claude Code Hooks 互換: exit 2 でアクションブロック
+  fi
+
+  # タスク種別を取得（報告書から task_id を取得し、API で種別を確認）
+  local task_id
+  task_id=$(grep -m1 "task_id:" "$report_file" 2>/dev/null | sed 's/.*task_id: *//' | tr -d ' ')
+  local task_type="step"  # デフォルト
+
+  if [ -n "$task_id" ]; then
+    # task_id から task- プレフィックスを除去
+    local task_id_num
+    task_id_num=$(echo "$task_id" | sed 's/^task-//')
+    # API でタスク種別を取得（失敗時はデフォルトを使用）
+    local task_info
+    task_info=$(api_request GET "/api/tasks/${task_id_num}" 2>/dev/null) || true
+    if [ -n "$task_info" ] && check_jq; then
+      local fetched_type
+      fetched_type=$(echo "$task_info" | jq -r '.task.type // "step"' 2>/dev/null)
+      [ -n "$fetched_type" ] && task_type="$fetched_type"
+    fi
+  fi
+
+  # L1: 形式チェック（既存）
+  if [ -f "$quality_script" ]; then
+    chmod +x "$quality_script" 2>/dev/null || true
+    if ! "$quality_script" "$report_file" "$task_type"; then
+      return 2  # Claude Code Hooks 互換: exit 2 でアクションブロック
+    fi
+  fi
+
+  # L4: LLMチェック（追加）
+  if [ -f "$llm_script" ]; then
+    chmod +x "$llm_script" 2>/dev/null || true
+    if ! "$llm_script" "$report_file" "$task_type" "$project_dir"; then
+      return 2  # Claude Code Hooks 互換: exit 2 でアクションブロック
+    fi
+  fi
+
+  return 0  # チェック合格
+}
+
+# =============================================================================
 # my-status サブコマンド
 # =============================================================================
 
@@ -876,19 +964,27 @@ cmd_my_status() {
   local summary=""
   local action_required=false
   local json_output=false
+  local force=false
   # V2.1 拡張
   local v2_substatus=""
   local blocked_by=""
   local reason=""
+  # エスカレーション情報
+  local escalation_title=""
+  local escalation_detail=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --summary|-m) summary="$2"; shift 2 ;;
       --action-required) action_required=true; shift ;;
+      --force) force=true; shift ;;
       # V2.1 オプション
       --substatus) v2_substatus="$2"; shift 2 ;;
       --blocked-by) blocked_by="$2"; shift 2 ;;
       --reason) reason="$2"; shift 2 ;;
+      # エスカレーション情報
+      --escalation-title) escalation_title="$2"; shift 2 ;;
+      --escalation-detail) escalation_detail="$2"; shift 2 ;;
       --json) json_output=true; shift ;;
       --help|-h)
         echo "使用法: maidctl my-status [agent-id] <status> [オプション]"
@@ -900,12 +996,17 @@ cmd_my_status() {
         echo "オプション:"
         echo "  --summary, -m TEXT  サマリメッセージ"
         echo "  --action-required   対応必要フラグ"
+        echo "  --force             子タスクチェックをスキップ（親タスクを直接完了）"
         echo "  --json              JSON出力"
         echo ""
         echo "V2.1 オプション:"
         echo "  --substatus SUB     V2.1サブステータス (active/paused/checkpoint/waiting/completed)"
         echo "  --blocked-by IDS    依存先タスクID（waiting時、カンマ区切り）"
         echo "  --reason TEXT       状態変更理由（checkpoint/waiting時）"
+        echo ""
+        echo "エスカレーション オプション (checkpoint時):"
+        echo "  --escalation-title TEXT   エスカレーション件名"
+        echo "  --escalation-detail TEXT  エスカレーション詳細"
         echo ""
         echo "有効なステータス: $VALID_STATUSES"
         echo "V2.1サブステータス: $VALID_V2_SUBSTATUSES"
@@ -973,6 +1074,31 @@ cmd_my_status() {
     exit $EXIT_INVALID_ARGS
   fi
 
+  # 品質チェック（completed 時のみ）
+  if [ "$status" = "completed" ]; then
+    if ! quality_check "$agent_id"; then
+      echo "" >&2
+      echo "品質チェックに失敗したため、ステータス更新をブロックしました。" >&2
+      echo "報告書を修正して再度完了報告を行ってください。" >&2
+      exit 2
+    fi
+  fi
+
+  # 問題分類（blocked + checkpoint 時のみ）
+  if [ "$status" = "blocked" ] && [ "$v2_substatus" = "checkpoint" ]; then
+    local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+    local classify_script="$project_dir/.maid-agent/system/bin/classify-issue.sh"
+    local current_task_id
+
+    # 現在のタスクIDを取得
+    current_task_id=$(grep -m1 "task_id:" "$project_dir/.maid-agent/system/data/reports/current_${agent_id}.md" 2>/dev/null | sed 's/.*task_id: *//' | tr -d ' ')
+
+    if [ -x "$classify_script" ] && [ -n "$current_task_id" ] && [ -n "$reason" ]; then
+      echo "問題を分類中..."
+      "$classify_script" "$current_task_id" "$reason" "$project_dir" 2>&1 || true
+    fi
+  fi
+
   # JSONデータを構築（特殊文字をエスケープ）
   local data="{\"status\": \"$status\""
   if [ -n "$summary" ]; then
@@ -981,6 +1107,7 @@ cmd_my_status() {
     data="${data}, \"summary\": \"$escaped_summary\""
   fi
   [ "$action_required" = true ] && data="${data}, \"actionRequired\": true"
+  [ "$force" = true ] && data="${data}, \"force\": true"
 
   # V2.1 フィールド
   if [ -n "$v2_substatus" ]; then
@@ -996,6 +1123,19 @@ cmd_my_status() {
     local escaped_reason
     escaped_reason=$(json_escape "$reason")
     data="${data}, \"reason\": \"$escaped_reason\""
+  fi
+
+  # エスカレーション情報（title必須、detailはオプション）
+  if [ -n "$escalation_title" ]; then
+    local escaped_esc_title
+    escaped_esc_title=$(json_escape "$escalation_title")
+    if [ -n "$escalation_detail" ]; then
+      local escaped_esc_detail
+      escaped_esc_detail=$(json_escape "$escalation_detail")
+      data="${data}, \"escalation\": {\"title\": \"$escaped_esc_title\", \"detail\": \"$escaped_esc_detail\"}"
+    else
+      data="${data}, \"escalation\": {\"title\": \"$escaped_esc_title\"}"
+    fi
   fi
 
   data="${data}}"
@@ -1414,6 +1554,186 @@ cmd_migrate_run() {
 }
 
 # =============================================================================
+# quality サブコマンド
+# =============================================================================
+
+cmd_quality_stats() {
+  local from_date="" to_date=""
+  local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  local logs_dir="$project_dir/.maid-agent/system/data/quality-history/logs"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --from) from_date="$2"; shift 2 ;;
+      --to) to_date="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  if [ ! -d "$logs_dir" ]; then
+    echo "品質ログがありません: $logs_dir"
+    exit 0
+  fi
+
+  if ! check_jq; then
+    echo "エラー: jq が必要です" >&2
+    exit 1
+  fi
+
+  local all_logs
+  all_logs=$(cat "$logs_dir"/*.jsonl 2>/dev/null || echo "")
+
+  if [ -z "$all_logs" ]; then
+    echo "品質ログがありません"
+    exit 0
+  fi
+
+  if [ -n "$from_date" ]; then
+    all_logs=$(echo "$all_logs" | jq -c "select(.timestamp >= \"$from_date\")")
+  fi
+  if [ -n "$to_date" ]; then
+    all_logs=$(echo "$all_logs" | jq -c "select(.timestamp <= \"$to_date\")")
+  fi
+
+  local total pass_count avg_score
+  total=$(echo "$all_logs" | wc -l)
+  pass_count=$(echo "$all_logs" | jq -r 'select(.result == "PASS") | .result' | wc -l)
+  avg_score=$(echo "$all_logs" | jq -r 'select(.score != null) | .score' | awk '{sum+=$1; count++} END {if(count>0) printf "%.1f", sum/count; else print "N/A"}')
+
+  local pass_rate
+  if [ "$total" -gt 0 ]; then
+    pass_rate=$(echo "scale=1; $pass_count * 100 / $total" | bc 2>/dev/null || echo "N/A")
+  else
+    pass_rate="N/A"
+  fi
+
+  echo "品質チェック統計"
+  echo "================"
+  [ -n "$from_date" ] && echo "期間: $from_date 〜 ${to_date:-現在}"
+  echo "チェック件数: $total件"
+  echo "合格率: ${pass_rate}%"
+  echo "平均スコア: ${avg_score}点"
+}
+
+cmd_quality_issues() {
+  local by_category="false"
+  local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  local issues_dir="$project_dir/.maid-agent/system/data/quality-history/issues"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --by-category) by_category="true"; shift ;;
+      *) shift ;;
+    esac
+  done
+
+  if [ ! -d "$issues_dir" ]; then
+    echo "問題記録がありません"
+    exit 0
+  fi
+
+  if ! check_jq; then
+    echo "エラー: jq が必要です" >&2
+    exit 1
+  fi
+
+  if [ "$by_category" = "true" ]; then
+    echo "カテゴリ別問題集計:"
+    find "$issues_dir" -name "*.json" -exec cat {} \; 2>/dev/null | \
+      jq -r '.classification.issue_type // "未分類"' | \
+      sort | uniq -c | sort -rn
+  else
+    echo "問題発覚ケース一覧:"
+    for f in "$issues_dir"/*.json; do
+      [ -f "$f" ] || continue
+      local task_id issue_type confidence
+      task_id=$(jq -r '.task_id' "$f" 2>/dev/null)
+      issue_type=$(jq -r '.classification.issue_type // "未分類"' "$f" 2>/dev/null)
+      confidence=$(jq -r '.classification.confidence // "N/A"' "$f" 2>/dev/null)
+      echo "  $task_id: $issue_type (confidence: $confidence)"
+    done
+  fi
+}
+
+cmd_quality_unreviewed() {
+  local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  local issues_dir="$project_dir/.maid-agent/system/data/quality-history/issues"
+
+  if [ ! -d "$issues_dir" ]; then
+    echo "問題記録がありません"
+    exit 0
+  fi
+
+  echo "未レビューの分類結果:"
+  local found="false"
+  for f in "$issues_dir"/*.json; do
+    [ -f "$f" ] || continue
+    local reviewed
+    reviewed=$(jq -r '.classification.reviewed // false' "$f" 2>/dev/null)
+    if [ "$reviewed" = "false" ]; then
+      local task_id issue_type confidence
+      task_id=$(jq -r '.task_id' "$f" 2>/dev/null)
+      issue_type=$(jq -r '.classification.issue_type // "未分類"' "$f" 2>/dev/null)
+      confidence=$(jq -r '.classification.confidence // "N/A"' "$f" 2>/dev/null)
+      echo "  $task_id: $issue_type (confidence: $confidence) - 要レビュー"
+      found="true"
+    fi
+  done
+
+  if [ "$found" = "false" ]; then
+    echo "  （未レビューの分類結果はありません）"
+  fi
+}
+
+cmd_quality_review() {
+  local task_id="" approve="false" change_type=""
+  local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  local issues_dir="$project_dir/.maid-agent/system/data/quality-history/issues"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --task-id) task_id="$2"; shift 2 ;;
+      --approve) approve="true"; shift ;;
+      --change-type) change_type="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  if [ -z "$task_id" ]; then
+    echo "エラー: --task-id が必要です" >&2
+    exit 1
+  fi
+
+  local issue_file="$issues_dir/${task_id}.json"
+  if [ ! -f "$issue_file" ]; then
+    echo "エラー: 問題記録が見つかりません: $task_id" >&2
+    exit 1
+  fi
+
+  local timestamp
+  timestamp=$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+
+  if [ -n "$change_type" ]; then
+    local tmp_file
+    tmp_file=$(mktemp)
+    jq --arg type "$change_type" --arg ts "$timestamp" \
+      '.classification.issue_type = $type | .classification.reviewed = true | .classification.reviewed_at = $ts' \
+      "$issue_file" > "$tmp_file" && mv "$tmp_file" "$issue_file"
+    echo "分類を '$change_type' に変更しました: $task_id"
+  elif [ "$approve" = "true" ]; then
+    local tmp_file
+    tmp_file=$(mktemp)
+    jq --arg ts "$timestamp" \
+      '.classification.reviewed = true | .classification.reviewed_at = $ts' \
+      "$issue_file" > "$tmp_file" && mv "$tmp_file" "$issue_file"
+    echo "分類を承認しました: $task_id"
+  else
+    echo "エラー: --approve または --change-type を指定してください" >&2
+    exit 1
+  fi
+}
+
+# =============================================================================
 # メイン
 # =============================================================================
 
@@ -1546,6 +1866,34 @@ main() {
         *)
           echo "エラー: 不明な対象: $1"
           echo "使用法: maidctl run <migrate>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    quality)
+      shift
+      case "${1:-}" in
+        stats) shift; cmd_quality_stats "$@" ;;
+        issues) shift; cmd_quality_issues "$@" ;;
+        unreviewed) shift; cmd_quality_unreviewed "$@" ;;
+        review) shift; cmd_quality_review "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl quality <サブコマンド> [オプション]"
+          echo ""
+          echo "サブコマンド:"
+          echo "  stats       品質チェック統計を表示"
+          echo "  issues      問題発覚ケース一覧"
+          echo "  unreviewed  未レビューの分類結果一覧"
+          echo "  review      分類結果のレビュー"
+          ;;
+        "")
+          echo "エラー: サブコマンドを指定してください"
+          echo "使用法: maidctl quality <stats|issues|unreviewed|review>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明なサブコマンド: $1"
+          echo "使用法: maidctl quality <stats|issues|unreviewed|review>"
           exit $EXIT_INVALID_ARGS
           ;;
       esac

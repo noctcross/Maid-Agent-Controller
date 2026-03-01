@@ -93,3 +93,50 @@ memory:
   enabled: true
   # 知識グラフの保存先
   graph_path: "~/.claude/memory/"
+
+# 品質チェック設定（自己改善ループ）
+quality_check:
+  # 品質チェックを有効にするか
+  enabled: true
+
+  # チェックレベル
+  # strict: 全チェック項目を必須化（差し戻し多め）
+  # standard: 形式チェック必須、内容チェックは警告のみ
+  # relaxed: 形式チェックのみ（差し戻し少なめ）
+  level: standard
+
+  # 最大リトライ回数（無限ループ防止）
+  max_retry: 5
+
+  # タスク種別ごとの追加チェック
+  # task: 親タスク（基本形式のみ）
+  # work: 実装作業（変更ファイル必須）
+  # step: 細分化タスク（変更ファイル必須）
+  # investigation: 調査タスク（詳細な調査結果必須）
+
+  # LLMチェック設定
+  llm_check:
+    enabled: true
+    model: "haiku"
+    on_failure: "warn"
+    timeout: 60
+    score_threshold: 60
+    task_types:
+      - investigation
+      - design
+      - proposal
+      - document
+      - work
+      - step
+      - review
+    advanced:
+      debug: false
+
+  # 問題分類設定
+  classification:
+    enabled: true
+    model: "haiku"
+    timeout: 60
+    # confidence閾値
+    confidence_auto_threshold: 80    # 80以上: 自動承認
+    confidence_review_threshold: 50  # 50-79: 要レビュー、50未満: 即確認

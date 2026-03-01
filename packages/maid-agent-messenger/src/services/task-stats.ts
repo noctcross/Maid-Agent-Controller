@@ -120,6 +120,8 @@ export interface V2StepData {
   v2Substatus: string;
   assignees?: Array<{ agentId: string }>;
   updatedAt?: string;
+  // 報告書有無フラグ
+  hasReport?: boolean;
 }
 
 export interface V2WorkData {
@@ -133,6 +135,8 @@ export interface V2WorkData {
   assignees?: Array<{ agentId: string }>;
   steps: V2StepData[];
   updatedAt?: string;
+  // 報告書有無フラグ
+  hasReport?: boolean;
 }
 
 export interface V2TaskData {
@@ -155,6 +159,8 @@ export interface V2TaskData {
   updatedAt?: string;
   // V2.1: 最新更新日時（ソート用：配下のWork/Stepを含む最新日時）
   latestUpdatedAt?: string;
+  // 報告書有無フラグ
+  hasReport?: boolean;
 }
 
 // 後方互換エイリアス
@@ -404,6 +410,7 @@ export async function generateV2DashboardData(
             v2Substatus: actionStatus.substatus,
             assignees: action.assignees?.map((a) => ({ agentId: a.agentId })),
             updatedAt: action.updatedAt,
+            hasReport: (action.reportPaths?.length ?? 0) > 0,
           };
         });
 
@@ -418,6 +425,7 @@ export async function generateV2DashboardData(
           assignees: phase.assignees?.map((a) => ({ agentId: a.agentId })),
           steps: v2Steps,
           updatedAt: phase.updatedAt,
+          hasReport: (phase.reportPaths?.length ?? 0) > 0,
         };
       });
 
@@ -454,6 +462,7 @@ export async function generateV2DashboardData(
         archived: goal.archived || substatus === "archived",
         updatedAt: goal.updatedAt,
         latestUpdatedAt,
+        hasReport: (goal.reportPaths?.length ?? 0) > 0,
       };
     })
     // ソート: latestUpdatedAt を使用（子タスクの最新日時を含む）

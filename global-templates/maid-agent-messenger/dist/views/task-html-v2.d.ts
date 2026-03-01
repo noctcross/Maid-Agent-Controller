@@ -19,6 +19,7 @@ export interface V2Step {
         agentId: string;
     }>;
     updatedAt?: string;
+    hasReport?: boolean;
 }
 export interface V2Work {
     id: string;
@@ -33,6 +34,7 @@ export interface V2Work {
     }>;
     steps: V2Step[];
     updatedAt?: string;
+    hasReport?: boolean;
 }
 export interface V2Task {
     id: string;
@@ -51,6 +53,7 @@ export interface V2Task {
     displayIcon?: string;
     archived?: boolean;
     updatedAt?: string;
+    hasReport?: boolean;
 }
 export type V2Goal = V2Task;
 export type V2Phase = V2Work;

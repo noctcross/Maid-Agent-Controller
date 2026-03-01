@@ -14,7 +14,7 @@
  */
 export type { TaskStatus, TaskType, TaskMainStatus, TaskSubstatus, TaskSize, ReviewStatus, OperatorRole, StatusTransitionValidation, RetentionLevel, TaskArtifact, Assignee, TaskCategory, Task, TaskSummary, TasksData, UpdateTaskParams, SideEffectResults, UpdateTaskResult, } from "../types/task-manager-types.js";
 export { withTasksLock, loadTasksReadOnly, } from "./task-core.js";
-export { executeCreateTask, executeGetTask, executeListTasks, executeUpdateTask, compareTaskIds, } from "./task-crud.js";
+export { executeCreateTask, executeGetTask, executeListTasks, executeGetTaskChildren, executeUpdateTask, compareTaskIds, } from "./task-crud.js";
 export type { CreateTaskParams, CreateTaskResult, GetTaskParams, GetTaskResult, ListTasksParams, ListTasksResult, } from "./task-crud.js";
 export { inferTaskType, validateStatusTransition, getAgentRole, convertToV2Status, mapLegacyToV2Status, migrateTaskToV2, migrateToV2, checkMigrationStatus, } from "./task-v2-migration.js";
 export type { MigrationResult, } from "./task-v2-migration.js";

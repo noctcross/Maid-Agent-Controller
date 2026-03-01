@@ -8,7 +8,7 @@
 import path from "path";
 import { readYamlFile } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
-import { executeUpdateTask, executeGetTask } from "./task-manager.js";
+import { executeUpdateTask, executeGetTask, executeGetTaskChildren } from "./task-manager.js";
 import { normalizeTaskId } from "../utils/task-id.js";
 /**
  * タスクを割り当て
@@ -46,6 +46,17 @@ export async function executeAssignTask(params) {
             };
         }
         // force=true の場合は上書きを許可（既存ロジックへ進む）
+    }
+    // 子タスクが存在する親Taskへのアサインチェック
+    const childTasks = await executeGetTaskChildren(projectPath, taskIdNormalized);
+    if (childTasks.length > 0 && !force) {
+        const childIds = childTasks.map(c => c.id).join(", ");
+        return {
+            success: false,
+            assigned_to: targetAgent,
+            task_id: taskId,
+            error: `タスク #${taskId} には子タスクが存在します（${childIds}）。子タスクにアサインするか、--force オプションを使用してください。`,
+        };
     }
     const result = await executeUpdateTask(projectPath, {
         taskId: taskIdNormalized,

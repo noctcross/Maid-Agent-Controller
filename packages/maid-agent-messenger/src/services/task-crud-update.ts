@@ -52,6 +52,36 @@ export async function executeUpdateTask(
     const prevStatus = task.status;
     const prevAssignees = [...task.assignees];
 
+    // 完了時チェック: 未完了の子タスクがある場合はブロック
+    const isCompletionAttempt =
+      params.status === "completed" || params.v2Substatus === "completed";
+
+    if (isCompletionAttempt && !params.force) {
+      const children = data.tasks.filter(t => t.parentId === task.id);
+
+      if (children.length > 0) {
+        const incompleteChildren = children.filter(c => {
+          const substatus = c.v2Substatus || c.status;
+          return substatus !== "completed" && substatus !== "archived";
+        });
+
+        if (incompleteChildren.length > 0) {
+          const incompleteIds = incompleteChildren.map(c => c.id).join(", ");
+          logger.warn("Cannot complete task with incomplete children", {
+            taskId: task.id,
+            incompleteChildren: incompleteIds,
+          });
+
+          const result: UpdateTaskResult = {
+            success: false,
+            task: null,
+            error: `未完了の子タスクがあります: ${incompleteIds}。子タスクを完了させるか、--force オプションを使用してください。`,
+          };
+          return { data, result: { result, prevStatus: "", prevAssignees: [] } };
+        }
+      }
+    }
+
     // 更新適用
     if (params.status !== undefined) {
       task.status = params.status;
@@ -226,6 +256,9 @@ export async function executeUpdateTask(
     if (params.archived !== undefined) {
       task.archived = params.archived;
       task.archivedAt = params.archived ? now : null;
+    }
+    if (params.escalation !== undefined) {
+      task.escalation = params.escalation;
     }
 
     // 最終更新日時を自動設定

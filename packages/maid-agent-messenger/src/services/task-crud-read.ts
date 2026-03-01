@@ -193,3 +193,17 @@ export async function executeListTasks(
     hasMore: offset + tasks.length < total,
   };
 }
+
+/**
+ * 子タスク取得
+ *
+ * 指定したparentIdを持つ子タスクを取得する。
+ * アサイン時・完了時のチェックで使用。
+ */
+export async function executeGetTaskChildren(
+  projectPath: string,
+  parentId: string
+): Promise<Task[]> {
+  const data = await loadTasksReadOnly(projectPath);
+  return data.tasks.filter(t => t.parentId === parentId);
+}

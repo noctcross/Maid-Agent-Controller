@@ -27,6 +27,10 @@ export interface Assignee {
     role: string | null;
     subTaskId: string | null;
 }
+export interface EscalationInfo {
+    title: string;
+    detail?: string;
+}
 export type TaskCategory = "task" | "skill_candidate" | "improvement";
 export interface Task {
     id: string;
@@ -63,6 +67,7 @@ export interface Task {
     archived?: boolean;
     archivedAt?: string | null;
     stepRequired?: boolean;
+    escalation?: EscalationInfo;
 }
 /**
  * 軽量版タスク（summaryOnly: true 時に返却）
@@ -106,6 +111,8 @@ export interface UpdateTaskParams {
     artifactAdd?: TaskArtifact;
     reviewStatus?: ReviewStatus;
     archived?: boolean;
+    force?: boolean;
+    escalation?: EscalationInfo;
 }
 export interface SideEffectResults {
     maidYamlSynced?: boolean;
@@ -127,4 +134,5 @@ export interface UpdateTaskResult {
     success: boolean;
     task: Task | null;
     sideEffects?: SideEffectResults;
+    error?: string;
 }

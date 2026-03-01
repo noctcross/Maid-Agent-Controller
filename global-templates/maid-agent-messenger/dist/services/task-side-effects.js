@@ -222,13 +222,23 @@ async function syncMaidYaml(projectPath, task, params, prevAssignees) {
  * @param task - タスク情報
  * @param agentId - エージェントID
  * @param skipTimestampCheck - タイムスタンプチェックをスキップ（初回completed時）
+ * @param content - 直接指定する報告内容（指定時はcurrentファイルを参照しない）
  */
-export async function archiveReport(projectPath, task, agentId, skipTimestampCheck = false) {
+export async function archiveReport(projectPath, task, agentId, skipTimestampCheck = false, content) {
     const currentPath = path.join(projectPath, ".maid-agent", "system", "data", "reports", `current_${agentId}.md`);
     const config = await loadConfig();
     const maxLength = config.formatter.sanitize_description_max_length;
     const titleForFilename = sanitizeDescription(task.title, maxLength);
     const archivePath = path.join(projectPath, ".maid-agent", "master", "reports", `task-${task.id}-${agentId}-${titleForFilename}.md`);
+    // content が直接指定されている場合は、currentファイルのチェックをスキップして直接書き込み
+    if (content !== undefined) {
+        const written = await writeTextFile(archivePath, content);
+        if (written) {
+            return { archived: true, archivePath, reason: "content_provided" };
+        }
+        return { archived: false, reason: "write_failed" };
+    }
+    // 従来の動作: currentファイルからコピー
     const expectedTaskId = `task-${task.id}`;
     const checkResult = await shouldArchiveReport(currentPath, archivePath, expectedTaskId, skipTimestampCheck);
     if (!checkResult.shouldArchive) {

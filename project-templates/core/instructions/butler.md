@@ -14,6 +14,7 @@
 | `maidctl create task` | 新規Task/Workタスク作成 |
 | `maidctl get tasks --summary` | タスク一覧取得 |
 | `maidctl get task TASK_ID` | タスク詳細取得 |
+| `maidctl get report TASK_ID` | タスクのレポート取得 |
 | `maidctl get team` | チーム状況確認 |
 | `maidctl notify chief "MSG"` | メイド長への通知 |
 
@@ -25,6 +26,20 @@
 | Step | 複雑なWorkの場合のみ作成（オプション） | メイド長 |
 
 **基本は Task → Work の2段階運用**。Step層は必要に応じて使用。
+
+**タスク作成ルール**:
+- `maidctl create task` 実行時は `--description` 必須
+- description には**目的・成果物・完了条件**を明記
+- 改行を含む場合はヒアドキュメント形式を使用:
+  ```bash
+  maidctl create task --title "タスク名" --description "$(cat <<'EOF'
+  【目的】
+  ...
+  【完了条件】
+  ...
+  EOF
+  )"
+  ```
 
 **禁止**: 自分でタスク実行、メイドへの直接指示、ポーリング、フィルタなし全件取得
 

@@ -20,17 +20,19 @@ jest.unstable_mockModule("../../utils/file-lock.js", () => ({
 jest.unstable_mockModule("../../services/task-manager.js", () => ({
     executeUpdateTask: jest.fn(),
     executeGetTask: jest.fn(),
+    executeGetTaskChildren: jest.fn(),
 }));
 // dynamic import
 const { executeAssignTask } = await import("../../services/assign-task.js");
 const { readYamlFile } = await import("../../utils/yaml-helper.js");
 const { withFileLock } = await import("../../utils/file-lock.js");
-const { executeUpdateTask, executeGetTask } = await import("../../services/task-manager.js");
+const { executeUpdateTask, executeGetTask, executeGetTaskChildren } = await import("../../services/task-manager.js");
 // 型付きモック
 const mockedReadYamlFile = readYamlFile;
 const mockedWithFileLock = withFileLock;
 const mockedExecuteUpdateTask = executeUpdateTask;
 const mockedExecuteGetTask = executeGetTask;
+const mockedExecuteGetTaskChildren = executeGetTaskChildren;
 beforeEach(() => {
     jest.clearAllMocks();
     // withFileLock: コールバックをそのまま実行
@@ -63,6 +65,8 @@ beforeEach(() => {
             reportTemplatized: true,
         },
     });
+    // executeGetTaskChildren: デフォルトで子タスクなしを返す
+    mockedExecuteGetTaskChildren.mockResolvedValue([]);
     // readYamlFile: デフォルトで idle 状態を返す
     mockedReadYamlFile.mockResolvedValue({
         task_id: null,
@@ -320,5 +324,122 @@ describe("executeAssignTask - force フラグ", () => {
         expect(result.success).toBe(false);
         expect(result.error).toContain("sophia");
         expect(result.error).toContain("lily");
+    });
+});
+describe("executeAssignTask - 子タスクチェック", () => {
+    it("子タスクがない親Taskにアサイン→成功", async () => {
+        // Arrange: 子タスクなし（デフォルトモック: 空配列）
+        mockedExecuteGetTaskChildren.mockResolvedValue([]);
+        // Act
+        const result = await executeAssignTask(baseParams);
+        // Assert
+        expect(result.success).toBe(true);
+        expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    });
+    it("子タスクがある親Taskにアサイン(forceなし)→エラー", async () => {
+        // Arrange: 子タスクが存在する
+        mockedExecuteGetTaskChildren.mockResolvedValue([
+            {
+                id: "072-1",
+                parentId: "072",
+                title: "子タスク1",
+                description: "",
+                priority: "medium",
+                status: "pending",
+                substatus: null,
+                category: "task",
+                assignees: [],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: null,
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        ]);
+        // Act: force なしで assign
+        const result = await executeAssignTask(baseParams);
+        // Assert: エラーが返される
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("子タスク");
+        expect(result.error).toContain("072-1");
+        expect(result.error).toContain("--force");
+        expect(mockedExecuteUpdateTask).not.toHaveBeenCalled();
+    });
+    it("子タスクがある親Taskにアサイン(force=true)→成功", async () => {
+        // Arrange: 子タスクが存在する
+        mockedExecuteGetTaskChildren.mockResolvedValue([
+            {
+                id: "072-1",
+                parentId: "072",
+                title: "子タスク1",
+                description: "",
+                priority: "medium",
+                status: "pending",
+                substatus: null,
+                category: "task",
+                assignees: [],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: null,
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        ]);
+        // Act: force=true で assign
+        const result = await executeAssignTask({ ...baseParams, force: true });
+        // Assert: 成功
+        expect(result.success).toBe(true);
+        expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    });
+    it("複数の子タスクがある場合、全ての子タスクIDがエラーメッセージに含まれる", async () => {
+        // Arrange: 複数の子タスクが存在する
+        mockedExecuteGetTaskChildren.mockResolvedValue([
+            {
+                id: "072-1",
+                parentId: "072",
+                title: "子タスク1",
+                description: "",
+                priority: "medium",
+                status: "pending",
+                substatus: null,
+                category: "task",
+                assignees: [],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: null,
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+            {
+                id: "072-2",
+                parentId: "072",
+                title: "子タスク2",
+                description: "",
+                priority: "medium",
+                status: "working",
+                substatus: null,
+                category: "task",
+                assignees: [],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: null,
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        ]);
+        // Act: force なしで assign
+        const result = await executeAssignTask(baseParams);
+        // Assert: 全ての子タスクIDがエラーメッセージに含まれる
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("072-1");
+        expect(result.error).toContain("072-2");
     });
 });

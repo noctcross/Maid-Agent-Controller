@@ -129,3 +129,13 @@ export async function executeListTasks(projectPath, params = {}) {
         hasMore: offset + tasks.length < total,
     };
 }
+/**
+ * 子タスク取得
+ *
+ * 指定したparentIdを持つ子タスクを取得する。
+ * アサイン時・完了時のチェックで使用。
+ */
+export async function executeGetTaskChildren(projectPath, parentId) {
+    const data = await loadTasksReadOnly(projectPath);
+    return data.tasks.filter(t => t.parentId === parentId);
+}

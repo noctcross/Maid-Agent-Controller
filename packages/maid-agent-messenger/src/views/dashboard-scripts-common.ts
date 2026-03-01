@@ -125,6 +125,36 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
       return true;
     }
 
+    // VSCode Webview用: 報告書を開く
+    // ブラウザでは通常のリンク動作（/report?task=...）にフォールバック
+    function openReport(taskId, projectPath) {
+      if (_vscodeApi) {
+        _vscodeApi.postMessage({ command: 'openReport', taskId: taskId, project: projectPath });
+        return false; // リンクのデフォルト動作をキャンセル
+      }
+      // ブラウザの場合は通常のリンク動作
+      return true;
+    }
+
+    // 報告書リンクのクリックをキャプチャ（VSCode Webview用）
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a.report-link');
+      if (!link) return;
+      if (!_vscodeApi) return; // ブラウザでは通常動作
+
+      // hrefからtaskIdとprojectを抽出
+      var href = link.getAttribute('href');
+      if (!href || !href.startsWith('/report?')) return;
+
+      e.preventDefault();
+      var params = new URLSearchParams(href.substring(href.indexOf('?')));
+      var taskId = params.get('task');
+      var project = params.get('project') || window.v2ProjectPath || '';
+      if (taskId) {
+        openReport(taskId, project);
+      }
+    });
+
     function toggleReview(event, taskId, newValue) {
       event.stopPropagation();
       var btn = event.target.closest('.review-btn');

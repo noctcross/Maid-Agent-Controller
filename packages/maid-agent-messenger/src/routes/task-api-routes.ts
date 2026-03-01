@@ -148,7 +148,9 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
     });
 
     if (!result.success) {
-      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      const errorMessage = result.error || "Task not found";
+      const statusCode = result.error ? 400 : 404;
+      res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
       return;
     }
 
@@ -206,7 +208,9 @@ router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
     });
 
     if (!result.success) {
-      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      const errorMessage = result.error || "Task not found";
+      const statusCode = result.error ? 400 : 404;
+      res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
       return;
     }
 
@@ -241,7 +245,9 @@ router.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
     });
 
     if (!result.success) {
-      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      const errorMessage = result.error || "Task not found";
+      const statusCode = result.error ? 400 : 404;
+      res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
       return;
     }
 
@@ -296,7 +302,7 @@ router.get("/api/dashboard", async (req: Request, res: Response) => {
 router.post("/api/tasks/:id/rearchive", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
-    const { agentId } = req.body;
+    const { agentId, content } = req.body;
 
     // タスク情報を取得（summaryOnly: false で完全なTask型を取得）
     const taskResult = await executeGetTask(projectPath, { taskId: req.params.id, summaryOnly: false });
@@ -323,7 +329,8 @@ router.post("/api/tasks/:id/rearchive", async (req: Request, res: Response) => {
         projectPath,
         task,
         agent,
-        true  // skipTimestampCheck: タイムスタンプ無視で再アーカイブ
+        true,  // skipTimestampCheck: タイムスタンプ無視で再アーカイブ
+        content  // 直接指定する内容（オプション）
       );
       results.push({
         agentId: agent,

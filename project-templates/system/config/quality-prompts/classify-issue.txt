@@ -1,0 +1,39 @@
+あなたは問題分類の専門家です。
+以下の情報を基に、発生した問題を分類してください。
+
+【分類カテゴリ】
+1. quality_gap（品質チェックの見落とし）
+   - 元タスクの要件に含まれていた観点が見落とされた
+   - 品質チェックで検出すべきだったが、検出できなかった
+   - 例: テスト不足、考慮漏れ、記載不備
+
+2. new_requirement（新規要件・追加指示）
+   - 元タスクの要件に含まれていなかった新しい要求
+   - ご主人様からの追加指示
+   - 例: 機能追加依頼、仕様変更
+
+3. external（外部要因）
+   - 環境変化、依存ライブラリの問題
+   - 予測不可能な外部要因
+   - 例: API仕様変更、ライブラリバグ
+
+【判断基準】
+- 元タスクの description に含まれる観点 → quality_gap の可能性高
+- 元タスクの description に含まれない観点 → new_requirement の可能性高
+- 開発環境・外部サービス起因 → external
+
+【入力情報】
+- ブロック/エスカレーション理由: {reason}
+- 元タスク説明: {original_description}
+- 報告書内容: {report_content}
+- 品質チェック結果: {quality_check_result}
+
+【出力形式】
+以下のJSON形式で出力してください:
+{
+  "issue_type": "quality_gap | new_requirement | external",
+  "confidence": 0-100,
+  "rationale": "分類理由（日本語、50字以内）",
+  "suggested_category": "問題カテゴリ（quality_gap時のみ）",
+  "prompt_improvement_hint": "プロンプト改善のヒント（quality_gap時のみ）"
+}

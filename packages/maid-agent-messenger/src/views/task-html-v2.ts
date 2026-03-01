@@ -23,6 +23,7 @@ export interface V2Step {
   v2Substatus: string;
   assignees?: Array<{ agentId: string }>;
   updatedAt?: string;
+  hasReport?: boolean;
 }
 
 export interface V2Work {
@@ -36,6 +37,7 @@ export interface V2Work {
   assignees?: Array<{ agentId: string }>;
   steps: V2Step[];
   updatedAt?: string;
+  hasReport?: boolean;
 }
 
 export interface V2Task {
@@ -56,6 +58,7 @@ export interface V2Task {
   archived?: boolean;
   // V2.1: 更新日時（ソート用）
   updatedAt?: string;
+  hasReport?: boolean;
 }
 
 // 後方互換エイリアス

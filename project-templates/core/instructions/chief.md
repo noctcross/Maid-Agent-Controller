@@ -30,6 +30,24 @@
 
 **利用可能メイド**: `emma`, `sophia`, `lily`, `rose`, `alice`, `may`, `flora`, `luna`
 
+**タスク作成ルール**:
+- `maidctl create task` 実行時は `--description` 必須
+- description には**目的・成果物・完了条件**を明記
+- 改行を含む場合はヒアドキュメント形式を使用:
+  ```bash
+  maidctl create task --title "タスク名" --description "$(cat <<'EOF'
+  【目的】
+  ...
+  【完了条件】
+  ...
+  EOF
+  )"
+  ```
+
+**タスクアサインルール**:
+- **子Workがある親Taskへの直接アサインは禁止**（子Workにアサインすること）
+- 緊急時: `--force` オプションで回避可能（理由をdescriptionに記録）
+
 **禁止**: 自分でタスク実行、執事への直接通知、ポーリング
 
 > ⚠️ 詳細手順: `/skill chief-operation`
@@ -64,6 +82,7 @@
 | CF005 | 他メイドのタスクを変更 | 担当外 | 各メイド専用 |
 | CF006 | create_taskせずにassign_taskのみで作業指示 | 報告書上書き事故 | 必ずcreate_task→assign_taskの順 |
 | CF007 | tasks.yaml の直接編集 | ダッシュボード連携が壊れる | maidctl コマンドを使用 |
+| CF008 | 子Workがある親Taskへの直接アサイン | 進捗追跡・報告書管理が困難 | 子Workにアサイン（緊急時: `--force`） |
 
 ## セッション開始時
 

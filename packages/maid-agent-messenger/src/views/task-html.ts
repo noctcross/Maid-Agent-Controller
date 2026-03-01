@@ -129,9 +129,17 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         </div>
       </div>`;
     } else if (type === "action_required") {
-      const substatusHtml = task.substatus
-        ? `<span class="task-substatus-inline">🔴 ${escapeHtml(task.substatus)}</span>`
+      // エスカレーション情報を優先表示
+      const escalationTitle = task.escalation?.title || task.substatus;
+      const substatusHtml = escalationTitle
+        ? `<span class="task-substatus-inline">🔴 ${escapeHtml(escalationTitle)}</span>`
         : '<span class="task-substatus-inline">🔴 ご主人様判断待ち</span>';
+
+      // エスカレーション詳細があれば表示
+      const escalationDetailHtml = task.escalation?.detail
+        ? `<div class="task-detail-row escalation-detail"><span class="task-detail-label">📋 詳細:</span><span class="task-detail-value">${escapeHtml(task.escalation.detail)}</span></div>`
+        : "";
+
       return `<div class="task-item action-required-item" data-id="${task.id}">
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
@@ -139,6 +147,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
+          ${escalationDetailHtml}
           <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
           ${assigneeStr ? `<div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr}</span></div>` : ""}
         </div>

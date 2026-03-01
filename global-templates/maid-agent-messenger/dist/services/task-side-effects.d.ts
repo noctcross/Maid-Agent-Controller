@@ -25,8 +25,9 @@ export declare function extractTaskIdFromReport(reportPath: string): Promise<str
  * @param task - タスク情報
  * @param agentId - エージェントID
  * @param skipTimestampCheck - タイムスタンプチェックをスキップ（初回completed時）
+ * @param content - 直接指定する報告内容（指定時はcurrentファイルを参照しない）
  */
-export declare function archiveReport(projectPath: string, task: Task, agentId: string, skipTimestampCheck?: boolean): Promise<{
+export declare function archiveReport(projectPath: string, task: Task, agentId: string, skipTimestampCheck?: boolean, content?: string): Promise<{
     archived: boolean;
     archivePath?: string;
     skipped?: boolean;

@@ -18,6 +18,8 @@ export interface MessageHandlerContext {
     showController: () => void;
     /** ファイルを開く */
     openFileWithPreview: (path: string) => void;
+    /** 報告書を開く */
+    openReport: (taskId: string, project: string) => void;
     /** レビュートグル */
     toggleTaskReview: (taskId: string, reviewed: boolean, txId?: string) => void;
     /** スタートグル */
@@ -68,6 +70,9 @@ export function setupDashboardMessageHandler(
                     break;
                 case 'openFile':
                     ctx.openFileWithPreview(message.path);
+                    break;
+                case 'openReport':
+                    ctx.openReport(message.taskId, message.project);
                     break;
                 case 'toggleReview':
                     ctx.toggleTaskReview(message.taskId, message.reviewed, message.txId);

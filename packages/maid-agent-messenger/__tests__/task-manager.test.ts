@@ -586,3 +586,153 @@ describe("actionRequired フラグ", () => {
     expect(result.task!.actionRequiredAt).toBeTruthy();
   });
 });
+
+describe("完了時チェック（子タスク）", () => {
+  it("子タスクがない親Taskを完了→成功", async () => {
+    // Arrange: 子タスクがない親Taskを作成
+    const parent = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "親タスク（子なし）",
+    });
+
+    // Act: 完了に更新
+    const result = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: parent.taskId,
+      status: "completed",
+    });
+
+    // Assert: 成功
+    expect(result.success).toBe(true);
+    expect(result.task!.status).toBe("completed");
+  });
+
+  it("未完了の子タスクがある親Task完了(forceなし)→エラー", async () => {
+    // Arrange: 親タスクと子タスクを作成
+    const parent = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "親タスク",
+    });
+    const child = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "子タスク",
+      parentId: parent.taskId,
+    });
+
+    // 子タスクは pending のまま
+
+    // Act: 親タスクを完了しようとする（forceなし）
+    const result = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: parent.taskId,
+      status: "completed",
+    });
+
+    // Assert: エラー
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("未完了の子タスク");
+    expect(result.error).toContain(child.taskId);
+    expect(result.error).toContain("--force");
+  });
+
+  it("未完了の子タスクがある親Task完了(force=true)→成功", async () => {
+    // Arrange: 親タスクと子タスクを作成
+    const parent = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "親タスク",
+    });
+    await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "子タスク",
+      parentId: parent.taskId,
+    });
+
+    // 子タスクは pending のまま
+
+    // Act: 親タスクを完了（force=true）
+    const result = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: parent.taskId,
+      status: "completed",
+      force: true,
+    });
+
+    // Assert: 成功
+    expect(result.success).toBe(true);
+    expect(result.task!.status).toBe("completed");
+  });
+
+  it("完了済みの子タスクのみの場合→成功", async () => {
+    // Arrange: 親タスクと子タスクを作成
+    const parent = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "親タスク",
+    });
+    const child = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "子タスク",
+      parentId: parent.taskId,
+    });
+
+    // 子タスクを完了
+    await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: child.taskId,
+      status: "completed",
+    });
+
+    // Act: 親タスクを完了
+    const result = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: parent.taskId,
+      status: "completed",
+    });
+
+    // Assert: 成功
+    expect(result.success).toBe(true);
+    expect(result.task!.status).toBe("completed");
+  });
+
+  it("v2Substatus=completed でも同様にチェックされる", async () => {
+    // Arrange: 親タスクと子タスクを作成
+    const parent = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "親タスク",
+    });
+    const child = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "子タスク",
+      parentId: parent.taskId,
+    });
+
+    // 子タスクは pending のまま
+
+    // Act: 親タスクを v2Substatus=completed で完了しようとする
+    const result = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: parent.taskId,
+      v2Substatus: "completed",
+    });
+
+    // Assert: エラー
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("未完了の子タスク");
+    expect(result.error).toContain(child.taskId);
+  });
+
+  it("archived の子タスクは完了済みとして扱われる", async () => {
+    // Arrange: 親タスクと子タスクを作成
+    const parent = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "親タスク",
+    });
+    const child = await executeCreateTask(TEST_PROJECT_PATH, {
+      title: "子タスク",
+      parentId: parent.taskId,
+    });
+
+    // 子タスクを completed → archived に遷移（pending→archived は不許可）
+    await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: child.taskId,
+      status: "completed",
+    });
+    await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: child.taskId,
+      v2Substatus: "archived",
+    });
+
+    // Act: 親タスクを完了
+    const result = await executeUpdateTask(TEST_PROJECT_PATH, {
+      taskId: parent.taskId,
+      status: "completed",
+    });
+
+    // Assert: 成功
+    expect(result.success).toBe(true);
+    expect(result.task!.status).toBe("completed");
+  });
+});

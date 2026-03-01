@@ -913,8 +913,9 @@ export function getV2DashboardScript() {
         assigneesHtml = '<span class="goal-assignees-inline no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
       }
 
-      // 報告書リンク
-      var reportLink = '<a href="/report?task=' + encodeURIComponent(goal.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="統合サマリーを開く">📄</a>';
+      // 報告書リンク（未登録時はクリック不可＋薄い表示）
+      var reportLinkClass = goal.hasReport ? 'report-link' : 'report-link report-link-empty';
+      var reportLink = '<a href="/report?task=' + encodeURIComponent(goal.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="' + reportLinkClass + '" title="統合サマリーを開く">📄</a>';
 
       // タスク詳細データ（JSON → Base64エンコード）
       var taskInfoJson = JSON.stringify({
@@ -1051,8 +1052,9 @@ export function getV2DashboardScript() {
         assigneesHtml = '<span class="phase-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
       }
 
-      // 報告書リンク
-      var reportLink = '<a href="/report?task=' + encodeURIComponent(work.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="Work報告書を開く">📄</a>';
+      // 報告書リンク（未登録時はクリック不可＋薄い表示）
+      var reportLinkClass = work.hasReport ? 'report-link' : 'report-link report-link-empty';
+      var reportLink = '<a href="/report?task=' + encodeURIComponent(work.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="' + reportLinkClass + '" title="Work報告書を開く">📄</a>';
 
       // タスク詳細データ（JSON → Base64エンコード）
       var taskInfoJson = JSON.stringify({
@@ -1161,8 +1163,9 @@ export function getV2DashboardScript() {
       });
       var taskInfoBase64 = btoa(unescape(encodeURIComponent(taskInfoJson)));
 
-      // 報告書リンク
-      var reportLink = '<a href="/report?task=' + encodeURIComponent(step.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="report-link" title="Step報告書を開く">📄</a>';
+      // 報告書リンク（未登録時はクリック不可＋薄い表示）
+      var reportLinkClass = step.hasReport ? 'report-link' : 'report-link report-link-empty';
+      var reportLink = '<a href="/report?task=' + encodeURIComponent(step.id) + '&project=' + encodeURIComponent(window.v2ProjectPath || '') + '" class="' + reportLinkClass + '" title="Step報告書を開く">📄</a>';
 
       return '<div class="step-item ' + statusClass + '">' +
         '<span class="step-icon">' + icon + '</span>' +

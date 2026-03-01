@@ -21,6 +21,7 @@ import { createDashboardRoutes } from "./routes/dashboard-routes.js";
 import { createTopPageRoutes } from "./routes/top-page-routes.js";
 import fileRoutes from "./routes/file-routes.js";
 import imageRoutes from "./routes/image-routes.js";
+import qualityRoutes from "./routes/quality-routes.js";
 // ビュー
 import { generateDashboardHtml, generateV2TeamStatusHtml } from "./views/dashboard-html.js";
 import { generateTopPageHtml } from "./views/top-page-html.js";
@@ -87,6 +88,7 @@ async function main() {
     app.use(loopbackOnly, legacyRoutes);
     app.use(loopbackOnly, createTaskApiRoutes({ wsServer }));
     app.use(loopbackOnly, createCliApiRoutes({ wsServer }));
+    app.use(loopbackOnly, qualityRoutes);
     // ========================================
     app.use((err, _req, res, _next) => {
         logger.error("Server error", err);

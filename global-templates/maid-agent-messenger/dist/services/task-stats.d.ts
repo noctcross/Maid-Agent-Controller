@@ -42,6 +42,7 @@ export interface V2StepData {
         agentId: string;
     }>;
     updatedAt?: string;
+    hasReport?: boolean;
 }
 export interface V2WorkData {
     id: string;
@@ -56,6 +57,7 @@ export interface V2WorkData {
     }>;
     steps: V2StepData[];
     updatedAt?: string;
+    hasReport?: boolean;
 }
 export interface V2TaskData {
     id: string;
@@ -75,6 +77,7 @@ export interface V2TaskData {
     archived?: boolean;
     updatedAt?: string;
     latestUpdatedAt?: string;
+    hasReport?: boolean;
 }
 export type V2GoalData = V2TaskData;
 export type V2PhaseData = V2WorkData;

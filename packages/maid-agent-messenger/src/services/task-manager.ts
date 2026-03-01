@@ -49,6 +49,7 @@ export {
   executeCreateTask,
   executeGetTask,
   executeListTasks,
+  executeGetTaskChildren,
   executeUpdateTask,
   compareTaskIds,
 } from "./task-crud.js";

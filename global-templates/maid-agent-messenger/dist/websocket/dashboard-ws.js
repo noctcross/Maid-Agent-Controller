@@ -12,11 +12,25 @@ export class DashboardWebSocketServer {
     pingTimers = new Map();
     constructor(server, config = {}) {
         this.config = { ...DEFAULT_WS_CONFIG, ...config };
-        this.wss = new WebSocketServer({
-            server,
-            path: "/dashboard/ws",
-        });
+        // noServer: true で作成し、upgrade イベントは外部で処理
+        this.wss = server
+            ? new WebSocketServer({ server, path: "/dashboard/ws" })
+            : new WebSocketServer({ noServer: true });
         this.setupConnectionHandler();
+    }
+    /**
+     * HTTP upgrade リクエストを処理
+     */
+    handleUpgrade(request, socket, head) {
+        this.wss.handleUpgrade(request, socket, head, (ws) => {
+            this.wss.emit("connection", ws, request);
+        });
+    }
+    /**
+     * パスが一致するかチェック
+     */
+    shouldHandle(pathname) {
+        return pathname === "/dashboard/ws";
     }
     setupConnectionHandler() {
         this.wss.on("connection", (ws, req) => {

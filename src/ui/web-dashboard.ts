@@ -295,6 +295,7 @@ export function restoreDashboardPanel(ctx: ViewContext, panel: vscode.WebviewPan
     // パネル破棄時の処理を再設定
     panel.onDidDispose(() => {
         ctx.dashboardPanel = undefined;
+        ctx.dashboardInitialized = false;
     });
 
     // メッセージハンドラを再設定

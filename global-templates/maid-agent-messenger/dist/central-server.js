@@ -20,6 +20,8 @@ import { createCliApiRoutes } from "./routes/cli-api-routes.js";
 import { createDashboardRoutes } from "./routes/dashboard-routes.js";
 import { createTopPageRoutes } from "./routes/top-page-routes.js";
 import fileRoutes from "./routes/file-routes.js";
+import fileApiRoutes from "./routes/file-api-routes.js";
+import notificationApiRoutes from "./routes/notification-api-routes.js";
 import imageRoutes from "./routes/image-routes.js";
 import qualityRoutes from "./routes/quality-routes.js";
 // ビュー
@@ -30,6 +32,7 @@ import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js
 import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, } from "./views/task-html-v2.js";
 import { loopbackOnly } from "./middleware/loopback-only.js";
 import { DashboardWebSocketServer } from "./websocket/dashboard-ws.js";
+import { NotificationWebSocketServer } from "./websocket/notification-ws.js";
 import { logger } from "./utils/logger.js";
 const app = express();
 app.use(express.json());
@@ -60,9 +63,24 @@ async function main() {
     // HTTPサーバー・WebSocketサーバー作成
     // ========================================
     const server = createServer(app);
-    const wsServer = new DashboardWebSocketServer(server, {
+    // noServer: true で WebSocketServer を作成
+    const wsServer = new DashboardWebSocketServer(null, {
         pingInterval: config.keepalive.ping_interval || TIMEOUTS.PING_INTERVAL,
         pongTimeout: 10000,
+    });
+    const notificationWsServer = new NotificationWebSocketServer(null);
+    // HTTP upgrade イベントを手動で処理（複数の WebSocketServer をサポート）
+    server.on("upgrade", (request, socket, head) => {
+        const { pathname } = new URL(request.url || "", `http://${request.headers.host}`);
+        if (wsServer.shouldHandle(pathname)) {
+            wsServer.handleUpgrade(request, socket, head);
+        }
+        else if (notificationWsServer.shouldHandle(pathname)) {
+            notificationWsServer.handleUpgrade(request, socket, head);
+        }
+        else {
+            socket.destroy();
+        }
     });
     // ========================================
     // ルートマウント
@@ -83,6 +101,8 @@ async function main() {
         wsServer,
     }));
     app.use(fileRoutes);
+    app.use(fileApiRoutes);
+    app.use(notificationApiRoutes);
     app.use(imageRoutes);
     // 非公開エンドポイント（loopbackのみ）
     app.use(loopbackOnly, legacyRoutes);
@@ -101,6 +121,7 @@ async function main() {
         logger.info(`Mode: Multi-Project Support`);
         logger.info(`Note: Requires X-Maid-Project-Path header for project identification`);
         logger.info(`WebSocket endpoint: ws://${host}:${port}/dashboard/ws`);
+        logger.info(`Notification WS: ws://${host}:${port}/ws/notifications`);
     });
     // HTTP Keep-Alive タイムアウト設定
     // プロキシの60秒タイムアウトより長く設定してpremature close を防止
@@ -109,6 +130,7 @@ async function main() {
     // プロセス終了時のクリーンアップ（グレースフルシャットダウン）
     const gracefulShutdown = () => {
         wsServer.close();
+        notificationWsServer.close();
         server.close();
     };
     // PM2はデフォルトでSIGINTを最初に送信し、応答がなければSIGKILLを送る

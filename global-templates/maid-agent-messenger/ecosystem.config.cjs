@@ -92,6 +92,8 @@ module.exports = {
       max_memory_restart: pm2Config?.max_memory_restart || PM2_DEFAULTS.max_memory_restart,
       env: {
         NODE_ENV: "production",
+        // 外部アクセス許可（Tailscale経由でのモバイルアクセス用）
+        ALLOW_EXTERNAL_ACCESS: "true",
         // 設定ファイルのパス: 環境変数を削除し、config-loader.ts のデフォルト動作に任せる
         // デフォルト: ~/.maid-agent/system/config/mcp-server.yaml
       },

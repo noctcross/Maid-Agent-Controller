@@ -213,8 +213,14 @@ function renderFileLocally(filePath: string, fileName: string, workspaceRoot?: s
  */
 function ensureReportViewerPanel(ctx: FileViewerContext, fileName: string): vscode.WebviewPanel {
     if (ctx.reportViewerPanel) {
-        ctx.reportViewerPanel.title = `📄 ${fileName}`;
-        return ctx.reportViewerPanel;
+        try {
+            // dispose 済みパネルへのアクセスは例外をスローする
+            ctx.reportViewerPanel.title = `📄 ${fileName}`;
+            return ctx.reportViewerPanel;
+        } catch {
+            // dispose 済みの場合は新規作成へフォールスルー
+            ctx.reportViewerPanel = undefined;
+        }
     }
 
     const panel = vscode.window.createWebviewPanel(
@@ -225,7 +231,8 @@ function ensureReportViewerPanel(ctx: FileViewerContext, fileName: string): vsco
     );
 
     panel.onDidDispose(() => {
-        // 注: 呼び出し元で state.reportViewerPanel = undefined を設定する必要あり
+        // dispose 時にコンテキストをクリア（再利用時のエラー防止）
+        ctx.reportViewerPanel = undefined;
     });
 
     // ネストしたファイルも開ける

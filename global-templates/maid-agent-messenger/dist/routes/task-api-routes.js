@@ -3,9 +3,11 @@
  * GET/PATCH /api/tasks/*, GET /api/dashboard
  */
 import { Router } from "express";
-import { executeListTasks, executeGetTask, executeUpdateTask, executeGetReport, archiveReport, 
+import { executeListTasks, executeGetTask, executeUpdateTask, executeGetReport, archiveReport, executeGetTeamStatus, generateV2DashboardData, 
 // V2.1 マイグレーション
 migrateToV2, checkMigrationStatus, } from "../services/index.js";
+import { getQueueMaidPath } from "../utils/path-helpers.js";
+import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 export function createTaskApiRoutes(deps = {}) {
@@ -316,6 +318,71 @@ export function createTaskApiRoutes(deps = {}) {
         catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";
             res.status(500).json({ error: "Migration failed", details: message });
+        }
+    });
+    // =============================================================================
+    // V2 Dashboard API（モバイル向け）
+    // =============================================================================
+    // GET /api/v2/dashboard - V2ダッシュボードJSON（モバイル向け）
+    router.get("/api/v2/dashboard", async (req, res) => {
+        try {
+            const projectPath = getProjectPathFromRequest(req);
+            // クエリパラメータを取得
+            const statusParam = req.query.statusFilter;
+            const statusFilter = statusParam === "closed" ? "closed" :
+                statusParam === "open" ? "open" : "all";
+            const showArchived = req.query.showArchived === "true";
+            const limit = parseInt(req.query.limit) || 50;
+            const offset = parseInt(req.query.offset) || 0;
+            const sortFieldParam = req.query.sortField;
+            const sortField = sortFieldParam === "updatedAt" ? "updatedAt" : "id";
+            const sortOrderParam = req.query.sortOrder;
+            const sortOrder = sortOrderParam === "asc" ? "asc" : "desc";
+            const search = req.query.search;
+            const priorityParam = req.query.priority;
+            const priority = priorityParam === "high" || priorityParam === "medium" || priorityParam === "low"
+                ? priorityParam
+                : undefined;
+            const assignee = req.query.assignee;
+            const includeTeamStatus = req.query.includeTeamStatus === "true";
+            // V2ダッシュボードデータを取得
+            const v2Data = await generateV2DashboardData(projectPath, {
+                statusFilter,
+                showArchived,
+                limit,
+                offset,
+                sortField,
+                sortOrder,
+                search,
+                priority,
+                assignee,
+            });
+            // チーム状態を取得（オプション）
+            let teamStatus;
+            if (includeTeamStatus) {
+                const teamResult = await executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) });
+                teamStatus = teamResult.agents;
+            }
+            res.json({
+                // V2構造化データ
+                goals: v2Data.v2Goals,
+                reviewQueue: v2Data.v2ReviewQueue,
+                artifacts: v2Data.v2Artifacts,
+                stats: v2Data.v2Stats,
+                // ページネーション情報
+                totalGoals: v2Data.totalGoals,
+                offset,
+                limit,
+                hasMore: offset + v2Data.v2Goals.length < v2Data.totalGoals,
+                // チーム状態（オプション）
+                ...(teamStatus && { teamStatus }),
+                // メタデータ
+                timestamp: getJstTimestamp(),
+            });
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            res.status(500).json({ error: "V2 Dashboard retrieval failed", details: message });
         }
     });
     return router;

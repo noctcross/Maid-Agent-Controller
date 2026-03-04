@@ -388,9 +388,13 @@ export async function executeSideEffects(
     }
   }
 
-  // 副作用2: archiveReport（completed時）
-  if (params.status === "completed") {
-    const isFirstComplete = prevStatus !== "completed";
+  // 副作用2: archiveReport（completed または checkpoint/waiting時）
+  const isCompleted = params.status === "completed";
+  const isCheckpoint = params.v2Substatus === "checkpoint" || params.v2Substatus === "waiting";
+
+  if (isCompleted || isCheckpoint) {
+    // completed時のみ初回チェックをスキップ（checkpoint/waitingはタイムスタンプ比較で重複防止）
+    const isFirstComplete = isCompleted && prevStatus !== "completed";
 
     try {
       // params.agentId があればそれを優先、なければ全 assignees

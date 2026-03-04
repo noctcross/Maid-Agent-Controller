@@ -1357,8 +1357,8 @@ export function getV2DashboardScript(): string {
 
       var projectPath = window.v2ProjectPath || '';
 
-      // LAN公開用エンドポイントを使用
-      fetch('/dashboard/tasks/' + encodeURIComponent(taskId) + '/archive?project=' + encodeURIComponent(projectPath), {
+      // IDE版対応: 相対URLではなく絶対URLを使用（#013-1）
+      fetch(serverBaseUrl + '/dashboard/tasks/' + encodeURIComponent(taskId) + '/archive?project=' + encodeURIComponent(projectPath), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -1460,8 +1460,8 @@ export function getV2DashboardScript(): string {
 
       var projectPath = window.v2ProjectPath || '';
 
-      // タスク更新APIを呼び出し（/dashboard/tasks/:id/close）
-      fetch('/dashboard/tasks/' + encodeURIComponent(taskId) + '/close?project=' + encodeURIComponent(projectPath), {
+      // IDE版対応: 相対URLではなく絶対URLを使用（#013-1）
+      fetch(serverBaseUrl + '/dashboard/tasks/' + encodeURIComponent(taskId) + '/close?project=' + encodeURIComponent(projectPath), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'

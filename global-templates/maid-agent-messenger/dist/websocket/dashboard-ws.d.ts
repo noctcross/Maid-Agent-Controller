@@ -2,13 +2,22 @@
  * ダッシュボード用 WebSocket サーバー
  */
 import type { Server } from "http";
+import type { IncomingMessage } from "http";
 import { DashboardEvent, DashboardStats, TasksHtml, WebSocketConfig, EscalationNotification } from "./types.js";
 export declare class DashboardWebSocketServer {
     private wss;
     private clients;
     private config;
     private pingTimers;
-    constructor(server: Server, config?: Partial<WebSocketConfig>);
+    constructor(server: Server | null, config?: Partial<WebSocketConfig>);
+    /**
+     * HTTP upgrade リクエストを処理
+     */
+    handleUpgrade(request: IncomingMessage, socket: import("stream").Duplex, head: Buffer): void;
+    /**
+     * パスが一致するかチェック
+     */
+    shouldHandle(pathname: string): boolean;
     private setupConnectionHandler;
     private generateSessionId;
     private send;

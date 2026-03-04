@@ -121,16 +121,22 @@ export async function refreshDashboardData(
             ctx.completedViewState.hash = data.completedMeta.hash;
         }
 
-        panel.webview.postMessage({
-            type: 'dashboardUpdate',
-            stats: data.stats,
-            tasks: data.tasks,
-            completedMeta: data.completedMeta,
-            v2Html: data.v2Html,
-            v2: data.v2,
-            v2GoalsOpen,
-            v2GoalsClosed
-        });
+        // dispose 済みパネルへの postMessage を防止
+        try {
+            panel.webview.postMessage({
+                type: 'dashboardUpdate',
+                stats: data.stats,
+                tasks: data.tasks,
+                completedMeta: data.completedMeta,
+                v2Html: data.v2Html,
+                v2: data.v2,
+                v2GoalsOpen,
+                v2GoalsClosed
+            });
+        } catch (postError) {
+            ctx.log(`[Dashboard] refreshDashboardData: パネルが既に破棄されています: ${postError}`);
+            return;
+        }
 
         ctx.log('[Dashboard] refreshDashboardData: データ更新送信' +
             (v2GoalsOpen ? ' (v2GoalsOpen含む)' : '') +
@@ -225,7 +231,9 @@ export async function initializeDashboard(
     ctx.dashboardPanel.webview.html = html;
     ctx.log('[Dashboard] 初回HTML設定完了（postMessageリスナー追加済み）');
 
-    refreshDashboardData(ctx, ctx.dashboardPanel).catch((err) => {
+    // 非同期処理中にパネルが閉じられる可能性があるため、存在確認後に実行
+    const panelRef = ctx.dashboardPanel;
+    refreshDashboardData(ctx, panelRef).catch((err) => {
         ctx.log(`[Dashboard] 初回V2 Goalsデータ取得エラー: ${err}`);
     });
 }
@@ -261,16 +269,20 @@ export async function updateDashboardData(
         ctx.completedViewState.hash = data.completedMeta.hash;
     }
 
-    ctx.dashboardPanel.webview.postMessage({
-        type: 'dashboardUpdate',
-        stats: data.stats,
-        tasks: data.tasks,
-        completedMeta: data.completedMeta,
-        v2Html: data.v2Html,
-        v2: data.v2
-    });
-
-    ctx.log('[Dashboard] JSON APIで部分更新送信');
+    // dispose 済みパネルへの postMessage を防止
+    try {
+        ctx.dashboardPanel.webview.postMessage({
+            type: 'dashboardUpdate',
+            stats: data.stats,
+            tasks: data.tasks,
+            completedMeta: data.completedMeta,
+            v2Html: data.v2Html,
+            v2: data.v2
+        });
+        ctx.log('[Dashboard] JSON APIで部分更新送信');
+    } catch (postError) {
+        ctx.log(`[Dashboard] updateDashboardData: パネルが既に破棄されています: ${postError}`);
+    }
 }
 
 // =============================================================================

@@ -24,13 +24,33 @@ export class DashboardWebSocketServer {
   private config: WebSocketConfig;
   private pingTimers: Map<string, NodeJS.Timeout> = new Map();
 
-  constructor(server: Server, config: Partial<WebSocketConfig> = {}) {
+  constructor(server: Server | null, config: Partial<WebSocketConfig> = {}) {
     this.config = { ...DEFAULT_WS_CONFIG, ...config };
-    this.wss = new WebSocketServer({
-      server,
-      path: "/dashboard/ws",
-    });
+    // noServer: true で作成し、upgrade イベントは外部で処理
+    this.wss = server
+      ? new WebSocketServer({ server, path: "/dashboard/ws" })
+      : new WebSocketServer({ noServer: true });
     this.setupConnectionHandler();
+  }
+
+  /**
+   * HTTP upgrade リクエストを処理
+   */
+  public handleUpgrade(
+    request: IncomingMessage,
+    socket: import("stream").Duplex,
+    head: Buffer
+  ): void {
+    this.wss.handleUpgrade(request, socket, head, (ws) => {
+      this.wss.emit("connection", ws, request);
+    });
+  }
+
+  /**
+   * パスが一致するかチェック
+   */
+  public shouldHandle(pathname: string): boolean {
+    return pathname === "/dashboard/ws";
   }
 
   private setupConnectionHandler(): void {

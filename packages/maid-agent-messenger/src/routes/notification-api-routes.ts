@@ -8,7 +8,11 @@ import { Router, Request, Response } from "express";
 import path from "path";
 import * as fs from "fs/promises";
 import crypto from "crypto";
+import { exec } from "child_process";
+import { promisify } from "util";
 import { logger } from "../utils/logger.js";
+
+const execAsync = promisify(exec);
 
 const router = Router();
 
@@ -213,17 +217,29 @@ router.post("/api/notifications", async (req: Request, res: Response) => {
       await fs.mkdir(historyDir, { recursive: true });
     }
 
-    // タイムスタンプ生成（JST）
+    // maidctl notify --from master を呼び出し（tmuxセッションへの送信 + history.log記録）
+    const escapedMessage = message.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    const command = `maidctl notify --from master ${to} "${escapedMessage}"`;
+
+    try {
+      await execAsync(command, { cwd: projectPath, timeout: 10000 });
+    } catch (execError) {
+      // maidctl が失敗しても history.log には記録を試みる（フォールバック）
+      logger.warn("maidctl notify failed, falling back to history.log only", execError instanceof Error ? execError : { error: execError });
+
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstDate = new Date(now.getTime() + jstOffset);
+      const timestamp = jstDate.toISOString().replace("T", " ").slice(0, 19);
+      const entry = `[${timestamp}] master → ${to}: ${message}\n`;
+      await fs.appendFile(historyPath, entry, "utf-8");
+    }
+
+    // レスポンス生成（タイムスタンプは現在時刻で）
     const now = new Date();
     const jstOffset = 9 * 60 * 60 * 1000;
     const jstDate = new Date(now.getTime() + jstOffset);
     const timestamp = jstDate.toISOString().replace("T", " ").slice(0, 19);
-
-    // history.log に追記
-    const entry = `[${timestamp}] master → ${to}: ${message}\n`;
-    await fs.appendFile(historyPath, entry, "utf-8");
-
-    // レスポンス生成
     const id = generateId(timestamp, "master", to);
     const notification: Notification = {
       id,

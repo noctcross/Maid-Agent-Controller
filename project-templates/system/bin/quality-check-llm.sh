@@ -145,7 +145,7 @@ run_llm_check() {
   debug_log "Model: $LLM_MODEL"
 
   # maid-agent-messenger API経由でLLMチェック実行
-  local server_url="${MAID_SERVER_URL:-http://localhost:9876}"
+  local server_url="${MAID_SERVER_URL:-http://localhost:3100}"
 
   # JSONペイロード構築（jqがある場合）
   local payload

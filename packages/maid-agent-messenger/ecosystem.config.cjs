@@ -96,6 +96,10 @@ module.exports = {
         ALLOW_EXTERNAL_ACCESS: "true",
         // 設定ファイルのパス: 環境変数を削除し、config-loader.ts のデフォルト動作に任せる
         // デフォルト: ~/.maid-agent/system/config/mcp-server.yaml
+        // Claude CLI へのパスを含める
+        PATH: `${require('os').homedir()}/.local/bin:${process.env.PATH || '/usr/local/bin:/usr/bin:/bin'}`,
+        // CLAUDECODEを無効化（ネストセッション検出を回避）
+        CLAUDECODE: "",
       },
       // ログ設定
       log_date_format: "YYYY-MM-DD HH:mm:ss",

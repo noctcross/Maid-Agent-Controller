@@ -10,6 +10,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as yaml from "yaml";
 import { spawn } from "child_process";
+import { logger } from "../utils/logger.js";
 // =============================================================================
 // プロジェクト設定読み込み
 // =============================================================================
@@ -150,14 +151,33 @@ export function runClaudeCLI(prompt, options = {}) {
         const model = options.model || "haiku";
         const timeout = options.timeout || 60000;
         const outputFormat = options.outputFormat || "text";
-        const args = ["-p", prompt, "--model", model];
+        // --dangerously-skip-permissions: 非対話環境での権限ダイアログをスキップ
+        // --no-session-persistence: セッション保存を無効化（一回限りの呼び出し用）
+        const args = [
+            "-p", prompt,
+            "--model", model,
+            "--dangerously-skip-permissions",
+            "--no-session-persistence",
+        ];
         if (outputFormat === "json") {
             args.push("--output-format", "json");
         }
-        const proc = spawn("claude", args, {
+        // Claude CLI の絶対パス（環境によって異なる場合あり）
+        const claudePath = process.env.CLAUDE_CLI_PATH ||
+            `${process.env.HOME || '/home'}/.local/bin/claude`;
+        // 環境変数をコピーし、CLAUDECODE を削除（ネストセッション防止を回避）
+        const env = { ...process.env };
+        logger.info(`CLAUDECODE before delete: "${env.CLAUDECODE}"`);
+        delete env.CLAUDECODE;
+        logger.info(`CLAUDECODE after delete: "${env.CLAUDECODE}", in env: ${Object.keys(env).includes('CLAUDECODE')}`);
+        logger.info(`Spawning Claude CLI: ${claudePath} with args: ${args.slice(0, 4).join(' ')}`);
+        logger.debug(`HOME=${process.env.HOME}, timeout=${timeout}ms`);
+        const proc = spawn(claudePath, args, {
             stdio: ["pipe", "pipe", "pipe"],
             timeout,
+            env,
         });
+        logger.debug(`Claude CLI process spawned with pid: ${proc.pid}`);
         let stdout = "";
         let stderr = "";
         proc.stdout.on("data", (data) => {
@@ -167,6 +187,9 @@ export function runClaudeCLI(prompt, options = {}) {
             stderr += data.toString();
         });
         proc.on("close", (code) => {
+            logger.debug(`Claude CLI exited with code: ${code}, stdout length: ${stdout.length}, stderr length: ${stderr.length}`);
+            if (stderr)
+                logger.debug(`Claude CLI stderr: ${stderr.substring(0, 200)}`);
             if (code === 0) {
                 resolve({
                     success: true,
@@ -182,6 +205,7 @@ export function runClaudeCLI(prompt, options = {}) {
             }
         });
         proc.on("error", (err) => {
+            logger.error(`Claude CLI spawn error: ${err.message}`);
             resolve({
                 success: false,
                 output: "",
@@ -190,6 +214,7 @@ export function runClaudeCLI(prompt, options = {}) {
         });
         // タイムアウト処理
         const timer = setTimeout(() => {
+            logger.warn(`Claude CLI timed out after ${timeout}ms, killing process ${proc.pid}`);
             proc.kill("SIGTERM");
             resolve({
                 success: false,

@@ -13,7 +13,7 @@ const DEFAULT_CONFIG = {
     server: {
         mode: "hybrid",
         port: 3100,
-        host: "127.0.0.1",
+        host: "0.0.0.0",
     },
     central: {
         connection_timeout: 3000,

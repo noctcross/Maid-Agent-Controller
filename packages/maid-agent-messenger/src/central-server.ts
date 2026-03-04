@@ -24,6 +24,7 @@ import { createTopPageRoutes } from "./routes/top-page-routes.js";
 import fileRoutes from "./routes/file-routes.js";
 import fileApiRoutes from "./routes/file-api-routes.js";
 import notificationApiRoutes from "./routes/notification-api-routes.js";
+import responseApiRoutes from "./routes/response-api-routes.js";
 import imageRoutes from "./routes/image-routes.js";
 import qualityRoutes from "./routes/quality-routes.js";
 
@@ -137,6 +138,7 @@ async function main(): Promise<void> {
   app.use(fileRoutes);
   app.use(fileApiRoutes);
   app.use(notificationApiRoutes);
+  app.use(responseApiRoutes);
   app.use(imageRoutes);
   // 非公開エンドポイント（loopbackのみ）
   app.use(loopbackOnly, legacyRoutes);

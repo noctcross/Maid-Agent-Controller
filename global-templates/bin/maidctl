@@ -964,7 +964,6 @@ cmd_my_status() {
   local summary=""
   local action_required=false
   local json_output=false
-  local force=false
   # V2.1 拡張
   local v2_substatus=""
   local blocked_by=""
@@ -977,7 +976,6 @@ cmd_my_status() {
     case "$1" in
       --summary|-m) summary="$2"; shift 2 ;;
       --action-required) action_required=true; shift ;;
-      --force) force=true; shift ;;
       # V2.1 オプション
       --substatus) v2_substatus="$2"; shift 2 ;;
       --blocked-by) blocked_by="$2"; shift 2 ;;
@@ -996,7 +994,6 @@ cmd_my_status() {
         echo "オプション:"
         echo "  --summary, -m TEXT  サマリメッセージ"
         echo "  --action-required   対応必要フラグ"
-        echo "  --force             子タスクチェックをスキップ（親タスクを直接完了）"
         echo "  --json              JSON出力"
         echo ""
         echo "V2.1 オプション:"
@@ -1107,7 +1104,6 @@ cmd_my_status() {
     data="${data}, \"summary\": \"$escaped_summary\""
   fi
   [ "$action_required" = true ] && data="${data}, \"actionRequired\": true"
-  [ "$force" = true ] && data="${data}, \"force\": true"
 
   # V2.1 フィールド
   if [ -n "$v2_substatus" ]; then
@@ -1267,11 +1263,13 @@ cmd_team_report() {
 cmd_report_rearchive() {
   local task_id=""
   local agent_id=""
+  local content=""
   local json_output=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --agent|-a) agent_id="$2"; shift 2 ;;
+      --content|-c) content="$2"; shift 2 ;;
       --json) json_output=true; shift ;;
       --help|-h)
         echo "使用法: maidctl report rearchive <task-id> [オプション]"
@@ -1279,12 +1277,19 @@ cmd_report_rearchive() {
         echo "報告書を明示的に再アーカイブする"
         echo ""
         echo "オプション:"
-        echo "  --agent, -a AGENT  対象エージェント（省略時は全assignees）"
-        echo "  --json             JSON出力"
+        echo "  --agent, -a AGENT    対象エージェント（省略時は全assignees）"
+        echo "  --content, -c TEXT   報告内容を直接指定（current ファイルを参照しない）"
+        echo "  --json               JSON出力"
         echo ""
         echo "例:"
-        echo "  maidctl report rearchive 171          # タスク #171 の報告書を再アーカイブ"
-        echo "  maidctl report rearchive 171 --agent alice  # アリスの報告書のみ"
+        echo "  maidctl report rearchive 171                    # タスク #171 の報告書を再アーカイブ"
+        echo "  maidctl report rearchive 171 --agent alice      # アリスの報告書のみ"
+        echo "  maidctl report rearchive 171 -a alice -c \"内容\" # 内容を直接指定してアーカイブ"
+        echo ""
+        echo "注意:"
+        echo "  --content を指定すると、current_{agent}.md の内容やタスクIDチェックを"
+        echo "  スキップし、指定された内容でアーカイブファイルを作成します。"
+        echo "  current ファイルが別タスクの報告書になっている場合に有用です。"
         return 0
         ;;
       -*)
@@ -1307,8 +1312,17 @@ cmd_report_rearchive() {
 
   # JSONデータを構築
   local data="{}"
-  if [ -n "$agent_id" ]; then
+  if [ -n "$agent_id" ] && [ -n "$content" ]; then
+    # agentId と content 両方
+    local escaped_content
+    escaped_content=$(printf '%s' "$content" | jq -Rs '.')
+    data="{\"agentId\": \"$agent_id\", \"content\": $escaped_content}"
+  elif [ -n "$agent_id" ]; then
     data="{\"agentId\": \"$agent_id\"}"
+  elif [ -n "$content" ]; then
+    local escaped_content
+    escaped_content=$(printf '%s' "$content" | jq -Rs '.')
+    data="{\"content\": $escaped_content}"
   fi
 
   local result
@@ -1323,7 +1337,7 @@ cmd_report_rearchive() {
         if .archived then
           "✅ \(.agentId): 再アーカイブ完了 → \(.archivePath // "-")"
         elif .reason == "task_id_mismatch" then
-          "❌ \(.agentId): タスクIDが不一致（current_\(.agentId).md は別タスクの報告書です）"
+          "❌ \(.agentId): タスクIDが不一致（current_\(.agentId).md は別タスクの報告書です）\n   ヒント: --content オプションで内容を直接指定できます"
         else
           "⚠️ \(.agentId): スキップ（\(.reason // "unknown")）"
         end
@@ -1341,14 +1355,21 @@ cmd_report_rearchive() {
 cmd_notify() {
   local target=""
   local message=""
+  local from_sender=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --help|-h)
         echo "使用法: maidctl notify <target> \"<message>\""
+        echo "        maidctl notify --from <sender> <target> \"<message>\""
         echo ""
         echo "有効なターゲット: butler chief $VALID_AGENTS"
+        echo "  --from: 送信者を明示的に指定（API等tmux外からの呼び出し用）"
         return 0
+        ;;
+      --from)
+        from_sender="$2"
+        shift 2
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
@@ -1380,7 +1401,12 @@ cmd_notify() {
     exit $EXIT_INVALID_ARGS
   fi
 
-  exec "$notify_path" "$target" "$message"
+  # --from オプションがあれば maid-notify に渡す
+  if [ -n "$from_sender" ]; then
+    exec "$notify_path" --from "$from_sender" "$target" "$message"
+  else
+    exec "$notify_path" "$target" "$message"
+  fi
 }
 
 # =============================================================================
@@ -1562,6 +1588,7 @@ cmd_quality_stats() {
   local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
   local logs_dir="$project_dir/.maid-agent/system/data/quality-history/logs"
 
+  # オプション解析
   while [ $# -gt 0 ]; do
     case "$1" in
       --from) from_date="$2"; shift 2 ;;
@@ -1580,6 +1607,7 @@ cmd_quality_stats() {
     exit 1
   fi
 
+  # ログファイルを結合
   local all_logs
   all_logs=$(cat "$logs_dir"/*.jsonl 2>/dev/null || echo "")
 
@@ -1588,6 +1616,7 @@ cmd_quality_stats() {
     exit 0
   fi
 
+  # 日付フィルタを適用
   if [ -n "$from_date" ]; then
     all_logs=$(echo "$all_logs" | jq -c "select(.timestamp >= \"$from_date\")")
   fi
@@ -1595,6 +1624,7 @@ cmd_quality_stats() {
     all_logs=$(echo "$all_logs" | jq -c "select(.timestamp <= \"$to_date\")")
   fi
 
+  # 統計計算
   local total pass_count avg_score
   total=$(echo "$all_logs" | wc -l)
   pass_count=$(echo "$all_logs" | jq -r 'select(.result == "PASS") | .result' | wc -l)
@@ -1613,15 +1643,33 @@ cmd_quality_stats() {
   echo "チェック件数: $total件"
   echo "合格率: ${pass_rate}%"
   echo "平均スコア: ${avg_score}点"
+  echo ""
+
+  # タスク種別別
+  echo "タスク種別別:"
+  echo "$all_logs" | jq -r '.task_type' | sort | uniq -c | while read -r count type; do
+    local type_pass type_total type_rate
+    type_total=$(echo "$all_logs" | jq -r "select(.task_type == \"$type\") | .task_type" | wc -l)
+    type_pass=$(echo "$all_logs" | jq -r "select(.task_type == \"$type\" and .result == \"PASS\") | .task_type" | wc -l)
+    if [ "$type_total" -gt 0 ]; then
+      type_rate=$(echo "scale=0; $type_pass * 100 / $type_total" | bc 2>/dev/null || echo "N/A")
+    else
+      type_rate="N/A"
+    fi
+    printf "  %-15s %3d件, 合格率%3s%%\n" "$type:" "$type_total" "$type_rate"
+  done
 }
 
 cmd_quality_issues() {
-  local by_category="false"
+  local from_date="" to_date="" by_category="false"
   local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
   local issues_dir="$project_dir/.maid-agent/system/data/quality-history/issues"
 
+  # オプション解析
   while [ $# -gt 0 ]; do
     case "$1" in
+      --from) from_date="$2"; shift 2 ;;
+      --to) to_date="$2"; shift 2 ;;
       --by-category) by_category="true"; shift ;;
       *) shift ;;
     esac
@@ -1639,11 +1687,15 @@ cmd_quality_issues() {
 
   if [ "$by_category" = "true" ]; then
     echo "カテゴリ別問題集計:"
+    echo "==================="
     find "$issues_dir" -name "*.json" -exec cat {} \; 2>/dev/null | \
       jq -r '.classification.issue_type // "未分類"' | \
-      sort | uniq -c | sort -rn
+      sort | uniq -c | sort -rn | while read -r count category; do
+        printf "  %-20s %3d件\n" "$category:" "$count"
+      done
   else
     echo "問題発覚ケース一覧:"
+    echo "==================="
     for f in "$issues_dir"/*.json; do
       [ -f "$f" ] || continue
       local task_id issue_type confidence
@@ -1664,7 +1716,13 @@ cmd_quality_unreviewed() {
     exit 0
   fi
 
+  if ! check_jq; then
+    echo "エラー: jq が必要です" >&2
+    exit 1
+  fi
+
   echo "未レビューの分類結果:"
+  echo "===================="
   local found="false"
   for f in "$issues_dir"/*.json; do
     [ -f "$f" ] || continue
@@ -1690,6 +1748,7 @@ cmd_quality_review() {
   local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
   local issues_dir="$project_dir/.maid-agent/system/data/quality-history/issues"
 
+  # オプション解析
   while [ $# -gt 0 ]; do
     case "$1" in
       --task-id) task_id="$2"; shift 2 ;;
@@ -1710,21 +1769,28 @@ cmd_quality_review() {
     exit 1
   fi
 
+  if ! check_jq; then
+    echo "エラー: jq が必要です" >&2
+    exit 1
+  fi
+
   local timestamp
   timestamp=$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
 
   if [ -n "$change_type" ]; then
+    # 分類を変更
     local tmp_file
     tmp_file=$(mktemp)
     jq --arg type "$change_type" --arg ts "$timestamp" \
-      '.classification.issue_type = $type | .classification.reviewed = true | .classification.reviewed_at = $ts' \
+      '.classification.issue_type = $type | .classification.reviewed = true | .classification.reviewed_at = $ts | .classification.reviewed_by = "manual"' \
       "$issue_file" > "$tmp_file" && mv "$tmp_file" "$issue_file"
     echo "分類を '$change_type' に変更しました: $task_id"
   elif [ "$approve" = "true" ]; then
+    # 承認
     local tmp_file
     tmp_file=$(mktemp)
     jq --arg ts "$timestamp" \
-      '.classification.reviewed = true | .classification.reviewed_at = $ts' \
+      '.classification.reviewed = true | .classification.reviewed_at = $ts | .classification.reviewed_by = "manual"' \
       "$issue_file" > "$tmp_file" && mv "$tmp_file" "$issue_file"
     echo "分類を承認しました: $task_id"
   else
@@ -1885,6 +1951,18 @@ main() {
           echo "  issues      問題発覚ケース一覧"
           echo "  unreviewed  未レビューの分類結果一覧"
           echo "  review      分類結果のレビュー"
+          echo ""
+          echo "オプション（stats/issues）:"
+          echo "  --from DATE  開始日（YYYY-MM-DD）"
+          echo "  --to DATE    終了日（YYYY-MM-DD）"
+          echo ""
+          echo "オプション（issues）:"
+          echo "  --by-category  カテゴリ別に集計"
+          echo ""
+          echo "オプション（review）:"
+          echo "  --task-id ID      対象タスクID"
+          echo "  --approve         分類を承認"
+          echo "  --change-type TYPE  分類を変更"
           ;;
         "")
           echo "エラー: サブコマンドを指定してください"

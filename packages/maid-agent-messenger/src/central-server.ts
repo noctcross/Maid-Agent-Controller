@@ -47,6 +47,21 @@ import { logger } from "./utils/logger.js";
 const app = express();
 app.use(express.json());
 
+// CORS設定（VSCode Webview対応）
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // VSCode Webview や他のオリジンからのリクエストを許可
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, X-Transaction-Id, X-Maid-Project-Path");
+
+  // プリフライトリクエスト（OPTIONS）への応答
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 // リクエストログ
 app.use((req: Request, _res: Response, next: NextFunction) => {
   logger.debug(`${req.method} ${req.path}`);

@@ -36,6 +36,19 @@ import { NotificationWebSocketServer } from "./websocket/notification-ws.js";
 import { logger } from "./utils/logger.js";
 const app = express();
 app.use(express.json());
+// CORS設定（VSCode Webview対応）
+app.use((req, res, next) => {
+    // VSCode Webview や他のオリジンからのリクエストを許可
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, X-Transaction-Id, X-Maid-Project-Path");
+    // プリフライトリクエスト（OPTIONS）への応答
+    if (req.method === "OPTIONS") {
+        res.sendStatus(204);
+        return;
+    }
+    next();
+});
 // リクエストログ
 app.use((req, _res, next) => {
     logger.debug(`${req.method} ${req.path}`);

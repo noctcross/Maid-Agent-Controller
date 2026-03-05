@@ -2,6 +2,7 @@
  * Notification WebSocket Server
  *
  * history.logを監視し、新規エントリをリアルタイム配信
+ * jsonlファイルを監視し、Claude Code応答をリアルタイム配信
  *
  * @path /ws/notifications?project={projectPath}
  */
@@ -11,6 +12,9 @@ import type { Server } from "http";
 import type { IncomingMessage } from "http";
 import { URL } from "url";
 import * as fs from "fs";
+import * as fsPromises from "fs/promises";
+import * as os from "os";
+import * as yaml from "yaml";
 import path from "path";
 import { logger } from "../utils/logger.js";
 
@@ -18,6 +22,7 @@ interface NotificationClient {
   sessionId: string;
   projectPath: string;
   subscribedAgents: string[] | null; // null = all
+  subscribedResponseAgent: string | null; // 応答監視中のagent
   lastPong: number;
 }
 
@@ -30,9 +35,24 @@ interface NotificationPayload {
   status: "sent";
 }
 
+interface ResponsePayload {
+  id: string;
+  timestamp: string;
+  agent: string;
+  text: string;
+  type: "response";
+}
+
+/** maid/{agent}.yaml の型 */
+interface MaidConfig {
+  session_id?: string;
+  [key: string]: unknown;
+}
+
 type WSServerMessage =
   | { type: "connected"; sessionId: string }
   | { type: "notification"; payload: NotificationPayload }
+  | { type: "response"; payload: ResponsePayload }
   | { type: "status"; payload: { agent: string; online: boolean } }
   | { type: "ping" };
 
@@ -46,8 +66,14 @@ export class NotificationWebSocketServer {
   private wss: WebSocketServer;
   private clients: Map<string, { ws: WebSocket; client: NotificationClient }> =
     new Map();
+  // history.log 監視用
   private fileWatchers: Map<string, fs.FSWatcher> = new Map();
   private fileSizes: Map<string, number> = new Map();
+  // jsonl（Claude Code応答）監視用
+  private responseWatchers: Map<string, fs.FSWatcher> = new Map(); // key: projectPath:agent
+  private responseFileSizes: Map<string, number> = new Map();
+  private responseDebounceTimers: Map<string, NodeJS.Timeout> = new Map();
+  private static readonly RESPONSE_DEBOUNCE_MS = 200;
 
   constructor(server: Server | null) {
     // noServer: true で作成し、upgrade イベントは外部で処理
@@ -93,6 +119,7 @@ export class NotificationWebSocketServer {
         sessionId,
         projectPath,
         subscribedAgents: null,
+        subscribedResponseAgent: null,
         lastPong: Date.now(),
       };
 
@@ -117,6 +144,10 @@ export class NotificationWebSocketServer {
 
       ws.on("close", () => {
         clearInterval(pingTimer);
+        // 応答監視もクリーンアップ
+        if (client.subscribedResponseAgent) {
+          this.cleanupResponseWatcher(projectPath, client.subscribedResponseAgent);
+        }
         this.clients.delete(sessionId);
         this.cleanupWatcher(projectPath);
         logger.info(`Notification client disconnected: ${sessionId}`);
@@ -147,6 +178,27 @@ export class NotificationWebSocketServer {
         logger.info(
           `Client ${sessionId} subscribed to agents: ${message.agents?.join(", ") || "all"}`
         );
+      } else if (message.type === "subscribe_responses") {
+        // Claude Code応答監視を開始
+        const agent = message.agent as string;
+        if (!agent) {
+          logger.warn(`Client ${sessionId} subscribe_responses missing agent`);
+          return;
+        }
+        // 前のsubscriptionがあればクリーンアップ
+        if (entry.client.subscribedResponseAgent) {
+          this.cleanupResponseWatcher(entry.client.projectPath, entry.client.subscribedResponseAgent);
+        }
+        entry.client.subscribedResponseAgent = agent;
+        this.startWatchingResponses(entry.client.projectPath, agent);
+        logger.info(`Client ${sessionId} subscribed to responses: ${agent}`);
+      } else if (message.type === "unsubscribe_responses") {
+        // Claude Code応答監視を停止
+        if (entry.client.subscribedResponseAgent) {
+          this.cleanupResponseWatcher(entry.client.projectPath, entry.client.subscribedResponseAgent);
+          entry.client.subscribedResponseAgent = null;
+          logger.info(`Client ${sessionId} unsubscribed from responses`);
+        }
       }
     } catch (error) {
       logger.error(
@@ -308,8 +360,227 @@ export class NotificationWebSocketServer {
     }
   }
 
+  // ========== Claude Code応答（jsonl）監視 ==========
+
+  /**
+   * agentのsession_idを取得
+   */
+  private async getSessionId(projectPath: string, agent: string): Promise<string | null> {
+    try {
+      const maidConfigPath = path.join(
+        projectPath,
+        ".maid-agent/system/data/maid",
+        `${agent}.yaml`
+      );
+      const configContent = await fsPromises.readFile(maidConfigPath, "utf-8");
+      const maidConfig = yaml.parse(configContent) as MaidConfig;
+      return maidConfig.session_id || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * プロジェクトパスをClaude形式に変換
+   */
+  private getClaudeProjectId(projectPath: string): string {
+    return projectPath.replace(/^\//, "").replace(/[/_]/g, "-");
+  }
+
+  /**
+   * jsonlファイルパスを取得
+   */
+  private getJsonlPath(projectPath: string, sessionId: string): string {
+    const claudeProjectId = this.getClaudeProjectId(projectPath);
+    return path.join(
+      os.homedir(),
+      ".claude/projects",
+      `-${claudeProjectId}`,
+      `${sessionId}.jsonl`
+    );
+  }
+
+  /**
+   * Claude Code応答の監視を開始
+   */
+  private async startWatchingResponses(projectPath: string, agent: string): Promise<void> {
+    const watchKey = `${projectPath}:${agent}`;
+    if (this.responseWatchers.has(watchKey)) return;
+
+    const sessionId = await this.getSessionId(projectPath, agent);
+    if (!sessionId) {
+      logger.warn(`No session_id for agent: ${agent}`);
+      return;
+    }
+
+    const jsonlPath = this.getJsonlPath(projectPath, sessionId);
+
+    try {
+      // 初期ファイルサイズを取得
+      const stats = fs.statSync(jsonlPath);
+      this.responseFileSizes.set(watchKey, stats.size);
+
+      const watcher = fs.watch(jsonlPath, (eventType) => {
+        if (eventType === "change") {
+          // debounce処理（fs.watchは複数回イベントを発火する）
+          const existingTimer = this.responseDebounceTimers.get(watchKey);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+          const timer = setTimeout(() => {
+            this.handleJsonlChange(projectPath, agent, jsonlPath, watchKey);
+            this.responseDebounceTimers.delete(watchKey);
+          }, NotificationWebSocketServer.RESPONSE_DEBOUNCE_MS);
+          this.responseDebounceTimers.set(watchKey, timer);
+        }
+      });
+
+      this.responseWatchers.set(watchKey, watcher);
+      logger.info(`Started watching responses: ${jsonlPath}`);
+    } catch (error) {
+      logger.warn(`Response file not found: ${jsonlPath}`, error instanceof Error ? error : { error });
+    }
+  }
+
+  /**
+   * jsonlファイル変更を処理
+   */
+  private handleJsonlChange(
+    projectPath: string,
+    agent: string,
+    jsonlPath: string,
+    watchKey: string
+  ): void {
+    try {
+      const stats = fs.statSync(jsonlPath);
+      const prevSize = this.responseFileSizes.get(watchKey) || 0;
+
+      if (stats.size <= prevSize) {
+        this.responseFileSizes.set(watchKey, stats.size);
+        return;
+      }
+
+      // 追加された部分だけ読み込む
+      const fd = fs.openSync(jsonlPath, "r");
+      const buffer = Buffer.alloc(stats.size - prevSize);
+      fs.readSync(fd, buffer, 0, buffer.length, prevSize);
+      fs.closeSync(fd);
+
+      this.responseFileSizes.set(watchKey, stats.size);
+
+      // 新規行をパースしてassistantのtext応答を抽出
+      const newContent = buffer.toString("utf-8");
+      const responses = this.parseNewResponses(newContent, agent);
+
+      // 各クライアントに配信
+      for (const response of responses) {
+        this.broadcastResponse(projectPath, agent, response);
+      }
+    } catch (error) {
+      logger.error(
+        "Jsonl change handling error:",
+        error instanceof Error ? error : { error }
+      );
+    }
+  }
+
+  /**
+   * 新しいjsonl行からassistantのtext応答を抽出
+   */
+  private parseNewResponses(
+    content: string,
+    agent: string
+  ): ResponsePayload[] {
+    const lines = content.split("\n").filter((line) => line.trim());
+    const responses: ResponsePayload[] = [];
+
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line);
+        if (data.type === "assistant" && data.message?.content) {
+          const textContents = data.message.content.filter(
+            (c: { type: string; text?: string }) => c.type === "text" && c.text
+          );
+
+          for (const tc of textContents) {
+            responses.push({
+              id: data.uuid || `${data.timestamp}-${responses.length}`,
+              timestamp: data.timestamp,
+              agent,
+              text: tc.text,
+              type: "response",
+            });
+          }
+        }
+      } catch {
+        // JSONパースエラーは無視
+      }
+    }
+
+    return responses;
+  }
+
+  /**
+   * 応答をクライアントに配信
+   */
+  private broadcastResponse(
+    projectPath: string,
+    agent: string,
+    response: ResponsePayload
+  ): void {
+    this.clients.forEach(({ ws, client }) => {
+      if (client.projectPath !== projectPath) return;
+      if (client.subscribedResponseAgent !== agent) return;
+      if (ws.readyState !== WebSocket.OPEN) return;
+
+      this.send(ws, {
+        type: "response",
+        payload: response,
+      });
+    });
+
+    logger.info(`Broadcasted response from ${agent}`);
+  }
+
+  /**
+   * 応答監視をクリーンアップ
+   */
+  private cleanupResponseWatcher(projectPath: string, agent: string): void {
+    const watchKey = `${projectPath}:${agent}`;
+
+    // このagentを監視しているクライアントがいるか確認
+    let hasClient = false;
+    this.clients.forEach(({ client }) => {
+      if (
+        client.projectPath === projectPath &&
+        client.subscribedResponseAgent === agent
+      ) {
+        hasClient = true;
+      }
+    });
+
+    if (!hasClient) {
+      // debounceタイマーをクリア
+      const timer = this.responseDebounceTimers.get(watchKey);
+      if (timer) {
+        clearTimeout(timer);
+        this.responseDebounceTimers.delete(watchKey);
+      }
+
+      const watcher = this.responseWatchers.get(watchKey);
+      if (watcher) {
+        watcher.close();
+        this.responseWatchers.delete(watchKey);
+        this.responseFileSizes.delete(watchKey);
+        logger.info(`Stopped watching responses: ${watchKey}`);
+      }
+    }
+  }
+
   public close(): void {
     this.fileWatchers.forEach((watcher) => watcher.close());
+    this.responseWatchers.forEach((watcher) => watcher.close());
+    this.responseDebounceTimers.forEach((timer) => clearTimeout(timer));
     this.clients.forEach(({ ws }) => ws.close(1001, "Server shutting down"));
     this.wss.close();
     logger.info("NotificationWebSocketServer closed");

@@ -13,6 +13,9 @@ export interface LLMCheckConfig {
     on_failure?: "warn" | "block";
     timeout?: number;
     score_threshold?: number;
+    include_file_contents?: boolean;
+    max_lines_per_file?: number;
+    max_total_lines?: number;
 }
 export interface ClassificationConfig {
     enabled?: boolean;
@@ -62,6 +65,36 @@ export interface ClassificationResult {
     promptImprovementHint?: string;
 }
 export declare function recordIssueClassification(projectPath: string, taskId: string, reason: string, classification: ClassificationResult): Promise<void>;
+/**
+ * 変更ファイル内容
+ */
+export interface FileContent {
+    path: string;
+    content: string;
+    truncated: boolean;
+    lineCount: number;
+    error?: string;
+}
+/**
+ * ファイル読み込みオプション
+ */
+export interface FileReadOptions {
+    maxLinesPerFile?: number;
+    maxTotalLines?: number;
+}
+/**
+ * 報告書から変更ファイルパスを抽出
+ * 「## 変更ファイル」セクションをパースする
+ */
+export declare function extractChangedFilesFromReport(reportContent: string): string[];
+/**
+ * ファイル内容を読み込み、トークン制限を適用
+ */
+export declare function readFileContentsForReview(projectPath: string, filePaths: string[], options?: FileReadOptions): Promise<FileContent[]>;
+/**
+ * プロンプトにファイル内容を追加
+ */
+export declare function buildPromptWithFileContents(prompt: string, reportContent: string, fileContents: FileContent[]): string;
 /**
  * モデル名を正規化
  * claude CLI 用の短縮名に変換

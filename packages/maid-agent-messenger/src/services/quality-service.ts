@@ -24,6 +24,10 @@ export interface LLMCheckConfig {
   on_failure?: "warn" | "block";
   timeout?: number;
   score_threshold?: number;
+  // 成果物評価設定
+  include_file_contents?: boolean;
+  max_lines_per_file?: number;
+  max_total_lines?: number;
 }
 
 export interface ClassificationConfig {
@@ -225,6 +229,215 @@ export async function recordIssueClassification(
   await fs.appendFile(classLogFile, JSON.stringify(logEntry) + "\n");
 }
 
+// =============================================================================
+// 成果物評価（変更ファイル内容の読み込み）
+// =============================================================================
+
+/**
+ * 変更ファイル内容
+ */
+export interface FileContent {
+  path: string;
+  content: string;
+  truncated: boolean;
+  lineCount: number;
+  error?: string;
+}
+
+/**
+ * ファイル読み込みオプション
+ */
+export interface FileReadOptions {
+  maxLinesPerFile?: number;
+  maxTotalLines?: number;
+}
+
+const DEFAULT_MAX_LINES_PER_FILE = 300;
+const DEFAULT_MAX_TOTAL_LINES = 1500;
+
+/**
+ * 報告書から変更ファイルパスを抽出
+ * 「## 変更ファイル」セクションをパースする
+ */
+export function extractChangedFilesFromReport(reportContent: string): string[] {
+  const files: string[] = [];
+
+  // 「## 変更ファイル」セクションを探す
+  const sectionMatch = reportContent.match(
+    /##\s*変更ファイル[^\n]*\n([\s\S]*?)(?=\n##\s|\n#\s|$)/i
+  );
+
+  if (!sectionMatch) {
+    return files;
+  }
+
+  const sectionContent = sectionMatch[1];
+
+  // 各行をパース
+  // - path/to/file.ts
+  // - `path/to/file.ts` - 説明
+  // path/to/file.ts
+  const lines = sectionContent.split("\n");
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // リスト形式: - path/to/file.ts または - `path/to/file.ts`
+    let match = trimmed.match(/^[-*]\s*`?([^`\s]+\.[a-zA-Z0-9]+)`?/);
+    if (match) {
+      files.push(match[1]);
+      continue;
+    }
+
+    // パスのみ: path/to/file.ts
+    match = trimmed.match(/^([^\s]+\.[a-zA-Z0-9]+)/);
+    if (match && !trimmed.startsWith("#")) {
+      files.push(match[1]);
+    }
+  }
+
+  return files;
+}
+
+/**
+ * ファイル内容を読み込み、トークン制限を適用
+ */
+export async function readFileContentsForReview(
+  projectPath: string,
+  filePaths: string[],
+  options: FileReadOptions = {}
+): Promise<FileContent[]> {
+  const maxLinesPerFile = options.maxLinesPerFile || DEFAULT_MAX_LINES_PER_FILE;
+  const maxTotalLines = options.maxTotalLines || DEFAULT_MAX_TOTAL_LINES;
+
+  const results: FileContent[] = [];
+  let totalLines = 0;
+
+  for (const filePath of filePaths) {
+    // 合計行数制限チェック
+    if (totalLines >= maxTotalLines) {
+      results.push({
+        path: filePath,
+        content: "(合計行数制限により省略)",
+        truncated: true,
+        lineCount: 0,
+      });
+      continue;
+    }
+
+    // ファイルパスを解決（相対パス → 絶対パス）
+    // パストラバーサル防止: プロジェクトパス外へのアクセスを拒否
+    const normalizedProjectPath = path.normalize(projectPath);
+    const absolutePath = path.isAbsolute(filePath)
+      ? path.normalize(filePath)
+      : path.normalize(path.join(projectPath, filePath));
+
+    // プロジェクトパス外へのアクセスをチェック
+    if (!absolutePath.startsWith(normalizedProjectPath + path.sep) &&
+        absolutePath !== normalizedProjectPath) {
+      results.push({
+        path: filePath,
+        content: "",
+        truncated: false,
+        lineCount: 0,
+        error: "Security: プロジェクト外のファイルへのアクセスは許可されていません",
+      });
+      continue;
+    }
+
+    try {
+      const content = await fs.readFile(absolutePath, "utf-8");
+      const lines = content.split("\n");
+      const lineCount = lines.length;
+
+      // 残り許容行数を計算
+      const remainingLines = maxTotalLines - totalLines;
+      const allowedLines = Math.min(maxLinesPerFile, remainingLines);
+
+      if (lineCount <= allowedLines) {
+        // 全文を含める
+        results.push({
+          path: filePath,
+          content: content,
+          truncated: false,
+          lineCount,
+        });
+        totalLines += lineCount;
+      } else {
+        // 先頭と末尾を含め、中央を省略
+        const headLines = Math.floor(allowedLines / 2);
+        const tailLines = allowedLines - headLines;
+
+        const head = lines.slice(0, headLines).join("\n");
+        const tail = lines.slice(-tailLines).join("\n");
+        const omittedCount = lineCount - headLines - tailLines;
+
+        const truncatedContent = `${head}\n\n... (${omittedCount}行省略) ...\n\n${tail}`;
+
+        results.push({
+          path: filePath,
+          content: truncatedContent,
+          truncated: true,
+          lineCount,
+        });
+        totalLines += allowedLines;
+      }
+    } catch (err) {
+      // ファイル読み込みエラー
+      results.push({
+        path: filePath,
+        content: "",
+        truncated: false,
+        lineCount: 0,
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * プロンプトにファイル内容を追加
+ */
+export function buildPromptWithFileContents(
+  prompt: string,
+  reportContent: string,
+  fileContents: FileContent[]
+): string {
+  let fullPrompt = `${prompt}\n\n【報告書】\n${reportContent}`;
+
+  // ファイル内容がある場合のみ追加
+  const validFiles = fileContents.filter((f) => f.content && !f.error);
+
+  if (validFiles.length > 0) {
+    fullPrompt += "\n\n【変更ファイル内容】\n";
+    fullPrompt +=
+      "※ 以下は報告書に記載された変更ファイルの内容です。コードの品質も評価に含めてください。\n\n";
+
+    for (const file of validFiles) {
+      fullPrompt += `=== ${file.path} ===\n`;
+      if (file.truncated) {
+        fullPrompt += `(${file.lineCount}行中、一部を表示)\n`;
+      }
+      fullPrompt += `${file.content}\n\n`;
+    }
+
+    // エラーがあったファイルも記載
+    const errorFiles = fileContents.filter((f) => f.error);
+    if (errorFiles.length > 0) {
+      fullPrompt += "【読み込めなかったファイル】\n";
+      for (const file of errorFiles) {
+        fullPrompt += `- ${file.path}: ${file.error}\n`;
+      }
+      fullPrompt += "\n";
+    }
+  }
+
+  return fullPrompt;
+}
+
 /**
  * モデル名を正規化
  * claude CLI 用の短縮名に変換
@@ -301,7 +514,7 @@ export function runClaudeCLI(
     logger.debug(`HOME=${process.env.HOME}, timeout=${timeout}ms`);
 
     const proc = spawn(claudePath, args, {
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],  // stdinを無視（入力待ちを防止）
       timeout,
       env,
     });

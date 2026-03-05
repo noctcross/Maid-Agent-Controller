@@ -9,7 +9,7 @@
  */
 import { Router } from "express";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
-import { loadProjectSettings, readPromptFile, recordQualityHistory, recordIssueClassification, normalizeModelName, runClaudeCLI, } from "../services/quality-service.js";
+import { loadProjectSettings, readPromptFile, recordQualityHistory, recordIssueClassification, normalizeModelName, runClaudeCLI, extractChangedFilesFromReport, readFileContentsForReview, buildPromptWithFileContents, } from "../services/quality-service.js";
 import { logger } from "../utils/logger.js";
 const router = Router();
 // =============================================================================
@@ -63,8 +63,30 @@ router.post("/api/quality/llm-check", async (req, res) => {
         // Claude CLI 呼び出し（spawn方式）
         const modelName = normalizeModelName(options?.model || llmConfig.model || "haiku");
         const timeout = options?.timeout || llmConfig.timeout || 60000;
-        const fullPrompt = `${prompt}\n\n【報告書】\n${reportContent}`;
-        logger.debug(`LLM check: taskId=${taskId}, model=${modelName}`);
+        // 成果物評価：変更ファイル内容を読み込み
+        let fullPrompt;
+        const includeFileContents = llmConfig.include_file_contents ?? true; // デフォルト有効
+        if (includeFileContents) {
+            const changedFiles = extractChangedFilesFromReport(reportContent);
+            logger.debug(`Extracted ${changedFiles.length} changed files from report`);
+            if (changedFiles.length > 0) {
+                const fileContents = await readFileContentsForReview(projectPath, changedFiles, {
+                    maxLinesPerFile: llmConfig.max_lines_per_file || 300,
+                    maxTotalLines: llmConfig.max_total_lines || 1500,
+                });
+                logger.debug(`Read ${fileContents.length} files for review`);
+                fullPrompt = buildPromptWithFileContents(prompt, reportContent, fileContents);
+            }
+            else {
+                // 変更ファイルがない場合は従来通り
+                fullPrompt = `${prompt}\n\n【報告書】\n${reportContent}`;
+            }
+        }
+        else {
+            // 成果物評価無効の場合は従来通り
+            fullPrompt = `${prompt}\n\n【報告書】\n${reportContent}`;
+        }
+        logger.debug(`LLM check: taskId=${taskId}, model=${modelName}, promptLength=${fullPrompt.length}`);
         const cliResult = await runClaudeCLI(fullPrompt, {
             model: modelName,
             timeout,

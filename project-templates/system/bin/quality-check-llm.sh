@@ -150,13 +150,15 @@ run_llm_check() {
   # JSONペイロード構築（jqがある場合）
   local payload
   if command -v jq &>/dev/null; then
+    # timeout を秒からミリ秒に変換（APIはミリ秒を期待）
+    local timeout_ms=$((LLM_TIMEOUT * 1000))
     payload=$(jq -cn \
       --arg tid "$task_id_val" \
       --arg tt "$TASK_TYPE" \
       --arg rc "$report_content" \
       --arg aid "$agent_id" \
       --arg mdl "$LLM_MODEL" \
-      --argjson to "$LLM_TIMEOUT" \
+      --argjson to "$timeout_ms" \
       '{taskId:$tid,taskType:$tt,reportContent:$rc,agentId:$aid,options:{model:$mdl,timeout:$to}}')
   else
     # jqがない場合は簡易的なJSON（reportContentのエスケープが不完全な可能性あり）

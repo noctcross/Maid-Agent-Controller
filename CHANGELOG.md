@@ -21,13 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 成果物評価（変更ファイル内容の自動読み込み）
   - スコア閾値によるパス/フェイル判定
 
-- **17スキル追加**
+- **6スキル追加**
   - butler-operation, chief-operation, maid-operation
-  - maidctl-reference, code-review, code-split-reviewer
-  - debugging, jest-esm-testing, implementation-pipeline
-  - large-file-analysis, vscode-extension, web-analysis
-  - git-worktree-setup, note-article-creator, skill-creator
-  - claude-api, keybindings-help
+  - maidctl-reference, skill-creator, vscode-extension
 
 - **6ルール追加**
   - file-size-limit, merge-after-review, silent-error-prevention

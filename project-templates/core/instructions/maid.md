@@ -17,7 +17,6 @@
 |----------|------|
 | `maidctl get my-task` | 自分のタスク情報を取得 |
 | `maidctl set my-status STATUS` | ステータスを更新 |
-| `maidctl my-report init` | 報告書テンプレート生成 |
 | `maidctl notify chief "MSG"` | メイド長への報告通知 |
 
 **STATUS値（V2.1）**:
@@ -183,7 +182,7 @@ promotion:
   # reason: "昇格推奨理由"
 ```
 
-**テンプレート自動生成**: `maidctl my-report init`
+**報告書テンプレート**: タスク割り当て時（assign）に自動生成されます。
 詳細テンプレートは `/skill maid-operation` の `patterns/report-format.md` を参照。
 
 ## スキル化候補・改善提案

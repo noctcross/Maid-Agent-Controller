@@ -26,14 +26,14 @@ patterns: ["task-workflow", "report-format", "blocked-handling", "checkpoint-vs-
 
 ```
 1. maidctl my-task でタスク確認
-2. maidctl my-report init で報告書テンプレート生成（V2.1新規）
-3. maidctl my-status working で開始
-4. タスクを実行
-5. 報告書を作成
+   ※ 報告書テンプレートはタスク割り当て時に自動生成済み
+2. maidctl my-status working で開始
+3. タスクを実行
+4. 報告書を作成
    - 場所: .maid-agent/system/data/reports/current_{自分のID}.md
    - 形式: patterns/report-format.md 参照
-6. maidctl my-status completed で完了（報告書は自動アーカイブ）
-7. maidctl notify chief で通知
+5. maidctl my-status completed で完了（報告書は自動アーカイブ）
+6. maidctl notify chief で通知
 ```
 
 **注意**: 報告書を master/reports/ に直接作成しないこと。current_{ID}.md に書き、completed で自動アーカイブされる。

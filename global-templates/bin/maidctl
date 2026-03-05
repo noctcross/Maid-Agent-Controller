@@ -55,6 +55,18 @@ get_agent_id_from_tmux() {
 # =============================================================================
 
 find_project_root() {
+  # 1. ファイルから読み込み（最優先）
+  # Claude Code起動時にsession-start-hookが保存したプロジェクトルート
+  if [ -f ~/.maid-current-project ]; then
+    local saved_root
+    saved_root=$(cat ~/.maid-current-project)
+    if [ -d "$saved_root/.maid-agent" ]; then
+      echo "$saved_root"
+      return 0
+    fi
+  fi
+
+  # 2. 親方向探索（フォールバック）
   local dir="$PWD"
   while [ "$dir" != "/" ]; do
     if [ -d "$dir/.maid-agent" ]; then
@@ -63,8 +75,9 @@ find_project_root() {
     fi
     dir="$(dirname "$dir")"
   done
-  echo "エラー: .maid-agent ディレクトリが見つかりません" >&2
-  echo "プロジェクトルート配下で実行してください" >&2
+
+  echo "エラー: プロジェクトルートが見つかりません" >&2
+  echo "Claude Codeを起動するか、プロジェクトルート配下で実行してください" >&2
   return 1
 }
 

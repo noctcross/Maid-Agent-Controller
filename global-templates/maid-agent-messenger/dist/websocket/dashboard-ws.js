@@ -50,7 +50,7 @@ export class DashboardWebSocketServer {
                 lastPong: Date.now(),
             };
             this.clients.set(sessionId, { ws, client });
-            logger.debug(`Client connected: ${sessionId} (project: ${projectPath})`);
+            logger.info(`[DashboardWS] Client connected: ${sessionId} (project: ${projectPath})`);
             // 接続確認メッセージ送信
             this.send(ws, { type: "connected", sessionId });
             // Pingタイマー開始
@@ -143,7 +143,7 @@ export class DashboardWebSocketServer {
         });
         // デバッグログ: 送信状況を記録
         const eventType = "type" in event ? event.type : "unknown";
-        logger.debug(`Broadcast ${eventType} to ${projectPath}: sent to ${sentCount}/${matchedCount} matched clients (total: ${this.clients.size})`);
+        logger.info(`[DashboardWS] Broadcast ${eventType} to ${projectPath}: sent to ${sentCount}/${matchedCount} matched clients (total: ${this.clients.size})`);
     }
     /**
      * 全クライアントにイベントを配信

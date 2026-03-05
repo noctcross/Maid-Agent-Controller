@@ -168,6 +168,7 @@ export class NotificationWebSocketServer {
   private handleMessage(sessionId: string, data: RawData): void {
     try {
       const message = JSON.parse(data.toString());
+      logger.info(`[WS] Received from ${sessionId}: ${JSON.stringify(message)}`);
       const entry = this.clients.get(sessionId);
       if (!entry) return;
 

@@ -5,6 +5,66 @@ All notable changes to the Maid Agent Controller extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-03-05
+
+### Added
+
+- **maidctl CLI v3.0.0** - 統合管理コマンド
+  - タスク管理: `maidctl create task`, `maidctl get tasks`, `maidctl set task`
+  - ステータス更新: `maidctl set my-status`
+  - 通知送信: `maidctl notify`
+  - マイグレーション: `maidctl run migrate`
+  - 動詞先行の統一構文（旧コマンドも後方互換で動作）
+
+- **品質チェック機能**
+  - LLM による報告書評価（Claude CLI 経由）
+  - 成果物評価（変更ファイル内容の自動読み込み）
+  - スコア閾値によるパス/フェイル判定
+
+- **17スキル追加**
+  - butler-operation, chief-operation, maid-operation
+  - maidctl-reference, code-review, code-split-reviewer
+  - debugging, jest-esm-testing, implementation-pipeline
+  - large-file-analysis, vscode-extension, web-analysis
+  - git-worktree-setup, note-article-creator, skill-creator
+  - claude-api, keybindings-help
+
+- **6ルール追加**
+  - file-size-limit, merge-after-review, silent-error-prevention
+  - test-oom-prevention, reports-cleanup, rule-template
+
+- **V2.1 タスク管理スキーマ**
+  - 2層ステータス管理（mainStatus + v2Substatus）
+  - タスク種別: task, work, step, investigation
+  - サブステータス: pending, assigned, working, checkpoint, waiting, completed
+
+- **roles/ ディレクトリ**
+  - エージェントごとの専用ディレクトリ構造
+  - CLAUDE.md による役割定義の参照
+
+### Changed
+
+- **フォルダ構造の刷新**
+  - `agents/` → `core/` + `roles/` に分離
+  - `agents/skills/` → `core/.claude/skills/` に移動
+  - `core/.claude/rules/` にルールモジュール配置
+
+- **Init コマンドの強化**
+  - initGlobal: maidctl CLI、依存ツール（jq, yq, pm2）の自動セットアップ
+  - init: core/ + roles/ 構造の自動作成、instructions の差分更新
+
+### Removed
+
+- **MCP サーバー廃止**
+  - MCPツール（create_task, list_tasks 等）を廃止
+  - maidctl CLI に統合
+
+### Migration
+
+V1 からの移行は [MIGRATION.md](docs/MIGRATION.md) を参照してください。
+
+---
+
 ## [1.1.0] - 2026-02-12
 
 ### Added

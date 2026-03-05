@@ -25,9 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - butler-operation, chief-operation, maid-operation
   - maidctl-reference, skill-creator, vscode-extension
 
-- **6ルール追加**
-  - file-size-limit, merge-after-review, silent-error-prevention
-  - test-oom-prevention, reports-cleanup, rule-template
+- **2ルール追加**
+  - rule-template（ルール作成用テンプレート）
+  - reports-cleanup（報告書の整理ルール）
 
 - **V2.1 タスク管理スキーマ**
   - 2層ステータス管理（mainStatus + v2Substatus）

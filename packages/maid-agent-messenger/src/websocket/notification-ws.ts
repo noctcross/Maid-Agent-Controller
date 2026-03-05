@@ -186,11 +186,17 @@ export class NotificationWebSocketServer {
           return;
         }
         // 前のsubscriptionがあればクリーンアップ
-        if (entry.client.subscribedResponseAgent) {
-          this.cleanupResponseWatcher(entry.client.projectPath, entry.client.subscribedResponseAgent);
+        const prevAgent = entry.client.subscribedResponseAgent;
+        // 先にnullにしてからcleanupを呼ぶ（自分自身がカウントされないように）
+        entry.client.subscribedResponseAgent = null;
+        if (prevAgent) {
+          this.cleanupResponseWatcher(entry.client.projectPath, prevAgent);
         }
         entry.client.subscribedResponseAgent = agent;
-        this.startWatchingResponses(entry.client.projectPath, agent);
+        // 同じagentでも再subscribeの場合は監視を再起動（session_id更新対応）
+        this.restartWatchingResponses(entry.client.projectPath, agent).catch((err) => {
+          logger.error(`Failed to restart watching responses: ${err}`);
+        });
         logger.info(`Client ${sessionId} subscribed to responses: ${agent}`);
       } else if (message.type === "unsubscribe_responses") {
         // Claude Code応答監視を停止
@@ -398,6 +404,30 @@ export class NotificationWebSocketServer {
       `-${claudeProjectId}`,
       `${sessionId}.jsonl`
     );
+  }
+
+  /**
+   * Claude Code応答の監視を再起動（session_id更新対応）
+   */
+  private async restartWatchingResponses(projectPath: string, agent: string): Promise<void> {
+    const watchKey = `${projectPath}:${agent}`;
+
+    // 既存の監視があれば停止
+    const existingWatcher = this.responseWatchers.get(watchKey);
+    if (existingWatcher) {
+      existingWatcher.close();
+      this.responseWatchers.delete(watchKey);
+      this.responseFileSizes.delete(watchKey);
+      const timer = this.responseDebounceTimers.get(watchKey);
+      if (timer) {
+        clearTimeout(timer);
+        this.responseDebounceTimers.delete(watchKey);
+      }
+      logger.info(`Stopped existing response watcher: ${watchKey}`);
+    }
+
+    // 新しい監視を開始
+    await this.startWatchingResponses(projectPath, agent);
   }
 
   /**

@@ -17,6 +17,7 @@ export interface GetTeamStatusParams {
     status?: string[];
     agentId?: string;
     includeCompleted?: number;  // 直近N件の完了タスクを含む
+    summaryOnly?: boolean;  // true: 軽量版（recentCompletedを省略）
   };
 }
 
@@ -61,6 +62,7 @@ export async function executeGetTeamStatus(
         task_id: task.task_id || null,
         // Phase 2: チーム状態詳細化用フィールド
         started_at: task.started_at || null,
+        task_title: task.title || null,
         task_description: task.description || null,
         substatus: task.substatus || null,
       });

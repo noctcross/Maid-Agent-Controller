@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { loopbackOnly } from "../../middleware/loopback-only.js";
 import type { Request, Response, NextFunction } from "express";
 
@@ -84,5 +84,47 @@ describe("loopbackOnly middleware", () => {
     const next: NextFunction = () => { nextCalled = true; };
     loopbackOnly(req, res, next);
     expect(nextCalled).toBe(true);
+  });
+
+  describe("ALLOW_EXTERNAL_ACCESS 環境変数", () => {
+    const originalEnv = process.env.ALLOW_EXTERNAL_ACCESS;
+
+    afterEach(() => {
+      // テスト後に元の値に戻す
+      if (originalEnv === undefined) {
+        delete process.env.ALLOW_EXTERNAL_ACCESS;
+      } else {
+        process.env.ALLOW_EXTERNAL_ACCESS = originalEnv;
+      }
+    });
+
+    it("ALLOW_EXTERNAL_ACCESS=true の場合、外部IPからのアクセスを許可する", () => {
+      process.env.ALLOW_EXTERNAL_ACCESS = "true";
+      const { req, res } = createMockReqRes("192.168.1.100");
+      let nextCalled = false;
+      const next: NextFunction = () => { nextCalled = true; };
+      loopbackOnly(req, res, next);
+      expect(nextCalled).toBe(true);
+    });
+
+    it("ALLOW_EXTERNAL_ACCESS=false の場合、外部IPからのアクセスを拒否する", () => {
+      process.env.ALLOW_EXTERNAL_ACCESS = "false";
+      const { req, res } = createMockReqRes("192.168.1.100");
+      let nextCalled = false;
+      const next: NextFunction = () => { nextCalled = true; };
+      loopbackOnly(req, res, next);
+      expect(nextCalled).toBe(false);
+      expect((res as any).statusCode).toBe(403);
+    });
+
+    it("ALLOW_EXTERNAL_ACCESS が未設定の場合、外部IPからのアクセスを拒否する", () => {
+      delete process.env.ALLOW_EXTERNAL_ACCESS;
+      const { req, res } = createMockReqRes("192.168.1.100");
+      let nextCalled = false;
+      const next: NextFunction = () => { nextCalled = true; };
+      loopbackOnly(req, res, next);
+      expect(nextCalled).toBe(false);
+      expect((res as any).statusCode).toBe(403);
+    });
   });
 });

@@ -9,12 +9,27 @@ import {
   executeGetTask,
   executeUpdateTask,
   executeGetReport,
+  archiveReport,
+  executeGetTeamStatus,
+  generateV2DashboardData,
+  // V2.1 マイグレーション
+  migrateToV2,
+  checkMigrationStatus,
   type TaskStatus,
 } from "../services/index.js";
+import { getQueueMaidPath } from "../utils/path-helpers.js";
+import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
-import { getProjectPathFromRequest } from "../middleware/session-manager.js";
+import { getProjectPathFromRequest } from "../middleware/project-path.js";
+import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 
-const router = Router();
+export interface TaskApiRoutesDeps {
+  wsServer?: DashboardWebSocketServer;
+}
+
+export function createTaskApiRoutes(deps: TaskApiRoutesDeps = {}): Router {
+  const { wsServer } = deps;
+  const router = Router();
 
 // GET /api/tasks - タスク一覧
 router.get("/api/tasks", async (req: Request, res: Response) => {
@@ -30,6 +45,7 @@ router.get("/api/tasks", async (req: Request, res: Response) => {
       offset?: number;
       sortField?: "createdAt" | "priority" | "status" | "id";
       sortOrder?: "asc" | "desc";
+      summaryOnly?: boolean;
     } = {};
 
     if (req.query.status) {
@@ -42,16 +58,23 @@ router.get("/api/tasks", async (req: Request, res: Response) => {
       filter.parentId = req.query.parentId === "null" ? null : (req.query.parentId as string);
     }
     if (req.query.limit) {
-      filter.limit = parseInt(req.query.limit as string, 10);
+      const limit = parseInt(req.query.limit as string, 10);
+      if (!Number.isNaN(limit)) {
+        filter.limit = limit;
+      }
     }
     if (req.query.offset) {
-      filter.offset = parseInt(req.query.offset as string, 10);
+      const offset = parseInt(req.query.offset as string, 10);
+      filter.offset = Number.isNaN(offset) ? 0 : offset;
     }
     if (req.query.sortField) {
       filter.sortField = req.query.sortField as "createdAt" | "priority" | "status" | "id";
     }
     if (req.query.sortOrder) {
       filter.sortOrder = req.query.sortOrder as "asc" | "desc";
+    }
+    if (req.query.summary === "true") {
+      filter.summaryOnly = true;
     }
 
     const result = await executeListTasks(projectPath, filter);
@@ -67,10 +90,12 @@ router.get("/api/tasks/:id", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
     const includeSubtasks = req.query.includeSubtasks === "true";
+    const summaryOnly = req.query.summary === "true";
 
     const result = await executeGetTask(projectPath, {
       taskId: req.params.id,
       includeSubtasks,
+      summaryOnly,
     });
 
     if (!result.task) {
@@ -85,23 +110,62 @@ router.get("/api/tasks/:id", async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /api/tasks/:id - タスク更新
+// PATCH /api/tasks/:id - タスク更新 (V2.1拡張)
 router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
-    const { status, substatus, summary, reportPath } = req.body;
+    const txId = req.get("X-Transaction-Id");
+    const {
+      // 既存フィールド
+      status, substatus, summary, reportPath,
+      title, description, priority,
+      // V2.1 拡張フィールド
+      mainStatus, v2Substatus, type, size, tentative,
+      blockedBy, artifacts, artifactAdd, reviewStatus,
+      // V2.1 追加フィールド
+      archived, actionRequired, starred,
+    } = req.body;
 
     const result = await executeUpdateTask(projectPath, {
       taskId: req.params.id,
       status,
       substatus,
       summary,
+      title,
+      description,
+      priority,
       reportPath,
+      // V2.1 拡張
+      mainStatus,
+      v2Substatus,
+      type,
+      size,
+      tentative,
+      blockedBy,
+      artifacts,
+      artifactAdd,
+      reviewStatus,
+      // V2.1 追加
+      archived,
+      actionRequired,
+      starred,
     });
 
     if (!result.success) {
-      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      const errorMessage = result.error || "Task not found";
+      const statusCode = result.error ? 400 : 404;
+      res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
       return;
+    }
+
+    // WebSocket通知: タスク更新をリアルタイム配信
+    if (wsServer) {
+      wsServer.broadcast(projectPath, {
+        type: "taskUpdated",
+        taskId: req.params.id,
+        task: result.task,
+        txId,
+      });
     }
 
     res.json(result);
@@ -115,7 +179,8 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
 router.get("/api/tasks/:id/report", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const limit = parsedLimit !== undefined && !Number.isNaN(parsedLimit) ? parsedLimit : undefined;
 
     const result = await executeGetReport(projectPath, {
       taskId: req.params.id,
@@ -138,6 +203,7 @@ router.get("/api/tasks/:id/report", async (req: Request, res: Response) => {
 router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
+    const txId = req.get("X-Transaction-Id");
     const { reviewed } = req.body;
 
     const result = await executeUpdateTask(projectPath, {
@@ -146,8 +212,21 @@ router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
     });
 
     if (!result.success) {
-      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      const errorMessage = result.error || "Task not found";
+      const statusCode = result.error ? 400 : 404;
+      res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
       return;
+    }
+
+    // WebSocket通知: タスク更新をリアルタイム配信
+    if (wsServer) {
+      wsServer.broadcast(projectPath, {
+        type: "taskUpdated",
+        taskId: req.params.id,
+        field: "reviewed",
+        value: result.task?.reviewed,
+        txId,
+      });
     }
 
     res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
@@ -161,6 +240,7 @@ router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
 router.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
+    const txId = req.get("X-Transaction-Id");
     const { starred } = req.body;
 
     const result = await executeUpdateTask(projectPath, {
@@ -169,8 +249,21 @@ router.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
     });
 
     if (!result.success) {
-      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      const errorMessage = result.error || "Task not found";
+      const statusCode = result.error ? 400 : 404;
+      res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
       return;
+    }
+
+    // WebSocket通知: タスク更新をリアルタイム配信
+    if (wsServer) {
+      wsServer.broadcast(projectPath, {
+        type: "taskUpdated",
+        taskId: req.params.id,
+        field: "starred",
+        value: result.task?.starred,
+        txId,
+      });
     }
 
     res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });
@@ -209,4 +302,174 @@ router.get("/api/dashboard", async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+// POST /api/tasks/:id/rearchive - 報告書を再アーカイブ
+router.post("/api/tasks/:id/rearchive", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const { agentId, content } = req.body;
+
+    // タスク情報を取得（summaryOnly: false で完全なTask型を取得）
+    const taskResult = await executeGetTask(projectPath, { taskId: req.params.id, summaryOnly: false });
+    if (!taskResult.task) {
+      res.status(404).json({ error: "Task not found", taskId: req.params.id });
+      return;
+    }
+
+    const task = taskResult.task as import("../services/index.js").Task;
+    const results: Array<{
+      agentId: string;
+      archived: boolean;
+      archivePath?: string;
+      reason?: string;
+    }> = [];
+
+    // 対象エージェントを特定
+    const targetAgentIds = agentId
+      ? [agentId]
+      : task.assignees.map((a) => a.agentId);
+
+    for (const agent of targetAgentIds) {
+      const result = await archiveReport(
+        projectPath,
+        task,
+        agent,
+        true,  // skipTimestampCheck: タイムスタンプ無視で再アーカイブ
+        content  // 直接指定する内容（オプション）
+      );
+      results.push({
+        agentId: agent,
+        archived: result.archived,
+        archivePath: result.archivePath,
+        reason: result.reason,
+      });
+    }
+
+    res.json({
+      success: true,
+      taskId: req.params.id,
+      results,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Rearchive failed", details: message });
+  }
+});
+
+// =============================================================================
+// V2.1 マイグレーション API
+// =============================================================================
+
+// GET /api/v2/migration/status - マイグレーション状況確認
+router.get("/api/v2/migration/status", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const status = await checkMigrationStatus(projectPath);
+    res.json(status);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Migration status check failed", details: message });
+  }
+});
+
+// POST /api/v2/migration/run - マイグレーション実行
+router.post("/api/v2/migration/run", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const { dryRun } = req.body;
+
+    const result = await migrateToV2(projectPath, { dryRun: dryRun === true });
+
+    res.json({
+      success: true,
+      dryRun: dryRun === true,
+      ...result,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Migration failed", details: message });
+  }
+});
+
+// =============================================================================
+// V2 Dashboard API（モバイル向け）
+// =============================================================================
+
+// GET /api/v2/dashboard - V2ダッシュボードJSON（モバイル向け）
+router.get("/api/v2/dashboard", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+
+    // クエリパラメータを取得
+    const statusParam = req.query.statusFilter as string;
+    const statusFilter: "open" | "closed" | "all" =
+      statusParam === "closed" ? "closed" :
+      statusParam === "open" ? "open" : "all";
+
+    const showArchived = req.query.showArchived === "true";
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const sortFieldParam = req.query.sortField as string;
+    const sortField: "id" | "updatedAt" = sortFieldParam === "updatedAt" ? "updatedAt" : "id";
+    const sortOrderParam = req.query.sortOrder as string;
+    const sortOrder: "asc" | "desc" = sortOrderParam === "asc" ? "asc" : "desc";
+
+    const search = req.query.search as string | undefined;
+    const priorityParam = req.query.priority as string | undefined;
+    const priority: "high" | "medium" | "low" | undefined =
+      priorityParam === "high" || priorityParam === "medium" || priorityParam === "low"
+        ? priorityParam
+        : undefined;
+    const assignee = req.query.assignee as string | undefined;
+    const includeTeamStatus = req.query.includeTeamStatus === "true";
+
+    // V2ダッシュボードデータを取得
+    const v2Data = await generateV2DashboardData(projectPath, {
+      statusFilter,
+      showArchived,
+      limit,
+      offset,
+      sortField,
+      sortOrder,
+      search,
+      priority,
+      assignee,
+    });
+
+    // チーム状態を取得（オプション）
+    let teamStatus;
+    if (includeTeamStatus) {
+      const teamResult = await executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) });
+      teamStatus = teamResult.agents;
+    }
+
+    res.json({
+      // V2構造化データ
+      goals: v2Data.v2Goals,
+      reviewQueue: v2Data.v2ReviewQueue,
+      artifacts: v2Data.v2Artifacts,
+      stats: v2Data.v2Stats,
+
+      // ページネーション情報
+      totalGoals: v2Data.totalGoals,
+      offset,
+      limit,
+      hasMore: offset + v2Data.v2Goals.length < v2Data.totalGoals,
+
+      // チーム状態（オプション）
+      ...(teamStatus && { teamStatus }),
+
+      // メタデータ
+      timestamp: getJstTimestamp(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "V2 Dashboard retrieval failed", details: message });
+  }
+});
+
+  return router;
+}
+
+// 後方互換性のためデフォルトエクスポートを維持
+export default createTaskApiRoutes();

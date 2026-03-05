@@ -8,6 +8,8 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import * as yaml from "yaml";
+import { TIMEOUTS } from "./constants.js";
+import { logger } from "./logger.js";
 
 export interface KeepAliveConfig {
   // Phase 1
@@ -53,6 +55,10 @@ export interface Pm2Config {
   watch: boolean;              // デフォルト: false
 }
 
+export interface FormatterConfig {
+  sanitize_description_max_length: number;  // デフォルト: 15
+}
+
 export interface McpServerConfig {
   server: ServerConfig;
   central: CentralConfig;
@@ -60,20 +66,21 @@ export interface McpServerConfig {
   dashboard: DashboardConfig;
   keepalive: KeepAliveConfig;
   pm2: Pm2Config;
+  formatter: FormatterConfig;
 }
 
 const DEFAULT_CONFIG: McpServerConfig = {
   server: {
     mode: "hybrid",
     port: 3100,
-    host: "127.0.0.1",
+    host: "0.0.0.0",
   },
   central: {
     connection_timeout: 3000,
-    reconnect_interval: 30000,
+    reconnect_interval: TIMEOUTS.RECONNECT_INTERVAL,
     max_reconnect_attempts: 10,
     reconnect_backoff_factor: 1.5,
-    max_reconnect_interval: 120000,
+    max_reconnect_interval: TIMEOUTS.MAX_RECONNECT_INTERVAL,
   },
   fallback: {
     enabled: true,
@@ -88,8 +95,8 @@ const DEFAULT_CONFIG: McpServerConfig = {
     http_keepalive_timeout: 65000,
     http_headers_timeout: 66000,
     ping_enabled: true,
-    ping_interval: 30000,
-    ping_timeout: 5000,
+    ping_interval: TIMEOUTS.PING_INTERVAL,
+    ping_timeout: TIMEOUTS.PING_TIMEOUT,
     max_missed_pings: 2,
   },
   pm2: {
@@ -97,6 +104,9 @@ const DEFAULT_CONFIG: McpServerConfig = {
     instances: 1,
     autorestart: true,
     watch: false,
+  },
+  formatter: {
+    sanitize_description_max_length: 15,
   },
 };
 
@@ -139,12 +149,13 @@ export async function loadConfig(): Promise<McpServerConfig> {
       dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
       keepalive: { ...DEFAULT_CONFIG.keepalive, ...(parsed as Record<string, unknown>).keepalive as Partial<KeepAliveConfig> },
       pm2: { ...DEFAULT_CONFIG.pm2, ...(parsed as Record<string, unknown>).pm2 as Partial<Pm2Config> },
+      formatter: { ...DEFAULT_CONFIG.formatter, ...(parsed as Record<string, unknown>).formatter as Partial<FormatterConfig> },
     };
 
     return cachedConfig;
-  } catch (error) {
+  } catch {
     // 設定ファイルがない場合はデフォルト値を使用
-    console.error(`Config file not found at ${configPath}, using defaults`);
+    logger.info(`Config file not found at ${configPath}, using defaults`);
     cachedConfig = DEFAULT_CONFIG;
     return cachedConfig;
   }

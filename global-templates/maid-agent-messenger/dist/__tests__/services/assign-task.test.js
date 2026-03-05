@@ -12,22 +12,27 @@ jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
     getTimestamp: jest.fn(),
     writeTextFile: jest.fn(),
     fileExists: jest.fn(),
+    stringifyYaml: jest.fn((data) => JSON.stringify(data)),
 }));
 jest.unstable_mockModule("../../utils/file-lock.js", () => ({
     withFileLock: jest.fn(),
 }));
 jest.unstable_mockModule("../../services/task-manager.js", () => ({
     executeUpdateTask: jest.fn(),
+    executeGetTask: jest.fn(),
+    executeGetTaskChildren: jest.fn(),
 }));
 // dynamic import
 const { executeAssignTask } = await import("../../services/assign-task.js");
 const { readYamlFile } = await import("../../utils/yaml-helper.js");
 const { withFileLock } = await import("../../utils/file-lock.js");
-const { executeUpdateTask } = await import("../../services/task-manager.js");
+const { executeUpdateTask, executeGetTask, executeGetTaskChildren } = await import("../../services/task-manager.js");
 // 型付きモック
 const mockedReadYamlFile = readYamlFile;
 const mockedWithFileLock = withFileLock;
 const mockedExecuteUpdateTask = executeUpdateTask;
+const mockedExecuteGetTask = executeGetTask;
+const mockedExecuteGetTaskChildren = executeGetTaskChildren;
 beforeEach(() => {
     jest.clearAllMocks();
     // withFileLock: コールバックをそのまま実行
@@ -60,6 +65,8 @@ beforeEach(() => {
             reportTemplatized: true,
         },
     });
+    // executeGetTaskChildren: デフォルトで子タスクなしを返す
+    mockedExecuteGetTaskChildren.mockResolvedValue([]);
     // readYamlFile: デフォルトで idle 状態を返す
     mockedReadYamlFile.mockResolvedValue({
         task_id: null,
@@ -72,6 +79,27 @@ beforeEach(() => {
         started_at: null,
         completed_at: null,
         completion_summary: null,
+    });
+    // executeGetTask: デフォルトで assignees なしのタスクを返す
+    mockedExecuteGetTask.mockResolvedValue({
+        task: {
+            id: "072",
+            parentId: null,
+            title: "テストタスク",
+            description: "",
+            priority: "medium",
+            status: "pending",
+            substatus: null,
+            category: "task",
+            assignees: [],
+            createdAt: "2026-02-06T00:00:00Z",
+            updatedAt: "2026-02-06T00:00:00Z",
+            assignedAt: null,
+            startedAt: null,
+            completedAt: null,
+            reportPaths: [],
+            summary: null,
+        },
     });
 });
 const baseParams = {
@@ -149,5 +177,269 @@ describe("executeAssignTask - unified-task-state-gateway", () => {
         const mockedWriteTextFile = writeTextFile;
         await executeAssignTask(baseParams);
         expect(mockedWriteTextFile).not.toHaveBeenCalled();
+    });
+});
+describe("executeAssignTask - force フラグ", () => {
+    it("既存 assignees がある場合、force なしでエラーを返す", async () => {
+        // Arrange: タスクに既に assignee がいる状態
+        mockedExecuteGetTask.mockResolvedValue({
+            task: {
+                id: "072",
+                parentId: null,
+                title: "テストタスク",
+                description: "",
+                priority: "medium",
+                status: "assigned",
+                substatus: null,
+                category: "task",
+                assignees: [{ agentId: "sophia", role: null, subTaskId: null }],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: "2026-02-06T00:00:00Z",
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        });
+        // Act: force なしで assign
+        const result = await executeAssignTask(baseParams);
+        // Assert: エラーメッセージにガイダンスが含まれる
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("sophia");
+        expect(result.error).toContain("--force");
+        expect(mockedExecuteUpdateTask).not.toHaveBeenCalled();
+    });
+    it("既存 assignees がある場合、force=true で上書きできる", async () => {
+        // Arrange: タスクに既に assignee がいる状態
+        mockedExecuteGetTask.mockResolvedValue({
+            task: {
+                id: "072",
+                parentId: null,
+                title: "テストタスク",
+                description: "",
+                priority: "medium",
+                status: "assigned",
+                substatus: null,
+                category: "task",
+                assignees: [{ agentId: "sophia", role: null, subTaskId: null }],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: "2026-02-06T00:00:00Z",
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        });
+        // Act: force=true で assign
+        const result = await executeAssignTask({ ...baseParams, force: true });
+        // Assert: 成功
+        expect(result.success).toBe(true);
+        expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    });
+    it("既存 assignees がない場合、force なしでも成功する", async () => {
+        // Arrange: assignees が空の状態（デフォルトモック）
+        // Act: force なしで assign
+        const result = await executeAssignTask(baseParams);
+        // Assert: 成功
+        expect(result.success).toBe(true);
+        expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    });
+    it("空の assignees 配列の場合、force なしでも成功する", async () => {
+        // Arrange: assignees が明示的に空配列
+        mockedExecuteGetTask.mockResolvedValue({
+            task: {
+                id: "072",
+                parentId: null,
+                title: "テストタスク",
+                description: "",
+                priority: "medium",
+                status: "pending",
+                substatus: null,
+                category: "task",
+                assignees: [],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: null,
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        });
+        // Act: force なしで assign
+        const result = await executeAssignTask(baseParams);
+        // Assert: 成功
+        expect(result.success).toBe(true);
+        expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    });
+    it("executeGetTask がタスクを見つけられない場合、正常に割り当てできる", async () => {
+        // Arrange: タスクが見つからない
+        mockedExecuteGetTask.mockResolvedValue({
+            task: null,
+        });
+        // Act: assign を実行
+        const result = await executeAssignTask(baseParams);
+        // Assert: 成功（新規タスクとして扱う）
+        expect(result.success).toBe(true);
+        expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    });
+    it("force=true + 既存 assignees なしの場合、正常に成功する", async () => {
+        // Arrange: assignees が空の状態
+        // Act: force=true で assign
+        const result = await executeAssignTask({ ...baseParams, force: true });
+        // Assert: 成功
+        expect(result.success).toBe(true);
+        expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    });
+    it("複数の既存 assignees がある場合、全員の名前がエラーメッセージに含まれる", async () => {
+        // Arrange: 複数の assignee がいる状態
+        mockedExecuteGetTask.mockResolvedValue({
+            task: {
+                id: "072",
+                parentId: null,
+                title: "テストタスク",
+                description: "",
+                priority: "medium",
+                status: "assigned",
+                substatus: null,
+                category: "task",
+                assignees: [
+                    { agentId: "sophia", role: null, subTaskId: null },
+                    { agentId: "lily", role: null, subTaskId: null },
+                ],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: "2026-02-06T00:00:00Z",
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        });
+        // Act: force なしで assign
+        const result = await executeAssignTask(baseParams);
+        // Assert: 全員の名前がエラーメッセージに含まれる
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("sophia");
+        expect(result.error).toContain("lily");
+    });
+});
+describe("executeAssignTask - 子タスクチェック", () => {
+    it("子タスクがない親Taskにアサイン→成功", async () => {
+        // Arrange: 子タスクなし（デフォルトモック: 空配列）
+        mockedExecuteGetTaskChildren.mockResolvedValue([]);
+        // Act
+        const result = await executeAssignTask(baseParams);
+        // Assert
+        expect(result.success).toBe(true);
+        expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    });
+    it("子タスクがある親Taskにアサイン(forceなし)→エラー", async () => {
+        // Arrange: 子タスクが存在する
+        mockedExecuteGetTaskChildren.mockResolvedValue([
+            {
+                id: "072-1",
+                parentId: "072",
+                title: "子タスク1",
+                description: "",
+                priority: "medium",
+                status: "pending",
+                substatus: null,
+                category: "task",
+                assignees: [],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: null,
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        ]);
+        // Act: force なしで assign
+        const result = await executeAssignTask(baseParams);
+        // Assert: エラーが返される
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("子タスク");
+        expect(result.error).toContain("072-1");
+        expect(result.error).toContain("--force");
+        expect(mockedExecuteUpdateTask).not.toHaveBeenCalled();
+    });
+    it("子タスクがある親Taskにアサイン(force=true)→成功", async () => {
+        // Arrange: 子タスクが存在する
+        mockedExecuteGetTaskChildren.mockResolvedValue([
+            {
+                id: "072-1",
+                parentId: "072",
+                title: "子タスク1",
+                description: "",
+                priority: "medium",
+                status: "pending",
+                substatus: null,
+                category: "task",
+                assignees: [],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: null,
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        ]);
+        // Act: force=true で assign
+        const result = await executeAssignTask({ ...baseParams, force: true });
+        // Assert: 成功
+        expect(result.success).toBe(true);
+        expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    });
+    it("複数の子タスクがある場合、全ての子タスクIDがエラーメッセージに含まれる", async () => {
+        // Arrange: 複数の子タスクが存在する
+        mockedExecuteGetTaskChildren.mockResolvedValue([
+            {
+                id: "072-1",
+                parentId: "072",
+                title: "子タスク1",
+                description: "",
+                priority: "medium",
+                status: "pending",
+                substatus: null,
+                category: "task",
+                assignees: [],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: null,
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+            {
+                id: "072-2",
+                parentId: "072",
+                title: "子タスク2",
+                description: "",
+                priority: "medium",
+                status: "working",
+                substatus: null,
+                category: "task",
+                assignees: [],
+                createdAt: "2026-02-06T00:00:00Z",
+                updatedAt: "2026-02-06T00:00:00Z",
+                assignedAt: null,
+                startedAt: null,
+                completedAt: null,
+                reportPaths: [],
+                summary: null,
+            },
+        ]);
+        // Act: force なしで assign
+        const result = await executeAssignTask(baseParams);
+        // Assert: 全ての子タスクIDがエラーメッセージに含まれる
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("072-1");
+        expect(result.error).toContain("072-2");
     });
 });

@@ -89,27 +89,36 @@ describe('Phase 2: extension.ts async/await patterns', () => {
 });
 
 describe('Phase 3: dispose() timer cleanup', () => {
-    it('should cleanup pendingReportChecks in dispose() method', () => {
-        const controllerContent = fs.readFileSync(path.join(SRC_DIR, 'controller.ts'), 'utf-8');
+    it('should cleanup pendingReportChecks via FileWatcher module', () => {
+        // #425-5 責務分割: pendingReportChecksのクリーンアップはfile-watcher.tsに移動
 
-        // dispose()メソッド内でpendingReportChecksのクリーンアップが行われているか確認
+        // 1. controller.ts の dispose() が FileWatcher.disposeFileWatcher を呼び出していることを確認
+        const controllerContent = fs.readFileSync(path.join(SRC_DIR, 'controller.ts'), 'utf-8');
         const disposeMethodMatch = controllerContent.match(/public dispose\(\): void \{([\s\S]*?)\n\s{4}\}/);
 
         expect(disposeMethodMatch, 'dispose() method should exist').toBeTruthy();
 
         if (disposeMethodMatch) {
             const disposeBody = disposeMethodMatch[1];
+            const delegationPattern = /FileWatcher\.disposeFileWatcher/;
+            expect(disposeBody, 'dispose() should call FileWatcher.disposeFileWatcher').toMatch(delegationPattern);
+        }
 
-            // pendingReportChecksのクリーンアップパターンをチェック
-            // 期待: this.pendingReportChecks.forEach(...) または for...of
+        // 2. file-watcher.ts の disposeFileWatcher が pendingReportChecks をクリーンアップしていることを確認
+        const fileWatcherContent = fs.readFileSync(path.join(SRC_DIR, 'events', 'file-watcher.ts'), 'utf-8');
+        const disposeFileWatcherMatch = fileWatcherContent.match(/export function disposeFileWatcher\([^)]+\)[^{]*\{([\s\S]*?)\n\}/);
+
+        expect(disposeFileWatcherMatch, 'disposeFileWatcher function should exist').toBeTruthy();
+
+        if (disposeFileWatcherMatch) {
+            const functionBody = disposeFileWatcherMatch[1];
             const cleanupPattern = /(pendingReportChecks\.forEach|for\s*\(.*pendingReportChecks)/;
-
-            expect(disposeBody, 'dispose() should cleanup pendingReportChecks').toMatch(cleanupPattern);
+            expect(functionBody, 'disposeFileWatcher should cleanup pendingReportChecks').toMatch(cleanupPattern);
         }
     });
 });
 
-describe('Phase 5: restoreDashboardPanel message handlers', () => {
+describe('Phase 5: setupDashboardMessageHandler message handlers', () => {
     const requiredHandlers = [
         'refresh',
         'openInBrowser',
@@ -121,10 +130,31 @@ describe('Phase 5: restoreDashboardPanel message handlers', () => {
         'updateCompletedViewState'
     ];
 
-    it('should have all 8 message handler cases in restoreDashboardPanel', () => {
+    it('should have all 8 message handler cases in setupDashboardMessageHandler', () => {
         const dashboardContent = fs.readFileSync(path.join(SRC_DIR, 'ui/web-dashboard.ts'), 'utf-8');
 
-        // restoreDashboardPanel関数を抽出
+        // setupDashboardMessageHandler関数を抽出（restoreDashboardPanelから呼ばれる共通ハンドラ）
+        const handlerFunctionMatch = dashboardContent.match(
+            /function setupDashboardMessageHandler\([^)]+\)[^{]*\{([\s\S]*?)(?=\n(?:export )?function|\n\/\/\s*=|$)/
+        );
+
+        expect(handlerFunctionMatch, 'setupDashboardMessageHandler function should exist').toBeTruthy();
+
+        if (handlerFunctionMatch) {
+            const handlerBody = handlerFunctionMatch[1];
+
+            // 各ハンドラケースが存在するか確認
+            requiredHandlers.forEach(handler => {
+                const casePattern = new RegExp(`case\\s+['"]${handler}['"]:`);
+                expect(handlerBody, `Should have case '${handler}'`).toMatch(casePattern);
+            });
+        }
+    });
+
+    it('should call setupDashboardMessageHandler from restoreDashboardPanel', () => {
+        const dashboardContent = fs.readFileSync(path.join(SRC_DIR, 'ui/web-dashboard.ts'), 'utf-8');
+
+        // restoreDashboardPanelがsetupDashboardMessageHandlerを呼んでいることを確認
         const restoreFunctionMatch = dashboardContent.match(
             /export function restoreDashboardPanel\([^)]+\)[^{]*\{([\s\S]*?)(?=\nexport|\n\/\/\s*=|$)/
         );
@@ -133,12 +163,7 @@ describe('Phase 5: restoreDashboardPanel message handlers', () => {
 
         if (restoreFunctionMatch) {
             const restoreBody = restoreFunctionMatch[1];
-
-            // 各ハンドラケースが存在するか確認
-            requiredHandlers.forEach(handler => {
-                const casePattern = new RegExp(`case\\s+['"]${handler}['"]:`);
-                expect(restoreBody, `Should have case '${handler}'`).toMatch(casePattern);
-            });
+            expect(restoreBody, 'Should call setupDashboardMessageHandler').toMatch(/setupDashboardMessageHandler\(/);
         }
     });
 });
@@ -180,14 +205,15 @@ describe('Phase 6: localhost:3100 constant extraction', () => {
 
 describe('Phase 8: setTimeout async try-catch in checkMaidReportToChief', () => {
     it('should have outer try-catch wrapping entire async callback in setTimeout', () => {
-        const controllerContent = fs.readFileSync(path.join(SRC_DIR, 'controller.ts'), 'utf-8');
+        // checkMaidReportToChief は file-watcher.ts に移動（#425-5 責務分割）
+        const fileWatcherContent = fs.readFileSync(path.join(SRC_DIR, 'events', 'file-watcher.ts'), 'utf-8');
 
         // checkMaidReportToChief関数を抽出
-        const checkMethodMatch = controllerContent.match(
-            /private checkMaidReportToChief\([^)]+\)[^{]*\{([\s\S]*?)(?=\n\s{4}(?:private|public|protected|\}))/
+        const checkMethodMatch = fileWatcherContent.match(
+            /function checkMaidReportToChief\([^)]+\)[^{]*\{([\s\S]*?)(?=\n(?:export\s+)?function|\n\}$)/
         );
 
-        expect(checkMethodMatch, 'checkMaidReportToChief method should exist').toBeTruthy();
+        expect(checkMethodMatch, 'checkMaidReportToChief function should exist in file-watcher.ts').toBeTruthy();
 
         if (checkMethodMatch) {
             const methodBody = checkMethodMatch[1];

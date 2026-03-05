@@ -103,12 +103,12 @@ export interface AgentContext {
     initializeTmuxSession(): void;
     saveSessionNameToFile(): void;
     openTmuxViewer(): void;
-    getRolePrompt(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string;
+    getSystemPromptFilePath(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string | null;
+    getFallbackRolePrompt(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string;
     launchClaudeWithRole(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void>;
     ensureInitialized(): Promise<boolean>;
     checkExistingSessionAndPrompt(agentId: string, agentName: string): Promise<'new' | 'resume' | 'cancel'>;
     checkSessionCountWarning(): Promise<void>;
-    ensureMcpServerRunning(): Promise<void>;
     ensureTmuxAvailable(): Promise<boolean>;
     captureAgentOutput(agentId: string, lines?: number): string;
     resumeSessions(): Promise<void>;
@@ -192,7 +192,7 @@ export interface ViewContext {
     controllerPanel: vscode.WebviewPanel | undefined;
     dashboardPanel: vscode.WebviewPanel | undefined;
     dashboardInitialized: boolean;
-    dashboardPollingInterval: NodeJS.Timeout | undefined;
+    dashboardConsecutiveFailures: number;  // ダッシュボード接続の連続失敗回数
     completedViewState: CompletedViewState;
     reportViewerPanel: vscode.WebviewPanel | undefined;
     statusBarItem: vscode.StatusBarItem | undefined;
@@ -213,6 +213,4 @@ export interface ViewContext {
     openFileWithPreview(filePath: string): Promise<void>;
     openDashboardInBrowser(): void;
     showStatusBarNotification(icon: string, message: string): void;
-    startDashboardPolling(): void;
-    stopDashboardPolling(): void;
 }

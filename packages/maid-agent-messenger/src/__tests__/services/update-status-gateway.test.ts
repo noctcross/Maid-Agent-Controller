@@ -15,6 +15,7 @@ jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   fileExists: jest.fn(),
   copyFile: jest.fn(),
   sanitizeDescription: jest.fn((s: string) => s),
+  stringifyYaml: jest.fn((data: unknown) => JSON.stringify(data)),
 }));
 
 jest.unstable_mockModule("../../services/task-manager.js", () => ({
@@ -148,7 +149,7 @@ describe("executeUpdateStatus - unified-task-state-gateway", () => {
         ...baseParams,
         status: "blocked",
         summary: "ライセンス判断が必要",
-        escalation: true,
+        actionRequired: true,
       });
 
       expect(mockedExecuteUpdateTask).toHaveBeenCalledWith(
@@ -158,12 +159,12 @@ describe("executeUpdateStatus - unified-task-state-gateway", () => {
           status: "blocked",
           summary: "ライセンス判断が必要",
           agentId: "emma",
-          escalation: true,
+          actionRequired: true,
         })
       );
     });
 
-    it("escalation 省略時は undefined のまま委譲される", async () => {
+    it("actionRequired 省略時は undefined のまま委譲される", async () => {
       mockedReadYamlFile.mockResolvedValue({
         task_id: "task-072",
         status: "working",
@@ -184,9 +185,9 @@ describe("executeUpdateStatus - unified-task-state-gateway", () => {
           agentId: "emma",
         })
       );
-      // escalation が明示的に渡されていないことを確認
+      // actionRequired が明示的に渡されていないことを確認
       const callArgs = mockedExecuteUpdateTask.mock.calls[0][1];
-      expect(callArgs.escalation).toBeUndefined();
+      expect(callArgs.actionRequired).toBeUndefined();
     });
   });
 

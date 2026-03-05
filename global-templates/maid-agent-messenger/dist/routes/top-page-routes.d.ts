@@ -3,15 +3,8 @@
  * GET /, GET /api/projects, PATCH /api/projects/:encodedPath/pin, PATCH /api/projects/:encodedPath/hide
  */
 import { Router } from "express";
-import { recordProjectAccess, type ProjectEntry } from "../services/project-registry.js";
-export interface ProjectWithStats extends ProjectEntry {
-    stats: {
-        pendingCount: number;
-        workingCount: number;
-        completedTodayCount: number;
-    } | null;
-    status: "available" | "unavailable";
-}
+import { recordProjectAccess } from "../services/project-registry.js";
+import type { ProjectWithStats } from "../views/top-page-html.js";
 export interface TopPageRoutesDeps {
     generateTopPageHtml: (projects: ProjectWithStats[]) => string;
 }

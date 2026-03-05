@@ -3,11 +3,28 @@
  */
 import type { TaskYaml } from "../types/index.js";
 /**
+ * stringifyYaml のオプション
+ */
+export interface YamlStringifyOptions {
+    lineWidth?: number;
+}
+/**
+ * オブジェクトをYAML文字列に変換（統一設定）
+ *
+ * - 複数行文字列はリテラルブロック形式（|）で出力
+ * - 改行文字が \\n にエスケープされる問題を解消
+ *
+ * @see docs/plans/task-219-1-yaml-newline-fix.md
+ */
+export declare function stringifyYaml<T>(data: T, options?: YamlStringifyOptions): string;
+/**
  * YAMLファイルを読み込んでパース
  */
 export declare function readYamlFile<T = TaskYaml>(filePath: string): Promise<T>;
 /**
  * オブジェクトをYAMLファイルに書き込み
+ *
+ * 内部で stringifyYaml() を使用（統一設定）
  */
 export declare function writeYamlFile<T>(filePath: string, data: T): Promise<void>;
 /**

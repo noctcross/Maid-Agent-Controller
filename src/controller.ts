@@ -4,7 +4,7 @@ import * as path from 'path';
 import { Agent, SetupContext, AgentContext, ViewContext, CompletedViewState } from './types';
 import { MAID_AGENT_DIR, NOTIFICATIONS_SUBDIR } from './constants';
 import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion } from './utils/environment';
-import { getGlobalMaidAgentPath, getSessionNameFromPath, getOrderedMaids } from './utils/helpers';
+import { getGlobalMaidAgentPath, getSessionNameFromPath } from './utils/helpers';
 import { TmuxManager } from './tmux/tmux-manager';
 import { AgentPanelProvider } from './ui/agent-panel-provider';
 import * as WorkspaceInit from './setup/workspace-initializer';
@@ -18,6 +18,10 @@ import * as ControllerPanel from './ui/controller-panel';
 import * as Dashboard from './ui/web-dashboard';
 import * as StatusBar from './ui/status-bar';
 import { loadSettings, MaidAgentSettings } from './utils/settings-loader';
+// イベント・コマンドモジュール
+import * as FileWatcher from './events/file-watcher';
+import * as TmuxWatcher from './events/tmux-watcher';
+import * as UserCommands from './commands/user-commands';
 
 // =============================================================================
 // メインコントローラー
@@ -31,24 +35,26 @@ export class MultiAgentController {
     private context: vscode.ExtensionContext | undefined;
     private workspaceRoot: string | undefined;
     private maidAgentPath: string | undefined;
-    private fileWatcher: vscode.FileSystemWatcher | undefined;
     private agentPanelProvider: AgentPanelProvider | undefined;
     private tmuxManager: TmuxManager | undefined;
     private tmuxViewerTerminal: vscode.Terminal | undefined;  // tmuxセッション表示用
     private tmuxSessionName: string = '';  // ワークスペース固有のセッション名
-    private tmuxWindowPollingInterval: NodeJS.Timeout | undefined;  // tmuxウィンドウ監視用
-    private lastDetectedAgentId: string | null = null;  // 前回検出したエージェントID
     private statusBarItem: vscode.StatusBarItem | undefined;  // ステータスバー通知用
     private statusBarResetTimeout: NodeJS.Timeout | undefined;  // ステータスバー表示リセット用
     private dashboardPanel: vscode.WebviewPanel | undefined;
-    private dashboardPollingInterval: NodeJS.Timeout | undefined;
     private dashboardInitialized = false;
+    private dashboardConsecutiveFailures = 0;  // ダッシュボード接続の連続失敗回数
     private completedViewState: CompletedViewState = { limit: 10, offset: 0, reviewed: undefined, starred: undefined, hash: '', completedSortField: undefined };
     private reportViewerPanel: vscode.WebviewPanel | undefined;
     private settings: MaidAgentSettings | undefined;
+    // イベント監視の状態（モジュール分離）
+    private fileWatcherState: FileWatcher.FileWatcherState;
+    private tmuxWatcherState: TmuxWatcher.TmuxWatcherState;
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Maid Agent');
+        this.fileWatcherState = FileWatcher.createFileWatcherState();
+        this.tmuxWatcherState = TmuxWatcher.createTmuxWatcherState();
     }
 
     public setContext(context: vscode.ExtensionContext): void {
@@ -109,14 +115,6 @@ export class MultiAgentController {
         return Dashboard.updateDashboard(this.createViewContext());
     }
 
-    private startDashboardPolling(): void {
-        Dashboard.startDashboardPolling(this.createViewContext());
-    }
-
-    private stopDashboardPolling(): void {
-        Dashboard.stopDashboardPolling(this.createViewContext());
-    }
-
     public openDashboardInBrowser(): void {
         Dashboard.openDashboardInBrowser(this.createViewContext());
     }
@@ -150,101 +148,36 @@ export class MultiAgentController {
         return null;
     }
 
-    /**
-     * tmuxの現在のウィンドウ名からエージェントIDを取得
-     */
-    private getCurrentTmuxWindowAgent(): string | null {
-        if (!this.tmuxManager || !this.tmuxSessionName) {
-            return null;
-        }
+    // =========================================================================
+    // tmuxウィンドウ監視（events/tmux-watcher.ts への委譲）
+    // =========================================================================
 
-        try {
-            // Windows環境では wsl tmux を使用
-            const tmuxCmd = CURRENT_ENV === 'windows-native' ? 'wsl tmux' : 'tmux';
-            const result = require('child_process').execSync(
-                `${tmuxCmd} display-message -t "${this.tmuxSessionName}" -p "#{window_name}"`,
-                { encoding: 'utf-8', timeout: 1000 }
-            ).trim();
-
-            // ウィンドウ名がエージェントIDと一致するか確認
-            if (this.agents.has(result)) {
-                return result;
-            }
-
-            // デバッグ: ウィンドウ名が見つかったが登録エージェントに存在しない場合
-            // (一時的なログ - 安定したら削除可能)
-            const registeredAgents = Array.from(this.agents.keys()).join(', ');
-            this.log(`[AgentPanel] ウィンドウ '${result}' は登録エージェントに存在しません (登録: ${registeredAgents || 'なし'})`);
-        } catch {
-            // tmuxコマンドが失敗した場合は無視（ポーリング中は頻繁に呼ばれるためログ省略）
-        }
-        return null;
+    private createTmuxWatcherContext(): TmuxWatcher.TmuxWatcherContext {
+        return {
+            agents: this.agents,
+            tmuxManager: this.tmuxManager,
+            tmuxSessionName: this.tmuxSessionName,
+            tmuxViewerTerminal: this.tmuxViewerTerminal,
+            agentPanelProvider: this.agentPanelProvider,
+            log: (msg: string) => this.log(msg),
+        };
     }
 
     // 現在のエージェントを設定（パネル更新用）
     public setCurrentAgentFromTerminal(terminal: vscode.Terminal | undefined): void {
-        if (!this.agentPanelProvider) return;
-
-        if (!terminal) {
-            this.stopTmuxWindowPolling();
-            this.agentPanelProvider.setCurrentAgent(null);
-            return;
-        }
-
-        // まず従来の方式を試す
-        let agentId = this.getAgentIdFromTerminal(terminal);
-
-        // tmuxビューアターミナルの場合、tmuxのウィンドウ名から特定 + ポーリング開始
-        const isTmuxViewer = terminal === this.tmuxViewerTerminal;
-        const terminalName = terminal.name;
-
-        if (!agentId && isTmuxViewer) {
-            agentId = this.getCurrentTmuxWindowAgent();
-            this.startTmuxWindowPolling();
-        } else if (!agentId && terminalName.includes('Maid Agent')) {
-            // ターミナル名でtmuxビューアを判定（参照比較の代替）
-            this.log(`[AgentPanel] tmuxビューア検出（名前ベース）: ${terminalName}`);
-            agentId = this.getCurrentTmuxWindowAgent();
-            this.startTmuxWindowPolling();
-        } else {
-            this.stopTmuxWindowPolling();
-        }
-
-        this.agentPanelProvider.setCurrentAgent(agentId);
+        TmuxWatcher.setCurrentAgentFromTerminal(
+            this.createTmuxWatcherContext(),
+            this.tmuxWatcherState,
+            terminal,
+            (t: vscode.Terminal) => this.getAgentIdFromTerminal(t)
+        );
     }
 
-    /**
-     * tmuxウィンドウのポーリングを開始（500msごとにチェック）
-     */
-    private startTmuxWindowPolling(): void {
-        if (this.tmuxWindowPollingInterval) return; // 既に実行中
-
-        this.tmuxWindowPollingInterval = setInterval(() => {
-            const currentAgentId = this.getCurrentTmuxWindowAgent();
-
-            // 変更があった場合のみ更新
-            if (currentAgentId !== this.lastDetectedAgentId) {
-                this.log(`[AgentPanel] tmuxウィンドウ変更検出: ${this.lastDetectedAgentId} → ${currentAgentId}`);
-                this.lastDetectedAgentId = currentAgentId;
-                if (this.agentPanelProvider) {
-                    this.agentPanelProvider.setCurrentAgent(currentAgentId);
-                }
-            }
-        }, 500);
-
-        this.log('[tmux] ウィンドウ監視ポーリングを開始');
-    }
-
-    /**
-     * tmuxウィンドウのポーリングを停止
-     */
     private stopTmuxWindowPolling(): void {
-        if (this.tmuxWindowPollingInterval) {
-            clearInterval(this.tmuxWindowPollingInterval);
-            this.tmuxWindowPollingInterval = undefined;
-            this.lastDetectedAgentId = null;
-            this.log('[tmux] ウィンドウ監視ポーリングを停止');
-        }
+        TmuxWatcher.stopTmuxWindowPolling(
+            this.createTmuxWatcherContext(),
+            this.tmuxWatcherState
+        );
     }
 
     // =========================================================================
@@ -309,12 +242,12 @@ export class MultiAgentController {
             initializeTmuxSession: () => this.initializeTmuxSession(),
             saveSessionNameToFile: () => this.saveSessionNameToFile(),
             openTmuxViewer: () => this.openTmuxViewer(),
-            getRolePrompt: (agentId, role, maidName?) => this.getRolePrompt(agentId, role, maidName),
+            getSystemPromptFilePath: (agentId, role, maidName?) => this.getSystemPromptFilePath(agentId, role, maidName),
+            getFallbackRolePrompt: (agentId, role, maidName?) => this.getFallbackRolePrompt(agentId, role, maidName),
             launchClaudeWithRole: (agentId, role, maidName?) => this.launchClaudeWithRole(agentId, role, maidName),
             ensureInitialized: () => this.ensureInitialized(),
             checkExistingSessionAndPrompt: (agentId, agentName) => this.checkExistingSessionAndPrompt(agentId, agentName),
             checkSessionCountWarning: () => this.checkSessionCountWarning(),
-            ensureMcpServerRunning: () => this.ensureMcpServerRunning(),
             ensureTmuxAvailable: () => this.ensureTmuxAvailable(),
             captureAgentOutput: (agentId, lines?) => this.captureAgentOutput(agentId, lines),
             resumeSessions: () => this.resumeSessions(),
@@ -338,8 +271,8 @@ export class MultiAgentController {
             set dashboardPanel(v) { controller.dashboardPanel = v; },
             get dashboardInitialized() { return controller.dashboardInitialized; },
             set dashboardInitialized(v) { controller.dashboardInitialized = v; },
-            get dashboardPollingInterval() { return controller.dashboardPollingInterval; },
-            set dashboardPollingInterval(v) { controller.dashboardPollingInterval = v; },
+            get dashboardConsecutiveFailures() { return controller.dashboardConsecutiveFailures; },
+            set dashboardConsecutiveFailures(v) { controller.dashboardConsecutiveFailures = v; },
             get completedViewState() { return controller.completedViewState; },
             set completedViewState(v) { controller.completedViewState = v; },
             get reportViewerPanel() { return controller.reportViewerPanel; },
@@ -363,8 +296,6 @@ export class MultiAgentController {
             openFileWithPreview: (filePath: string) => this.openFileWithPreview(filePath),
             openDashboardInBrowser: () => this.openDashboardInBrowser(),
             showStatusBarNotification: (icon: string, message: string) => this.showStatusBarNotification(icon, message),
-            startDashboardPolling: () => this.startDashboardPolling(),
-            stopDashboardPolling: () => this.stopDashboardPolling(),
         };
     }
 
@@ -430,8 +361,12 @@ export class MultiAgentController {
         return AgentComm.captureAgentOutput(this.createAgentContext(), agentId, lines);
     }
 
-    private getRolePrompt(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string {
-        return AgentStartup.getRolePrompt(this.createAgentContext(), agentId, role, maidName);
+    private getSystemPromptFilePath(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string | null {
+        return AgentStartup.getSystemPromptFilePath(this.createAgentContext(), agentId, role, maidName);
+    }
+
+    private getFallbackRolePrompt(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string {
+        return AgentStartup.getFallbackRolePrompt(this.createAgentContext(), agentId, role, maidName);
     }
 
     public async launchClaudeWithRole(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {
@@ -484,10 +419,6 @@ export class MultiAgentController {
 
     private async ensureInitialized(): Promise<boolean> {
         return AgentStartup.ensureInitialized(this.createAgentContext());
-    }
-
-    private async ensureMcpServerRunning(): Promise<void> {
-        return AgentStartup.ensureMcpServerRunning(this.createAgentContext());
     }
 
     private async ensureTmuxAvailable(): Promise<boolean> {
@@ -615,140 +546,33 @@ export class MultiAgentController {
     }
 
     // =========================================================================
-    // ファイル監視
+    // ファイル監視（events/file-watcher.ts への委譲）
     // =========================================================================
 
-    public startWatchingFiles(silent: boolean = false): void {
-        if (!this.maidAgentPath) return;
-
-        // 既に監視中なら何もしない
-        if (this.fileWatcher) {
-            if (!silent) {
-                vscode.window.showInformationMessage('📁 ファイル監視・通知システムは既に動作中です');
-            }
-            return;
-        }
-
-        // queue/*.yaml と reports/*.md を監視
-        const pattern = new vscode.RelativePattern(
-            this.maidAgentPath,
-            '{queue/*.yaml,reports/*.md}'
-        );
-
-        this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
-
-        this.fileWatcher.onDidChange((uri) => {
-            const fileName = path.basename(uri.fsPath);
-            this.log(`[ファイル変更] ${fileName}`);
-            this.updateController();
-
-
-            // reports/*.md が更新されたらメイド長への報告チェック
-            const reportsDir = `${path.sep}reports${path.sep}`;
-            if (uri.fsPath.includes(reportsDir) && fileName.endsWith('.md') && fileName !== '.gitkeep') {
-                const maidName = fileName.replace('.md', '');
-                this.checkMaidReportToChief(maidName);
-            }
-        });
-
-        this.context?.subscriptions.push(this.fileWatcher);
-        this.log('[ファイル監視] 開始');
-
-        // 注: エージェント間通知は直接 tmux send-keys で行われるため、
-        // pending.json の監視は不要になりました
-
-        if (!silent) {
-            vscode.window.showInformationMessage('📁 ファイル監視を開始しました');
-        }
+    private createFileWatcherContext(): FileWatcher.FileWatcherContext {
+        return {
+            maidAgentPath: this.maidAgentPath,
+            agents: this.agents,
+            context: this.context,
+            log: (msg: string) => this.log(msg),
+            updateController: () => this.updateController(),
+            sendMessageToAgent: (agentId: string, message: string) => this.sendMessageToAgent(agentId, message),
+        };
     }
 
-
-    // 報告チェック用のタイマーを管理
-    private pendingReportChecks: Map<string, NodeJS.Timeout> = new Map();
-
-    /**
-     * メイドがメイド長に報告したかチェック
-     * reports/*.md 更新後、5秒以内にchief宛の通知がなければリマインド
-     */
-    private checkMaidReportToChief(maidName: string): void {
-        // 既存のタイマーがあればクリア（連続更新対応）
-        const existingTimer = this.pendingReportChecks.get(maidName);
-        if (existingTimer) {
-            clearTimeout(existingTimer);
-        }
-
-        this.log(`[報告チェック] ${maidName} のレポート更新を検知、5秒後にチェック`);
-
-        // 5秒後にチェック
-        const timer = setTimeout(async () => {
-            try {
-            this.pendingReportChecks.delete(maidName);
-
-            // 通知履歴ログを確認
-            if (!this.maidAgentPath) return;
-
-            const historyPath = path.join(this.maidAgentPath, NOTIFICATIONS_SUBDIR, 'history.log');
-            let hasNotifiedChief = false;
-
-            try {
-                if (fs.existsSync(historyPath)) {
-                    const content = fs.readFileSync(historyPath, 'utf-8');
-                    const lines = content.trim().split('\n');
-
-                    // 直近30秒以内にこのメイドからchiefへの通知があるかチェック
-                    // ログ形式: [2025-01-29 12:34:56] sender → target: message
-                    const now = Date.now();
-                    const thirtySecondsAgo = now - 30000;
-
-                    const pattern = new RegExp(`^\\[(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})\\] ${maidName} → chief:`);
-
-                    for (const line of lines.reverse()) {  // 新しいものから確認
-                        const match = line.match(pattern);
-                        if (match) {
-                            const notifyTime = new Date(match[1]).getTime();
-                            if (notifyTime > thirtySecondsAgo) {
-                                hasNotifiedChief = true;
-                                break;
-                            }
-                            // 30秒より古い通知なら、それ以前は確認不要
-                            break;
-                        }
-                    }
-                }
-            } catch {
-                // パースエラーなどは無視
-            }
-
-            if (!hasNotifiedChief) {
-                // メイドがアクティブかチェック
-                const maid = this.agents.get(maidName);
-                if (maid) {
-                    this.log(`[報告チェック] ${maidName} がメイド長への報告を忘れている可能性`);
-
-                    // リマインドを送信
-                    const reminder = `レポートを更新したようですが、メイド長への報告はお済みですか？\n完了した場合は .maid-agent/system/bin/maid-notify chief "タスク完了の報告" を実行してください。`;
-                    await this.sendMessageToAgent(maidName, reminder);
-
-                    this.log(`[報告チェック] ${maidName} にリマインドを送信しました`);
-                }
-            } else {
-                this.log(`[報告チェック] ${maidName} は正常にメイド長へ報告済み`);
-            }
-            } catch (error) {
-                this.log(`[報告チェック] ${maidName} のチェック中にエラー: ${error}`);
-            }
-        }, 5000);
-
-        this.pendingReportChecks.set(maidName, timer);
+    public startWatchingFiles(silent: boolean = false): void {
+        FileWatcher.startWatchingFiles(
+            this.createFileWatcherContext(),
+            this.fileWatcherState,
+            silent
+        );
     }
 
     public stopWatchingFiles(): void {
-        if (this.fileWatcher) {
-            this.fileWatcher.dispose();
-            this.fileWatcher = undefined;
-        }
-        this.log('[ファイル監視] 停止');
-        vscode.window.showInformationMessage('📁 ファイル監視・通知システムを停止しました');
+        FileWatcher.stopWatchingFiles(
+            this.createFileWatcherContext(),
+            this.fileWatcherState
+        );
     }
 
     // =========================================================================
@@ -822,7 +646,7 @@ tmuxManager: ${this.tmuxManager ? '初期化済み' : '未初期化'}
 tmuxSessionName: ${this.tmuxSessionName || '未設定'}
 通知方式: 直接send-keys（pending.json廃止）
 通知履歴: ${notifyCount}件
-fileWatcher: ${this.fileWatcher ? '稼働中' : '停止'}
+fileWatcher: ${this.fileWatcherState.fileWatcher ? '稼働中' : '停止'}
 
 登録済みエージェント (${this.agents.size}):
 ${agentList || '  (なし)'}
@@ -855,46 +679,23 @@ ${agentList || '  (なし)'}
     }
 
     // =========================================================================
-    // ユーザー入力
+    // ユーザー入力（commands/user-commands.ts への委譲）
     // =========================================================================
 
-    public async promptAndSendToButler(): Promise<void> {
-        const command = await vscode.window.showInputBox({
-            prompt: '執事への指令を入力してください、ご主人様',
-            placeHolder: '例: このプロジェクトを分析して改善点を洗い出してください'
-        });
+    private createUserCommandContext(): UserCommands.UserCommandContext {
+        return {
+            agents: this.agents,
+            sendTaskToButler: (taskDescription: string) => this.sendTaskToButler(taskDescription),
+            sendMessageToAgent: (agentId: string, message: string) => this.sendMessageToAgent(agentId, message),
+        };
+    }
 
-        if (command) {
-            await this.sendTaskToButler(command);
-        }
+    public async promptAndSendToButler(): Promise<void> {
+        return UserCommands.promptAndSendToButler(this.createUserCommandContext());
     }
 
     public async promptAndSendToMaid(): Promise<void> {
-        const orderedMaids = getOrderedMaids();
-        const maidOptions = orderedMaids
-            .filter(m => this.agents.has(m.id))
-            .map(m => ({ label: `${m.emoji} ${m.name}`, id: m.id }));
-
-        if (maidOptions.length === 0) {
-            vscode.window.showWarningMessage('メイドがまだおりません。先に起動してください。');
-            return;
-        }
-
-        const selected = await vscode.window.showQuickPick(maidOptions, {
-            placeHolder: '指示を送るメイドを選んでください'
-        });
-
-        if (!selected) return;
-
-        const command = await vscode.window.showInputBox({
-            prompt: `${selected.label}への指示を入力してください`,
-            placeHolder: '例: このファイルをレビューしてください'
-        });
-
-        if (command) {
-            // 2段階送信でメイドに指示
-            await this.sendMessageToAgent(selected.id, command);
-        }
+        return UserCommands.promptAndSendToMaid(this.createUserCommandContext());
     }
 
     // =========================================================================
@@ -932,20 +733,14 @@ ${agentList || '  (なし)'}
         // tmuxセッションを終了（オプション - ユーザーが選択できるようにしても良い）
         // this.tmuxManager?.killSession();
 
-        // ポーリングを停止
-        this.stopTmuxWindowPolling();
-        this.stopDashboardPolling();
+        // イベント監視のクリーンアップ（モジュール分離）
+        TmuxWatcher.disposeTmuxWatcher(this.tmuxWatcherState);
+        FileWatcher.disposeFileWatcher(this.fileWatcherState);
 
         // ステータスバー通知タイマーを停止
         if (this.statusBarResetTimeout) {
             clearTimeout(this.statusBarResetTimeout);
         }
-
-        // 報告チェックタイマーを全クリア
-        for (const timer of this.pendingReportChecks.values()) {
-            clearTimeout(timer);
-        }
-        this.pendingReportChecks.clear();
 
         // ビューアターミナルを閉じる
         this.tmuxViewerTerminal?.dispose();
@@ -954,7 +749,6 @@ ${agentList || '  (なし)'}
         this.outputChannel.dispose();
         this.controllerPanel?.dispose();
         this.dashboardPanel?.dispose();
-        this.fileWatcher?.dispose();
     }
 
     /**

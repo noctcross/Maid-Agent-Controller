@@ -4,98 +4,6 @@ import { SetupContext } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { generateSudoersContent } from '../utils/package-manager';
 
-// =============================================================================
-// Phase 1: 事前調査関数
-// =============================================================================
-
-/**
- * WSLステータスの調査結果
- */
-export interface WslStatus {
-    needsWslInstall: boolean;       // WSL未インストール
-    needsUbuntuInstall: boolean;    // Ubuntu未インストール
-    needsPasswordlessSudo: boolean; // パスワードレスsudo未設定
-    isReady: boolean;               // WSL準備完了
-}
-
-/**
- * WSLの状態を調査（ダイアログなし、調査のみ）
- */
-export function checkWslStatus(): WslStatus {
-    // Mac/Linux環境では即座に準備完了
-    if (CURRENT_ENV !== 'windows-native') {
-        return {
-            needsWslInstall: false,
-            needsUbuntuInstall: false,
-            needsPasswordlessSudo: false,
-            isReady: true
-        };
-    }
-
-    // 1. WSL2がインストールされているかチェック
-    try {
-        execSync('wsl.exe --version', { encoding: 'utf-8', stdio: 'pipe' });
-    } catch {
-        return {
-            needsWslInstall: true,
-            needsUbuntuInstall: true,
-            needsPasswordlessSudo: true,
-            isReady: false
-        };
-    }
-
-    // 2. Ubuntuディストロがインストールされているかチェック
-    try {
-        const distros = execSync('wsl.exe -l -q', { encoding: 'utf-8' })
-            .replace(/\0/g, '')
-            .split('\n')
-            .map(s => s.trim())
-            .filter(s => s.length > 0);
-
-        if (distros.length === 0) {
-            return {
-                needsWslInstall: false,
-                needsUbuntuInstall: true,
-                needsPasswordlessSudo: true,
-                isReady: false
-            };
-        }
-    } catch {
-        return {
-            needsWslInstall: false,
-            needsUbuntuInstall: true,
-            needsPasswordlessSudo: true,
-            isReady: false
-        };
-    }
-
-    // 3. WSLが正常に動作するかチェック
-    try {
-        execSync("wsl bash -c 'echo ok'", { encoding: 'utf-8', stdio: 'pipe' });
-    } catch {
-        return {
-            needsWslInstall: false,
-            needsUbuntuInstall: false,
-            needsPasswordlessSudo: true,
-            isReady: false
-        };
-    }
-
-    // 4. パスワードレスsudoが設定されているかチェック
-    const needsPasswordlessSudo = !checkPasswordlessSudo();
-
-    return {
-        needsWslInstall: false,
-        needsUbuntuInstall: false,
-        needsPasswordlessSudo,
-        isReady: true
-    };
-}
-
-// =============================================================================
-// 既存関数
-// =============================================================================
-
 /**
  * WSL2の状態をチェックし、必要に応じてセットアップを案内
  * @returns true: WSL準備完了、false: 再起動等が必要
@@ -404,44 +312,6 @@ export async function setupPasswordlessSudo(ctx: SetupContext): Promise<boolean>
 }
 
 /**
- * パスワードレスsudoを設定（パスワードを引数で受け取る版）
- * @param password 事前に取得したパスワード
- * @returns 成功したらtrue
- */
-export async function setupPasswordlessSudoWithPassword(
-    ctx: SetupContext,
-    password: string
-): Promise<void> {
-    // 既に設定済みならスキップ
-    if (checkPasswordlessSudo()) {
-        ctx.log('[Sudo] パスワードレスsudo 既に設定済み');
-        return;
-    }
-
-    const username = getWslUsername();
-    ctx.log(`[Sudo] WSLユーザー名: ${username}`);
-
-    const sudoersContent = generateSudoersContent(username);
-    const escapedContent = sudoersContent
-        .replace(/'/g, "'\\''")
-        .replace(/\n/g, '\\n');
-
-    // sudoers.d に設定ファイルを作成
-    execSync(
-        `wsl bash -c "sudo -S bash -c 'echo -e \\"${escapedContent}\\" > /etc/sudoers.d/maid-agent && chmod 440 /etc/sudoers.d/maid-agent'"`,
-        { encoding: 'utf-8', timeout: 30000, input: password + '\n' }
-    );
-
-    // 設定の検証
-    execSync(
-        `wsl bash -c "sudo -n true 2>/dev/null"`,
-        { encoding: 'utf-8', stdio: 'pipe' }
-    );
-
-    ctx.log('[Sudo] パスワードレスsudo 設定完了');
-}
-
-/**
  * パスワードレスでsudoコマンドを実行(設定済みの場合)
  * @returns 成功したらtrue
  */
@@ -529,6 +399,241 @@ export async function installWsl(ctx: SetupContext): Promise<boolean> {
         return false; // 再起動が必要なので一旦falseを返す
     } catch (error) {
         vscode.window.showErrorMessage(`WSLインストールの起動に失敗しました: ${error}`);
+        return false;
+    }
+}
+
+/**
+ * jqがインストールされているかチェックし、必要に応じてインストール
+ * @returns true: jq準備完了、false: インストール失敗/スキップ
+ */
+export async function checkAndInstallJq(ctx: SetupContext): Promise<boolean> {
+    ctx.log('[jq] チェック開始');
+
+    // jqの存在確認
+    const jqInstalled = checkJqInstalled(ctx);
+
+    if (jqInstalled) {
+        ctx.log('[jq] インストール済み');
+        return true;
+    }
+
+    ctx.log('[jq] 未インストール');
+
+    // インストール確認ダイアログ
+    const choice = await vscode.window.showInformationMessage(
+        'jq (JSONパーサー) がインストールされていません。\n\n' +
+        'maidctl の出力パースに必要です。インストールしますか?\n' +
+        '(sudo apt install jq)',
+        { modal: false },
+        'インストールする',
+        'スキップ'
+    );
+
+    if (choice !== 'インストールする') {
+        ctx.log('[jq] インストールをスキップ');
+        vscode.window.showWarningMessage(
+            'jq がインストールされていません。maidctl の一部機能が制限されます。\n' +
+            '後で手動でインストールできます: sudo apt install jq'
+        );
+        return false;
+    }
+
+    // インストール実行
+    return await installJq(ctx);
+}
+
+/**
+ * jqがインストールされているか確認
+ */
+export function checkJqInstalled(ctx: SetupContext): boolean {
+    try {
+        if (CURRENT_ENV === 'windows-native') {
+            // Windows: WSL経由でログインシェルとしてチェック
+            execSync('wsl bash -lc "which jq"', { encoding: 'utf-8', stdio: 'pipe' });
+        } else {
+            // Mac/Linux: 直接チェック
+            execSync('which jq', { encoding: 'utf-8', stdio: 'pipe' });
+        }
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * jqをインストール
+ */
+async function installJq(ctx: SetupContext): Promise<boolean> {
+    ctx.log('[jq] インストール開始');
+
+    try {
+        if (CURRENT_ENV === 'windows-native') {
+            // Windows: WSL経由でインストール
+            return await installJqViaWsl(ctx);
+        } else if (CURRENT_ENV === 'macos') {
+            // macOS: Homebrew経由
+            return await installJqViaBrew(ctx);
+        } else {
+            // Linux: apt経由
+            return await installJqViaApt(ctx);
+        }
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.log(`[jq] インストール失敗: ${message}`);
+        vscode.window.showErrorMessage(
+            `jq のインストールに失敗しました: ${message}\n` +
+            '手動でインストールしてください: sudo apt install jq'
+        );
+        return false;
+    }
+}
+
+/**
+ * WSL経由でjqをインストール (Windows)
+ */
+async function installJqViaWsl(ctx: SetupContext): Promise<boolean> {
+    // パスワードレスsudoが設定されているか確認
+    const hasPasswordlessSudo = checkPasswordlessSudo();
+
+    if (hasPasswordlessSudo) {
+        // パスワードレスで実行（ログインシェルで実行）
+        try {
+            execSync('wsl bash -lc "sudo apt update && sudo apt install -y jq"', {
+                encoding: 'utf-8',
+                stdio: 'pipe',
+                timeout: 120000
+            });
+            ctx.log('[jq] パスワードレスでインストール完了');
+            vscode.window.showInformationMessage('✅ jq をインストールしました');
+            return true;
+        } catch (error) {
+            ctx.log(`[jq] パスワードレスインストール失敗: ${error}`);
+            // パスワード入力にフォールバック
+        }
+    }
+
+    // パスワード入力でインストール
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const password = await promptWslPassword('jq のインストール', attempt, MAX_ATTEMPTS);
+        if (!password) {
+            ctx.log('[jq] パスワード入力がキャンセルされました');
+            return false;
+        }
+
+        try {
+            execSync(
+                'wsl bash -lc "sudo -S apt update && sudo -S apt install -y jq"',
+                {
+                    encoding: 'utf-8',
+                    timeout: 120000,
+                    input: password + '\n' + password + '\n'  // apt updateとinstallの両方に渡す
+                }
+            );
+            ctx.log('[jq] インストール完了');
+            vscode.window.showInformationMessage('✅ jq をインストールしました');
+            return true;
+        } catch (error) {
+            ctx.log(`[jq] インストール失敗 (${attempt}/${MAX_ATTEMPTS}): ${error}`);
+        }
+    }
+
+    vscode.window.showErrorMessage(
+        'jq のインストールに失敗しました。\n' +
+        '手動でインストールしてください:\n' +
+        'wsl sudo apt install jq'
+    );
+    return false;
+}
+
+/**
+ * Homebrew経由でjqをインストール (macOS)
+ */
+async function installJqViaBrew(ctx: SetupContext): Promise<boolean> {
+    // Homebrewの存在確認
+    try {
+        execSync('which brew', { encoding: 'utf-8', stdio: 'pipe' });
+    } catch {
+        ctx.log('[jq] Homebrew が見つかりません');
+        vscode.window.showWarningMessage(
+            'Homebrew がインストールされていません。\n' +
+            'jq を手動でインストールしてください: brew install jq\n' +
+            'または Homebrew をインストール: https://brew.sh'
+        );
+        return false;
+    }
+
+    try {
+        execSync('brew install jq', { encoding: 'utf-8', stdio: 'pipe', timeout: 120000 });
+        ctx.log('[jq] Homebrew経由でインストール完了');
+        vscode.window.showInformationMessage('✅ jq をインストールしました');
+        return true;
+    } catch (error) {
+        ctx.log(`[jq] Homebrewインストール失敗: ${error}`);
+        vscode.window.showErrorMessage(
+            'jq のインストールに失敗しました。\n' +
+            '手動でインストールしてください: brew install jq'
+        );
+        return false;
+    }
+}
+
+/**
+ * apt経由でjqをインストール (Linux)
+ */
+async function installJqViaApt(ctx: SetupContext): Promise<boolean> {
+    // sudoが必要か確認（rootユーザーでない場合）
+    let needSudo = true;
+    try {
+        const whoami = execSync('whoami', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+        needSudo = whoami !== 'root';
+    } catch {
+        // デフォルトでsudoを使う
+    }
+
+    const sudoPrefix = needSudo ? 'sudo ' : '';
+
+    try {
+        // パスワードなしでsudo可能か確認
+        if (needSudo) {
+            try {
+                execSync('sudo -n true', { encoding: 'utf-8', stdio: 'pipe' });
+                // パスワードなしでOK
+                execSync(`${sudoPrefix}apt update && ${sudoPrefix}apt install -y jq`, {
+                    encoding: 'utf-8',
+                    stdio: 'pipe',
+                    timeout: 120000
+                });
+                ctx.log('[jq] パスワードなしでインストール完了');
+                vscode.window.showInformationMessage('✅ jq をインストールしました');
+                return true;
+            } catch {
+                // パスワードが必要
+                ctx.log('[jq] sudoパスワードが必要です');
+            }
+        }
+
+        // ターミナルでインストールを促す
+        vscode.window.showWarningMessage(
+            'jq のインストールにはパスワードが必要です。\n' +
+            'ターミナルで以下を実行してください:\n' +
+            `${sudoPrefix}apt install jq`,
+            'ターミナルを開く'
+        ).then(selection => {
+            if (selection === 'ターミナルを開く') {
+                const terminal = vscode.window.createTerminal('jq インストール');
+                terminal.show();
+                terminal.sendText(`${sudoPrefix}apt install jq`);
+            }
+        });
+        return false;
+    } catch (error) {
+        ctx.log(`[jq] aptインストール失敗: ${error}`);
+        vscode.window.showErrorMessage(
+            'jq のインストールに失敗しました。\n' +
+            `手動でインストールしてください: ${sudoPrefix}apt install jq`
+        );
         return false;
     }
 }

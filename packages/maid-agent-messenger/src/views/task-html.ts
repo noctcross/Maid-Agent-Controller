@@ -32,6 +32,7 @@ export function generateReportLinksHtml(
  * タスクリストのHTMLを生成するヘルパー関数
  * SSEエンドポイントとJSON APIエンドポイントの両方で使用
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 部分的なタスクオブジェクトも許容
 export function generateTaskHtml(tasks: any[], type: string, projectPath: string, scheme: string = "vscode"): string {
   const priorityClass: Record<string, string> = {
     high: "priority-high",
@@ -45,7 +46,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
 
   return tasks.map((task) => {
     const title = task.title || task.description?.split("\n")[0].substring(0, 50) || "";
-    const assigneeStr = task.assignees?.map((a: any) => a.agentId).join(", ") || "";
+    const assigneeStr = task.assignees?.map((a: { agentId: string }) => a.agentId).join(", ") || "";
     const createdDate = task.createdAt
       ? formatDateJstShort(new Date(task.createdAt))
       : "";
@@ -67,15 +68,22 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
       </div>`;
     } else if (type === "working") {
       const elapsedTime = task.startedAt ? formatRelativeTime(task.startedAt) : "";
-      return `<div class="task-item" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}" data-updated="${task.updatedAt || task.createdAt}">
+      const isBlocked = task.status === "blocked";
+      const blockedClass = isBlocked ? " blocked-item" : "";
+      const statusIcon = isBlocked ? "🚫" : "🕐";
+      const substatusHtml = isBlocked && task.substatus
+        ? `<div class="task-substatus">⚠️ ${escapeHtml(task.substatus)}</div>`
+        : "";
+      return `<div class="task-item${blockedClass}" data-priority="${task.priority || ''}" data-assignee="${assigneeStr}" data-id="${task.id}" data-updated="${task.updatedAt || task.createdAt}">
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
-        ${elapsedTime ? `<span class="task-date">🕐 ${elapsedTime}</span>` : ""}
+        ${elapsedTime ? `<span class="task-date">${statusIcon} ${elapsedTime}</span>` : (isBlocked ? `<span class="task-date">${statusIcon} blocked</span>` : "")}
+        ${substatusHtml}
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
           <div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr || "未割当"}</span></div>
-          <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
+          <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}${isBlocked && task.substatus ? ` - ${escapeHtml(task.substatus)}` : ""}</span></div>
         </div>
       </div>`;
     } else if (type === "completed") {
@@ -121,9 +129,17 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         </div>
       </div>`;
     } else if (type === "action_required") {
-      const substatusHtml = task.substatus
-        ? `<span class="task-substatus-inline">🔴 ${escapeHtml(task.substatus)}</span>`
+      // エスカレーション情報を優先表示
+      const escalationTitle = task.escalation?.title || task.substatus;
+      const substatusHtml = escalationTitle
+        ? `<span class="task-substatus-inline">🔴 ${escapeHtml(escalationTitle)}</span>`
         : '<span class="task-substatus-inline">🔴 ご主人様判断待ち</span>';
+
+      // エスカレーション詳細があれば表示
+      const escalationDetailHtml = task.escalation?.detail
+        ? `<div class="task-detail-row escalation-detail"><span class="task-detail-label">📋 詳細:</span><span class="task-detail-value">${escapeHtml(task.escalation.detail)}</span></div>`
+        : "";
+
       return `<div class="task-item action-required-item" data-id="${task.id}">
         <span class="task-id">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
@@ -131,6 +147,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         <span class="task-assignee">${assigneeStr ? `👤 ${assigneeStr}` : ""}</span>
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
+          ${escalationDetailHtml}
           <div class="task-detail-row"><span class="task-detail-label">ステータス:</span><span class="task-detail-value">${task.status}</span></div>
           ${assigneeStr ? `<div class="task-detail-row"><span class="task-detail-label">担当者:</span><span class="task-detail-value">${assigneeStr}</span></div>` : ""}
         </div>
@@ -151,16 +168,36 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
         </div>
       </div>`;
     } else if (type === "skill_candidate") {
+      // タスク詳細情報をBase64エンコード（モーダル表示用）
+      const taskInfoJson = JSON.stringify({
+        id: task.id,
+        title: title,
+        description: task.description || "",
+        status: task.status || "pending",
+        assignees: "",
+        updatedAt: task.updatedAt || "",
+      });
+      const taskInfoBase64 = Buffer.from(taskInfoJson, "utf-8").toString("base64");
       return `<div class="task-item skill-item" data-id="${task.id}">
-        <span class="task-id">${task.id}</span>
+        <span class="task-id task-id-clickable" data-task-info="${taskInfoBase64}">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
         </div>
       </div>`;
     } else if (type === "improvement") {
+      // タスク詳細情報をBase64エンコード（モーダル表示用）
+      const taskInfoJson = JSON.stringify({
+        id: task.id,
+        title: title,
+        description: task.description || "",
+        status: task.status || "pending",
+        assignees: "",
+        updatedAt: task.updatedAt || "",
+      });
+      const taskInfoBase64 = Buffer.from(taskInfoJson, "utf-8").toString("base64");
       return `<div class="task-item improvement-item" data-id="${task.id}">
-        <span class="task-id">${task.id}</span>
+        <span class="task-id task-id-clickable" data-task-info="${taskInfoBase64}">${task.id}</span>
         <span class="task-title">${escapeHtml(title)}</span>
         <div class="task-detail">
           ${task.description ? `<div class="task-detail-row"><span class="task-detail-label">説明:</span><span class="task-detail-value">${linkifyProjectPaths(convertMarkdownToHtml(task.description), projectPath)}</span></div>` : ""}
@@ -177,6 +214,7 @@ export function generateTaskHtml(tasks: any[], type: string, projectPath: string
  * masterWaiting（アクティブ）と masterReview（確認待ち）を適切に結合し、
  * 両方空の場合は「なし」を1つだけ表示する
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 部分的なタスクオブジェクトも許容
 export function composeMasterWaitingHtml(
   masterWaitingTasks: any[],
   masterReviewTasks: any[],

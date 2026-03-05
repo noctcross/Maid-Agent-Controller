@@ -1,592 +1,107 @@
 /**
- * タスク管理サービス
+ * タスク管理サービス - エントリポイント
  *
  * MCPタスク管理システムのコアロジック
  * tasks.yaml を単一ファイルで管理
- */
-
-import * as fs from "fs/promises";
-import * as fsSync from "fs";
-import * as path from "path";
-import { parse, stringify } from "yaml";
-import { withFileLock } from "../utils/file-lock.js";
-import { getTimestamp, fileExists } from "../utils/yaml-helper.js";
-
-// === 型定義 ===
-
-export type TaskStatus =
-  | "pending"
-  | "assigned"
-  | "working"
-  | "completed"
-  | "blocked"
-  | "cancelled";
-
-export interface Assignee {
-  agentId: string;
-  role: string | null;
-  subTaskId: string | null;
-}
-
-export type TaskCategory = "task" | "action_required" | "skill_candidate" | "improvement";
-
-export interface Task {
-  id: string;
-  parentId: string | null;
-  title: string;           // タスクタイトル（短い概要）
-  description: string;     // タスク説明（詳細）
-  priority: "high" | "medium" | "low";
-  status: TaskStatus;
-  substatus: string | null;
-  category: TaskCategory;
-  assignees: Assignee[];
-  targetPath?: string | null;     // 作業対象パス（optional for backward compat）
-  createdAt: string;
-  assignedAt: string | null;
-  startedAt: string | null;
-  completedAt: string | null;
-  updatedAt: string;           // 最終更新日時
-  reportPaths: string[];
-  summary: string | null;
-  reviewed?: boolean;        // チェック済みフラグ（完了タスク用）
-  starred?: boolean;         // スター付きフラグ（完了タスク用）
-  reviewedAt?: string | null;  // チェック日時
-  starredAt?: string | null;   // スター日時
-  escalation?: boolean;          // エスカレーションフラグ（ご主人様判断待ち）
-  escalatedAt?: string | null;   // エスカレーション日時
-}
-
-/**
- * 軽量版タスク（summaryOnly: true 時に返却）
- */
-export interface TaskSummary {
-  id: string;
-  parentId: string | null;
-  title: string;
-  status: TaskStatus;
-  priority: "high" | "medium" | "low";
-  category: TaskCategory;
-  assignees: Assignee[];
-}
-
-export interface TasksData {
-  lastTaskNumber: number;
-  tasks: Task[];
-}
-
-// === ファイルパス ===
-
-const getTasksFilePath = (projectPath: string): string => {
-  return path.join(projectPath, ".maid-agent", "system", "data", "tasks.yaml");
-};
-
-// === ファイルロック付き操作 ===
-
-/**
- * YAMLコンテンツをパースしてバリデーション
- */
-function parseTasksData(content: string): TasksData {
-  try {
-    const data = parse(content) as TasksData;
-
-    // バリデーション
-    if (
-      !data ||
-      typeof data.lastTaskNumber !== "number" ||
-      !Array.isArray(data.tasks)
-    ) {
-      throw new Error("Invalid tasks.yaml format");
-    }
-
-    // updatedAt マイグレーション（既存データの後方互換）
-    for (const task of data.tasks) {
-      if (!task.updatedAt) {
-        const timestamps = [
-          task.completedAt,
-          task.starredAt,
-          task.reviewedAt,
-          task.escalatedAt,
-          task.startedAt,
-          task.assignedAt,
-          task.createdAt,
-        ].filter((t): t is string => t != null);
-        task.updatedAt = timestamps.length > 0
-          ? timestamps.sort().pop()!
-          : task.createdAt;
-      }
-    }
-
-    return data;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Failed to parse tasks.yaml: ${message}`);
-  }
-}
-
-/**
- * 初期データを作成
- */
-function createInitialData(): TasksData {
-  return { lastTaskNumber: 0, tasks: [] };
-}
-
-/**
- * ファイルロックを取得してタスクデータを操作する
- * 読み取り→加工→書き込みを一貫したロックで保護
- */
-async function withTasksLock<T>(
-  projectPath: string,
-  operation: (data: TasksData) => Promise<{ data: TasksData; result: T }>
-): Promise<T> {
-  const filePath = getTasksFilePath(projectPath);
-  const dirPath = path.dirname(filePath);
-
-  // ディレクトリ作成
-  if (!fsSync.existsSync(dirPath)) {
-    await fs.mkdir(dirPath, { recursive: true });
-  }
-
-  // ファイルが存在しない場合は初期ファイル作成
-  if (!(await fileExists(filePath))) {
-    const initialContent = stringify(createInitialData(), { lineWidth: 120 });
-    await fs.writeFile(filePath, initialContent, "utf-8");
-  }
-
-  // ファイルロックを取得して操作
-  return withFileLock(
-    filePath,
-    async () => {
-      // 読み取り
-      const content = await fs.readFile(filePath, "utf-8");
-      const data = parseTasksData(content);
-
-      // 操作実行
-      const { data: newData, result } = await operation(data);
-
-      // 書き込み
-      const yamlContent = stringify(newData, { lineWidth: 120 });
-      await fs.writeFile(filePath, yamlContent, "utf-8");
-
-      return result;
-    },
-    { retries: 5, stale: 10000 }
-  );
-}
-
-/**
- * 読み取り専用（ロックなし）- 一覧表示など更新を伴わない場合
- */
-async function loadTasksReadOnly(projectPath: string): Promise<TasksData> {
-  const filePath = getTasksFilePath(projectPath);
-
-  if (!(await fileExists(filePath))) {
-    return createInitialData();
-  }
-
-  const content = await fs.readFile(filePath, "utf-8");
-  return parseTasksData(content);
-}
-
-// === CRUD操作 ===
-
-export interface CreateTaskParams {
-  title: string;           // タスクタイトル（短い概要）
-  description?: string;    // タスク説明（詳細、省略可）
-  priority?: "high" | "medium" | "low";
-  parentId?: string;
-  assignees?: string[];
-  category?: TaskCategory;
-}
-
-export interface CreateTaskResult {
-  taskId: string;
-  task: Task;
-}
-
-/**
- * タスク作成
- */
-export async function executeCreateTask(
-  projectPath: string,
-  params: CreateTaskParams
-): Promise<CreateTaskResult> {
-  return withTasksLock(projectPath, async (data) => {
-    // 新しいタスクID生成
-    let taskId: string;
-    if (params.parentId) {
-      // サブタスクの場合: 親ID-連番
-      const siblings = data.tasks.filter((t) => t.parentId === params.parentId);
-      const nextSeq = siblings.length + 1;
-      taskId = `${params.parentId}-${nextSeq}`;
-    } else {
-      // メインタスクの場合: 連番（3桁ゼロ埋め）
-      data.lastTaskNumber += 1;
-      taskId = String(data.lastTaskNumber).padStart(3, "0");
-    }
-
-    const now = getTimestamp();
-    const newTask: Task = {
-      id: taskId,
-      parentId: params.parentId || null,
-      title: params.title,
-      description: params.description || "",
-      priority: params.priority || "medium",
-      status: params.assignees?.length ? "assigned" : "pending",
-      substatus: null,
-      category: params.category || "task",
-      assignees: (params.assignees || []).map((agentId) => ({
-        agentId,
-        role: null,
-        subTaskId: null,
-      })),
-      targetPath: null,
-      createdAt: now,
-      updatedAt: now,
-      assignedAt: params.assignees?.length ? now : null,
-      startedAt: null,
-      completedAt: null,
-      reportPaths: [],
-      summary: null,
-    };
-
-    data.tasks.push(newTask);
-    return { data, result: { taskId, task: newTask } };
-  });
-}
-
-export interface GetTaskParams {
-  taskId: string;
-  includeSubtasks?: boolean;
-  summaryOnly?: boolean;  // true: 軽量版（TaskSummary）を返却
-}
-
-export interface GetTaskResult {
-  task: Task | TaskSummary | null;
-  subtasks?: (Task | TaskSummary)[];
-}
-
-/**
- * Task を TaskSummary に変換
- */
-function toTaskSummary(task: Task): TaskSummary {
-  return {
-    id: task.id,
-    parentId: task.parentId,
-    title: task.title,
-    status: task.status,
-    priority: task.priority,
-    category: task.category,
-    assignees: task.assignees,
-  };
-}
-
-/**
- * タスク取得
- */
-export async function executeGetTask(
-  projectPath: string,
-  params: GetTaskParams
-): Promise<GetTaskResult> {
-  const data = await loadTasksReadOnly(projectPath);
-  const fullTask = data.tasks.find((t) => t.id === params.taskId) || null;
-
-  if (!fullTask) {
-    return { task: null };
-  }
-
-  const task = params.summaryOnly ? toTaskSummary(fullTask) : fullTask;
-
-  let subtasks: (Task | TaskSummary)[] | undefined;
-  if (params.includeSubtasks) {
-    const fullSubtasks = data.tasks.filter((t) => t.parentId === params.taskId);
-    subtasks = params.summaryOnly
-      ? fullSubtasks.map(toTaskSummary)
-      : fullSubtasks;
-  }
-
-  return { task, subtasks };
-}
-
-export interface ListTasksParams {
-  status?: TaskStatus[];
-  assignee?: string;
-  parentId?: string | null;
-  category?: TaskCategory[];
-  reviewed?: boolean;
-  starred?: boolean;
-  search?: string;        // テキスト検索（id, title, description を部分一致検索）
-  limit?: number;
-  offset?: number;
-  sortField?: "createdAt" | "completedAt" | "priority" | "status" | "id" | "updatedAt";
-  sortOrder?: "asc" | "desc";
-  summaryOnly?: boolean;  // true: 軽量版（TaskSummary[]）を返却
-}
-
-export interface ListTasksResult {
-  tasks: (Task | TaskSummary)[];
-  total: number;
-  hasMore: boolean;
-}
-
-/**
- * タスクIDを数値的に比較する
- * 例: "048" < "048-1" < "048-2" < "048-10" (文字列比較だと "048-10" < "048-2" になる)
- */
-export function compareTaskIds(a: string, b: string): number {
-  const partsA = a.split("-").map(Number);
-  const partsB = b.split("-").map(Number);
-  const maxLen = Math.max(partsA.length, partsB.length);
-  for (let i = 0; i < maxLen; i++) {
-    const numA = partsA[i] ?? -1;
-    const numB = partsB[i] ?? -1;
-    if (numA !== numB) return numA - numB;
-  }
-  return 0;
-}
-
-/**
- * タスク一覧取得
- */
-export async function executeListTasks(
-  projectPath: string,
-  params: ListTasksParams = {}
-): Promise<ListTasksResult> {
-  const data = await loadTasksReadOnly(projectPath);
-  let tasks = [...data.tasks];
-
-  // フィルタリング
-  if (params.status?.length) {
-    tasks = tasks.filter((t) => params.status!.includes(t.status));
-  }
-  if (params.assignee) {
-    tasks = tasks.filter((t) =>
-      t.assignees.some((a) => a.agentId === params.assignee)
-    );
-  }
-  if (params.parentId !== undefined) {
-    tasks = tasks.filter((t) => t.parentId === params.parentId);
-  }
-  if (params.category?.length) {
-    tasks = tasks.filter((t) => params.category!.includes(t.category || "task"));
-  }
-  if (params.reviewed !== undefined) {
-    tasks = tasks.filter((t) =>
-      params.reviewed ? t.reviewed === true : !t.reviewed
-    );
-  }
-  if (params.starred !== undefined) {
-    tasks = tasks.filter((t) =>
-      params.starred ? t.starred === true : !t.starred
-    );
-  }
-  // テキスト検索（id, title, description を部分一致検索）
-  if (params.search) {
-    const searchLower = params.search.toLowerCase();
-    tasks = tasks.filter((t) => {
-      const idMatch = t.id?.toLowerCase().includes(searchLower) || false;
-      const titleMatch = t.title?.toLowerCase().includes(searchLower) || false;
-      const descMatch = t.description?.toLowerCase().includes(searchLower) || false;
-      return idMatch || titleMatch || descMatch;
-    });
-  }
-
-  // ソート
-  if (params.sortField) {
-    const order = params.sortOrder || "desc";
-    if (params.sortField === "id") {
-      tasks.sort((a, b) => {
-        const cmp = compareTaskIds(a.id, b.id);
-        return order === "asc" ? cmp : -cmp;
-      });
-    } else {
-      const field = params.sortField;
-      tasks.sort((a, b) => {
-        const aVal = a[field];
-        const bVal = b[field];
-        if (aVal === null && bVal === null) return 0;
-        if (aVal === null) return order === "asc" ? -1 : 1;
-        if (bVal === null) return order === "asc" ? 1 : -1;
-        const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-        return order === "asc" ? cmp : -cmp;
-      });
-    }
-  }
-
-  const total = tasks.length;
-
-  // ページネーション
-  const offset = params.offset || 0;
-  const limit = params.limit || 50;
-  tasks = tasks.slice(offset, offset + limit);
-
-  return {
-    tasks: params.summaryOnly ? tasks.map(toTaskSummary) : tasks,
-    total,
-    hasMore: offset + tasks.length < total,
-  };
-}
-
-// === Phase 3: update_task ===
-
-export interface UpdateTaskParams {
-  taskId: string;
-  // --- 既存 ---
-  status?: TaskStatus;
-  substatus?: string;
-  category?: TaskCategory;
-  assignees?: Assignee[];
-  summary?: string;
-  reportPath?: string;
-  reviewed?: boolean;
-  starred?: boolean;
-  escalation?: boolean;          // エスカレーションフラグ
-  // --- 追加: unified-task-state-gateway ---
-  description?: string;        // タスク説明（assign_task が独自の詳細説明を渡す場合に使用）
-  targetPath?: string;         // 作業対象パス（assign_task からの伝達用）
-  agentId?: string;            // 操作元メイドID（update_status からの伝達用）
-}
-
-export interface SideEffectResults {
-  maidYamlSynced?: boolean;
-  reportArchived?: boolean;
-  reportTemplatized?: boolean;
-  archivePath?: string;
-}
-
-export interface UpdateTaskResult {
-  success: boolean;
-  task: Task | null;
-  sideEffects?: SideEffectResults;
-}
-
-/**
- * タスク更新
  *
- * unified-task-state-gateway: 唯一の書き込みゲートウェイ。
- * tasks.yaml 更新後、副作用（maid yaml同期・レポートアーカイブ・テンプレート初期化）を実行。
+ * 責務分割:
+ * - task-core.ts: 共通ユーティリティ（withTasksLock, loadTasksReadOnly）
+ * - task-crud.ts: CRUD操作（create, get, list, update）
+ * - task-v2-migration.ts: V2.1ステータス関連・マイグレーション
+ * - task-stats.ts: ダッシュボードデータ生成・統計処理
+ * - task-auto-close.ts: 自動クローズ・依存解消処理
+ * - task-manager.ts（本ファイル）: エントリポイント（全モジュールをre-export）
  */
-export async function executeUpdateTask(
-  projectPath: string,
-  params: UpdateTaskParams
-): Promise<UpdateTaskResult> {
-  // Phase 1: tasks.yaml 更新（ロック内）
-  const lockResult = await withTasksLock<{
-    result: UpdateTaskResult;
-    prevStatus: string;
-    prevAssignees: Assignee[];
-  }>(projectPath, async (data) => {
-    const taskIndex = data.tasks.findIndex((t) => t.id === params.taskId);
 
-    if (taskIndex === -1) {
-      const result: UpdateTaskResult = { success: false, task: null };
-      return { data, result: { result, prevStatus: "", prevAssignees: [] } };
-    }
+// === 型定義（共通ファイルから再エクスポート）===
+// 循環参照解消のため、型定義を ../types/task-manager-types.ts に分離
+export type {
+  TaskStatus,
+  TaskType,
+  TaskMainStatus,
+  TaskSubstatus,
+  TaskSize,
+  ReviewStatus,
+  OperatorRole,
+  StatusTransitionValidation,
+  RetentionLevel,
+  TaskArtifact,
+  Assignee,
+  TaskCategory,
+  Task,
+  TaskSummary,
+  TasksData,
+  UpdateTaskParams,
+  SideEffectResults,
+  UpdateTaskResult,
+} from "../types/task-manager-types.js";
 
-    const task = data.tasks[taskIndex];
-    const now = getTimestamp();
+// === コアユーティリティ ===
+export {
+  withTasksLock,
+  loadTasksReadOnly,
+} from "./task-core.js";
 
-    // 更新前の状態を保持（副作用判定用）
-    const prevStatus = task.status;
-    const prevAssignees = [...task.assignees];
+// === 分割モジュールの再エクスポート ===
 
-    // 更新適用
-    if (params.status !== undefined) {
-      task.status = params.status;
-      if (params.status === "working" && !task.startedAt) {
-        task.startedAt = now;
-      }
-      if (params.status === "completed") {
-        task.completedAt = now;
-      }
-    }
-    if (params.substatus !== undefined) {
-      task.substatus = params.substatus;
-    }
-    if (params.category !== undefined) {
-      task.category = params.category;
-    }
-    if (params.assignees !== undefined) {
-      task.assignees = params.assignees;
-      if (!task.assignedAt) {
-        task.assignedAt = now;
-      }
-    }
-    if (params.description !== undefined) {
-      task.description = params.description;
-    }
-    if (params.targetPath !== undefined) {
-      task.targetPath = params.targetPath;
-    }
-    if (params.summary !== undefined) {
-      task.summary = params.summary;
-    }
-    if (params.reportPath) {
-      // ファイル名で重複チェック（絶対パス/相対パスの違いを吸収）
-      const newFileName = path.basename(params.reportPath);
-      const isDuplicate = task.reportPaths.some((existing) => {
-        const existingFileName = path.basename(existing);
-        return existingFileName === newFileName;
-      });
-      if (!isDuplicate) {
-        task.reportPaths.push(params.reportPath);
-      }
-    }
-    if (params.reviewed !== undefined) {
-      task.reviewed = params.reviewed;
-      task.reviewedAt = params.reviewed ? now : null;
-    }
-    if (params.starred !== undefined) {
-      task.starred = params.starred;
-      task.starredAt = params.starred ? now : null;
-    }
-    if (params.escalation !== undefined) {
-      task.escalation = params.escalation;
-      task.escalatedAt = params.escalation ? now : null;
-    }
+// CRUD操作
+export {
+  executeCreateTask,
+  executeGetTask,
+  executeListTasks,
+  executeGetTaskChildren,
+  executeUpdateTask,
+  compareTaskIds,
+} from "./task-crud.js";
+export type {
+  CreateTaskParams,
+  CreateTaskResult,
+  GetTaskParams,
+  GetTaskResult,
+  ListTasksParams,
+  ListTasksResult,
+} from "./task-crud.js";
 
-    // 最終更新日時を自動設定
-    task.updatedAt = now;
+// V2.1 ステータス関連・マイグレーション
+export {
+  inferTaskType,
+  validateStatusTransition,
+  getAgentRole,
+  convertToV2Status,
+  mapLegacyToV2Status,
+  migrateTaskToV2,
+  migrateToV2,
+  checkMigrationStatus,
+} from "./task-v2-migration.js";
+export type {
+  MigrationResult,
+} from "./task-v2-migration.js";
 
-    const result: UpdateTaskResult = { success: true, task };
-    return { data, result: { result, prevStatus, prevAssignees } };
-  });
+// 統計・ダッシュボード
+export {
+  computeGoalDisplayStatus,
+  generateV2DashboardData,
+} from "./task-stats.js";
+export type {
+  V2DashboardData,
+  V2StepData,
+  V2WorkData,
+  V2TaskData,
+  V2GoalData,
+  V2PhaseData,
+  V2ActionData,
+  V2ReviewTaskData,
+  V2ArtifactData,
+  V2StatsData,
+  V2DashboardOptions,
+} from "./task-stats.js";
 
-  const { result, prevStatus, prevAssignees } = lockResult;
-
-  // Phase 2: 副作用実行（tasks.yaml ロック外）
-  if (result.success && result.task) {
-    try {
-      const { executeSideEffects } = await import("./task-side-effects.js");
-      const sideEffects = await executeSideEffects(
-        projectPath, result.task, params, prevStatus, prevAssignees
-      );
-      result.sideEffects = sideEffects;
-
-      // archivePath を tasks.yaml の reportPaths に追加（再ロック）
-      if (sideEffects.archivePath) {
-        try {
-          await withTasksLock(projectPath, async (data) => {
-            const task = data.tasks.find((t) => t.id === params.taskId);
-            if (task) {
-              const newFileName = path.basename(sideEffects.archivePath!);
-              const isDuplicate = task.reportPaths.some((existing) => {
-                const existingFileName = path.basename(existing);
-                return existingFileName === newFileName;
-              });
-              if (!isDuplicate) {
-                task.reportPaths.push(sideEffects.archivePath!);
-              }
-            }
-            return { data, result: null };
-          });
-        } catch {
-          // reportPaths 追加失敗は握りつぶす
-        }
-      }
-    } catch {
-      // 副作用全体の失敗は握りつぶす
-    }
-  }
-
-  return result;
-}
+// 自動クローズ・依存解消
+export {
+  resolveBlockedTasks,
+  checkGoalAutoClose,
+  checkAndAutoCloseParent,
+} from "./task-auto-close.js";
+export type {
+  DependencyResolutionResult,
+} from "./task-auto-close.js";

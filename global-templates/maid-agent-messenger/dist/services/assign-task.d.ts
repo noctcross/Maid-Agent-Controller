@@ -17,6 +17,7 @@ export interface AssignTaskParams {
     title: string;
     description?: string;
     targetPath?: string;
+    force?: boolean;
 }
 /**
  * タスクを割り当て

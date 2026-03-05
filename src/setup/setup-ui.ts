@@ -1,18 +1,10 @@
 /**
  * セットアップUI共通モジュール
- * - Phase 2: 入力一括取得
- * - Phase 4: 結果表示
  * - 事前確認（QuickPick）
  * - 進捗表示（withProgress）
+ * - 結果表示（showInformationMessage）
  */
 import * as vscode from 'vscode';
-import { execSync } from 'child_process';
-import { SetupContext, GlobalRequirements, UnifiedUserInput, SetupItem, SetupResult } from '../types';
-import { CURRENT_ENV } from '../utils/environment';
-
-// =============================================================================
-// 型定義（既存）
-// =============================================================================
 
 export interface SetupRequirement {
     id: string;
@@ -35,386 +27,44 @@ export interface ConfirmationResult {
     selectedIds: string[];
 }
 
-// =============================================================================
-// Phase 2: ユーザー入力一括取得
-// =============================================================================
-
-/**
- * セットアップ項目情報
- */
-interface SetupItemInfo {
-    id: SetupItem;
-    label: string;
-    description: string;
-    skipWarning: string;
-    picked: boolean;
+export interface SetupResult {
+    success: boolean;
+    completedSteps: string[];
+    failedStep?: string;
+    error?: string;
 }
 
 /**
- * Phase 2: ユーザー入力を一括取得
- * 確認ダイアログ → カスタマイズ（任意）→ パスワード入力（必要な場合）
- */
-export async function collectUnifiedInput(
-    ctx: SetupContext,
-    requirements: GlobalRequirements
-): Promise<UnifiedUserInput> {
-    // 1. 再起動が必要な場合は別フロー
-    if (requirements.needsReboot) {
-        return await handleRebootRequired(ctx, requirements);
-    }
-
-    // 2. 実行内容の確認
-    const items = buildSetupItemList(requirements);
-    const selection = await showSetupConfirmation(ctx, items);
-
-    if (selection === 'cancel') {
-        return { approved: false, skippedItems: [] };
-    }
-
-    // 3. カスタマイズの場合
-    const skippedItems: SetupItem[] = [];
-    if (selection === 'customize') {
-        const customResult = await showCustomizeDialog(ctx, items);
-        if (!customResult.approved) {
-            return { approved: false, skippedItems: [] };
-        }
-        skippedItems.push(...customResult.skippedItems);
-    }
-
-    // 4. パスワード入力（必要な場合のみ）
-    let password: string | undefined;
-    if (needsPasswordInput(requirements, skippedItems)) {
-        password = await promptPasswordOnce(ctx);
-        if (password === undefined) {
-            return { approved: false, skippedItems: [] };
-        }
-    }
-
-    return { approved: true, password, skippedItems };
-}
-
-/**
- * 再起動が必要な場合の処理
- */
-async function handleRebootRequired(
-    ctx: SetupContext,
-    requirements: GlobalRequirements
-): Promise<UnifiedUserInput> {
-    const message = requirements.needsWslInstall
-        ? 'WSL2のインストールが必要です。インストール後、PCの再起動が必要です。'
-        : 'Ubuntuのインストールが必要です。インストール後、PCの再起動が必要です。';
-
-    const choice = await vscode.window.showWarningMessage(
-        message,
-        { modal: true },
-        'インストールする',
-        'キャンセル'
-    );
-
-    if (choice !== 'インストールする') {
-        return { approved: false, skippedItems: [] };
-    }
-
-    return { approved: true, skippedItems: [] };
-}
-
-/**
- * セットアップ項目のリストを構築
- */
-function buildSetupItemList(requirements: GlobalRequirements): SetupItemInfo[] {
-    const items: SetupItemInfo[] = [];
-
-    // Windows: パスワードレスsudo
-    if (requirements.isWindows && requirements.needsPasswordlessSudo) {
-        items.push({
-            id: 'passwordlessSudo',
-            label: 'パスワードレスsudo設定',
-            description: '一度だけパスワードを入力すると、以降は自動で実行されます',
-            skipWarning: '毎回パスワード入力が必要になります',
-            picked: true
-        });
-    }
-
-    // pm2インストール
-    if (requirements.needsPm2Install) {
-        items.push({
-            id: 'pm2Install',
-            label: 'pm2 インストール',
-            description: 'MCPサーバー管理に必要なプロセスマネージャー',
-            skipWarning: 'MCPサーバーが起動できません。手動でインストールしてください: npm install -g pm2',
-            picked: true
-        });
-    }
-
-    // pm2 startup
-    if (requirements.needsPm2Startup) {
-        items.push({
-            id: 'pm2Startup',
-            label: 'pm2 自動起動設定',
-            description: 'システム起動時にMCPサーバーを自動起動',
-            skipWarning: 'システム起動時に手動でサーバーを起動してください: pm2 start ~/.maid-agent/maid-agent-messenger/ecosystem.config.cjs',
-            picked: true
-        });
-    }
-
-    return items;
-}
-
-/**
- * 確認ダイアログを表示
- * @returns 'all' | 'customize' | 'cancel'
- */
-async function showSetupConfirmation(
-    ctx: SetupContext,
-    items: SetupItemInfo[]
-): Promise<'all' | 'customize' | 'cancel'> {
-    if (items.length === 0) {
-        // 何もセットアップが必要ない場合は自動で承認
-        return 'all';
-    }
-
-    const itemList = items.map(item => `  ✓ ${item.label}`).join('\n');
-    const message = `以下の設定を行います：\n\n${itemList}`;
-
-    const choice = await vscode.window.showInformationMessage(
-        message,
-        { modal: true },
-        'すべて実行',
-        'カスタマイズ',
-        'キャンセル'
-    );
-
-    if (choice === 'すべて実行') {
-        return 'all';
-    } else if (choice === 'カスタマイズ') {
-        return 'customize';
-    }
-    return 'cancel';
-}
-
-/**
- * カスタマイズダイアログを表示（QuickPick multiselect）
- */
-async function showCustomizeDialog(
-    ctx: SetupContext,
-    items: SetupItemInfo[]
-): Promise<{ approved: boolean; skippedItems: SetupItem[] }> {
-    const quickPickItems: vscode.QuickPickItem[] = items.map(item => ({
-        label: item.label,
-        description: item.description,
-        detail: `スキップ時: ${item.skipWarning}`,
-        picked: item.picked
-    }));
-
-    const selected = await vscode.window.showQuickPick(quickPickItems, {
-        canPickMany: true,
-        placeHolder: '実行する項目を選択してください（選択されていない項目はスキップされます）',
-        title: 'グローバル設定のカスタマイズ'
-    });
-
-    if (selected === undefined) {
-        return { approved: false, skippedItems: [] };
-    }
-
-    // 選択されなかった項目をスキップリストに追加
-    const selectedLabels = new Set(selected.map(s => s.label));
-    const skippedItems: SetupItem[] = items
-        .filter(item => !selectedLabels.has(item.label))
-        .map(item => item.id);
-
-    return { approved: true, skippedItems };
-}
-
-/**
- * パスワード入力が必要かどうか判定
- */
-function needsPasswordInput(
-    requirements: GlobalRequirements,
-    skippedItems: SetupItem[]
-): boolean {
-    // パスワードレスsudoが既に設定されている場合は不要
-    if (!requirements.needsSudoPassword) {
-        return false;
-    }
-
-    // 以下のいずれかが必要で、スキップされていない場合はパスワードが必要
-    const needsPassword =
-        (requirements.needsPasswordlessSudo && !skippedItems.includes('passwordlessSudo')) ||
-        (requirements.needsPm2Install && !skippedItems.includes('pm2Install')) ||
-        (requirements.needsPm2Startup && !skippedItems.includes('pm2Startup'));
-
-    return needsPassword;
-}
-
-/**
- * パスワードを1回だけ入力（検証付き、最大3回リトライ）
- */
-async function promptPasswordOnce(ctx: SetupContext): Promise<string | undefined> {
-    const MAX_ATTEMPTS = 3;
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        const prompt = attempt > 1
-            ? `パスワードが正しくありません（${attempt}/${MAX_ATTEMPTS}回目）`
-            : CURRENT_ENV === 'windows-native'
-                ? 'WSL (Ubuntu) のパスワードを入力してください'
-                : 'sudoパスワードを入力してください';
-
-        const password = await vscode.window.showInputBox({
-            prompt,
-            password: true,
-            ignoreFocusOut: true,
-            placeHolder: CURRENT_ENV === 'windows-native'
-                ? 'Ubuntu 初回起動時に設定したパスワード'
-                : undefined
-        });
-
-        if (password === undefined) {
-            return undefined; // キャンセル
-        }
-
-        // パスワード検証
-        if (await validatePassword(ctx, password)) {
-            return password;
-        }
-    }
-
-    // 3回失敗
-    vscode.window.showErrorMessage(
-        'パスワードの認証に失敗しました。\n' +
-        '以下のコマンドを手動で実行してください:\n' +
-        'sudo npm install -g pm2'
-    );
-    return undefined;
-}
-
-/**
- * パスワードを検証（実際にsudo実行で確認）
- */
-async function validatePassword(ctx: SetupContext, password: string): Promise<boolean> {
-    try {
-        if (CURRENT_ENV === 'windows-native') {
-            execSync(
-                `wsl bash -c "sudo -S -v"`,
-                { encoding: 'utf-8', timeout: 10000, input: password + '\n', stdio: 'pipe' }
-            );
-        } else {
-            execSync(
-                `sudo -S -v`,
-                { encoding: 'utf-8', timeout: 10000, input: password + '\n', stdio: 'pipe' }
-            );
-        }
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-// =============================================================================
-// Phase 4: 結果表示
-// =============================================================================
-
-/**
- * Phase 4: セットアップ結果を表示
- */
-export function showGlobalSetupResult(
-    ctx: SetupContext,
-    result: SetupResult,
-    skippedItems: SetupItem[]
-): void {
-    if (result.success) {
-        let message = '✅ グローバル設定が完了しました';
-
-        // カスタマイズ時のアナウンス
-        const announcements = generateSkipAnnouncements(skippedItems);
-        if (announcements.length > 0) {
-            // 長いメッセージはモーダルで表示
-            vscode.window.showWarningMessage(
-                message + '\n\n⚠️ 注意事項:\n' + announcements.join('\n'),
-                { modal: true },
-                'OK'
-            );
-        } else {
-            vscode.window.showInformationMessage(message);
-        }
-    } else {
-        const completedInfo = result.completedSteps.length > 0
-            ? `\n\n完了したステップ: ${result.completedSteps.join(', ')}`
-            : '';
-
-        vscode.window.showErrorMessage(
-            `設定に失敗しました: ${result.error}${completedInfo}`
-        );
-    }
-}
-
-/**
- * スキップ時のアナウンスメッセージを生成
- */
-function generateSkipAnnouncements(skippedItems: SetupItem[]): string[] {
-    const announcements: string[] = [];
-
-    if (skippedItems.includes('passwordlessSudo')) {
-        announcements.push('• パスワードレスsudo: 毎回パスワード入力が必要になります');
-    }
-    if (skippedItems.includes('pm2Install')) {
-        announcements.push('• pm2未インストール: MCPサーバーが起動できません。手動でインストールしてください: npm install -g pm2');
-    }
-    if (skippedItems.includes('pm2Startup')) {
-        announcements.push('• 自動起動未設定: システム起動時に手動でサーバーを起動してください:\n  pm2 start ~/.maid-agent/maid-agent-messenger/ecosystem.config.cjs');
-    }
-
-    return announcements;
-}
-
-// =============================================================================
-// 既存機能（互換性維持）
-// =============================================================================
-
-/**
- * 事前確認画面を表示
- * QuickPick で選択肢を表示し、ユーザーの選択を返す
+ * 事前確認画面を表示（QuickPick）
  */
 export async function showInitConfirmation(
     requirements: SetupRequirement[],
-    isReinit: boolean
+    title: string
 ): Promise<ConfirmationResult | undefined> {
-    const items = requirements.map(req => ({
+    const items: vscode.QuickPickItem[] = requirements.map(req => ({
         label: req.required ? `$(check) ${req.label}` : req.label,
-        description: req.description + (req.needsPassword ? ' 🔐' : ''),
-        picked: req.checked,
-        alwaysShow: true,
-        requirement: req
+        description: req.needsPassword ? '🔐 パスワード必要' : '',
+        detail: req.description,
+        picked: req.checked
     }));
 
-    const title = isReinit
-        ? '🎩 Maid Agent グローバル設定（再初期化）'
-        : '🎩 Maid Agent グローバル設定';
-
-    const selected = await vscode.window.showQuickPick(items, {
-        canPickMany: true,
-        placeHolder: 'Enterで開始、Escでキャンセル',
+    const result = await vscode.window.showQuickPick(items, {
         title,
+        placeHolder: '実行する項目を選択してください',
+        canPickMany: true,
         ignoreFocusOut: true
     });
 
-    if (!selected) {
-        return undefined; // キャンセル
-    }
-
-    // 必須項目が選択されているか確認
-    const missingRequired = requirements
-        .filter(req => req.required)
-        .filter(req => !selected.some(s => s.requirement.id === req.id));
-
-    if (missingRequired.length > 0) {
-        const missing = missingRequired.map(r => r.label).join(', ');
-        vscode.window.showWarningMessage(`必須項目が選択されていません: ${missing}`);
-        return undefined;
-    }
+    if (!result) return undefined;
 
     return {
         confirmed: true,
-        selectedIds: selected.map(s => s.requirement.id)
+        selectedIds: result.map(item => {
+            const req = requirements.find(r =>
+                item.label.includes(r.label) || item.label === `$(check) ${r.label}`
+            );
+            return req?.id ?? '';
+        }).filter(id => id !== '')
     };
 }
 
@@ -434,15 +84,13 @@ export async function executeWithProgress<T>(
             title,
             cancellable: false
         }, async (progress) => {
-            const totalSteps = steps.length;
-            let currentStep = 0;
+            for (let i = 0; i < steps.length; i++) {
+                const step = steps[i];
+                const increment = 100 / steps.length;
 
-            for (const step of steps) {
-                currentStep++;
-                const percentage = Math.round((currentStep / totalSteps) * 100);
                 progress.report({
-                    message: `(${currentStep}/${totalSteps}) ${step.progressMessage}`,
-                    increment: percentage / totalSteps
+                    message: `ステップ ${i + 1}/${steps.length}: ${step.progressMessage}`,
+                    increment
                 });
 
                 await executor(step, (msg) => {
@@ -453,10 +101,7 @@ export async function executeWithProgress<T>(
             }
         });
 
-        return {
-            success: true,
-            completedSteps
-        };
+        return { success: true, completedSteps };
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return {
@@ -469,30 +114,342 @@ export async function executeWithProgress<T>(
 }
 
 /**
- * 結果画面を表示（既存、互換性維持）
+ * 結果画面を表示
  */
-export async function showSetupResult(result: SetupResult): Promise<void> {
+export async function showSetupResult(result: SetupResult, nextSteps?: string[]): Promise<void> {
     if (result.success) {
-        const message = `✅ セットアップが完了しました（${result.completedSteps.length}ステップ）`;
-        const action = await vscode.window.showInformationMessage(
-            message,
-            '次のステップを見る'
-        );
+        const message = nextSteps
+            ? `✅ セットアップ完了\n\n💡 次のステップ:\n${nextSteps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
+            : '✅ セットアップ完了';
 
-        if (action === '次のステップを見る') {
-            vscode.window.showInformationMessage(
-                '💡 次のステップ:\n' +
-                '1. 新しいターミナルを開いてください\n' +
-                '2. maidctl --help でコマンドを確認できます\n' +
-                '3. プロジェクトで「Maid Agent: Init」を実行してください',
-                { modal: true }
-            );
-        }
+        await vscode.window.showInformationMessage(message, { modal: false });
     } else {
-        const failedStepMsg = result.failedStep ? ` (${result.failedStep})` : '';
-        const errorMsg = result.error ? `\n\nエラー: ${result.error}` : '';
-        vscode.window.showErrorMessage(
-            `❌ セットアップに失敗しました${failedStepMsg}${errorMsg}`
+        const completed = result.completedSteps.length > 0
+            ? `\n\n完了したステップ: ${result.completedSteps.join(', ')}`
+            : '';
+
+        await vscode.window.showErrorMessage(
+            `❌ セットアップ失敗: ${result.error}${completed}`,
+            { modal: false }
+        );
+    }
+}
+
+// =============================================================================
+// グローバル設定用の追加UI関数
+// =============================================================================
+
+import { GlobalRequirements } from './requirements-analyzer';
+
+/**
+ * グローバル設定用のユーザー入力
+ */
+export interface GlobalUserInput {
+    approved: boolean;
+    password?: string;
+    skipItems: string[];  // スキップする項目のID
+}
+
+/**
+ * グローバル設定確認用の項目
+ */
+export interface GlobalConfirmItem {
+    id: string;
+    label: string;
+    description: string;
+    required: boolean;
+    needsPassword: boolean;
+    defaultSelected: boolean;
+}
+
+/**
+ * スキップ時のアナウンスメッセージ定義
+ */
+const SKIP_ANNOUNCEMENTS: Record<string, { message: string; severity: 'low' | 'medium' | 'high' }> = {
+    passwordlessSudo: {
+        message: 'sudoパスワードを毎回入力する必要があります',
+        severity: 'low',
+    },
+    jqInstall: {
+        message: 'maidctlの一部機能（JSON出力）が利用できません',
+        severity: 'medium',
+    },
+    yqInstall: {
+        message: 'maidctlの一部機能（YAML処理）が利用できません',
+        severity: 'medium',
+    },
+    pm2Startup: {
+        message: '⚠️ PC起動時にMCPサーバーの手動起動が必要です\n   コマンド: pm2 start maid-agent-messenger',
+        severity: 'high',
+    },
+    pathSetup: {
+        message: '⚠️ maidctlを使用するにはPATH設定が必要です\n   追加: export PATH="$HOME/.maid-agent/bin:$PATH"',
+        severity: 'high',
+    },
+};
+
+/**
+ * 事前調査結果から確認項目を生成
+ */
+export function buildGlobalConfirmItems(requirements: GlobalRequirements): GlobalConfirmItem[] {
+    const items: GlobalConfirmItem[] = [];
+
+    // パスワードレスsudo（推奨）
+    if (requirements.needs.passwordlessSudo) {
+        items.push({
+            id: 'passwordlessSudo',
+            label: 'パスワードレスsudo設定（推奨）',
+            description: 'sudo実行時にパスワード入力を省略',
+            required: false,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // jqインストール
+    if (requirements.needs.jqInstall) {
+        items.push({
+            id: 'jqInstall',
+            label: 'jq インストール',
+            description: 'JSONパーサー（maidctlで使用）',
+            required: false,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // yqインストール
+    if (requirements.needs.yqInstall) {
+        items.push({
+            id: 'yqInstall',
+            label: 'yq インストール',
+            description: 'YAMLパーサー（maidctlで使用）',
+            required: false,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // pm2インストール（必須）
+    if (requirements.needs.pm2Install) {
+        items.push({
+            id: 'pm2Install',
+            label: 'pm2 インストール（必須）',
+            description: 'MCPサーバープロセスマネージャー',
+            required: true,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // pm2 startup
+    if (requirements.needs.pm2Startup) {
+        items.push({
+            id: 'pm2Startup',
+            label: 'pm2 自動起動設定',
+            description: 'PC起動時にMCPサーバーを自動起動',
+            required: false,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // PATH設定
+    if (requirements.needs.pathSetup) {
+        items.push({
+            id: 'pathSetup',
+            label: 'PATH設定',
+            description: 'maidctlコマンドを使用可能にする',
+            required: false,
+            needsPassword: false,
+            defaultSelected: true,
+        });
+    }
+
+    return items;
+}
+
+/**
+ * グローバル設定の確認画面を表示
+ * @returns ユーザー入力またはundefined（キャンセル）
+ */
+export async function showGlobalConfirmation(
+    requirements: GlobalRequirements
+): Promise<GlobalUserInput | undefined> {
+    const items = buildGlobalConfirmItems(requirements);
+
+    if (items.length === 0) {
+        // 何も必要ない場合はそのまま承認
+        return {
+            approved: true,
+            skipItems: [],
+        };
+    }
+
+    // QuickPickアイテムを構築
+    const quickPickItems: vscode.QuickPickItem[] = items.map(item => ({
+        label: item.required ? `$(check) ${item.label}` : item.label,
+        description: item.needsPassword ? '🔐' : '',
+        detail: item.description,
+        picked: item.defaultSelected,
+    }));
+
+    // QuickPick表示
+    const selected = await vscode.window.showQuickPick(quickPickItems, {
+        title: '🔧 グローバル設定',
+        placeHolder: '実行する項目を選択してください（必須項目は解除できません）',
+        canPickMany: true,
+        ignoreFocusOut: true,
+    });
+
+    if (!selected) {
+        return undefined; // キャンセル
+    }
+
+    // 選択されたIDを抽出
+    const selectedIds = selected.map(sel => {
+        const item = items.find(i =>
+            sel.label.includes(i.label) || sel.label === `$(check) ${i.label}`
+        );
+        return item?.id ?? '';
+    }).filter(id => id !== '');
+
+    // 必須項目が選択されているか確認
+    const requiredItems = items.filter(i => i.required);
+    const missingRequired = requiredItems.filter(i => !selectedIds.includes(i.id));
+
+    if (missingRequired.length > 0) {
+        vscode.window.showWarningMessage(
+            `必須項目「${missingRequired.map(i => i.label).join('、')}」は解除できません`,
+            { modal: false }
+        );
+        return undefined;
+    }
+
+    // スキップ項目を計算
+    const skipItems = items
+        .filter(item => !selectedIds.includes(item.id))
+        .map(item => item.id);
+
+    // パスワード入力が必要か判定
+    const needsPassword = selectedIds.some(id => {
+        const item = items.find(i => i.id === id);
+        return item?.needsPassword;
+    });
+
+    let password: string | undefined;
+    if (needsPassword && requirements.needsSudoPassword) {
+        password = await promptGlobalPassword();
+        if (password === undefined) {
+            return undefined; // キャンセル
+        }
+    }
+
+    return {
+        approved: true,
+        password,
+        skipItems,
+    };
+}
+
+/**
+ * グローバル設定用のパスワード入力
+ */
+async function promptGlobalPassword(
+    attempt: number = 1,
+    maxAttempts: number = 3
+): Promise<string | undefined> {
+    const message = attempt > 1
+        ? `セットアップのためsudoパスワードを入力してください（${attempt}/${maxAttempts}回目）`
+        : 'セットアップのためsudoパスワードを入力してください';
+
+    return await vscode.window.showInputBox({
+        prompt: message,
+        password: true,
+        ignoreFocusOut: true,
+        placeHolder: 'パスワードを入力',
+    });
+}
+
+/**
+ * スキップ項目のアナウンスを生成
+ */
+export function buildSkipAnnouncements(skipItems: string[]): string[] {
+    return skipItems
+        .filter(id => SKIP_ANNOUNCEMENTS[id])
+        .sort((a, b) => {
+            const severityOrder = { high: 0, medium: 1, low: 2 };
+            return severityOrder[SKIP_ANNOUNCEMENTS[a].severity] -
+                   severityOrder[SKIP_ANNOUNCEMENTS[b].severity];
+        })
+        .map(id => SKIP_ANNOUNCEMENTS[id].message);
+}
+
+/**
+ * グローバル設定の最終結果を表示
+ */
+export async function showGlobalSetupResult(
+    successCount: number,
+    totalCount: number,
+    skipItems: string[],
+    errors: string[]
+): Promise<void> {
+    const hasFailure = errors.length > 0;
+    const hasSkip = skipItems.length > 0;
+
+    let icon: string;
+    let message: string;
+
+    if (!hasFailure && !hasSkip) {
+        icon = '✅';
+        message = 'グローバル設定が完了しました！';
+    } else if (!hasFailure && hasSkip) {
+        icon = '⚠️';
+        message = 'グローバル設定が完了しました（一部スキップ）';
+    } else {
+        icon = '❌';
+        message = 'グローバル設定で問題が発生しました';
+    }
+
+    // スキップアナウンス
+    const announcements = buildSkipAnnouncements(skipItems);
+
+    // 詳細メッセージ
+    const details: string[] = [];
+    details.push(`${successCount}/${totalCount} ステップ完了`);
+
+    if (announcements.length > 0) {
+        details.push('');
+        details.push('【スキップ項目の影響】');
+        details.push(...announcements);
+    }
+
+    if (errors.length > 0) {
+        details.push('');
+        details.push('【エラー】');
+        details.push(...errors);
+    }
+
+    const detailText = details.join('\n');
+
+    if (hasFailure) {
+        const choice = await vscode.window.showErrorMessage(
+            `${icon} ${message}`,
+            { modal: false },
+            '詳細を確認'
+        );
+        if (choice === '詳細を確認') {
+            vscode.window.showInformationMessage(detailText, { modal: true });
+        }
+    } else if (hasSkip) {
+        await vscode.window.showWarningMessage(
+            `${icon} ${message}\n\n${detailText}`,
+            { modal: false }
+        );
+    } else {
+        await vscode.window.showInformationMessage(
+            `${icon} ${message}`,
+            { modal: false }
         );
     }
 }

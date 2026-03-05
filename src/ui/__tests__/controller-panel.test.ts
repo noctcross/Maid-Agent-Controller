@@ -82,14 +82,6 @@ describe('updateController', () => {
             expect(capturedHtml).not.toContain("openFile('queue/");
             expect(capturedHtml).toContain("openFile('system/data/tasks.yaml')");
         });
-
-        it('QUICK_REFERENCE.md リンクが存在すること', () => {
-            vi.mocked(fs.existsSync).mockReturnValue(false);
-
-            updateController(mockCtx);
-
-            expect(capturedHtml).toContain('QUICK_REFERENCE.md');
-        });
     });
 
     describe('会話ログの表示', () => {

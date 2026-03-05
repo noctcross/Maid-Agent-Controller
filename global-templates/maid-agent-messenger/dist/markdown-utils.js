@@ -4,6 +4,13 @@
  * central-server.ts から抽出。テスト可能にするため独立モジュール化。
  */
 import path from "path";
+/**
+ * HTML特殊文字をエスケープ（XSS防止）
+ *
+ * 注意: この実装は src/utils/html-escape.ts の escapeHtml() と同一である必要があります。
+ * 変更時は両方を更新してください。
+ * @see src/utils/html-escape.ts (IDE版)
+ */
 export function escapeHtml(str) {
     return str
         .replace(/&/g, "&amp;")
@@ -16,8 +23,14 @@ export function escapeHtml(str) {
  * 簡易マークダウン→HTML変換
  */
 export function convertMarkdownToHtml(markdown) {
+    // 後方互換: 旧形式（\\n）で保存されたデータ用のフォールバック
+    // YAML ダブルクォート文字列内の改行が \\n として保存されていたため、
+    // 実際の改行文字に変換する。#219-3 で根本修正（リテラルブロック形式）済みだが、
+    // 外部データや古いデータの読み込みに対応するため削除しない。
+    // @see docs/plans/task-219-1-yaml-newline-fix.md
+    let html = markdown.replace(/\\n/g, '\n');
     // 改行コードを統一（Windows CRLF対応）
-    let html = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    html = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     html = escapeHtml(html);
     // コードブロック（```）
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang, code) => {
@@ -128,6 +141,34 @@ export const DEFAULT_PATH_PREFIXES = [
     "config",
 ];
 /**
+ * パス終端判定に使用するファイル拡張子
+ * これらの拡張子で終わる位置をパスの終端とみなす
+ */
+export const FILE_EXTENSIONS = [
+    // ドキュメント
+    "md", "txt", "html", "htm",
+    // JavaScript/TypeScript
+    "ts", "tsx", "js", "jsx", "mjs", "cjs",
+    // 設定ファイル
+    "json", "yaml", "yml", "toml", "ini", "conf",
+    // スタイル
+    "css", "scss", "sass", "less",
+    // プログラミング言語
+    "py", "rb", "php", "go", "rs", "java", "kt", "scala",
+    "c", "cpp", "h", "hpp", "cs", "swift", "m",
+    // フロントエンド
+    "vue", "svelte", "astro",
+    // シェル
+    "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd",
+    // その他
+    "xml", "svg", "log",
+];
+/**
+ * 後処理用: 最後の拡張子を検出
+ * (?=...) で「拡張子の後に終端文字が続く」条件を追加
+ */
+const EXT_PATTERN = new RegExp(`\\.(${FILE_EXTENSIONS.join("|")})(?=[\\s)<>」』\\]\\n]|$)`, "gi");
+/**
  * 相対パスを絶対パスに変換
  * WSLパスはWSLパスのまま、Windowsパスはそのまま返す
  * （WSL→Windows変換はしない: VSCode拡張がWSL上で動作するため、
@@ -136,8 +177,6 @@ export const DEFAULT_PATH_PREFIXES = [
 export function resolveToAbsolutePath(relativePath, projectPath) {
     return path.join(projectPath, relativePath);
 }
-/** @deprecated resolveToAbsolutePath を使用してください */
-export const resolveToWindowsPath = resolveToAbsolutePath;
 /**
  * HTML内のプロジェクト相対パスをクリック可能なリンクに変換
  *
@@ -163,14 +202,28 @@ export function linkifyProjectPaths(html, projectPath, pathPrefixes = DEFAULT_PA
         return `\x00PLACEHOLDER_${placeholders.length - 1}\x00`;
     });
     // Step 2: パス検出と置換
-    const pathRegex = new RegExp(`(?:${pathPrefixes.join("|")})(?:/[\\w\\-.\\u3000-\\u9FFF]+)+(?:\\.\\w+)?`, "g");
+    // #249: 拡張子を必須に変更、終端文字も含める（後処理で切り取り）
+    const pathRegex = new RegExp(`(?:${pathPrefixes.join("|")})` +
+        `(?:/[\\w\\-.#()\\u3000-\\u9FFF\\uFF08\\uFF09]+)+` +
+        `\\.(?:${FILE_EXTENSIONS.join("|")})` +
+        `[)」』\\]\\s]*`, // 終端に続く可能性のある文字
+    "gi");
     result = result.replace(pathRegex, (match) => {
-        const absolutePath = resolveToAbsolutePath(match, projectPath);
+        // 後処理: 最後の有効な拡張子位置を見つける
+        let lastValidEnd = match.length;
+        let m;
+        EXT_PATTERN.lastIndex = 0;
+        while ((m = EXT_PATTERN.exec(match)) !== null) {
+            lastValidEnd = m.index + m[0].length;
+        }
+        // 最後の拡張子で切り取り
+        const trimmedPath = match.substring(0, lastValidEnd);
+        const remainder = match.substring(lastValidEnd);
+        const absolutePath = resolveToAbsolutePath(trimmedPath, projectPath);
         const fileViewUrl = `/file?path=${encodeURIComponent(absolutePath)}&project=${encodeURIComponent(projectPath)}`;
-        // onclick: VSCode Webviewでは openFile() でpostMessage、ブラウザではデフォルトリンク動作
-        // シングルクォートのエスケープ
-        const escapedPath = absolutePath.replace(/'/g, "\\'");
-        return `<a href="${fileViewUrl}" class="path-link" onclick="return openFile(this, '${escapedPath}')" title="${match}">${match}</a>`;
+        // data-path属性: addEventListenerで使用（CSP対応）
+        const escapedPath = absolutePath.replace(/"/g, "&quot;");
+        return `<a href="${fileViewUrl}" class="path-link" data-path="${escapedPath}" title="${trimmedPath}">${trimmedPath}</a>${remainder}`;
     });
     // Step 3: プレースホルダーを復元
     result = result.replace(/\x00PLACEHOLDER_(\d+)\x00/g, (_, idx) => placeholders[parseInt(idx)]);

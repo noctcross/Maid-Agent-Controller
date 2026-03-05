@@ -33,12 +33,15 @@ MCP_RECONNECT_DELAY=1.5
 # 使用法を表示
 show_usage() {
     echo "使用法: maid-notify <target> \"<message>\""
+    echo "        maid-notify --from <sender> <target> \"<message>\""
     echo "        maid-notify --mcp-reconnect <target> [server-name]"
     echo ""
     echo "  target: $VALID_TARGETS"
+    echo "  --from: 送信者を明示的に指定（API等tmux外からの呼び出し用）"
     echo ""
     echo "例:"
     echo "  maid-notify chief \"タスク完了しました\""
+    echo "  maid-notify --from master luna \"メッセージです\""
     echo "  maid-notify --mcp-reconnect luna"
     echo "  maid-notify --mcp-reconnect alice other-mcp-server"
 }
@@ -201,6 +204,17 @@ fi
 # メイン処理：通常のメッセージ送信
 # =============================================================================
 
+# --from オプションのパース
+EXPLICIT_SENDER=""
+if [ "$1" = "--from" ]; then
+    if [ $# -lt 4 ]; then
+        echo "使用法: maid-notify --from <sender> <target> \"<message>\""
+        exit 1
+    fi
+    EXPLICIT_SENDER="$2"
+    shift 2  # --from と sender を消費
+fi
+
 if [ $# -lt 2 ]; then
     show_usage
     exit 1
@@ -213,10 +227,15 @@ MESSAGE="$2"
 validate_target "$TARGET" || exit 1
 
 # 送信者を特定
-if [ -n "$TMUX_PANE" ]; then
+if [ -n "$EXPLICIT_SENDER" ]; then
+    # --from で明示的に指定された場合
+    SENDER="$EXPLICIT_SENDER"
+elif [ -n "$TMUX_PANE" ]; then
+    # tmux内から実行された場合
     SENDER=$(tmux display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || echo "unknown")
 else
-    SENDER=$(tmux display-message -p '#{window_name}' 2>/dev/null || echo "unknown")
+    # それ以外は unknown
+    SENDER="unknown"
 fi
 
 # タイムスタンプを取得

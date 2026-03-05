@@ -8,13 +8,13 @@
 import path from "path";
 import { readYamlFile } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
-import { executeUpdateTask } from "./task-manager.js";
+import { executeUpdateTask, executeGetTask, executeGetTaskChildren } from "./task-manager.js";
 import { normalizeTaskId } from "../utils/task-id.js";
 /**
  * タスクを割り当て
  */
 export async function executeAssignTask(params) {
-    const { queueMaidPath, taskId, targetAgent, title, description, targetPath } = params;
+    const { queueMaidPath, taskId, targetAgent, title, description, targetPath, force } = params;
     const filePath = path.join(queueMaidPath, `${targetAgent}.yaml`);
     // ガード条件: maid yaml を読んで作業中かチェック
     // ※ ロックはガードチェックのみで解放する。executeUpdateTask の副作用
@@ -33,6 +33,31 @@ export async function executeAssignTask(params) {
     // executeUpdateTask に全処理を委譲（maid yaml ロック解放済み）
     const projectPath = path.resolve(queueMaidPath, "..", "..", "..", "..");
     const taskIdNormalized = normalizeTaskId(taskId);
+    // 既存 assignees チェック
+    const taskResult = await executeGetTask(projectPath, { taskId: taskIdNormalized });
+    if (taskResult.task && taskResult.task.assignees && taskResult.task.assignees.length > 0) {
+        if (!force) {
+            const existingAgents = taskResult.task.assignees.map(a => a.agentId).join(", ");
+            return {
+                success: false,
+                assigned_to: targetAgent,
+                task_id: taskId,
+                error: `タスク #${taskId} には既に ${existingAgents} が割り当てられています。上書きする場合は --force オプション（または force: true パラメータ）を使用してください。`,
+            };
+        }
+        // force=true の場合は上書きを許可（既存ロジックへ進む）
+    }
+    // 子タスクが存在する親Taskへのアサインチェック
+    const childTasks = await executeGetTaskChildren(projectPath, taskIdNormalized);
+    if (childTasks.length > 0 && !force) {
+        const childIds = childTasks.map(c => c.id).join(", ");
+        return {
+            success: false,
+            assigned_to: targetAgent,
+            task_id: taskId,
+            error: `タスク #${taskId} には子タスクが存在します（${childIds}）。子タスクにアサインするか、--force オプションを使用してください。`,
+        };
+    }
     const result = await executeUpdateTask(projectPath, {
         taskId: taskIdNormalized,
         status: "assigned",

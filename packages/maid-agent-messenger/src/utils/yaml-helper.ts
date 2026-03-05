@@ -6,6 +6,32 @@ import * as fs from "fs/promises";
 import * as yaml from "yaml";
 import type { TaskYaml } from "../types/index.js";
 
+// === YAML stringify 設定 ===
+
+/**
+ * stringifyYaml のオプション
+ */
+export interface YamlStringifyOptions {
+  lineWidth?: number;
+}
+
+/**
+ * オブジェクトをYAML文字列に変換（統一設定）
+ *
+ * - 複数行文字列はリテラルブロック形式（|）で出力
+ * - 改行文字が \\n にエスケープされる問題を解消
+ *
+ * @see docs/plans/task-219-1-yaml-newline-fix.md
+ */
+export function stringifyYaml<T>(data: T, options?: YamlStringifyOptions): string {
+  return yaml.stringify(data, {
+    lineWidth: options?.lineWidth ?? 120,
+    blockQuote: "literal",  // 複数行文字列はリテラルブロック形式
+  });
+}
+
+// === ファイル読み書き ===
+
 /**
  * YAMLファイルを読み込んでパース
  */
@@ -18,16 +44,14 @@ export async function readYamlFile<T = TaskYaml>(
 
 /**
  * オブジェクトをYAMLファイルに書き込み
+ *
+ * 内部で stringifyYaml() を使用（統一設定）
  */
 export async function writeYamlFile<T>(
   filePath: string,
   data: T
 ): Promise<void> {
-  const content = yaml.stringify(data, {
-    lineWidth: 0, // 改行しない
-    defaultStringType: "QUOTE_DOUBLE",
-    defaultKeyType: "PLAIN",
-  });
+  const content = stringifyYaml(data);
   await fs.writeFile(filePath, content, "utf-8");
 }
 
@@ -133,7 +157,10 @@ export function sanitizeDescription(
   const firstLine = description.split("\n")[0].trim();
 
   // ファイル名に使えない文字を除去（Windows/Linux両対応）
-  const sanitized = firstLine.replace(/[<>:"/\\|?*\x00-\x1f]/g, "");
+  const withoutInvalid = firstLine.replace(/[<>:"/\\|?*\x00-\x1f]/g, "");
+
+  // 半角スペースをアンダースコアに置換（連続スペースは1つに）
+  const sanitized = withoutInvalid.replace(/ +/g, "_");
 
   // 最大文字数に切り詰め
   return sanitized.slice(0, maxLength) || "untitled";

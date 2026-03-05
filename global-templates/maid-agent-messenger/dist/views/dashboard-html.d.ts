@@ -1,8 +1,24 @@
 /**
  * ダッシュボードHTML生成
  * generateDashboardHtml() - メインダッシュボードのHTML生成
+ *
+ * CSS/JS/HTMLテンプレートを各モジュールに委譲する形式に変更。
+ * - dashboard-styles.ts: CSSスタイル定義
+ * - dashboard-scripts.ts: JavaScriptコード
+ * - dashboard-template.ts: HTMLボディテンプレート
  */
 import type { AgentStatus } from "../types/index.js";
+import { type V2Task, type V2ReviewTask, type V2Artifact, type V2Stats } from "./task-html-v2.js";
+/**
+ * V2チーム状態セクションのHTML生成
+ * 各メイドの現在の状態をカード形式で表示
+ */
+export declare function generateV2TeamStatusHtml(teamStatus: AgentStatus[]): string;
+/**
+ * V2検索・絞り込みセクションのHTML生成
+ * 検索ボックスと優先度・担当者フィルターを表示
+ */
+export declare function generateV2SearchFilterHtml(teamStatus: AgentStatus[]): string;
 export interface DashboardData {
     projectPath: string;
     timestamp: string;
@@ -14,6 +30,7 @@ export interface DashboardData {
         createdAt: string;
         updatedAt?: string;
         category?: string;
+        actionRequired?: boolean;
     }>;
     working: Array<{
         id: string;
@@ -52,8 +69,8 @@ export interface DashboardData {
             agentId: string;
         }>;
         priority: string;
-        escalation?: boolean;
-        escalatedAt?: string | null;
+        actionRequired?: boolean;
+        actionRequiredAt?: string | null;
     }>;
     masterReview: Array<{
         id: string;
@@ -81,5 +98,17 @@ export interface DashboardData {
         completedTodayCount: number;
     };
     serverUrl: string;
+    v2Goals?: V2Task[];
+    v2ReviewQueue?: V2ReviewTask[];
+    v2Artifacts?: V2Artifact[];
+    v2Stats?: V2Stats;
+    dashboardVersion?: "v1" | "v2";
 }
+/**
+ * ダッシュボードHTMLを生成
+ *
+ * @param data - ダッシュボードに表示するデータ
+ * @param editorScheme - エディタスキーム（デフォルト: "vscode"）
+ * @returns 完全なHTML文字列
+ */
 export declare function generateDashboardHtml(data: DashboardData, editorScheme?: string): string;

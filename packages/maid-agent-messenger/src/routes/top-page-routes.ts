@@ -11,18 +11,9 @@ import {
   togglePin,
   toggleHide,
   recordProjectAccess,
-  type ProjectEntry,
 } from "../services/project-registry.js";
 import { executeListTasks } from "../services/index.js";
-
-export interface ProjectWithStats extends ProjectEntry {
-  stats: {
-    pendingCount: number;
-    workingCount: number;
-    completedTodayCount: number;
-  } | null;
-  status: "available" | "unavailable";
-}
+import type { ProjectWithStats } from "../views/top-page-html.js";
 
 export interface TopPageRoutesDeps {
   generateTopPageHtml: (projects: ProjectWithStats[]) => string;
@@ -55,6 +46,7 @@ export function createTopPageRoutes(deps: TopPageRoutesDeps): Router {
               executeListTasks(project.path, { status: ["completed"], limit: 500 }),
             ]);
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Task | TaskSummary のユニオン型対応
             const completedTodayCount = completedAll.tasks.filter((task: any) => {
               if (!task.completedAt) return false;
               const completedDate = new Date(task.completedAt);

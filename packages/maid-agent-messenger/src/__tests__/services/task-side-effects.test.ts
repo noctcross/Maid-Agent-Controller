@@ -15,6 +15,7 @@ jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   writeTextFile: jest.fn(),
   sanitizeDescription: jest.fn((s: string | null) => s || "untitled"),
   getTimestamp: jest.fn(),
+  stringifyYaml: jest.fn((data: unknown) => JSON.stringify(data)),
 }));
 
 jest.unstable_mockModule("../../utils/file-lock.js", () => ({
@@ -234,6 +235,8 @@ describe("executeSideEffects", () => {
     it("status が completed に変更された場合、レポートがコピーされる", async () => {
       mockedFileExists.mockResolvedValue(true);
       mockedSanitizeDescription.mockReturnValue("テストタスク");
+      // extractTaskIdFromReport 用：レポート内容にタスクIDを含める
+      mockedReadFile.mockResolvedValue("# 作業報告\n\n- task_id: task-072\n- title: テストタスク\n");
 
       const task = createTask({
         status: "completed",
@@ -261,6 +264,8 @@ describe("executeSideEffects", () => {
     it("params.agentId を優先して使用する", async () => {
       mockedFileExists.mockResolvedValue(true);
       mockedSanitizeDescription.mockReturnValue("テスト");
+      // extractTaskIdFromReport 用：レポート内容にタスクIDを含める
+      mockedReadFile.mockResolvedValue("# 作業報告\n\n- task_id: task-072\n- title: テストタスク\n");
 
       const task = createTask({
         status: "completed",

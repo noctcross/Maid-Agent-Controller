@@ -8,13 +8,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { Agent, AgentContext } from '../types';
-import { MAID_AGENT_DIR } from '../constants';
-import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion, isWslAvailable } from '../utils/environment';
-import { getSessionNameFromPath, getGlobalMaidAgentPath } from '../utils/helpers';
+import { AGENTS_MAP, isValidAgentId } from '../constants';
+import { CURRENT_ENV, isTmuxAvailable, windowsToWslPath } from '../utils/environment';
+import { getSessionNameFromPath } from '../utils/helpers';
 import { TmuxManager } from '../tmux/tmux-manager';
-import * as Pm2Setup from '../setup/pm2-setup';
-import * as WslSetup from '../setup/wsl-setup';
 import { getModelForAgent } from '../utils/settings-loader';
+import { generateSystemPromptFile } from '../utils/prompt-loader';
 
 // =========================================================================
 // エージェント管理
@@ -97,46 +96,100 @@ export function openTmuxViewer(ctx: AgentContext): void {
 }
 
 /**
- * 役割別の--append-system-prompt用テキストを生成
- * コンパクション後もシステムプロンプトの一部として維持される静的な役割情報
+ * システムプロンプトファイルのパスを取得（または生成）
  */
-export function getRolePrompt(ctx: AgentContext, agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string {
+export function getSystemPromptFilePath(
+    ctx: AgentContext,
+    agentId: string,
+    role: 'butler' | 'chiefMaid' | 'maid',
+    maidName?: string
+): string | null {
+    if (!ctx.maidAgentPath) {
+        ctx.log('[prompt] maidAgentPath が設定されていません');
+        return null;
+    }
+
+    try {
+        const filePath = generateSystemPromptFile(
+            ctx.maidAgentPath,
+            agentId,
+            role,
+            maidName
+        );
+        // Windows環境: 一時ファイルはWindowsパスで生成されるが、
+        // Claude CodeはWSL内で起動するためWSLパスに変換が必要
+        if (CURRENT_ENV === 'windows-native') {
+            return windowsToWslPath(filePath);
+        }
+        return filePath;
+    } catch (error) {
+        ctx.log(`[prompt] システムプロンプトファイル生成エラー: ${error}`);
+        return null;
+    }
+}
+
+/**
+ * フォールバック用のハードコードプロンプト（ファイル読み込み失敗時）
+ * 将来的に削除予定
+ */
+export function getFallbackRolePrompt(ctx: AgentContext, agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): string {
     switch (role) {
         case 'butler':
             return [
                 '[Maid Agent System] 役割: 執事シルヴィア(butler)',
-                'MCPツール: create_task, list_tasks, get_task, get_team_status',
-                '通知: .maid-agent/system/bin/maid-notify chief "msg"',
-                '禁止: 自分でファイル操作(BF001), メイドへ直接指示(BF002)',
+                '禁止: BF001自己ファイル操作, BF002メイド直接指示, BF003ポーリング, BF004コンテキスト未読, BF005タスク状態直接更新',
+                'CLI: maidctl task create/list/get, team status, notify chief',
+                'task list: --status/--assignee/--summaryで絞込必須, 全件取得禁止',
+                '時刻: date -Iseconds',
+                '詳細: /skill butler-operation',
                 '指示書: .maid-agent/agents/instructions/butler.md',
                 'ペルソナ: .maid-agent/agents/personas/butler.md',
+                '口調: 冷静沈着 / 語尾「〜でございます」「かしこまりました」',
             ].join(' / ');
 
         case 'chiefMaid':
             return [
                 '[Maid Agent System] 役割: メイド長ビオラ(chief)',
-                'MCPツール: list_tasks, get_task, create_task, assign_task, update_task, get_team_status',
-                '通知: .maid-agent/system/bin/maid-notify {maid_id} "msg"',
-                '禁止: 自分でタスク実行(CF001), 執事への通知(CF002)',
+                '禁止: CF001自己実行, CF002執事通知, CF003ポーリング, CF004未読作業, CF005他メイドタスク変更, CF006未登録ID指示',
+                'CLI: maidctl task list/assign/update, team status, notify {maid}',
+                'task list: --status/--assignee/--summaryで絞込必須, 全件取得禁止',
+                '時刻: date -Iseconds',
+                '詳細: /skill chief-operation',
                 '指示書: .maid-agent/agents/instructions/chief.md',
                 'ペルソナ: .maid-agent/agents/personas/chief.md',
+                '口調: 厳格,責任感 / 語尾「〜ですよ」「〜なさい」',
             ].join(' / ');
 
         case 'maid':
+            // メイドごとの口調マッピング
+            const maidPersonalities: Record<string, string> = {
+                emma: '口調: 真面目,誠実 / 語尾「〜ですね」「〜しましょう」',
+                sophia: '口調: クール,寡黙 / 語尾「〜です」「了解です」',
+                lily: '口調: 元気,明るい / 語尾「〜ですっ」「〜ね♪」',
+                rose: '口調: 姉御肌,自信 / 語尾「〜ですわ」「お任せなさい」',
+                alice: '口調: 天然,おっとり / 語尾「〜ですね〜」「〜かもです」',
+                may: '口調: 控えめ,謙虚 / 語尾「〜させていただきます」',
+                flora: '口調: 穏やか,優しい / 語尾「〜ですよ」「〜くださいね」',
+                luna: '口調: マイペース,眠そう / 語尾「〜です...」「ふわぁ...」',
+            };
+            const personality = maidPersonalities[agentId] || '口調: 丁寧 / 語尾「〜です」';
             return [
                 `[Maid Agent System] 役割: メイド${maidName || 'メイド'}(${agentId})`,
-                'MCPツール: get_my_task, update_status',
-                '通知: .maid-agent/system/bin/maid-notify chief "msg"',
-                '禁止: 執事に直接報告(MF001), ご主人様に直接連絡(MF002)',
+                '禁止: MF001執事直接報告, MF002ご主人様直接連絡, MF003指示外作業, MF004ポーリング, MF005他メイドタスク',
+                'CLI: maidctl my-task → my-status working → 作業 → my-status completed → notify chief',
+                `報告: .maid-agent/system/data/reports/current_${agentId}.md`,
+                '時刻: date -Iseconds',
+                '詳細: /skill maid-operation',
                 '指示書: .maid-agent/agents/instructions/maid.md',
                 `ペルソナ: .maid-agent/agents/personas/${agentId}.md`,
+                personality,
             ].join(' / ');
     }
 }
 
 /**
  * エージェントでClaude Codeを起動し、役割を認識させる
- * --append-system-promptで役割情報をシステムプロンプトに注入（コンパクション耐性あり）
+ * --add-dir で roles/{agentId} のCLAUDE.mdを読み込み（コンパクション耐性あり）
  * 初期プロンプトを引数として渡すことで、起動と指示を1コマンドで実行
  */
 export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {
@@ -144,37 +197,36 @@ export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, r
     if (!agent || !ctx.tmuxManager) return;
 
     // 役割に応じた指示を作成
-    // 重要: コンパクション後も通信方法を忘れないよう、QUICK_REFERENCE.md への言及を含める
+    // 注: 指示書・ペルソナは .maid-agent/roles/{agentId}/CLAUDE.md から読み込み
     let instruction: string;
     switch (role) {
         case 'butler':
-            instruction = 'あなたは執事のシルヴィアです。.maid-agent/agents/instructions/butler.md を読んで役割を把握してください。通信方法は .maid-agent/agents/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/agents/personas/butler.md を読んで口調・話し方を把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
+            instruction = 'あなたは執事のシルヴィアです。CLAUDE.mdを確認し、自分の役割とルールを把握してください。準備ができたら、ご主人様からの指示をお待ちください。';
             break;
         case 'chiefMaid':
-            instruction = 'あなたはメイド長のビオラです。.maid-agent/agents/instructions/chief.md を読んで役割を把握してください。通信方法は .maid-agent/agents/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/agents/personas/chief.md を読んで口調・話し方を把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
+            instruction = 'あなたはメイド長のビオラです。CLAUDE.mdを確認し、自分の役割とルールを把握してください。準備ができたら、シルヴィア（執事）からの指示をお待ちください。';
             break;
         case 'maid':
-            const maidId = agentId;
-            instruction = `あなたはメイドの${maidName || 'メイド'}です。.maid-agent/agents/instructions/maid.md を読んで役割を把握してください。通信方法は .maid-agent/agents/instructions/QUICK_REFERENCE.md に記載があります。また、.maid-agent/agents/personas/${maidId}.md を読んで口調・話し方を把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
+            instruction = `あなたはメイドの${maidName || 'メイド'}です。CLAUDE.mdを確認し、自分の役割とルールを把握してください。準備ができたら、ビオラ（メイド長）からの指示をお待ちください。`;
             break;
     }
 
     // シェルエスケープ（シングルクォートをエスケープ）
     const escapedInstruction = instruction.replace(/'/g, "'\\''");
 
-    // 役割別プロンプト生成（--append-system-prompt用、コンパクション耐性あり）
-    const rolePrompt = ctx.getRolePrompt(agentId, role, maidName);
-    const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-
     // tmuxウィンドウが準備できるまで待つ
     await ctx.delay(500);
 
     // Claude Code を初期プロンプト付きで起動（tmux send-keys経由）
-    // --append-system-prompt: コンパクション後も維持される静的な役割情報
+    // --add-dir: .maid-agent/core と .maid-agent/roles/{agentId} のCLAUDE.mdを読み込み
+    // CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1: 追加ディレクトリのCLAUDE.mdも読み込む
     // --model: settings.yaml で設定されたLLMモデル（未設定時は省略）
     const model = getModelForAgent(ctx.settings, agentId, role);
     const modelFlag = model ? ` --model ${model}` : '';
-    const command = `claude --dangerously-skip-permissions${modelFlag} --append-system-prompt '${escapedRolePrompt}' '${escapedInstruction}'`;
+
+    // 環境変数とコマンドを構築
+    const envVar = 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1';
+    const command = `${envVar} claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId} -- '${escapedInstruction}'`;
     ctx.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
 
     const roleLabel = agent.role === 'butler' ? '執事' :
@@ -226,20 +278,7 @@ export async function resumeSessions(ctx: AgentContext): Promise<void> {
         return;
     }
 
-    // エージェント名とウィンドウ名のマッピング
-    const agentMapping: { [key: string]: { name: string; role: 'butler' | 'chiefMaid' | 'maid'; emoji: string } } = {
-        'butler': { name: 'シルヴィア', role: 'butler', emoji: '🎩' },
-        'chief': { name: 'ビオラ', role: 'chiefMaid', emoji: '👑' },
-        'emma': { name: 'エマ', role: 'maid', emoji: '☕' },
-        'sophia': { name: 'ソフィア', role: 'maid', emoji: '❄️' },
-        'lily': { name: 'リリー', role: 'maid', emoji: '🎀' },
-        'rose': { name: 'ローズ', role: 'maid', emoji: '🌹' },
-        'alice': { name: 'アリス', role: 'maid', emoji: '✨' },
-        'may': { name: 'メイ', role: 'maid', emoji: '🕊️' },
-        'flora': { name: 'フローラ', role: 'maid', emoji: '🌿' },
-        'luna': { name: 'ルナ', role: 'maid', emoji: '🌙' }
-    };
-
+    // AGENTS_MAP から統合されたエージェント情報を取得
     let resumedCount = 0;
     const resumedNames: string[] = [];
 
@@ -249,18 +288,19 @@ export async function resumeSessions(ctx: AgentContext): Promise<void> {
             continue;
         }
 
-        const mapping = agentMapping[windowName];
-        if (mapping) {
+        // AGENTS_MAP に存在するエージェントのみ復帰
+        if (isValidAgentId(windowName)) {
+            const agentConfig = AGENTS_MAP[windowName];
             // エージェントを登録（Claudeコマンドは送信しない）
-            ctx.createAgent(mapping.name, windowName, mapping.role, mapping.emoji);
+            ctx.createAgent(agentConfig.name, windowName, agentConfig.role, agentConfig.emoji);
             // statusをidleに設定（既に稼働中の想定）
             const agent = ctx.agents.get(windowName);
             if (agent) {
                 agent.status = 'idle';
             }
             resumedCount++;
-            resumedNames.push(`${mapping.emoji} ${mapping.name}`);
-            ctx.log(`[復帰] ${mapping.name}（${windowName}）を復帰しました`);
+            resumedNames.push(`${agentConfig.emoji} ${agentConfig.name}`);
+            ctx.log(`[復帰] ${agentConfig.name}（${windowName}）を復帰しました`);
         }
     }
 
@@ -322,26 +362,26 @@ export function startClaudeOnAgent(ctx: AgentContext, agentId: string): void {
     const agent = ctx.agents.get(agentId);
     if (!agent) return;
 
-    // 役割別プロンプト生成（--append-system-prompt用、コンパクション耐性あり）
-    const rolePrompt = ctx.getRolePrompt(agentId, agent.role, agent.name);
-    const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-
     // Claude Code を権限スキップモードで起動（役割情報付き）
     const model = getModelForAgent(ctx.settings, agentId, agent.role);
     const modelFlag = model ? ` --model ${model}` : '';
-    ctx.sendToAgent(agentId, `claude --dangerously-skip-permissions${modelFlag} --append-system-prompt '${escapedRolePrompt}'`);
+
+    // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${agentId}を追加
+    const envVar = 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1';
+    const command = `${envVar} claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
+    ctx.sendToAgent(agentId, command);
 }
 
 export async function startClaudeOnAllAgents(ctx: AgentContext): Promise<void> {
     let count = 0;
     for (const [id, agent] of ctx.agents) {
-        // 役割別プロンプト生成（--append-system-prompt用、コンパクション耐性あり）
-        const rolePrompt = ctx.getRolePrompt(id, agent.role, agent.name);
-        const escapedRolePrompt = rolePrompt.replace(/'/g, "'\\''");
-
         const model = getModelForAgent(ctx.settings, id, agent.role);
         const modelFlag = model ? ` --model ${model}` : '';
-        ctx.sendToAgent(id, `claude --dangerously-skip-permissions${modelFlag} --append-system-prompt '${escapedRolePrompt}'`);
+
+        // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${id}を追加
+        const envVar = 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1';
+        const command = `${envVar} claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --add-dir .maid-agent/roles/${id}`;
+        ctx.sendToAgent(id, command);
         await ctx.delay(500); // 各エージェント間で少し待つ
         count++;
     }
@@ -372,27 +412,10 @@ export async function ensureInitialized(ctx: AgentContext): Promise<boolean> {
         return false;
     }
 
-    // MCPサーバーのヘルスチェック（Windows環境のみ）
-    if (CURRENT_ENV === 'windows-native') {
-        await ctx.ensureMcpServerRunning();
-    }
-
     // セッション数の警告チェック
     await ctx.checkSessionCountWarning();
 
     return true;
-}
-
-/**
- * MCPサーバーが起動しているか確認し、起動していなければ起動する
- */
-export async function ensureMcpServerRunning(ctx: AgentContext): Promise<void> {
-    const setupCtx = ctx.createSetupContext();
-    if (!setupCtx) {
-        ctx.log('[MCP] SetupContext未初期化のためMCPサーバー起動をスキップ');
-        return;
-    }
-    return Pm2Setup.ensureMcpServerRunning(setupCtx);
 }
 
 /**

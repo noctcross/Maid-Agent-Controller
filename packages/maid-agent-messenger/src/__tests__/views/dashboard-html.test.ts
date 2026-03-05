@@ -21,6 +21,8 @@ const minimalDashboardData: DashboardData = {
     completedTodayCount: 0,
   },
   serverUrl: "http://127.0.0.1:3100",
+  // V1表示モードでテスト（V1セクションのテストのため）
+  dashboardVersion: "v1",
 };
 
 describe("serverBaseUrl の動的化", () => {
@@ -151,12 +153,12 @@ describe("generateDashboardHtml - セクション表示（task-html.ts委譲後�
     expect(html).toContain("改善提案");
   });
 
-  it("action_requiredにspecial categoryのタスクがpendingセクションに表示されない", () => {
+  it("actionRequiredフラグがtrueのタスクはpendingセクションに表示されない", () => {
     const html = generateDashboardHtml({
       ...minimalDashboardData,
       pending: [
         { id: "p-001", title: "通常タスク", description: "テスト", priority: "medium", createdAt: "2026-01-01T00:00:00Z" },
-        { id: "ar-001", title: "要対応", description: "テスト", priority: "high", createdAt: "2026-01-01T00:00:00Z", category: "action_required" },
+        { id: "ar-001", title: "要対応", description: "テスト", priority: "high", createdAt: "2026-01-01T00:00:00Z", actionRequired: true },
       ],
     });
     // pendingセクション内にar-001が含まれないこと（次のdata-sectionまでをキャプチャ）

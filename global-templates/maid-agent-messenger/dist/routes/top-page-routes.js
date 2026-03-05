@@ -29,6 +29,7 @@ export function createTopPageRoutes(deps) {
                         executeListTasks(project.path, { status: ["working", "assigned"] }),
                         executeListTasks(project.path, { status: ["completed"], limit: 500 }),
                     ]);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Task | TaskSummary のユニオン型対応
                     const completedTodayCount = completedAll.tasks.filter((task) => {
                         if (!task.completedAt)
                             return false;

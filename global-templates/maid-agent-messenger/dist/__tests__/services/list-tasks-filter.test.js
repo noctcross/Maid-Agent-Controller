@@ -22,16 +22,19 @@ jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
     writeYamlFile: jest.fn(),
     sanitizeDescription: jest.fn((s) => s),
     copyFile: jest.fn(),
+    stringifyYaml: jest.fn((data) => stringify(data)),
 }));
 jest.unstable_mockModule("../../utils/file-lock.js", () => ({
     withFileLock: jest.fn(),
 }));
+// task-core.js のloadTasksReadOnlyを直接モック（モジュール分割対応）
+const mockLoadTasksReadOnly = jest.fn();
+jest.unstable_mockModule("../../services/task-core.js", () => ({
+    loadTasksReadOnly: mockLoadTasksReadOnly,
+    withTasksLock: jest.fn(),
+}));
 // dynamic import（モック設定後に読み込み）
 const { executeListTasks } = await import("../../services/task-manager.js");
-const fs = await import("fs/promises");
-const { fileExists } = await import("../../utils/yaml-helper.js");
-const mockedReadFile = fs.readFile;
-const mockedFileExists = fileExists;
 const PROJECT_PATH = "/test/project";
 // テスト用タスクデータ
 const createTestTasksYaml = () => {
@@ -130,12 +133,11 @@ const createTestTasksYaml = () => {
             },
         ],
     };
-    return stringify(data);
+    return data;
 };
 beforeEach(() => {
     jest.clearAllMocks();
-    mockedFileExists.mockResolvedValue(true);
-    mockedReadFile.mockResolvedValue(createTestTasksYaml());
+    mockLoadTasksReadOnly.mockResolvedValue(createTestTasksYaml());
 });
 describe("executeListTasks - category + status 複合フィルタ", () => {
     describe("skill_candidate カテゴリ", () => {
@@ -176,14 +178,14 @@ describe("executeListTasks - category + status 複合フィルタ", () => {
             expect(result.tasks[0].status).toBe("working");
         });
     });
-    describe("action_required カテゴリ（既に正しく実装済みの参考例）", () => {
+    describe("actionRequired フラグフィルタ（既に正しく実装済みの参考例）", () => {
         it("activeステータスでフィルタすると、completedが除外される", async () => {
             const ACTIVE_STATUSES = ["pending", "assigned", "working", "blocked"];
             const result = await executeListTasks(PROJECT_PATH, {
-                category: ["action_required"],
+                actionRequired: true,
                 status: [...ACTIVE_STATUSES],
             });
-            // テストデータにaction_requiredカテゴリのタスクはないので0件
+            // テストデータにactionRequired=trueのタスクはないので0件
             expect(result.tasks).toHaveLength(0);
         });
     });

@@ -10,20 +10,27 @@ const mockExecuteListTasks = jest.fn<any>();
 const mockExecuteGetTask = jest.fn<any>();
 const mockExecuteUpdateTask = jest.fn<any>();
 const mockExecuteGetReport = jest.fn<any>();
+const mockArchiveReport = jest.fn<any>();
+const mockMigrateToV2 = jest.fn<any>();
+const mockCheckMigrationStatus = jest.fn<any>();
 
 jest.unstable_mockModule("../../services/index.js", () => ({
   executeListTasks: mockExecuteListTasks,
   executeGetTask: mockExecuteGetTask,
   executeUpdateTask: mockExecuteUpdateTask,
   executeGetReport: mockExecuteGetReport,
+  archiveReport: mockArchiveReport,
+  migrateToV2: mockMigrateToV2,
+  checkMigrationStatus: mockCheckMigrationStatus,
 }));
 
-jest.unstable_mockModule("../../middleware/session-manager.js", () => ({
+jest.unstable_mockModule("../../middleware/project-path.js", () => ({
   getProjectPathFromRequest: () => TEST_PROJECT_PATH,
 }));
 
 jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   getTimestamp: () => "2026-02-09T00:00:00+09:00",
+  stringifyYaml: (data: unknown) => JSON.stringify(data),
 }));
 
 // --- ダイナミックインポート ---

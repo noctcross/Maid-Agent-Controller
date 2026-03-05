@@ -7,6 +7,7 @@ import path from "path";
 import * as fs from "fs/promises";
 import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { extractAgentIdFromPath, generateAgentBackgroundSnippet } from "../utils/agent-image.js";
+import { logger } from "../utils/logger.js";
 const router = Router();
 router.get("/file", async (req, res) => {
     try {
@@ -19,12 +20,37 @@ router.get("/file", async (req, res) => {
         }
         // URLデコード
         filePath = decodeURIComponent(filePath);
+        // 相対パスの場合はprojectPathと結合して絶対パスに変換
+        if (projectPath && !path.isAbsolute(filePath)) {
+            filePath = path.join(projectPath, filePath);
+        }
         // WSL環境でのみWindowsパス（C:/...）をWSLパス（/mnt/c/...）に変換
         // Mac/Linuxでは変換不要
         const isWslEnvironment = process.platform === 'linux' && process.env.WSL_DISTRO_NAME;
         if (isWslEnvironment && /^[A-Z]:\//i.test(filePath)) {
             const driveLetter = filePath[0].toLowerCase();
             filePath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
+        }
+        // パストラバーサル対策: projectPathが指定されている場合、その配下に限定
+        if (projectPath) {
+            // 正規化されたprojectPathを取得（末尾のスラッシュを統一）
+            const normalizedProjectPath = path.resolve(projectPath);
+            // シンボリックリンクを解決した実際のパスを取得
+            let resolvedFilePath;
+            try {
+                resolvedFilePath = await fs.realpath(filePath);
+            }
+            catch {
+                // ファイルが存在しない場合は path.resolve で正規化
+                resolvedFilePath = path.resolve(filePath);
+            }
+            // projectPath配下かどうかを確認
+            if (!resolvedFilePath.startsWith(normalizedProjectPath + path.sep) &&
+                resolvedFilePath !== normalizedProjectPath) {
+                logger.warn(`Path traversal blocked: ${filePath} is outside ${projectPath}`);
+                res.status(403).send("Access denied: path is outside project directory");
+                return;
+            }
         }
         // ファイル読み込み
         const content = await fs.readFile(filePath, "utf-8");
@@ -138,10 +164,13 @@ router.get("/file", async (req, res) => {
   </div>
   ${agentBgHtml}
   <script>
-    // linkifyProjectPaths() が生成するonclickハンドラ用フォールバック
-    // ファイルビューアではVSCode APIが使えないため、デフォルトリンク動作に委譲
-    // falseを返すとリンク遷移がブロックされるので、何も返さない（undefined → デフォルト動作）
-    if (typeof openFile === "undefined") { window.openFile = function() {}; }
+    // path-link のクリックハンドラ（addEventListenerパターン、CSP対応）
+    // ファイルビューアではVSCode APIが使えないため、デフォルトリンク動作（href遷移）に委譲
+    document.querySelectorAll('.path-link').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        // ブラウザ環境: デフォルトのhref遷移をそのまま使用（何もしない）
+      });
+    });
   </script>
 </body>
 </html>`;

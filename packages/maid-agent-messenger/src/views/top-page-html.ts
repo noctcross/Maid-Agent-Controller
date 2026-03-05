@@ -4,6 +4,8 @@
 
 import type { ProjectEntry } from "../services/project-registry.js";
 import { escapeHtml } from "../markdown-utils.js";
+import { formatRelativeTime } from "../utils/yaml-helper.js";
+import { COLORS } from "./shared-styles.js";
 
 export interface ProjectWithStats extends ProjectEntry {
   stats: {
@@ -12,25 +14,6 @@ export interface ProjectWithStats extends ProjectEntry {
     completedTodayCount: number;
   } | null;
   status: "available" | "unavailable";
-}
-
-/**
- * 相対時間表示
- */
-function formatRelativeTime(isoDate: string): string {
-  const date = new Date(isoDate);
-  const now = Date.now();
-  const diffMs = now - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-
-  if (diffMins < 1) return "たった今";
-  if (diffMins < 60) return `${diffMins}分前`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}時間前`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 30) return `${diffDays}日前`;
-  const diffMonths = Math.floor(diffDays / 30);
-  return `${diffMonths}ヶ月前`;
 }
 
 /**
@@ -97,16 +80,16 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
   <title>Maid Agent - プロジェクト一覧</title>
   <style>
     :root {
-      --bg-primary: #1a1a2e;
-      --bg-secondary: #16213e;
-      --bg-card: #1e2a4a;
-      --text-primary: #e0e0e0;
-      --text-secondary: #a0a0a0;
-      --accent: #4fc3f7;
-      --border: #2a3a5a;
+      --bg-primary: ${COLORS.BG_PRIMARY};
+      --bg-secondary: ${COLORS.BG_SECONDARY};
+      --bg-card: ${COLORS.BG_CARD_ALT};
+      --text-primary: ${COLORS.TEXT_PRIMARY};
+      --text-secondary: ${COLORS.TEXT_SECONDARY};
+      --accent: ${COLORS.LINK_CYAN};
+      --border: ${COLORS.BORDER_PRIMARY};
       --stat-pending: #ffd54f;
-      --stat-working: #4fc3f7;
-      --stat-completed: #81c784;
+      --stat-working: ${COLORS.LINK_CYAN};
+      --stat-completed: ${COLORS.ACCENT_GREEN_LIGHT};
       --stat-unavailable: #ef5350;
     }
 
@@ -440,7 +423,8 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
           alert('ピン留めの変更に失敗しました');
         }
       } catch (e) {
-        alert('エラーが発生しました');
+        console.error('[togglePin] エラー:', e);
+        alert('エラーが発生しました: ' + (e.message || e));
       }
     }
 
@@ -455,7 +439,8 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
           alert('非表示の変更に失敗しました');
         }
       } catch (e) {
-        alert('エラーが発生しました');
+        console.error('[toggleHide] エラー:', e);
+        alert('エラーが発生しました: ' + (e.message || e));
       }
     }
 

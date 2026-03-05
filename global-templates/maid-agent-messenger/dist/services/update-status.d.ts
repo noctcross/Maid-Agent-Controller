@@ -6,6 +6,7 @@
  * executeUpdateTask に全処理を委譲する。
  */
 import type { UpdateStatusOutput, UpdatableStatus } from "../types/index.js";
+import type { EscalationInfo } from "../types/task-manager-types.js";
 export interface UpdateStatusParams {
     queueMaidPath: string;
     /** 作業中レポートのパス: .maid-agent/reports/ */
@@ -15,7 +16,9 @@ export interface UpdateStatusParams {
     agentId: string;
     status: UpdatableStatus;
     summary?: string;
-    escalation?: boolean;
+    actionRequired?: boolean;
+    /** エスカレーション情報（checkpoint時） */
+    escalation?: EscalationInfo;
 }
 /**
  * ステータスを更新

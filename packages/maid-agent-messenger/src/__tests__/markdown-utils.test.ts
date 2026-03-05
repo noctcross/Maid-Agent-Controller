@@ -63,11 +63,11 @@ describe("linkifyProjectPaths", () => {
     expect(result).toContain(">src/views/dashboard-html.ts</a>");
   });
 
-  it("拡張子なしのディレクトリパスをリンク化する", () => {
+  it("拡張子なしのディレクトリパスはリンク化しない（#249: 拡張子必須）", () => {
     const input = "<p>src/routes/ を確認</p>";
     const result = linkifyProjectPaths(input, PROJECT_PATH);
-    // 正規表現は末尾スラッシュを含まないため src/routes までマッチ
-    expect(result).toContain(">src/routes</a>");
+    // #249: 拡張子必須に変更したため、ディレクトリパスはリンク化されない
+    expect(result).toBe(input);
   });
 
   it("複数パスを同時にリンク化する", () => {
@@ -91,18 +91,20 @@ describe("linkifyProjectPaths", () => {
     expect(result).toContain(`&project=${encodeURIComponent(PROJECT_PATH)}`);
   });
 
-  it("リンクにopenFile onclickハンドラが含まれる", () => {
+  it("リンクにdata-path属性が含まれる（CSP対応）", () => {
     const input = "<p>docs/a.md</p>";
     const result = linkifyProjectPaths(input, PROJECT_PATH);
-    expect(result).toContain('onclick="return openFile(this,');
+    expect(result).toContain('data-path="');
+    // onclickは使用しない（CSP違反回避）
+    expect(result).not.toContain('onclick=');
   });
 
-  it("onclickハンドラのパスがそのまま（Windows変換されない）", () => {
+  it("data-path属性のパスがそのまま（Windows変換されない）", () => {
     const input = "<p>docs/a.md</p>";
     const result = linkifyProjectPaths(input, PROJECT_PATH);
     // プロジェクトパスがそのまま使われること
     const expectedPath = path.join(PROJECT_PATH, "docs/a.md");
-    expect(result).toContain(expectedPath);
+    expect(result).toContain(`data-path="${expectedPath}"`);
     // Windowsパスに変換されていないこと
     expect(result).not.toContain("C:/Users/noct");
   });
@@ -176,6 +178,59 @@ describe("linkifyProjectPaths", () => {
     expect(Array.isArray(DEFAULT_PATH_PREFIXES)).toBe(true);
     expect(DEFAULT_PATH_PREFIXES.length).toBeGreaterThan(0);
   });
+
+  // --- 特殊文字を含むパス（#223対応） ---
+
+  it("#を含むパスをリンク化する", () => {
+    const input = "<p>.maid-agent/master/reports/task-221-rose-#221_バグ調査.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">.maid-agent/master/reports/task-221-rose-#221_バグ調査.md</a>");
+  });
+
+  it("半角括弧を含むパスをリンク化する", () => {
+    const input = "<p>docs/design/機能追加(v2).md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/design/機能追加(v2).md</a>");
+  });
+
+  it("全角括弧を含むパスをリンク化する", () => {
+    const input = "<p>docs/設計（詳細）/overview.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/設計（詳細）/overview.md</a>");
+  });
+
+  // --- パス終端の判定（#249対応） ---
+
+  it("パス終端の)を含めない", () => {
+    const input = "<p>(docs/plans/file.md)</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/plans/file.md</a>)");
+    expect(result).not.toContain(".md)</a>");
+  });
+
+  it("パス終端の」を含めない", () => {
+    const input = "<p>「docs/plans/file.md」</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/plans/file.md</a>」");
+  });
+
+  it("ファイル名内の()は正しくリンク化する", () => {
+    const input = "<p>docs/plans/file(draft).md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/plans/file(draft).md</a>");
+  });
+
+  it("ファイル名に.mdが含まれても最後の拡張子で終端する", () => {
+    const input = "<p>.maid-agent/master/reports/task-maid.mdの更新検討.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">.maid-agent/master/reports/task-maid.mdの更新検討.md</a>");
+  });
+
+  it("バージョン番号を含むパスを正しくリンク化する", () => {
+    const input = "<p>docs/v1.2.3/readme.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/v1.2.3/readme.md</a>");
+  });
 });
 
 describe("convertMarkdownToHtml", () => {
@@ -244,6 +299,27 @@ describe("convertMarkdownToHtml", () => {
     expect(result).toContain("Paragraph");
     // \r が残っていないこと
     expect(result).not.toContain("\r");
+  });
+
+  // --- エスケープされた改行の変換（#219対応） ---
+
+  it("エスケープされた改行(\\\\n)を実際の改行に変換する", () => {
+    // YAML ダブルクォート文字列で \\n と書かれたものがリテラル \n として読み込まれるケースに対応
+    const input = "## 背景\\n説明文";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("<h2>");
+    expect(result).toContain("背景");
+    // \\n がリテラルとして残っていないこと
+    expect(result).not.toContain("\\n");
+  });
+
+  it("複数のエスケープされた改行を変換する", () => {
+    const input = "行1\\n行2\\n\\n行4";
+    const result = convertMarkdownToHtml(input);
+    // 単一改行は<br>に、二重改行は段落区切りに
+    expect(result).toContain("<br>");
+    expect(result).toContain("</p><p>");
+    expect(result).not.toContain("\\n");
   });
 
   // --- 既存機能の回帰テスト ---

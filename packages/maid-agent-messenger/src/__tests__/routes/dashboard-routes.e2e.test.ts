@@ -14,14 +14,34 @@ import { TEST_PROJECT_PATH, createMockListResponse } from "../helpers/e2e-setup.
 const mockExecuteListTasks = jest.fn<any>();
 const mockExecuteGetTeamStatus = jest.fn<any>();
 const mockExecuteUpdateTask = jest.fn<any>();
+const mockExecuteGetReport = jest.fn<any>().mockResolvedValue({
+  success: true,
+  reports: [],
+});
+const mockGenerateV2DashboardData = jest.fn<any>().mockResolvedValue({
+  v2Goals: [],
+  v2ReviewQueue: [],
+  v2Artifacts: [],
+  v2Stats: {
+    taskCount: 0,
+    workCount: 0,
+    stepCount: 0,
+    completedCount: 0,
+    actionRequiredCount: 0,
+    reviewPendingCount: 0,
+    proposalCount: 0,
+  },
+});
 
 jest.unstable_mockModule("../../services/index.js", () => ({
   executeListTasks: mockExecuteListTasks,
   executeGetTeamStatus: mockExecuteGetTeamStatus,
   executeUpdateTask: mockExecuteUpdateTask,
+  executeGetReport: mockExecuteGetReport,
+  generateV2DashboardData: mockGenerateV2DashboardData,
 }));
 
-jest.unstable_mockModule("../../middleware/session-manager.js", () => ({
+jest.unstable_mockModule("../../middleware/project-path.js", () => ({
   getProjectPathFromRequest: () => TEST_PROJECT_PATH,
 }));
 
@@ -36,6 +56,7 @@ jest.unstable_mockModule("../../utils/config-loader.js", () => ({
 
 jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   getJstTimestamp: () => "2026-02-09 00:00:00",
+  stringifyYaml: (data: unknown) => JSON.stringify(data),
 }));
 
 jest.unstable_mockModule("../../utils/path-helpers.js", () => ({

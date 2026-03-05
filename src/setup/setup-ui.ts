@@ -174,6 +174,10 @@ const SKIP_ANNOUNCEMENTS: Record<string, { message: string; severity: 'low' | 'm
         message: 'maidctlの一部機能（JSON出力）が利用できません',
         severity: 'medium',
     },
+    yqInstall: {
+        message: 'maidctlの一部機能（YAML処理）が利用できません',
+        severity: 'medium',
+    },
     pm2Startup: {
         message: '⚠️ PC起動時にMCPサーバーの手動起動が必要です\n   コマンド: pm2 start maid-agent-messenger',
         severity: 'high',
@@ -208,6 +212,18 @@ export function buildGlobalConfirmItems(requirements: GlobalRequirements): Globa
             id: 'jqInstall',
             label: 'jq インストール',
             description: 'JSONパーサー（maidctlで使用）',
+            required: false,
+            needsPassword: true,
+            defaultSelected: true,
+        });
+    }
+
+    // yqインストール
+    if (requirements.needs.yqInstall) {
+        items.push({
+            id: 'yqInstall',
+            label: 'yq インストール',
+            description: 'YAMLパーサー（maidctlで使用）',
             required: false,
             needsPassword: true,
             defaultSelected: true,

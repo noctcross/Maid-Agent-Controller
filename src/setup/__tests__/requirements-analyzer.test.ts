@@ -294,6 +294,7 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: false,
           passwordlessSudo: false,
           jqInstall: false,
+          yqInstall: false,
           pm2Install: false,
           pm2Startup: false,
           pathSetup: false,
@@ -313,6 +314,7 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: false,
           passwordlessSudo: true,  // +1
           jqInstall: true,         // +1
+          yqInstall: false,
           pm2Install: false,
           pm2Startup: true,        // +1
           pathSetup: false,
@@ -323,7 +325,7 @@ describe('requirements-analyzer', () => {
       expect(countRequiredSteps(requirements)).toBe(3);
     });
 
-    it('すべて未設定の場合は5を返す', () => {
+    it('すべて未設定の場合は6を返す', () => {
       const requirements: GlobalRequirements = {
         platform: 'windows-native',
         packageManager: 'npm',
@@ -332,6 +334,7 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: false,
           passwordlessSudo: true,
           jqInstall: true,
+          yqInstall: true,
           pm2Install: true,
           pm2Startup: true,
           pathSetup: true,
@@ -340,7 +343,7 @@ describe('requirements-analyzer', () => {
       };
 
       // wslInstall と ubuntuInstall はカウント対象外
-      expect(countRequiredSteps(requirements)).toBe(5);
+      expect(countRequiredSteps(requirements)).toBe(6);
     });
   });
 
@@ -354,6 +357,7 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: false,
           passwordlessSudo: false,
           jqInstall: false,
+          yqInstall: false,
           pm2Install: false,
           pm2Startup: false,
           pathSetup: false,
@@ -373,6 +377,7 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: false,
           passwordlessSudo: false,
           jqInstall: false,
+          yqInstall: false,
           pm2Install: false,
           pm2Startup: true,  // 未設定
           pathSetup: false,

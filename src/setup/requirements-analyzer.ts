@@ -28,6 +28,7 @@ export interface GlobalRequirements {
         ubuntuInstall: boolean;     // Windows only
         passwordlessSudo: boolean;
         jqInstall: boolean;
+        yqInstall: boolean;
         pm2Install: boolean;
         pm2Startup: boolean;
         pathSetup: boolean;
@@ -111,6 +112,22 @@ export function checkJqInstalledSimple(): boolean {
 }
 
 /**
+ * yqインストール済みか確認
+ */
+export function checkYqInstalledSimple(): boolean {
+    try {
+        if (CURRENT_ENV === 'windows-native') {
+            execSync('wsl bash -lc "which yq"', { stdio: 'pipe', timeout: 5000 });
+        } else {
+            execSync('which yq', { stdio: 'pipe', timeout: 5000 });
+        }
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * pm2インストール済みか確認
  */
 export function checkPm2Installed(): boolean {
@@ -184,6 +201,7 @@ export async function analyzeRequirements(ctx: SetupContext): Promise<GlobalRequ
             ubuntuInstall: false,
             passwordlessSudo: false,
             jqInstall: false,
+            yqInstall: false,
             pm2Install: false,
             pm2Startup: false,
             pathSetup: false,
@@ -228,6 +246,9 @@ export async function analyzeRequirements(ctx: SetupContext): Promise<GlobalRequ
     requirements.needs.jqInstall = !checkJqInstalledSimple();
     ctx.log(`[Global] jq: ${requirements.needs.jqInstall ? '未インストール' : 'インストール済み'}`);
 
+    requirements.needs.yqInstall = !checkYqInstalledSimple();
+    ctx.log(`[Global] yq: ${requirements.needs.yqInstall ? '未インストール' : 'インストール済み'}`);
+
     requirements.needs.pm2Install = !checkPm2Installed();
     ctx.log(`[Global] pm2: ${requirements.needs.pm2Install ? '未インストール' : 'インストール済み'}`);
 
@@ -247,6 +268,7 @@ export async function analyzeRequirements(ctx: SetupContext): Promise<GlobalRequ
         !checkPasswordlessSudoConfigured() && (
             requirements.needs.passwordlessSudo ||
             requirements.needs.jqInstall ||
+            requirements.needs.yqInstall ||
             requirements.needs.pm2Install ||
             requirements.needs.pm2Startup
         );
@@ -264,6 +286,7 @@ export function countRequiredSteps(requirements: GlobalRequirements): number {
     let count = 0;
     if (requirements.needs.passwordlessSudo) count++;
     if (requirements.needs.jqInstall) count++;
+    if (requirements.needs.yqInstall) count++;
     if (requirements.needs.pm2Install) count++;
     if (requirements.needs.pm2Startup) count++;
     if (requirements.needs.pathSetup) count++;

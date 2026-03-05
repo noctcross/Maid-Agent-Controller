@@ -89,6 +89,18 @@ function buildExecutionSteps(
         });
     }
 
+    // yqインストール
+    if (requirements.needs.yqInstall && !skipItems.includes('yqInstall')) {
+        steps.push({
+            id: 'yqInstall',
+            progressMessage: 'yq をインストール中...',
+            critical: false,
+            execute: async (ctx, password) => {
+                await installYq(ctx, password);
+            },
+        });
+    }
+
     // pm2インストール
     if (requirements.needs.pm2Install && !skipItems.includes('pm2Install')) {
         steps.push({
@@ -230,7 +242,7 @@ async function setupPasswordlessSudo(ctx: SetupContext, password?: string): Prom
  * jqインストール
  */
 async function installJq(ctx: SetupContext, password?: string): Promise<void> {
-    if (!password) {
+    if (!password && CURRENT_ENV !== 'macos') {
         throw new Error('パスワードが必要です');
     }
 
@@ -246,6 +258,40 @@ async function installJq(ctx: SetupContext, password?: string): Promise<void> {
     } catch (error) {
         ctx.log(`[Global] jqインストール失敗: ${error}`);
         throw new Error('jqインストールに失敗しました');
+    }
+}
+
+/**
+ * yqインストール
+ * yq はYAML処理ツール（Mike Farah版を使用）
+ */
+async function installYq(ctx: SetupContext, password?: string): Promise<void> {
+    if (!password && CURRENT_ENV !== 'macos') {
+        throw new Error('パスワードが必要です');
+    }
+
+    // yq v4のインストール方法
+    // - macOS: brew install yq
+    // - Linux: バイナリダウンロード（apt-getにはない）
+    // - WSL: バイナリダウンロード
+    let installCmd: string;
+
+    if (CURRENT_ENV === 'macos') {
+        installCmd = 'brew install yq';
+    } else if (CURRENT_ENV === 'windows-native') {
+        // WSL経由でバイナリをダウンロード
+        installCmd = `wsl bash -lc "echo '${password}' | sudo -S wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && echo '${password}' | sudo -S chmod +x /usr/local/bin/yq"`;
+    } else {
+        // Linux: バイナリダウンロード
+        installCmd = `echo '${password}' | sudo -S wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && echo '${password}' | sudo -S chmod +x /usr/local/bin/yq`;
+    }
+
+    try {
+        execSync(installCmd, { stdio: 'pipe', timeout: 120000 });
+        ctx.log('[Global] yqインストール完了');
+    } catch (error) {
+        ctx.log(`[Global] yqインストール失敗: ${error}`);
+        throw new Error('yqインストールに失敗しました');
     }
 }
 

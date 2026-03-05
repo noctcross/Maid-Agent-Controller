@@ -3,6 +3,10 @@
 # tmux環境 + エージェント名一致時のみコンテキスト注入
 # 通常のClaude Code利用（tmux外）には影響しない
 
+# 0. stdinからJSONを読み取り（session_id取得用）
+STDIN_JSON=$(cat)
+SESSION_ID=$(echo "$STDIN_JSON" | jq -r '.session_id // empty' 2>/dev/null)
+
 # 1. tmux環境チェック - tmux外ならスキップ
 [ -z "$TMUX" ] && exit 0
 
@@ -47,58 +51,16 @@ CONTEXT="${CONTEXT} 【必須】作業開始前にシステムプロンプトを
 CONTEXT="${CONTEXT} 【必須】使用可能なスキルを確認し、タスク内容に必要なスキルがあれば読むこと。スキル内のresources/patterns/は推測せず必ず参照すること。"
 
 # 7. セッションID登録（Claude Code応答表示用）
+# stdinから取得したsession_idを使用（スクリプト冒頭で取得済み）
 PROJECT_PATH="$CLAUDE_PROJECT_DIR"
-if [ -n "$PROJECT_PATH" ]; then
-  # プロジェクトパスをClaude形式に変換（/と_を-に置換）
-  CLAUDE_PROJECT_ID=$(echo "$PROJECT_PATH" | sed 's|^/||; s|[/_]|-|g')
-  CLAUDE_SESSIONS_DIR="$HOME/.claude/projects/-${CLAUDE_PROJECT_ID}"
-
-  if [ -d "$CLAUDE_SESSIONS_DIR" ]; then
-    SESSION_ID=""
-
-    # エージェントIDから日本語名パターンを生成（起動メッセージ用）
-    case "$WINDOW_NAME" in
-      butler) AGENT_PATTERN="執事のシルヴィア" ;;
-      chief)  AGENT_PATTERN="メイド長のビオラ" ;;
-      emma)   AGENT_PATTERN="メイドのエマ" ;;
-      sophia) AGENT_PATTERN="メイドのソフィア" ;;
-      lily)   AGENT_PATTERN="メイドのリリー" ;;
-      rose)   AGENT_PATTERN="メイドのローズ" ;;
-      alice)  AGENT_PATTERN="メイドのアリス" ;;
-      may)    AGENT_PATTERN="メイドのメイ" ;;
-      flora)  AGENT_PATTERN="メイドのフローラ" ;;
-      luna)   AGENT_PATTERN="メイドのルナ" ;;
-      *)      AGENT_PATTERN="" ;;
-    esac
-
-    # 方法1: jsonlの起動メッセージから自分のセッションを特定
-    # 直近2分以内に更新されたjsonlを対象に、日本語名または「ID: {WINDOW_NAME}」を含むものを探す
-    for jsonl in $(find "$CLAUDE_SESSIONS_DIR" -name "*.jsonl" -mmin -2 2>/dev/null); do
-      # 最初の20行で検索（日本語名 or ID: {WINDOW_NAME}）
-      if [ -n "$AGENT_PATTERN" ] && head -20 "$jsonl" 2>/dev/null | grep -q "$AGENT_PATTERN"; then
-        SESSION_ID=$(basename "$jsonl" .jsonl)
-        break
-      elif head -20 "$jsonl" 2>/dev/null | grep -q "ID: ${WINDOW_NAME}"; then
-        SESSION_ID=$(basename "$jsonl" .jsonl)
-        break
-      fi
-    done
-
-    # 方法2: フォールバック - 見つからなければ最新のjsonlを使用
-    if [ -z "$SESSION_ID" ]; then
-      SESSION_ID=$(ls -t "$CLAUDE_SESSIONS_DIR"/*.jsonl 2>/dev/null | head -1 | xargs -I {} basename {} .jsonl)
-    fi
-
-    if [ -n "$SESSION_ID" ]; then
-      MAID_FILE="$PROJECT_PATH/.maid-agent/system/data/maid/${WINDOW_NAME}.yaml"
-      if [ -f "$MAID_FILE" ]; then
-        # session_idが既にあれば更新、なければ追加
-        if grep -q "^session_id:" "$MAID_FILE" 2>/dev/null; then
-          sed -i "s|^session_id:.*|session_id: ${SESSION_ID}|" "$MAID_FILE"
-        else
-          echo "session_id: ${SESSION_ID}" >> "$MAID_FILE"
-        fi
-      fi
+if [ -n "$PROJECT_PATH" ] && [ -n "$SESSION_ID" ]; then
+  MAID_FILE="$PROJECT_PATH/.maid-agent/system/data/maid/${WINDOW_NAME}.yaml"
+  if [ -f "$MAID_FILE" ]; then
+    # session_idが既にあれば更新、なければ追加
+    if grep -q "^session_id:" "$MAID_FILE" 2>/dev/null; then
+      sed -i "s|^session_id:.*|session_id: ${SESSION_ID}|" "$MAID_FILE"
+    else
+      echo "session_id: ${SESSION_ID}" >> "$MAID_FILE"
     fi
   fi
 fi

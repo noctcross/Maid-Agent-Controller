@@ -161,6 +161,8 @@ export interface V2TaskData {
   latestUpdatedAt?: string;
   // 報告書有無フラグ
   hasReport?: boolean;
+  // 要対応フラグ
+  actionRequired?: boolean;
 }
 
 // 後方互換エイリアス
@@ -463,6 +465,7 @@ export async function generateV2DashboardData(
         updatedAt: goal.updatedAt,
         latestUpdatedAt,
         hasReport: (goal.reportPaths?.length ?? 0) > 0,
+        actionRequired: goal.actionRequired,
       };
     })
     // ソート: latestUpdatedAt を使用（子タスクの最新日時を含む）

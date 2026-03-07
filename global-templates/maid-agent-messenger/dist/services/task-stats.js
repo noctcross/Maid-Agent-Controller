@@ -295,6 +295,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             updatedAt: goal.updatedAt,
             latestUpdatedAt,
             hasReport: (goal.reportPaths?.length ?? 0) > 0,
+            actionRequired: goal.actionRequired,
         };
     })
         // ソート: latestUpdatedAt を使用（子タスクの最新日時を含む）

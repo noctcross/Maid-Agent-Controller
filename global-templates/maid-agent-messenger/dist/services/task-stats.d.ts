@@ -78,6 +78,7 @@ export interface V2TaskData {
     updatedAt?: string;
     latestUpdatedAt?: string;
     hasReport?: boolean;
+    actionRequired?: boolean;
 }
 export type V2GoalData = V2TaskData;
 export type V2PhaseData = V2WorkData;

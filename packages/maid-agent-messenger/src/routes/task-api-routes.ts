@@ -423,18 +423,23 @@ router.get("/api/v2/dashboard", async (req: Request, res: Response) => {
     const assignee = req.query.assignee as string | undefined;
     const includeTeamStatus = req.query.includeTeamStatus === "true";
 
-    // V2ダッシュボードデータを取得
-    const v2Data = await generateV2DashboardData(projectPath, {
-      statusFilter,
-      showArchived,
-      limit,
-      offset,
-      sortField,
-      sortOrder,
-      search,
-      priority,
-      assignee,
-    });
+    // V2ダッシュボードデータを取得（並列実行）
+    const [v2Data, skillCandidatesResult, improvementsResult] = await Promise.all([
+      generateV2DashboardData(projectPath, {
+        statusFilter,
+        showArchived,
+        limit,
+        offset,
+        sortField,
+        sortOrder,
+        search,
+        priority,
+        assignee,
+      }),
+      // スキル化候補・改善提案を別途取得（Webダッシュボードと同様）
+      executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
+      executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
+    ]);
 
     // チーム状態を取得（オプション）
     let teamStatus;
@@ -449,6 +454,18 @@ router.get("/api/v2/dashboard", async (req: Request, res: Response) => {
       reviewQueue: v2Data.v2ReviewQueue,
       artifacts: v2Data.v2Artifacts,
       stats: v2Data.v2Stats,
+
+      // スキル化候補・改善提案（別セクション用）
+      skillCandidates: skillCandidatesResult.tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: "description" in t ? t.description : undefined,
+      })),
+      improvements: improvementsResult.tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: "description" in t ? t.description : undefined,
+      })),
 
       // ページネーション情報
       totalGoals: v2Data.totalGoals,

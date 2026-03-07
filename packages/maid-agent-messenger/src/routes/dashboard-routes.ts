@@ -75,9 +75,8 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
       const config = await loadConfig();
       const editorScheme = (req.query.editor as string) || config.dashboard.editor;
 
-      // バージョンパラメータ（デフォルト: v2）
-      const versionParam = req.query.version as string | undefined;
-      const dashboardVersion: "v1" | "v2" = versionParam === "v1" ? "v1" : "v2";
+      // ダッシュボードバージョン（v2固定）
+      const dashboardVersion: "v2" = "v2";
 
       // 並列でデータを取得（Phase 1: 特殊カテゴリ・blocked追加, Phase 2: 本日完了追加）
       const today = new Date();
@@ -132,7 +131,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         v2ReviewQueue: v2Data.v2ReviewQueue,
         v2Artifacts: v2Data.v2Artifacts,
         v2Stats: v2Data.v2Stats,
-        // V1/V2切り替え
+        // ダッシュボードバージョン
         dashboardVersion,
       }, editorScheme);
 

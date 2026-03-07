@@ -14,7 +14,6 @@ import { generateTaskHtml, composeMasterWaitingHtml } from "./task-html.js";
 import { getDashboardStyles } from "./dashboard-styles.js";
 import {
   getDashboardHeadScript,
-  getDashboardMainScript,
   getReportOverlayScript,
   getV2DashboardScript,
   type DashboardScriptParams,
@@ -584,7 +583,6 @@ ${v1VersionSwitchHtml}
 ${v2SectionsHtml}
 ${v2GridClose}
 ${getReportOverlayHtml()}
-${getDashboardMainScript(scriptParams)}
 ${getReportOverlayScript()}
 ${getV2DashboardScript()}
 </body>

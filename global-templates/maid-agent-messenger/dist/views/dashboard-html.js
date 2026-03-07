@@ -10,7 +10,7 @@
 import { escapeHtml } from "../markdown-utils.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./task-html.js";
 import { getDashboardStyles } from "./dashboard-styles.js";
-import { getDashboardHeadScript, getDashboardMainScript, getReportOverlayScript, getV2DashboardScript, } from "./dashboard-scripts.js";
+import { getDashboardHeadScript, getReportOverlayScript, getV2DashboardScript, } from "./dashboard-scripts.js";
 import { getDashboardBodyTemplate, getReportOverlayHtml, } from "./dashboard-template.js";
 // V2.1: Task階層表示・レビューキュー・成果物・統計
 import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, } from "./task-html-v2.js";
@@ -430,7 +430,6 @@ ${v1VersionSwitchHtml}
 ${v2SectionsHtml}
 ${v2GridClose}
 ${getReportOverlayHtml()}
-${getDashboardMainScript(scriptParams)}
 ${getReportOverlayScript()}
 ${getV2DashboardScript()}
 </body>

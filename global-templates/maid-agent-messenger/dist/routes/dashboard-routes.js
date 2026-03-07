@@ -363,8 +363,8 @@ export function createDashboardRoutes(deps) {
             res.status(500).json({ error: "Review toggle failed", details: message });
         }
     });
-    // GET /dashboard/v2/goals - V2.1 Goals ページネーション用エンドポイント
-    router.get("/dashboard/v2/goals", async (req, res) => {
+    // GET /dashboard/goals - Goals ページネーション用エンドポイント
+    router.get("/dashboard/goals", async (req, res) => {
         try {
             const projectPath = req.query.project
                 ? decodeURIComponent(req.query.project)

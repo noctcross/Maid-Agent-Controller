@@ -448,8 +448,8 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     }
   });
 
-  // GET /dashboard/v2/goals - V2.1 Goals ページネーション用エンドポイント
-  router.get("/dashboard/v2/goals", async (req: Request, res: Response) => {
+  // GET /dashboard/goals - Goals ページネーション用エンドポイント
+  router.get("/dashboard/goals", async (req: Request, res: Response) => {
     try {
       const projectPath = req.query.project
         ? decodeURIComponent(req.query.project as string)

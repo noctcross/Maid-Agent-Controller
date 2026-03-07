@@ -321,10 +321,10 @@ export function createTaskApiRoutes(deps = {}) {
         }
     });
     // =============================================================================
-    // V2 Dashboard API（モバイル向け）
+    // Dashboard API（モバイル向け）
     // =============================================================================
-    // GET /api/v2/dashboard - V2ダッシュボードJSON（モバイル向け）
-    router.get("/api/v2/dashboard", async (req, res) => {
+    // GET /api/dashboard - ダッシュボードJSON（モバイル向け）
+    router.get("/api/dashboard", async (req, res) => {
         try {
             const projectPath = getProjectPathFromRequest(req);
             // クエリパラメータを取得

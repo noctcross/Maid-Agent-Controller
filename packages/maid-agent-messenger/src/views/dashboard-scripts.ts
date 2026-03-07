@@ -532,7 +532,7 @@ export function getDashboardScript(): string {
       var offset = v2GoalsOpenCurrentPage * v2GoalsOpenLimit;
 
       // IDE版対応: 相対URLではなく絶対URLを使用（#374-6）
-      var url = serverBaseUrl + '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
+      var url = serverBaseUrl + '/dashboard/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
         '&offset=' + offset +
         '&limit=' + v2GoalsOpenLimit +
         '&status=open' +
@@ -572,7 +572,7 @@ export function getDashboardScript(): string {
       var offset = v2GoalsClosedCurrentPage * v2GoalsClosedLimit;
 
       // IDE版対応: 相対URLではなく絶対URLを使用（#374-6）
-      var url = serverBaseUrl + '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
+      var url = serverBaseUrl + '/dashboard/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
         '&offset=' + offset +
         '&limit=' + v2GoalsClosedLimit +
         '&status=closed' +
@@ -811,7 +811,7 @@ export function getDashboardScript(): string {
 
       var offset = v2GoalsCurrentPage * v2GoalsLimit;
       // IDE版対応: 相対URLではなく絶対URLを使用（#374-6）
-      var url = serverBaseUrl + '/dashboard/v2/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
+      var url = serverBaseUrl + '/dashboard/goals?project=' + encodeURIComponent(window.v2ProjectPath || '') +
         '&offset=' + offset +
         '&limit=' + v2GoalsLimit +
         '&status=' + status +

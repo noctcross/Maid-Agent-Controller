@@ -391,11 +391,11 @@ router.post("/api/v2/migration/run", async (req: Request, res: Response) => {
 });
 
 // =============================================================================
-// V2 Dashboard API（モバイル向け）
+// Dashboard API（モバイル向け）
 // =============================================================================
 
-// GET /api/v2/dashboard - V2ダッシュボードJSON（モバイル向け）
-router.get("/api/v2/dashboard", async (req: Request, res: Response) => {
+// GET /api/dashboard - ダッシュボードJSON（モバイル向け）
+router.get("/api/dashboard", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
 

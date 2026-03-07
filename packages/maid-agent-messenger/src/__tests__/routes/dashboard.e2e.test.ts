@@ -278,7 +278,7 @@ describe("TC-E1-2: ページネーション", () => {
 
   it("V2データAPIでlimitパラメータが適用される", async () => {
     await supertest(app)
-      .get("/dashboard/v2/goals?limit=20")
+      .get("/dashboard/goals?limit=20")
       .set("X-Maid-Project-Path", TEST_PROJECT_PATH);
 
     expect(mockGenerateV2DashboardData).toHaveBeenCalledWith(
@@ -289,7 +289,7 @@ describe("TC-E1-2: ページネーション", () => {
 
   it("V2データAPIでoffsetパラメータが適用される", async () => {
     await supertest(app)
-      .get("/dashboard/v2/goals?offset=10")
+      .get("/dashboard/goals?offset=10")
       .set("X-Maid-Project-Path", TEST_PROJECT_PATH);
 
     expect(mockGenerateV2DashboardData).toHaveBeenCalledWith(
@@ -305,7 +305,7 @@ describe("TC-E1-2: ページネーション", () => {
 describe("TC-E1-3: フィルタ切り替え", () => {
   it("status=openでstatusFilter=openが渡される", async () => {
     await supertest(app)
-      .get("/dashboard/v2/goals?status=open")
+      .get("/dashboard/goals?status=open")
       .set("X-Maid-Project-Path", TEST_PROJECT_PATH);
 
     expect(mockGenerateV2DashboardData).toHaveBeenCalledWith(
@@ -316,7 +316,7 @@ describe("TC-E1-3: フィルタ切り替え", () => {
 
   it("status=closedでstatusFilter=closedが渡される", async () => {
     await supertest(app)
-      .get("/dashboard/v2/goals?status=closed")
+      .get("/dashboard/goals?status=closed")
       .set("X-Maid-Project-Path", TEST_PROJECT_PATH);
 
     expect(mockGenerateV2DashboardData).toHaveBeenCalledWith(
@@ -327,7 +327,7 @@ describe("TC-E1-3: フィルタ切り替え", () => {
 
   it("status=allでstatusFilter=allが渡される", async () => {
     await supertest(app)
-      .get("/dashboard/v2/goals?status=all")
+      .get("/dashboard/goals?status=all")
       .set("X-Maid-Project-Path", TEST_PROJECT_PATH);
 
     expect(mockGenerateV2DashboardData).toHaveBeenCalledWith(
@@ -436,7 +436,7 @@ describe("E-2: パフォーマンス計測", () => {
     const start = performance.now();
 
     const res = await supertest(app)
-      .get("/dashboard/v2/goals")
+      .get("/dashboard/goals")
       .set("X-Maid-Project-Path", TEST_PROJECT_PATH);
 
     const elapsed = performance.now() - start;

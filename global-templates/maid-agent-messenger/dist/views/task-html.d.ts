@@ -1,6 +1,6 @@
 /**
  * タスクリストHTML生成
- * generateTaskHtml() - SSEエンドポイントとJSON APIエンドポイントの両方で使用
+ * generateTaskHtml() - WebSocketとJSON APIエンドポイントの両方で使用
  */
 /**
  * 報告書リンクのHTMLを生成する共通関数
@@ -9,7 +9,7 @@
 export declare function generateReportLinksHtml(reportPaths: string[], projectPath: string): string;
 /**
  * タスクリストのHTMLを生成するヘルパー関数
- * SSEエンドポイントとJSON APIエンドポイントの両方で使用
+ * WebSocketとJSON APIエンドポイントの両方で使用
  */
 export declare function generateTaskHtml(tasks: any[], type: string, projectPath: string, scheme?: string): string;
 /**

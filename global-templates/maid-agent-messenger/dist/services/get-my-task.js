@@ -51,7 +51,7 @@ async function getParentChain(projectPath, taskId) {
             title: parent.title || "(タイトルなし)",
             type: parent.type || "step",
             description: parent.description,
-            v2Substatus: parent.v2Substatus,
+            subStatus: parent.subStatus,
         });
         parentId = parent.parentId;
     }

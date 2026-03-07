@@ -14,7 +14,7 @@ export interface Step {
     description?: string;
     type: "step";
     mainStatus: string;
-    v2Substatus: string;
+    subStatus: string;
     assignees?: Array<{
         agentId: string;
     }>;
@@ -27,7 +27,7 @@ export interface Work {
     description?: string;
     type: "work";
     mainStatus: string;
-    v2Substatus: string;
+    subStatus: string;
     reviewStatus?: string;
     assignees?: Array<{
         agentId: string;
@@ -42,7 +42,7 @@ export interface Task {
     description?: string;
     type: "task";
     mainStatus: string;
-    v2Substatus: string;
+    subStatus: string;
     size?: string;
     reviewStatus?: string;
     assignees: Array<{

@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - reports-cleanup（報告書の整理ルール）
 
 - **V2.1 タスク管理スキーマ**
-  - 2層ステータス管理（mainStatus + v2Substatus）
+  - 2層ステータス管理（mainStatus + subStatus）
   - タスク種別: task, work, step, investigation
   - サブステータス: pending, assigned, working, checkpoint, waiting, completed
 

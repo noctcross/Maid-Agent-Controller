@@ -120,7 +120,7 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       status, substatus, summary, reportPath,
       title, description, priority,
       // V2.1 拡張フィールド
-      mainStatus, v2Substatus, type, size, tentative,
+      mainStatus, subStatus, type, size, tentative,
       blockedBy, artifacts, artifactAdd, reviewStatus,
       // V2.1 追加フィールド
       archived, actionRequired, starred,
@@ -137,7 +137,7 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       reportPath,
       // V2.1 拡張
       mainStatus,
-      v2Substatus,
+      subStatus,
       type,
       size,
       tentative,
@@ -273,34 +273,8 @@ router.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/dashboard - ダッシュボードJSON
-router.get("/api/dashboard", async (req: Request, res: Response) => {
-  try {
-    const projectPath = getProjectPathFromRequest(req);
-
-    // 並列でタスクを取得
-    const [pending, working, completed] = await Promise.all([
-      executeListTasks(projectPath, { status: ["pending"] }),
-      executeListTasks(projectPath, { status: ["working", "assigned"] }),
-      executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
-    ]);
-
-    res.json({
-      timestamp: getTimestamp(),
-      summary: {
-        pendingCount: pending.total,
-        workingCount: working.total,
-        completedCount: completed.total,
-      },
-      pending: pending.tasks,
-      working: working.tasks,
-      recentCompleted: completed.tasks,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: "Dashboard retrieval failed", details: message });
-  }
-});
+// 旧 GET /api/dashboard（pending/working/completed形式）は削除
+// モバイル向けの新形式は下部の Dashboard API セクションで定義
 
 // POST /api/tasks/:id/rearchive - 報告書を再アーカイブ
 router.post("/api/tasks/:id/rearchive", async (req: Request, res: Response) => {

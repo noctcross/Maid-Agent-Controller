@@ -25,7 +25,7 @@ import { logger } from "../utils/logger.js";
  */
 export function computeGoalDisplayStatus(
   goalSubstatus: string,
-  phases: Array<{ v2Substatus: string; mainStatus?: string }>,
+  phases: Array<{ subStatus: string; mainStatus?: string }>,
   goalMainStatus?: string
 ): { displayStatus: string; displayIcon: string } {
   // Goal自身が closed/completed の場合は「完了」を返す
@@ -38,7 +38,7 @@ export function computeGoalDisplayStatus(
     return mapSubstatusToDisplay(goalSubstatus);
   }
 
-  const substatuses = phases.map((p) => p.v2Substatus);
+  const substatuses = phases.map((p) => p.subStatus);
 
   // ブロック中（waiting/checkpoint）を最優先
   if (substatuses.some((s) => s === "waiting" || s === "checkpoint")) {
@@ -46,7 +46,7 @@ export function computeGoalDisplayStatus(
   }
 
   // 全Phase完了（Goalがまだopenの場合）
-  if (phases.every((p) => p.v2Substatus === "completed" || p.mainStatus === "closed")) {
+  if (phases.every((p) => p.subStatus === "completed" || p.mainStatus === "closed")) {
     return { displayStatus: "完了可能", displayIcon: "✅" };
   }
 
@@ -117,7 +117,7 @@ export interface StepData {
   description?: string;
   type: "step";
   mainStatus: string;
-  v2Substatus: string;
+  subStatus: string;
   assignees?: Array<{ agentId: string }>;
   updatedAt?: string;
   // 報告書有無フラグ
@@ -130,7 +130,7 @@ export interface WorkData {
   description?: string;
   type: "work";
   mainStatus: string;
-  v2Substatus: string;
+  subStatus: string;
   reviewStatus?: string;
   assignees?: Array<{ agentId: string }>;
   steps: StepData[];
@@ -145,7 +145,7 @@ export interface TaskData {
   description?: string;
   type: "task";
   mainStatus: string;
-  v2Substatus: string;
+  subStatus: string;
   size?: string;
   reviewStatus?: string;
   assignees: Array<{ agentId: string }>;
@@ -409,7 +409,7 @@ export async function generateDashboardData(
             description: action.description,
             type: "step" as const,
             mainStatus: actionStatus.mainStatus,
-            v2Substatus: actionStatus.substatus,
+            subStatus: actionStatus.substatus,
             assignees: action.assignees?.map((a) => ({ agentId: a.agentId })),
             updatedAt: action.updatedAt,
             hasReport: (action.reportPaths?.length ?? 0) > 0,
@@ -422,7 +422,7 @@ export async function generateDashboardData(
           description: phase.description,
           type: "work" as const,
           mainStatus: phaseStatus.mainStatus,
-          v2Substatus: phaseStatus.substatus,
+          subStatus: phaseStatus.substatus,
           reviewStatus: phase.reviewStatus,
           assignees: phase.assignees?.map((a) => ({ agentId: a.agentId })),
           steps: v2Steps,
@@ -435,7 +435,7 @@ export async function generateDashboardData(
       // Task自身が closed の場合は「完了」を返す
       const { displayStatus, displayIcon } = computeGoalDisplayStatus(
         substatus,
-        v2Works.map((w) => ({ v2Substatus: w.v2Substatus, mainStatus: w.mainStatus })),
+        v2Works.map((w) => ({ subStatus: w.subStatus, mainStatus: w.mainStatus })),
         mainStatus
       );
 
@@ -454,7 +454,7 @@ export async function generateDashboardData(
         description: goal.description,
         type: "task" as const,
         mainStatus,
-        v2Substatus: substatus,
+        subStatus: substatus,
         size: goal.size,
         reviewStatus: goal.reviewStatus,
         assignees: goal.assignees?.map((a) => ({ agentId: a.agentId })) || [],

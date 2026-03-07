@@ -146,7 +146,7 @@ maidctl notify chief "問題が発生いたしました。"
 - type: {task/work/step/investigation}
 <!-- /自動生成 -->
 - mainStatus: open / closed
-- v2Substatus: pending / assigned / working / checkpoint / waiting / completed
+- subStatus: pending / assigned / working / checkpoint / waiting / completed
 
 ## 作業内容
 {実行した作業の説明}

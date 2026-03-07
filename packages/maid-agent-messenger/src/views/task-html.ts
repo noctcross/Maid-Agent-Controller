@@ -1,6 +1,6 @@
 /**
  * タスクリストHTML生成
- * generateTaskHtml() - SSEエンドポイントとJSON APIエンドポイントの両方で使用
+ * generateTaskHtml() - WebSocketとJSON APIエンドポイントの両方で使用
  */
 
 import path from "path";
@@ -30,7 +30,7 @@ export function generateReportLinksHtml(
 
 /**
  * タスクリストのHTMLを生成するヘルパー関数
- * SSEエンドポイントとJSON APIエンドポイントの両方で使用
+ * WebSocketとJSON APIエンドポイントの両方で使用
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 部分的なタスクオブジェクトも許容
 export function generateTaskHtml(tasks: any[], type: string, projectPath: string, scheme: string = "vscode"): string {

@@ -47,7 +47,7 @@ export function inferTaskType(task: Task): TaskType {
  * 不正な遷移を検出し、許可/拒否を判定する。
  * 設計書: docs/Maid-Agent-Controller/設計書/02_メッセンジャーサーバ/ダッシュボード/ステータス遷移設計.md
  *
- * @param currentStatus - 現在のステータス（v2Substatus）
+ * @param currentStatus - 現在のステータス（subStatus）
  * @param newStatus - 遷移先のステータス
  * @param operatorRole - 操作者の役割
  * @returns バリデーション結果
@@ -127,8 +127,8 @@ export function getAgentRole(agentId: string): OperatorRole {
  */
 export function convertStatus(task: Task): { mainStatus: TaskMainStatus; substatus: TaskSubstatus } {
   // 既にV2.1形式の場合
-  if (task.mainStatus && task.v2Substatus) {
-    return { mainStatus: task.mainStatus, substatus: task.v2Substatus };
+  if (task.mainStatus && task.subStatus) {
+    return { mainStatus: task.mainStatus, substatus: task.subStatus };
   }
 
   // 旧ステータスから変換
@@ -166,26 +166,26 @@ export function convertStatus(task: Task): { mainStatus: TaskMainStatus; substat
 export function mapLegacyStatus(
   legacyStatus: TaskStatus,
   legacySubstatus: string | null
-): { mainStatus: TaskMainStatus; v2Substatus: TaskSubstatus } {
+): { mainStatus: TaskMainStatus; subStatus: TaskSubstatus } {
   switch (legacyStatus) {
     case "pending":
-      return { mainStatus: "open", v2Substatus: "pending" };
+      return { mainStatus: "open", subStatus: "pending" };
     case "assigned":
-      return { mainStatus: "open", v2Substatus: "assigned" };
+      return { mainStatus: "open", subStatus: "assigned" };
     case "working":
-      return { mainStatus: "open", v2Substatus: "working" };
+      return { mainStatus: "open", subStatus: "working" };
     case "blocked":
       if (legacySubstatus === "waiting") {
-        return { mainStatus: "open", v2Substatus: "waiting" };
+        return { mainStatus: "open", subStatus: "waiting" };
       }
-      return { mainStatus: "open", v2Substatus: "checkpoint" };
+      return { mainStatus: "open", subStatus: "checkpoint" };
     case "completed":
-      return { mainStatus: "closed", v2Substatus: "completed" };
+      return { mainStatus: "closed", subStatus: "completed" };
     case "cancelled":
-      return { mainStatus: "cancelled", v2Substatus: "archived" };
+      return { mainStatus: "cancelled", subStatus: "archived" };
     default:
       logger.warn(`Unknown legacyStatus: ${legacyStatus}, defaulting to open/pending`);
-      return { mainStatus: "open", v2Substatus: "pending" };
+      return { mainStatus: "open", subStatus: "pending" };
   }
 }
 
@@ -198,12 +198,12 @@ export function mapLegacyStatus(
  */
 export function migrateTask(task: Task): Task {
   // 既に V2.1 形式の場合はそのまま返す
-  if (task.mainStatus && task.v2Substatus) {
+  if (task.mainStatus && task.subStatus) {
     return task;
   }
 
   // 旧ステータスからV2.1ステータスへ変換
-  const { mainStatus, v2Substatus } = mapLegacyStatus(
+  const { mainStatus, subStatus } = mapLegacyStatus(
     task.status,
     task.substatus
   );
@@ -220,7 +220,7 @@ export function migrateTask(task: Task): Task {
     ...task,
     type,
     mainStatus,
-    v2Substatus,
+    subStatus,
     archived,
     archivedAt: archived ? (task.reviewedAt || task.completedAt || null) : null,
     // Task専用フィールドの初期化
@@ -255,7 +255,7 @@ export interface MigrationResult {
  * 2. 親タスクを type: task に変更
  * 3. サブタスクグループを type: work に変更（直接の親が task の場合）
  * 4. 調査系タスクを type: investigation に変更
- * 5. mainStatus/v2Substatus を旧 status から変換
+ * 5. mainStatus/subStatus を旧 status から変換
  */
 export async function migrate(
   projectPath: string,
@@ -273,8 +273,10 @@ export async function migrate(
     const now = getTimestamp();
 
     for (const task of data.tasks) {
-      // 既に V2.1 形式の場合はスキップ
-      if (task.type && task.mainStatus && task.v2Substatus) {
+      // 既に V2.1 形式の場合はスキップ（V1フィールドが残っていても無視）
+      const hasV2Fields = task.type && task.mainStatus && task.subStatus;
+
+      if (hasV2Fields) {
         result.skippedTasks++;
         result.details.push({
           taskId: task.id,
@@ -321,13 +323,13 @@ export async function migrate(
         }
       }
 
-      // 2. mainStatus / v2Substatus の決定
-      if (!task.mainStatus || !task.v2Substatus) {
+      // 2. mainStatus / subStatus の決定
+      if (!task.mainStatus || !task.subStatus) {
         const { mainStatus, substatus } = convertStatus(task);
         task.mainStatus = mainStatus;
-        task.v2Substatus = substatus;
+        task.subStatus = substatus;
         changes.mainStatus = mainStatus;
-        changes.v2Substatus = substatus;
+        changes.subStatus = substatus;
       }
 
       // 3. Task 専用フィールドの初期化
@@ -380,6 +382,19 @@ export async function migrate(
         }
       }
 
+      // 7. V1フィールド削除（status, substatus）
+      // V2.1フィールド（mainStatus, subStatus）に移行済みのため不要
+      if (task.status !== undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        delete (task as any).status;
+        changes.removedStatus = true;
+      }
+      if (task.substatus !== undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        delete (task as any).substatus;
+        changes.removedSubstatus = true;
+      }
+
       // 更新時刻
       if (Object.keys(changes).length > 0 && !options.dryRun) {
         task.updatedAt = now;
@@ -421,7 +436,7 @@ export async function checkMigrationStatus(
   let legacyTasks = 0;
 
   for (const task of data.tasks) {
-    if (task.type && task.mainStatus && task.v2Substatus) {
+    if (task.type && task.mainStatus && task.subStatus) {
       v2Tasks++;
     } else {
       legacyTasks++;

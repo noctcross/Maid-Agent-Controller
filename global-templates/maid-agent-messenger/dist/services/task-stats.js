@@ -26,13 +26,13 @@ export function computeGoalDisplayStatus(goalSubstatus, phases, goalMainStatus) 
     if (phases.length === 0) {
         return mapSubstatusToDisplay(goalSubstatus);
     }
-    const substatuses = phases.map((p) => p.v2Substatus);
+    const substatuses = phases.map((p) => p.subStatus);
     // ブロック中（waiting/checkpoint）を最優先
     if (substatuses.some((s) => s === "waiting" || s === "checkpoint")) {
         return { displayStatus: "ブロック中", displayIcon: "⚠️" };
     }
     // 全Phase完了（Goalがまだopenの場合）
-    if (phases.every((p) => p.v2Substatus === "completed" || p.mainStatus === "closed")) {
+    if (phases.every((p) => p.subStatus === "completed" || p.mainStatus === "closed")) {
         return { displayStatus: "完了可能", displayIcon: "✅" };
     }
     // いずれかPhase working（active は後方互換）
@@ -249,7 +249,7 @@ export async function generateDashboardData(projectPath, options = {}) {
                     description: action.description,
                     type: "step",
                     mainStatus: actionStatus.mainStatus,
-                    v2Substatus: actionStatus.substatus,
+                    subStatus: actionStatus.substatus,
                     assignees: action.assignees?.map((a) => ({ agentId: a.agentId })),
                     updatedAt: action.updatedAt,
                     hasReport: (action.reportPaths?.length ?? 0) > 0,
@@ -261,7 +261,7 @@ export async function generateDashboardData(projectPath, options = {}) {
                 description: phase.description,
                 type: "work",
                 mainStatus: phaseStatus.mainStatus,
-                v2Substatus: phaseStatus.substatus,
+                subStatus: phaseStatus.substatus,
                 reviewStatus: phase.reviewStatus,
                 assignees: phase.assignees?.map((a) => ({ agentId: a.agentId })),
                 steps: v2Steps,
@@ -271,7 +271,7 @@ export async function generateDashboardData(projectPath, options = {}) {
         });
         // Task階層連動: 子Workの状態から表示ステータスを計算
         // Task自身が closed の場合は「完了」を返す
-        const { displayStatus, displayIcon } = computeGoalDisplayStatus(substatus, v2Works.map((w) => ({ v2Substatus: w.v2Substatus, mainStatus: w.mainStatus })), mainStatus);
+        const { displayStatus, displayIcon } = computeGoalDisplayStatus(substatus, v2Works.map((w) => ({ subStatus: w.subStatus, mainStatus: w.mainStatus })), mainStatus);
         // 最新更新日時を計算（Task自身 + 配下のWork/Step）
         const childUpdates = v2Works.flatMap((w) => [w.updatedAt, ...w.steps.map((s) => s.updatedAt)]).filter((d) => Boolean(d));
         const allUpdates = [goal.updatedAt, ...childUpdates].filter((d) => Boolean(d));
@@ -284,7 +284,7 @@ export async function generateDashboardData(projectPath, options = {}) {
             description: goal.description,
             type: "task",
             mainStatus,
-            v2Substatus: substatus,
+            subStatus: substatus,
             size: goal.size,
             reviewStatus: goal.reviewStatus,
             assignees: goal.assignees?.map((a) => ({ agentId: a.agentId })) || [],

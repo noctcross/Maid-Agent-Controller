@@ -108,9 +108,9 @@ export const generateGoalTreeHtml = generateTaskTreeHtml;
  */
 function generateTaskItemHtml(task, projectPath) {
     // Task階層連動: displayStatus/displayIconがある場合は優先使用
-    const statusIcon = task.displayIcon || STATUS_ICONS[task.v2Substatus] || "❓";
-    const statusText = task.displayStatus || STATUS_TEXT_JP[task.v2Substatus] || task.v2Substatus;
-    const statusClass = STATUS_CLASSES[task.v2Substatus] || "";
+    const statusIcon = task.displayIcon || STATUS_ICONS[task.subStatus] || "❓";
+    const statusText = task.displayStatus || STATUS_TEXT_JP[task.subStatus] || task.subStatus;
+    const statusClass = STATUS_CLASSES[task.subStatus] || "";
     // 初期状態は全Task折りたたみ（ユーザーが展開する）
     const hasChildren = task.works.length > 0;
     // サブタスク有り: ▼（展開可能）、サブタスク無し: ●（単独タスク）
@@ -131,7 +131,7 @@ function generateTaskItemHtml(task, projectPath) {
         </div>
       </div>`
         : "";
-    return `<div class="task-item" data-id="${escapeHtml(task.id)}" data-status="${task.mainStatus}" data-substatus="${task.v2Substatus}" data-archived="${task.archived === true || task.v2Substatus === 'archived'}" data-updated="${task.updatedAt || ""}">
+    return `<div class="task-item" data-id="${escapeHtml(task.id)}" data-status="${task.mainStatus}" data-substatus="${task.subStatus}" data-archived="${task.archived === true || task.subStatus === 'archived'}" data-updated="${task.updatedAt || ""}">
     <div class="task-header">
       <span class="task-toggle ${toggleClass}">${toggleIcon}</span>
       <span class="task-id">#${escapeHtml(task.id)}</span>
@@ -151,8 +151,8 @@ function generateTaskItemHtml(task, projectPath) {
  * Work単体のHTML生成
  */
 function generateWorkItemHtml(work, projectPath) {
-    const statusIcon = STATUS_ICONS[work.v2Substatus] || "❓";
-    const statusClass = STATUS_CLASSES[work.v2Substatus] || "";
+    const statusIcon = STATUS_ICONS[work.subStatus] || "❓";
+    const statusClass = STATUS_CLASSES[work.subStatus] || "";
     const reviewBadge = work.reviewStatus ? generateReviewBadgeHtml(work.reviewStatus) : "";
     // 報告書リンク: WorkにはWork別報告書へのリンク
     const reportLink = generateReportLinkHtml(work.id, "work", projectPath);
@@ -163,11 +163,11 @@ function generateWorkItemHtml(work, projectPath) {
         ${work.steps.map((step, idx, arr) => generateStepItemHtml(step, idx === arr.length - 1, projectPath)).join("\n")}
       </div>`
         : "";
-    return `<div class="work-item ${work.v2Substatus === "working" ? "highlight" : ""}" data-id="${escapeHtml(work.id)}">
+    return `<div class="work-item ${work.subStatus === "working" ? "highlight" : ""}" data-id="${escapeHtml(work.id)}">
     <div class="work-header">
       <span class="work-id">#${escapeHtml(work.id)}</span>
       <span class="work-name">[${escapeHtml(work.title)}] Work</span>
-      <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${STATUS_TEXT_JP[work.v2Substatus] || work.v2Substatus}</span></span>
+      <span class="status ${statusClass}">${statusIcon}<span class="status-text"> ${STATUS_TEXT_JP[work.subStatus] || work.subStatus}</span></span>
       ${assigneesBadge}
       ${reviewBadge}
       ${reportLink}
@@ -179,13 +179,13 @@ function generateWorkItemHtml(work, projectPath) {
  * Step単体のHTML生成
  */
 function generateStepItemHtml(step, isLast, projectPath) {
-    const statusClass = step.v2Substatus === "completed" ? "completed" :
-        step.v2Substatus === "working" ? "current" : "";
+    const statusClass = step.subStatus === "completed" ? "completed" :
+        step.subStatus === "working" ? "current" : "";
     const icon = isLast ? "└" : "├";
-    const statusBadge = step.v2Substatus === "working"
+    const statusBadge = step.subStatus === "working"
         ? '<span class="current-marker">← 現在ここ</span>'
         : "";
-    const statusIcon = STATUS_ICONS[step.v2Substatus] || "⏳";
+    const statusIcon = STATUS_ICONS[step.subStatus] || "⏳";
     // 担当者表示（アイコンとメイド名を分離してスマホ対応）
     const assigneesBadge = generateAssigneesHtml(step.assignees, "step-assignees");
     // 報告書リンク: StepにはStep報告書へのリンク
@@ -193,7 +193,7 @@ function generateStepItemHtml(step, isLast, projectPath) {
     return `<div class="step-item ${statusClass}">
     <span class="step-icon">${icon}</span>
     <span class="step-name">#${escapeHtml(step.id)} ${escapeHtml(step.title)}</span>
-    <span class="step-status ${step.v2Substatus}">${statusIcon}<span class="status-text"> ${STATUS_TEXT_JP[step.v2Substatus] || step.v2Substatus}</span></span>
+    <span class="step-status ${step.subStatus}">${statusIcon}<span class="status-text"> ${STATUS_TEXT_JP[step.subStatus] || step.subStatus}</span></span>
     ${assigneesBadge}
     ${reportLink}
     ${statusBadge}

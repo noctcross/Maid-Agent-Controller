@@ -73,7 +73,7 @@ const mockV2GoalsData = {
       title: "V2.1ダッシュボード実装",
       type: "task",
       mainStatus: "open",
-      v2Substatus: "working",
+      subStatus: "working",
       size: "complex",
       assignees: [{ agentId: "emma" }],
       phases: [
@@ -82,10 +82,10 @@ const mockV2GoalsData = {
           title: "設計Phase",
           type: "work",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           actions: [
-            { id: "310-1", title: "要件定義", type: "step", mainStatus: "closed", v2Substatus: "completed" },
-            { id: "310-2", title: "基本設計", type: "step", mainStatus: "closed", v2Substatus: "completed" },
+            { id: "310-1", title: "要件定義", type: "step", mainStatus: "closed", subStatus: "completed" },
+            { id: "310-2", title: "基本設計", type: "step", mainStatus: "closed", subStatus: "completed" },
           ],
         },
         {
@@ -93,10 +93,10 @@ const mockV2GoalsData = {
           title: "実装Phase",
           type: "work",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           actions: [
-            { id: "310-3", title: "バックエンド実装", type: "step", mainStatus: "open", v2Substatus: "working" },
-            { id: "310-4", title: "フロントエンド実装", type: "step", mainStatus: "open", v2Substatus: "pending" },
+            { id: "310-3", title: "バックエンド実装", type: "step", mainStatus: "open", subStatus: "working" },
+            { id: "310-4", title: "フロントエンド実装", type: "step", mainStatus: "open", subStatus: "pending" },
           ],
         },
       ],

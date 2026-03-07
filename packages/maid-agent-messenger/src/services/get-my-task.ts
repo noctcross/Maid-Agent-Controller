@@ -26,7 +26,7 @@ export interface ParentTaskInfo {
   title: string;
   type: string;         // goal, phase, action
   description?: string;
-  v2Substatus?: string;
+  subStatus?: string;
 }
 
 export interface GetMyTaskResult extends GetMyTaskOutput {
@@ -43,7 +43,7 @@ interface TaskYamlEntry {
   description?: string;
   type?: string;
   parentId?: string;
-  v2Substatus?: string;
+  subStatus?: string;
 }
 
 interface TasksYamlData {
@@ -102,7 +102,7 @@ async function getParentChain(
       title: parent.title || "(タイトルなし)",
       type: parent.type || "step",
       description: parent.description,
-      v2Substatus: parent.v2Substatus,
+      subStatus: parent.subStatus,
     });
 
     parentId = parent.parentId;

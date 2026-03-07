@@ -18,7 +18,7 @@ export interface ParentTaskInfo {
     title: string;
     type: string;
     description?: string;
-    v2Substatus?: string;
+    subStatus?: string;
 }
 export interface GetMyTaskResult extends GetMyTaskOutput {
     message?: string;

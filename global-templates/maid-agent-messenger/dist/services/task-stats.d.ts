@@ -15,7 +15,7 @@
  * - 全Phase completed → Goal「完了可能」✅
  */
 export declare function computeGoalDisplayStatus(goalSubstatus: string, phases: Array<{
-    v2Substatus: string;
+    subStatus: string;
     mainStatus?: string;
 }>, goalMainStatus?: string): {
     displayStatus: string;
@@ -37,7 +37,7 @@ export interface StepData {
     description?: string;
     type: "step";
     mainStatus: string;
-    v2Substatus: string;
+    subStatus: string;
     assignees?: Array<{
         agentId: string;
     }>;
@@ -50,7 +50,7 @@ export interface WorkData {
     description?: string;
     type: "work";
     mainStatus: string;
-    v2Substatus: string;
+    subStatus: string;
     reviewStatus?: string;
     assignees?: Array<{
         agentId: string;
@@ -65,7 +65,7 @@ export interface TaskData {
     description?: string;
     type: "task";
     mainStatus: string;
-    v2Substatus: string;
+    subStatus: string;
     size?: string;
     reviewStatus?: string;
     assignees: Array<{

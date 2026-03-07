@@ -223,7 +223,7 @@ maidctl get team
 
 **ステータス一覧**（V2.1 substatus対応）:
 
-> **注意**: `paused` は V2.0互換・非推奨。`archived` は v2Substatus ではなく独立フラグ。
+> **注意**: `paused` は V2.0互換・非推奨。`archived` は subStatus ではなく独立フラグ。
 
 | status | substatus | 意味 | メイド長アクション |
 |--------|-----------|------|-------------------|

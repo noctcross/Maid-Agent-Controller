@@ -58,7 +58,7 @@ export interface Task {
     actionRequiredAt?: string | null;
     type?: TaskType;
     mainStatus?: TaskMainStatus;
-    v2Substatus?: TaskSubstatus;
+    subStatus?: TaskSubstatus;
     size?: TaskSize;
     tentative?: boolean;
     blockedBy?: string[];
@@ -102,7 +102,7 @@ export interface UpdateTaskParams {
     targetPath?: string;
     agentId?: string;
     mainStatus?: TaskMainStatus;
-    v2Substatus?: TaskSubstatus;
+    subStatus?: TaskSubstatus;
     type?: TaskType;
     size?: TaskSize;
     tentative?: boolean;

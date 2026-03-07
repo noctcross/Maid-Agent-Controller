@@ -374,33 +374,34 @@ describe("PATCH /api/tasks/:id/star", () => {
 // GET /api/dashboard
 // ===========================================
 describe("GET /api/dashboard", () => {
-  it("ダッシュボードJSONを返す", async () => {
-    mockExecuteListTasks
-      .mockResolvedValueOnce(createMockListResponse([createMockTask()], 1))   // pending
-      .mockResolvedValueOnce(createMockListResponse([], 0))                     // working
-      .mockResolvedValueOnce(createMockListResponse([], 0));                    // completed
+  it("モバイル向けダッシュボードJSONを返す", async () => {
+    // V2.1形式のモック設定
+    mockGenerateDashboardData.mockResolvedValue({
+      v2Goals: [{ id: "001", title: "Test Goal", type: "task", mainStatus: "open", subStatus: "working", works: [] }],
+      v2ReviewQueue: [],
+      v2Artifacts: [],
+      v2Stats: { taskCount: 1, workCount: 0, stepCount: 0, completedCount: 0, actionRequiredCount: 0, reviewPendingCount: 0, proposalCount: 0 },
+      totalGoals: 1,
+    });
+    mockExecuteListTasks.mockResolvedValue(createMockListResponse([], 0));
+    mockExecuteGetTeamStatus.mockResolvedValue({ agents: [] });
 
     const res = await supertest(app)
       .get("/api/dashboard")
       .expect(200)
       .expect("Content-Type", /json/);
 
+    expect(res.body.goals).toBeDefined();
+    expect(res.body.goals).toHaveLength(1);
+    expect(res.body.stats).toBeDefined();
     expect(res.body.timestamp).toBeDefined();
-    expect(res.body.summary).toEqual({
-      pendingCount: 1,
-      workingCount: 0,
-      completedCount: 0,
-    });
-    expect(res.body.pending).toHaveLength(1);
-    expect(res.body.working).toHaveLength(0);
-    expect(res.body.recentCompleted).toHaveLength(0);
   });
 
   it("サービスエラー時に500を返す", async () => {
-    mockExecuteListTasks.mockRejectedValue(new Error("Service error"));
+    mockGenerateDashboardData.mockRejectedValue(new Error("Service error"));
 
     const res = await supertest(app).get("/api/dashboard").expect(500);
 
-    expect(res.body.error).toBe("Dashboard retrieval failed");
+    expect(res.body.error).toBe("V2 Dashboard retrieval failed");
   });
 });

@@ -29,7 +29,7 @@ export interface DashboardScriptParams {
  * @returns `<script>` タグを含むHTMLスクリプト文字列
  */
 export function getDashboardHeadScript(params: DashboardScriptParams): string {
-  const { projectPath, completedTotal } = params;
+  const { projectPath, completedTotal, serverUrl } = params;
   return `
   <script>
     // VSCode Webview APIは1回しか呼べないため、初回に取得してキャッシュ
@@ -44,6 +44,9 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
 
     // V2.1 Goals API用プロジェクトパス
     window.v2ProjectPath = '${escapeHtml(projectPath)}';
+
+    // サーバーベースURL（IDE版対応: VSCode Webviewでは location.origin が使えないため）
+    window.serverBaseUrl = '${escapeHtml(serverUrl)}';
 
     // デバウンス関数（連続操作を制御）
     function debounce(func, wait) {

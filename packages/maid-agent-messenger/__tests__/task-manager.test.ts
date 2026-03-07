@@ -681,7 +681,7 @@ describe("完了時チェック（子タスク）", () => {
     expect(result.task!.status).toBe("completed");
   });
 
-  it("v2Substatus=completed でも同様にチェックされる", async () => {
+  it("subStatus=completed でも同様にチェックされる", async () => {
     // Arrange: 親タスクと子タスクを作成
     const parent = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "親タスク",
@@ -693,10 +693,10 @@ describe("完了時チェック（子タスク）", () => {
 
     // 子タスクは pending のまま
 
-    // Act: 親タスクを v2Substatus=completed で完了しようとする
+    // Act: 親タスクを subStatus=completed で完了しようとする
     const result = await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: parent.taskId,
-      v2Substatus: "completed",
+      subStatus: "completed",
     });
 
     // Assert: エラー
@@ -722,7 +722,7 @@ describe("完了時チェック（子タスク）", () => {
     });
     await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: child.taskId,
-      v2Substatus: "archived",
+      subStatus: "archived",
     });
 
     // Act: 親タスクを完了

@@ -170,7 +170,9 @@ export function clearConfigCache(): void {
 
 /**
  * サーバーURLを取得
+ * ブラウザからアクセス可能なURLを返す（0.0.0.0 → localhost に変換）
  */
 export function getServerUrl(config: McpServerConfig): string {
-  return `http://${config.server.host}:${config.server.port}`;
+  const host = config.server.host === "0.0.0.0" ? "localhost" : config.server.host;
+  return `http://${host}:${config.server.port}`;
 }

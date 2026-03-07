@@ -28,12 +28,12 @@ export async function resolveBlockedTasks(projectPath, completedTaskId) {
             if (!task.blockedBy || !task.blockedBy.includes(completedTaskId)) {
                 continue;
             }
-            const previousSubstatus = task.v2Substatus || task.substatus || "";
+            const previousSubstatus = task.subStatus || task.substatus || "";
             // blockedBy から completedTaskId を削除
             task.blockedBy = task.blockedBy.filter((id) => id !== completedTaskId);
             // blockedBy が空になったら waiting → assigned に変更
-            if (task.blockedBy.length === 0 && task.v2Substatus === "waiting") {
-                task.v2Substatus = "assigned";
+            if (task.blockedBy.length === 0 && task.subStatus === "waiting") {
+                task.subStatus = "assigned";
                 task.substatus = "assigned";
                 task.status = "assigned"; // 旧ステータス互換
                 task.mainStatus = "open";
@@ -186,7 +186,7 @@ export async function checkAndAutoCloseParent(projectPath, completedTaskId) {
             if (parentTask) {
                 const now = getTimestamp();
                 parentTask.mainStatus = "closed";
-                parentTask.v2Substatus = "completed";
+                parentTask.subStatus = "completed";
                 parentTask.status = "completed";
                 parentTask.completedAt = now;
                 parentTask.updatedAt = now;

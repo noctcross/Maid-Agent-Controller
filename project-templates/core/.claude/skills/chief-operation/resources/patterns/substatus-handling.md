@@ -7,7 +7,7 @@ V2.1で導入されたsubstatus（checkpoint/waiting等）に対するメイド�
 
 ## substatus 一覧
 
-> **V2.1正式定義**: `paused` は非推奨。`archived` は v2Substatus ではなく独立フラグ。
+> **V2.1正式定義**: `paused` は非推奨。`archived` は subStatus ではなく独立フラグ。
 
 | status | substatus | 意味 | メイド長アクション |
 |--------|-----------|------|-------------------|
@@ -19,7 +19,7 @@ V2.1で導入されたsubstatus（checkpoint/waiting等）に対するメイド�
 | closed | completed | 完了 | レビュー、親タスク進捗確認 |
 
 **archived フラグ**:
-`closed` 後に `--archived` フラグで設定。v2Substatus とは別管理。
+`closed` 後に `--archived` フラグで設定。subStatus とは別管理。
 
 ## checkpoint と waiting の違い
 
@@ -32,13 +32,13 @@ V2.1で導入されたsubstatus（checkpoint/waiting等）に対するメイド�
 │    ├── メイド長/ご主人様の回答が必要                         │
 │    ├── 例: 「この設計でよいですか？」                        │
 │    ├── 解除: メイド長が maidctl notify で回答               │
-│    └── 解除後: v2Substatus → working                        │
+│    └── 解除後: subStatus → working                        │
 │                                                              │
 │  【waiting】他タスク完了待ち                                 │
 │    ├── 別タスクの完了が必要                                  │
 │    ├── 例: 「#100-3 の結果が必要」                           │
 │    ├── 解除: 依存タスク完了で自動通知・状態更新             │
-│    └── 解除後: v2Substatus → working（自動）                │
+│    └── 解除後: subStatus → working（自動）                │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -108,7 +108,7 @@ waiting はシステムが自動で解消するため、メイド長は基本的
     ↓
 該当タスクの担当者に自動通知
     ↓
-v2Substatus: waiting → working に自動更新
+subStatus: waiting → working に自動更新
 ```
 
 ### 確認のみ

@@ -27,8 +27,11 @@ export function getDashboardScript(): string {
     // V2.1 Dashboard Scripts
     // ========================================
 
-    // サーバーURLを取得（getDashboardMainScriptで設定されたグローバル変数を参照）（#374-7）
-    var serverBaseUrl = window.serverBaseUrl || window.location.origin;
+    // サーバーURLを取得
+    // VSCode Webview: window.location.originがvscode-webview://になるため、serverBaseUrlを使用
+    // ブラウザ: window.location.originを使用（スマホなど外部デバイスからのアクセス対応）
+    var isVSCodeWebview = window.location.protocol === 'vscode-webview:';
+    var serverBaseUrl = isVSCodeWebview ? (window.serverBaseUrl || 'http://localhost:3100') : window.location.origin;
 
     // V2.1 Goals ページネーション状態（Open/Closed 別管理）
     // Open（進行中）- ページネーションあり
@@ -204,6 +207,138 @@ export function getDashboardScript(): string {
         refreshGoalsOpen();
         refreshGoalsClosed();
       }, 0);
+
+      // WebSocket接続を開始
+      initDashboardWebSocket();
+    }
+
+    // ========================================
+    // WebSocket リアルタイム更新
+    // ========================================
+    var dashboardWs = null;
+    var wsReconnectTimer = null;
+    var wsReconnectAttempts = 0;
+    var WS_RECONNECT_INTERVAL = 3000;
+    var WS_MAX_RECONNECT_ATTEMPTS = 10;
+
+    /**
+     * ダッシュボード全体をリフレッシュ（WebSocketイベント受信時に呼び出し）
+     */
+    function refreshDashboard() {
+      console.log('[WS] refreshDashboard called');
+      refreshGoalsOpen();
+      refreshGoalsClosed();
+    }
+
+    /**
+     * WebSocket接続を初期化
+     */
+    function initDashboardWebSocket() {
+      // VSCode Webview環境では WebSocket 接続をスキップ
+      // (VSCode拡張側でポーリングまたは別の仕組みで更新)
+      if (isVSCodeWebview) {
+        console.log('[WS] Skipping WebSocket in VSCode Webview');
+        return;
+      }
+
+      connectDashboardWebSocket();
+    }
+
+    /**
+     * WebSocket接続を確立
+     */
+    function connectDashboardWebSocket() {
+      if (dashboardWs && dashboardWs.readyState === WebSocket.OPEN) {
+        console.log('[WS] Already connected');
+        return;
+      }
+
+      // WebSocket URLを構築
+      var wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      var wsUrl = wsProtocol + '//' + window.location.host + '/dashboard/ws?project=' + encodeURIComponent(window.v2ProjectPath || '');
+
+      console.log('[WS] Connecting to:', wsUrl);
+
+      try {
+        dashboardWs = new WebSocket(wsUrl);
+      } catch (e) {
+        console.error('[WS] Failed to create WebSocket:', e);
+        scheduleReconnect();
+        return;
+      }
+
+      dashboardWs.onopen = function() {
+        console.log('[WS] Connected');
+        wsReconnectAttempts = 0;
+      };
+
+      dashboardWs.onmessage = function(event) {
+        try {
+          var data = JSON.parse(event.data);
+          console.log('[WS] Received:', data.type);
+
+          switch (data.type) {
+            case 'ping':
+              // pongを返す
+              if (dashboardWs && dashboardWs.readyState === WebSocket.OPEN) {
+                dashboardWs.send(JSON.stringify({ type: 'pong' }));
+              }
+              break;
+
+            case 'taskUpdated':
+            case 'taskCreated':
+            case 'taskDeleted':
+              // タスク更新イベント → デバウンスしてダッシュボードをリフレッシュ
+              debouncedRefreshDashboard();
+              break;
+
+            case 'connected':
+              console.log('[WS] Session ID:', data.sessionId);
+              break;
+
+            case 'escalation':
+              // エスカレーション通知（将来の拡張用）
+              console.log('[WS] Escalation:', data.data);
+              break;
+
+            default:
+              console.log('[WS] Unknown message type:', data.type);
+          }
+        } catch (e) {
+          console.error('[WS] Failed to parse message:', e);
+        }
+      };
+
+      dashboardWs.onclose = function(event) {
+        console.log('[WS] Closed:', event.code, event.reason);
+        dashboardWs = null;
+        scheduleReconnect();
+      };
+
+      dashboardWs.onerror = function(error) {
+        console.error('[WS] Error:', error);
+      };
+    }
+
+    /**
+     * 再接続をスケジュール
+     */
+    function scheduleReconnect() {
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+      }
+
+      if (wsReconnectAttempts >= WS_MAX_RECONNECT_ATTEMPTS) {
+        console.log('[WS] Max reconnect attempts reached');
+        return;
+      }
+
+      wsReconnectAttempts++;
+      console.log('[WS] Scheduling reconnect attempt', wsReconnectAttempts);
+
+      wsReconnectTimer = setTimeout(function() {
+        connectDashboardWebSocket();
+      }, WS_RECONNECT_INTERVAL);
     }
 
     // DOMContentLoaded: 初期化（既に読み込み済みの場合も対応）
@@ -896,9 +1031,9 @@ export function getDashboardScript(): string {
         archived: 'アーカイブ'
       };
 
-      // mainStatus=closed または v2Substatus=completed の場合は「完了」を表示
-      var effectiveSubstatus = goal.v2Substatus;
-      if (goal.mainStatus === 'closed' || goal.v2Substatus === 'completed') {
+      // mainStatus=closed または subStatus=completed の場合は「完了」を表示
+      var effectiveSubstatus = goal.subStatus;
+      if (goal.mainStatus === 'closed' || goal.subStatus === 'completed') {
         effectiveSubstatus = 'completed';
       }
 
@@ -974,7 +1109,7 @@ export function getDashboardScript(): string {
 
       // 全Work完了判定（手動クローズボタン表示用）
       var allWorksCompleted = hasChildren && goal.works.every(function(w) {
-        return w.v2Substatus === 'completed' || w.mainStatus === 'closed';
+        return w.subStatus === 'completed' || w.mainStatus === 'closed';
       });
       var isOpen = goal.mainStatus === 'open';
 
@@ -989,7 +1124,7 @@ export function getDashboardScript(): string {
       // - 完了: クリックでアーカイブ（通常色）
       // - 未完了: グレーアウト（disabled）
       var isArchived = goal.archived === true;
-      var isCompleted = goal.v2Substatus === 'completed' || goal.mainStatus === 'closed';
+      var isCompleted = goal.subStatus === 'completed' || goal.mainStatus === 'closed';
       var archiveHtml;
       if (isArchived) {
         // アーカイブ済み: クリックで解除可能
@@ -1002,7 +1137,7 @@ export function getDashboardScript(): string {
         archiveHtml = '<button class="archive-btn archive-btn-disabled" disabled title="完了後にアーカイブ可能" onclick="event.stopPropagation()">📦</button>';
       }
 
-      return '<div class="goal-item" data-id="' + escapeHtmlClient(goal.id) + '" data-status="' + goal.mainStatus + '" data-substatus="' + goal.v2Substatus + '" data-archived="' + (goal.archived === true || goal.v2Substatus === 'archived') + '" data-updated="' + (goal.updatedAt || '') + '">' +
+      return '<div class="goal-item" data-id="' + escapeHtmlClient(goal.id) + '" data-status="' + goal.mainStatus + '" data-substatus="' + goal.subStatus + '" data-archived="' + (goal.archived === true || goal.subStatus === 'archived') + '" data-updated="' + (goal.updatedAt || '') + '">' +
         '<div class="goal-header">' +
           '<span class="goal-toggle ' + toggleClass + '">' + toggleIcon + '</span>' +
           '<span class="goal-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(goal.id) + '</span>' +
@@ -1041,9 +1176,9 @@ export function getDashboardScript(): string {
         alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
       };
 
-      var statusIcon = statusIcons[work.v2Substatus] || '❓';
-      var statusClass = statusClasses[work.v2Substatus] || '';
-      var statusText = statusTextJp[work.v2Substatus] || work.v2Substatus;
+      var statusIcon = statusIcons[work.subStatus] || '❓';
+      var statusClass = statusClasses[work.subStatus] || '';
+      var statusText = statusTextJp[work.subStatus] || work.subStatus;
 
       // 担当者HTML
       var assigneesHtml = '';
@@ -1069,7 +1204,7 @@ export function getDashboardScript(): string {
         id: work.id,
         title: work.title,
         description: work.description || '',
-        status: work.v2Substatus,
+        status: work.subStatus,
         assignees: (work.assignees || []).map(function(a) { return a.agentId; }).join(', ') || '担当なし',
         updatedAt: work.updatedAt || ''
       });
@@ -1108,7 +1243,7 @@ export function getDashboardScript(): string {
           '</div>';
       }
 
-      return '<div class="phase-item ' + (work.v2Substatus === 'active' ? 'highlight' : '') + '" data-id="' + escapeHtmlClient(work.id) + '">' +
+      return '<div class="phase-item ' + (work.subStatus === 'active' ? 'highlight' : '') + '" data-id="' + escapeHtmlClient(work.id) + '">' +
         '<div class="phase-header">' +
           '<span class="phase-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(work.id) + '</span>' +
           '<span class="phase-name">[' + escapeHtmlClient(work.title) + '] Work</span>' +
@@ -1138,12 +1273,12 @@ export function getDashboardScript(): string {
         alice: '✨', may: '🕊️', flora: '🌿', luna: '🌙'
       };
 
-      var statusClass = step.v2Substatus === 'completed' ? 'completed' :
-                        step.v2Substatus === 'working' ? 'current' : '';
+      var statusClass = step.subStatus === 'completed' ? 'completed' :
+                        step.subStatus === 'working' ? 'current' : '';
       var icon = isLast ? '└' : '├';
-      var statusBadge = step.v2Substatus === 'working' ? '<span class="current-marker">← 現在ここ</span>' : '';
-      var statusIcon = statusIcons[step.v2Substatus] || '⏳';
-      var statusText = statusTextJp[step.v2Substatus] || step.v2Substatus;
+      var statusBadge = step.subStatus === 'working' ? '<span class="current-marker">← 現在ここ</span>' : '';
+      var statusIcon = statusIcons[step.subStatus] || '⏳';
+      var statusText = statusTextJp[step.subStatus] || step.subStatus;
 
       // 担当者HTML
       var assigneesHtml = '';
@@ -1165,7 +1300,7 @@ export function getDashboardScript(): string {
         id: step.id,
         title: step.title,
         description: step.description || '',
-        status: step.v2Substatus,
+        status: step.subStatus,
         assignees: (step.assignees || []).map(function(a) { return a.agentId; }).join(', ') || '担当なし',
         updatedAt: step.updatedAt || ''
       });
@@ -1179,7 +1314,7 @@ export function getDashboardScript(): string {
         '<span class="step-icon">' + icon + '</span>' +
         '<span class="step-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(step.id) + '</span>' +
         '<span class="step-title"> ' + escapeHtmlClient(step.title) + '</span>' +
-        '<span class="step-status ' + step.v2Substatus + '">' + statusIcon + '<span class="status-text"> ' + statusText + '</span></span>' +
+        '<span class="step-status ' + step.subStatus + '">' + statusIcon + '<span class="status-text"> ' + statusText + '</span></span>' +
         assigneesHtml +
         reportLink +
         statusBadge +

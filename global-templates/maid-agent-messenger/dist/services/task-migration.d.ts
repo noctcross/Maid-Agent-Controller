@@ -19,7 +19,7 @@ export declare function inferTaskType(task: Task): TaskType;
  * 不正な遷移を検出し、許可/拒否を判定する。
  * 設計書: docs/Maid-Agent-Controller/設計書/02_メッセンジャーサーバ/ダッシュボード/ステータス遷移設計.md
  *
- * @param currentStatus - 現在のステータス（v2Substatus）
+ * @param currentStatus - 現在のステータス（subStatus）
  * @param newStatus - 遷移先のステータス
  * @param operatorRole - 操作者の役割
  * @returns バリデーション結果
@@ -43,7 +43,7 @@ export declare function convertStatus(task: Task): {
  */
 export declare function mapLegacyStatus(legacyStatus: TaskStatus, legacySubstatus: string | null): {
     mainStatus: TaskMainStatus;
-    v2Substatus: TaskSubstatus;
+    subStatus: TaskSubstatus;
 };
 /**
  * 単一タスクを V2.1 形式にマイグレーション
@@ -75,7 +75,7 @@ export interface MigrationResult {
  * 2. 親タスクを type: task に変更
  * 3. サブタスクグループを type: work に変更（直接の親が task の場合）
  * 4. 調査系タスクを type: investigation に変更
- * 5. mainStatus/v2Substatus を旧 status から変換
+ * 5. mainStatus/subStatus を旧 status から変換
  */
 export declare function migrate(projectPath: string, options?: {
     dryRun?: boolean;

@@ -1,6 +1,6 @@
 /**
  * ダッシュボードエンドポイント
- * GET /dashboard, /dashboard/completed, /dashboard/data, /dashboard/events
+ * GET /dashboard, /dashboard/completed, /dashboard/data
  */
 import { Router } from "express";
 import type { HtmlDashboardData } from "../views/dashboard-html.js";

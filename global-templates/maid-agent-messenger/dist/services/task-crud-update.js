@@ -32,12 +32,12 @@ export async function executeUpdateTask(projectPath, params) {
         const prevStatus = task.status;
         const prevAssignees = [...task.assignees];
         // 完了時チェック: 未完了の子タスクがある場合はブロック
-        const isCompletionAttempt = params.status === "completed" || params.v2Substatus === "completed";
+        const isCompletionAttempt = params.status === "completed" || params.subStatus === "completed";
         if (isCompletionAttempt && !params.force) {
             const children = data.tasks.filter(t => t.parentId === task.id);
             if (children.length > 0) {
                 const incompleteChildren = children.filter(c => {
-                    const substatus = c.v2Substatus || c.status;
+                    const substatus = c.subStatus || c.status;
                     return substatus !== "completed" && substatus !== "archived";
                 });
                 if (incompleteChildren.length > 0) {
@@ -65,31 +65,31 @@ export async function executeUpdateTask(projectPath, params) {
                 task.completedAt = now;
             }
             // V2.1: 旧ステータス→V2.1ステータス自動同期
-            // params.v2Substatus が明示的に指定されている場合はそちらを優先
-            if (params.v2Substatus === undefined) {
+            // params.subStatus が明示的に指定されている場合はそちらを優先
+            if (params.subStatus === undefined) {
                 if (params.status === "working") {
                     task.mainStatus = "open";
-                    task.v2Substatus = "working";
+                    task.subStatus = "working";
                 }
                 else if (params.status === "completed") {
                     task.mainStatus = "closed";
-                    task.v2Substatus = "completed";
+                    task.subStatus = "completed";
                 }
                 else if (params.status === "blocked") {
                     task.mainStatus = "open";
-                    task.v2Substatus = "checkpoint";
+                    task.subStatus = "checkpoint";
                 }
                 else if (params.status === "assigned") {
                     task.mainStatus = "open";
-                    task.v2Substatus = "assigned";
+                    task.subStatus = "assigned";
                 }
                 else if (params.status === "pending") {
                     task.mainStatus = "open";
-                    task.v2Substatus = "pending";
+                    task.subStatus = "pending";
                 }
                 else if (params.status === "cancelled") {
                     task.mainStatus = "cancelled";
-                    task.v2Substatus = "archived";
+                    task.subStatus = "archived";
                 }
             }
         }
@@ -152,16 +152,16 @@ export async function executeUpdateTask(projectPath, params) {
             }
         }
         // V2.1: ステータス遷移バリデーション
-        if (params.v2Substatus !== undefined) {
-            const currentSubstatus = (task.v2Substatus || task.substatus || "pending");
+        if (params.subStatus !== undefined) {
+            const currentSubstatus = (task.subStatus || task.substatus || "pending");
             const operatorRole = params.agentId ? getAgentRole(params.agentId) : "maid";
-            const validation = validateStatusTransition(currentSubstatus, params.v2Substatus, operatorRole);
+            const validation = validateStatusTransition(currentSubstatus, params.subStatus, operatorRole);
             if (!validation.valid) {
                 // 不正遷移: WARNログを出力
                 logger.warn("Invalid status transition attempted", {
                     taskId: task.id,
                     currentStatus: currentSubstatus,
-                    attemptedStatus: params.v2Substatus,
+                    attemptedStatus: params.subStatus,
                     operator: params.agentId || "unknown",
                     operatorRole,
                     timestamp: now,
@@ -172,33 +172,33 @@ export async function executeUpdateTask(projectPath, params) {
             }
             else {
                 // 正常遷移: 既存の更新処理を実行
-                task.v2Substatus = params.v2Substatus;
+                task.subStatus = params.subStatus;
                 // V2.1 substatus が設定されたら、後方互換の status/substatus も更新
-                task.substatus = params.v2Substatus;
+                task.substatus = params.subStatus;
                 // V2.1 → 旧ステータス変換
-                if (params.v2Substatus === "completed" || params.v2Substatus === "archived") {
+                if (params.subStatus === "completed" || params.subStatus === "archived") {
                     task.status = "completed";
                     task.mainStatus = "closed";
                     if (!task.completedAt) {
                         task.completedAt = now;
                     }
                 }
-                else if (params.v2Substatus === "working") {
+                else if (params.subStatus === "working") {
                     task.status = "working";
                     task.mainStatus = "open";
                     if (!task.startedAt) {
                         task.startedAt = now;
                     }
                 }
-                else if (params.v2Substatus === "assigned") {
+                else if (params.subStatus === "assigned") {
                     task.status = "assigned";
                     task.mainStatus = "open";
                 }
-                else if (params.v2Substatus === "checkpoint" || params.v2Substatus === "waiting") {
+                else if (params.subStatus === "checkpoint" || params.subStatus === "waiting") {
                     task.status = "blocked";
                     task.mainStatus = "open";
                 }
-                else if (params.v2Substatus === "pending") {
+                else if (params.subStatus === "pending") {
                     task.status = "pending";
                     task.mainStatus = "open";
                 }
@@ -274,9 +274,9 @@ export async function executeUpdateTask(projectPath, params) {
             logger.error("Failed to execute side effects", error instanceof Error ? error : { error });
         }
         // V2.1: タスク完了時に依存タスクを自動解消
-        // status=completed または v2Substatus=completed の場合
+        // status=completed または subStatus=completed の場合
         const isCompleted = params.status === "completed" ||
-            params.v2Substatus === "completed";
+            params.subStatus === "completed";
         if (isCompleted) {
             try {
                 const dependencyResult = await resolveBlockedTasks(projectPath, params.taskId);

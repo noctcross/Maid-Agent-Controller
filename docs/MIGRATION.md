@@ -72,7 +72,7 @@ rm -rf .maid-agent/agents
 | `agents/` → `core/` + `roles/` | `init` で自動対応 |
 | `agents/skills/` → `core/.claude/skills/` | `init` で自動対応 |
 | MCP サーバー廃止 | `maidctl` CLI を使用 |
-| ステータス: 1層 → 2層（`mainStatus` + `v2Substatus`） | 自動互換 |
+| ステータス: 1層 → 2層（`mainStatus` + `subStatus`） | 自動互換 |
 
 ## maidctl コマンド（v3.0.0）
 

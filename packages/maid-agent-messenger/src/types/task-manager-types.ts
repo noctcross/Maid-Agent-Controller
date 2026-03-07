@@ -98,7 +98,7 @@ export interface Task {
   // === V2.1 拡張フィールド ===
   type?: TaskType;                  // goal/phase/action/investigation (default: action)
   mainStatus?: TaskMainStatus;      // open/closed (V2.1ステータス)
-  v2Substatus?: TaskSubstatus;      // V2.1サブステータス
+  subStatus?: TaskSubstatus;      // V2.1サブステータス
   size?: TaskSize;                  // simple/standard/complex (Task only)
   tentative?: boolean;              // 暫定Task (Task only)
   blockedBy?: string[];             // 依存先タスクID (waiting時)
@@ -155,7 +155,7 @@ export interface UpdateTaskParams {
 
   // === V2.1 拡張パラメータ ===
   mainStatus?: TaskMainStatus;     // open/closed
-  v2Substatus?: TaskSubstatus;     // V2.1サブステータス
+  subStatus?: TaskSubstatus;     // V2.1サブステータス
   type?: TaskType;                 // goal/phase/action/investigation
   size?: TaskSize;                 // simple/standard/complex (Task only)
   tentative?: boolean;             // 暫定Task (Task only)

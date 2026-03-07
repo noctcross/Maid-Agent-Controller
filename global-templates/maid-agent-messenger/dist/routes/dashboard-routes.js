@@ -1,6 +1,6 @@
 /**
  * ダッシュボードエンドポイント
- * GET /dashboard, /dashboard/completed, /dashboard/data, /dashboard/events
+ * GET /dashboard, /dashboard/completed, /dashboard/data
  */
 import { Router } from "express";
 import { createHash } from "crypto";
@@ -199,7 +199,7 @@ export function createDashboardRoutes(deps) {
             const completedHtml = generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme);
             const completedHash = createHash("md5").update(completedHtml).digest("hex").substring(0, 16);
             const completedChanged = clientCompletedHash !== completedHash;
-            // SSEと同じ形式でHTML文字列を返す
+            // WebSocketと同じ形式でHTML文字列を返す
             const data = {
                 stats: {
                     pendingCount: filteredPendingTasks.length,
@@ -241,95 +241,6 @@ export function createDashboardRoutes(deps) {
         catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";
             res.status(500).json({ error: message });
-        }
-    });
-    // GET /dashboard/events - SSEエンドポイント
-    router.get("/dashboard/events", async (req, res) => {
-        try {
-            const projectPath = req.query.project
-                ? decodeURIComponent(req.query.project)
-                : getProjectPathFromRequest(req);
-            // エディタスキームを取得
-            const config = await loadConfig();
-            const editorScheme = req.query.editor || config.dashboard.editor;
-            // SSEヘッダー設定
-            res.setHeader("Content-Type", "text/event-stream");
-            res.setHeader("Cache-Control", "no-cache");
-            res.setHeader("Connection", "keep-alive");
-            res.setHeader("X-Accel-Buffering", "no");
-            // 接続確認
-            res.write("data: {\"type\":\"connected\"}\n\n");
-            // 完了セクションのソート設定を取得（SSE接続時のクエリパラメータ）
-            const completedSortField = req.query.completedSortField === "updatedAt" ? "updatedAt" : "id";
-            // 定期的にタスク情報を送信（10秒ごと）
-            const intervalId = setInterval(async () => {
-                try {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const sseActiveStatuses = ["pending", "assigned", "working", "blocked"];
-                    const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, v2Data] = await Promise.all([
-                        executeListTasks(projectPath, { status: ["pending"] }),
-                        executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
-                        executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
-                        executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }),
-                        executeListTasks(projectPath, { actionRequired: true, status: sseActiveStatuses }),
-                        executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
-                        executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),
-                        executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
-                        generateDashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
-                    ]);
-                    const completedTodayCount = completedAll.tasks.filter((task) => {
-                        if (!task.completedAt)
-                            return false;
-                        const completedDate = new Date(task.completedAt);
-                        return completedDate >= today;
-                    }).length;
-                    // 待機中から特殊カテゴリとactionRequiredを除外
-                    const sseSpecialCategories = ["skill_candidate", "improvement"];
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Task | TaskSummary のユニオン型対応
-                    const sseFilteredPending = pending.tasks.filter((t) => {
-                        return (!t.category || !sseSpecialCategories.includes(t.category)) && !t.actionRequired;
-                    });
-                    const stats = {
-                        pendingCount: sseFilteredPending.length,
-                        workingCount: working.total,
-                        masterWaitingCount: masterWaiting.total + masterReview.total,
-                        completedTodayCount,
-                        timestamp: getJstTimestamp(),
-                    };
-                    // 統計情報を送信
-                    res.write(`data: ${JSON.stringify({ type: "update", stats })}\n\n`);
-                    // タスクリストHTMLを送信
-                    const tasksHtml = {
-                        pending: generateTaskHtml(sseFilteredPending, "pending", projectPath),
-                        working: generateTaskHtml(working.tasks, "working", projectPath),
-                        completed: generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme),
-                        masterWaiting: composeMasterWaitingHtml(masterWaiting.tasks, masterReview.tasks, projectPath),
-                        masterReview: "",
-                        skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
-                        improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
-                    };
-                    // V2.1 HTMLを生成（関数が提供されている場合）
-                    const v2Html = {
-                        goals: generateTaskTreeHtml ? generateTaskTreeHtml(v2Data.v2Goals, projectPath) : undefined,
-                        reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
-                        artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
-                        stats: generateStatsHtml ? generateStatsHtml(v2Data.v2Stats) : undefined,
-                    };
-                    res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data, v2Html })}\n\n`);
-                }
-                catch (e) {
-                    logger.error("SSE update error", e instanceof Error ? e : { error: e });
-                }
-            }, 10000);
-            // クライアント切断時のクリーンアップ
-            req.on("close", () => {
-                clearInterval(intervalId);
-            });
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            res.status(500).json({ error: "SSE connection failed", details: message });
         }
     });
     // PATCH /dashboard/tasks/:id/review - レビュー済みトグル（LAN公開）
@@ -484,7 +395,7 @@ export function createDashboardRoutes(deps) {
             const result = await executeUpdateTask(projectPath, {
                 taskId: req.params.id,
                 mainStatus: "closed",
-                v2Substatus: "completed",
+                subStatus: "completed",
             });
             if (!result.success) {
                 res.status(404).json({ error: "Task not found", taskId: req.params.id });
@@ -500,7 +411,7 @@ export function createDashboardRoutes(deps) {
                     txId,
                 });
             }
-            res.json({ success: true, mainStatus: result.task?.mainStatus, v2Substatus: result.task?.v2Substatus });
+            res.json({ success: true, mainStatus: result.task?.mainStatus, subStatus: result.task?.subStatus });
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";

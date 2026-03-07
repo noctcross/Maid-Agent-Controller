@@ -8,7 +8,6 @@ import { executeListTasks, executeGetTask, executeUpdateTask, executeGetReport, 
 migrate, checkMigrationStatus, } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getJstTimestamp } from "../utils/yaml-helper.js";
-import { getTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 export function createTaskApiRoutes(deps = {}) {
     const { wsServer } = deps;
@@ -86,7 +85,7 @@ export function createTaskApiRoutes(deps = {}) {
             // 既存フィールド
             status, substatus, summary, reportPath, title, description, priority, 
             // V2.1 拡張フィールド
-            mainStatus, v2Substatus, type, size, tentative, blockedBy, artifacts, artifactAdd, reviewStatus, 
+            mainStatus, subStatus, type, size, tentative, blockedBy, artifacts, artifactAdd, reviewStatus, 
             // V2.1 追加フィールド
             archived, actionRequired, starred, } = req.body;
             const result = await executeUpdateTask(projectPath, {
@@ -100,7 +99,7 @@ export function createTaskApiRoutes(deps = {}) {
                 reportPath,
                 // V2.1 拡張
                 mainStatus,
-                v2Substatus,
+                subStatus,
                 type,
                 size,
                 tentative,
@@ -222,33 +221,8 @@ export function createTaskApiRoutes(deps = {}) {
             res.status(500).json({ error: "Star toggle failed", details: message });
         }
     });
-    // GET /api/dashboard - ダッシュボードJSON
-    router.get("/api/dashboard", async (req, res) => {
-        try {
-            const projectPath = getProjectPathFromRequest(req);
-            // 並列でタスクを取得
-            const [pending, working, completed] = await Promise.all([
-                executeListTasks(projectPath, { status: ["pending"] }),
-                executeListTasks(projectPath, { status: ["working", "assigned"] }),
-                executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
-            ]);
-            res.json({
-                timestamp: getTimestamp(),
-                summary: {
-                    pendingCount: pending.total,
-                    workingCount: working.total,
-                    completedCount: completed.total,
-                },
-                pending: pending.tasks,
-                working: working.tasks,
-                recentCompleted: completed.tasks,
-            });
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            res.status(500).json({ error: "Dashboard retrieval failed", details: message });
-        }
-    });
+    // 旧 GET /api/dashboard（pending/working/completed形式）は削除
+    // モバイル向けの新形式は下部の Dashboard API セクションで定義
     // POST /api/tasks/:id/rearchive - 報告書を再アーカイブ
     router.post("/api/tasks/:id/rearchive", async (req, res) => {
         try {

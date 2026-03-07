@@ -1120,7 +1120,7 @@ cmd_my_status() {
 
   # V2.1 フィールド
   if [ -n "$v2_substatus" ]; then
-    data="${data}, \"v2Substatus\": \"$v2_substatus\""
+    data="${data}, \"subStatus\": \"$v2_substatus\""
   fi
   if [ -n "$blocked_by" ]; then
     # カンマ区切りを JSON 配列に変換

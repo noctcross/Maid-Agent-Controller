@@ -14,8 +14,8 @@ patterns: ["task-workflow", "report-format", "blocked-handling", "checkpoint-vs-
 
 **V2.1 変更点**:
 - タスク種別: goal/phase/action/investigation
-- 状態: mainStatus(open/closed/cancelled) + v2Substatus(pending/assigned/working/waiting/checkpoint/completed)
-- archived: closed後の独立フラグ（v2Substatusではない）
+- 状態: mainStatus(open/closed/cancelled) + subStatus(pending/assigned/working/waiting/checkpoint/completed)
+- archived: closed後の独立フラグ（subStatusではない）
 - checkpoint vs waiting の使い分け
 - Investigation 昇格推奨（promotion）
 - 自律進行パターン（メイドが自己判断できる範囲の定義）

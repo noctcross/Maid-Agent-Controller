@@ -67,7 +67,7 @@ describe("generateDashboardHtml - V2ダッシュボード基本構造", () => {
         description: "テスト",
         type: "task",
         mainStatus: "open",
-        v2Substatus: "working",
+        subStatus: "working",
         assignees: [],
         works: [],
       }],

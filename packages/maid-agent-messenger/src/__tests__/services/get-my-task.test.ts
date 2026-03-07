@@ -102,7 +102,7 @@ describe("executeGetMyTask", () => {
       title: "親Goal",
       type: "task",
       description: "Goalの説明",
-      v2Substatus: undefined,
+      subStatus: undefined,
     });
   });
 

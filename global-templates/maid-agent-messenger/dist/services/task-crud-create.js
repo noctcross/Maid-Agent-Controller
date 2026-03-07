@@ -35,7 +35,7 @@ export async function executeCreateTask(projectPath, params) {
                 // 祖先が closed の場合 → open/working に変更
                 if (ancestorTask.mainStatus === "closed") {
                     ancestorTask.mainStatus = "open";
-                    ancestorTask.v2Substatus = "working";
+                    ancestorTask.subStatus = "working";
                     ancestorTask.status = "working"; // 旧ステータスも同期
                     ancestorTask.updatedAt = getTimestamp();
                     ancestorUpdated = true;
@@ -99,7 +99,7 @@ export async function executeCreateTask(projectPath, params) {
             // === V2.1 拡張フィールド ===
             type: taskType,
             mainStatus: "open",
-            v2Substatus: initialV2Substatus,
+            subStatus: initialV2Substatus,
             size: taskType === "task" ? (params.size || "standard") : undefined,
             tentative: taskType === "task" ? (params.tentative || false) : undefined,
             blockedBy: params.blockedBy || [],

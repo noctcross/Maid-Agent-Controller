@@ -10,10 +10,10 @@
 import { escapeHtml } from "../markdown-utils.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./task-html.js";
 import { getDashboardStyles } from "./dashboard-styles.js";
-import { getDashboardHeadScript, getReportOverlayScript, getV2DashboardScript, } from "./dashboard-scripts.js";
-import { getDashboardBodyTemplate, getReportOverlayHtml, } from "./dashboard-template.js";
+import { getDashboardHeadScript, getReportOverlayScript, getDashboardScript, } from "./dashboard-scripts.js";
+import { getReportOverlayHtml, } from "./dashboard-template.js";
 // V2.1: Task階層表示・レビューキュー・成果物・統計
-import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, } from "./task-html-v2.js";
+import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateStatsHtml, } from "./task-html-v2.js";
 // メイド名マッピング（日本語表示用）
 const MAID_DISPLAY_NAMES = {
     emma: "Emma",
@@ -38,7 +38,7 @@ const STATUS_CONFIG = {
  * V2チーム状態セクションのHTML生成
  * 各メイドの現在の状態をカード形式で表示
  */
-export function generateV2TeamStatusHtml(teamStatus) {
+export function generateTeamStatusHtml(teamStatus) {
     if (!teamStatus || teamStatus.length === 0) {
         return '<div class="empty-message">チーム情報がありません</div>';
     }
@@ -208,7 +208,7 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         ? generateArtifactsHtml(data.v2Artifacts, projectPath)
         : "";
     const v2StatsHtml = data.v2Stats
-        ? generateV2StatsHtml(data.v2Stats)
+        ? generateStatsHtml(data.v2Stats)
         : "";
     // WebSocket接続用のCSPホスト生成
     const serverHost = new URL(data.serverUrl).host;
@@ -238,29 +238,19 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
         improvementsCount: improvements.length,
         improvementsHtml,
     };
-    // V1/V2表示切り替え
-    const showV1Sections = version === "v1";
-    const showV2Sections = version === "v2";
-    // バージョン切り替えリンク
-    const versionSwitchLink = version === "v1"
-        ? `<a href="/dashboard?project=${encodeURIComponent(projectPath)}&version=v2" class="version-switch-link">V2に切り替え</a>`
-        : `<a href="/dashboard?project=${encodeURIComponent(projectPath)}&version=v1" class="version-switch-link">V1に切り替え（レガシー）</a>`;
-    // V1ボディ（従来型表示）またはV2用ヘッダー
-    const bodyContent = showV1Sections
-        ? getDashboardBodyTemplate(templateParams)
-        : `
+    // V2ダッシュボードボディ
+    const bodyContent = `
 <body>
   <div class="header">
     <div>
       <h1>📋 Maid Agent Dashboard</h1>
       <div class="project-path">${escapeHtml(projectPath)}</div>
-      ${versionSwitchLink}
     </div>
     <div class="timestamp">更新: ${timestamp}</div>
   </div>
   <div class="grid">`;
-    // V2.1セクションHTML（V2表示時かつデータがある場合のみ表示）
-    const v2SectionsHtml = showV2Sections && (data.v2Goals || data.v2ReviewQueue || data.v2Artifacts || data.v2Stats)
+    // V2.1セクションHTML（データがある場合のみ表示）
+    const v2SectionsHtml = (data.v2Goals || data.v2ReviewQueue || data.v2Artifacts || data.v2Stats)
         ? `
     <!-- V2.1: Goal階層・レビューキュー・成果物セクション -->
     <div class="v2-sections" style="grid-column: 1 / -1; margin-top: 1rem;">
@@ -279,7 +269,7 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
           <span class="count-badge">${teamStatus.length}</span>
         </div>
         <div class="collapsible-content">
-          ${generateV2TeamStatusHtml(teamStatus)}
+          ${generateTeamStatusHtml(teamStatus)}
         </div>
       </div>
 
@@ -406,12 +396,8 @@ export function generateDashboardHtml(data, editorScheme = "vscode") {
       </div>` : ""}
     </div>`
         : "";
-    // V1モード用バージョン切り替えリンク（V2モードはヘッダー内に含まれる）
-    const v1VersionSwitchHtml = showV1Sections
-        ? `<div class="version-switch-container">${versionSwitchLink}</div>`
-        : "";
-    // V2モードのgrid閉じタグ（V1モードはgetDashboardBodyTemplateに含まれる）
-    const v2GridClose = showV2Sections ? `</div>` : "";
+    // gridの閉じタグ
+    const gridClose = `</div>`;
     // HTML構築（各モジュールに委譲）
     return `<!DOCTYPE html>
 <html lang="ja">
@@ -426,12 +412,11 @@ ${getDashboardStyles()}
 ${getDashboardHeadScript(scriptParams)}
 </head>
 ${bodyContent}
-${v1VersionSwitchHtml}
 ${v2SectionsHtml}
-${v2GridClose}
+${gridClose}
 ${getReportOverlayHtml()}
 ${getReportOverlayScript()}
-${getV2DashboardScript()}
+${getDashboardScript()}
 </body>
 </html>`;
 }

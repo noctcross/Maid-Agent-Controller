@@ -11,9 +11,9 @@ import {
   executeGetReport,
   archiveReport,
   executeGetTeamStatus,
-  generateV2DashboardData,
+  generateDashboardData,
   // V2.1 マイグレーション
-  migrateToV2,
+  migrate,
   checkMigrationStatus,
   type TaskStatus,
 } from "../services/index.js";
@@ -377,7 +377,7 @@ router.post("/api/v2/migration/run", async (req: Request, res: Response) => {
     const projectPath = getProjectPathFromRequest(req);
     const { dryRun } = req.body;
 
-    const result = await migrateToV2(projectPath, { dryRun: dryRun === true });
+    const result = await migrate(projectPath, { dryRun: dryRun === true });
 
     res.json({
       success: true,
@@ -425,7 +425,7 @@ router.get("/api/v2/dashboard", async (req: Request, res: Response) => {
 
     // V2ダッシュボードデータを取得（並列実行）
     const [v2Data, skillCandidatesResult, improvementsResult] = await Promise.all([
-      generateV2DashboardData(projectPath, {
+      generateDashboardData(projectPath, {
         statusFilter,
         showArchived,
         limit,

@@ -125,7 +125,7 @@ export function getAgentRole(agentId: string): OperatorRole {
 /**
  * V2.1: ステータス変換（旧 → 新）
  */
-export function convertToV2Status(task: Task): { mainStatus: TaskMainStatus; substatus: TaskSubstatus } {
+export function convertStatus(task: Task): { mainStatus: TaskMainStatus; substatus: TaskSubstatus } {
   // 既にV2.1形式の場合
   if (task.mainStatus && task.v2Substatus) {
     return { mainStatus: task.mainStatus, substatus: task.v2Substatus };
@@ -163,7 +163,7 @@ export function convertToV2Status(task: Task): { mainStatus: TaskMainStatus; sub
  *
  * 実装計画書 3.2 準拠
  */
-export function mapLegacyToV2Status(
+export function mapLegacyStatus(
   legacyStatus: TaskStatus,
   legacySubstatus: string | null
 ): { mainStatus: TaskMainStatus; v2Substatus: TaskSubstatus } {
@@ -196,14 +196,14 @@ export function mapLegacyToV2Status(
  * - 既に V2.1 形式の場合はそのまま返す
  * - archivedフラグを独立フラグとして設定
  */
-export function migrateTaskToV2(task: Task): Task {
+export function migrateTask(task: Task): Task {
   // 既に V2.1 形式の場合はそのまま返す
   if (task.mainStatus && task.v2Substatus) {
     return task;
   }
 
   // 旧ステータスからV2.1ステータスへ変換
-  const { mainStatus, v2Substatus } = mapLegacyToV2Status(
+  const { mainStatus, v2Substatus } = mapLegacyStatus(
     task.status,
     task.substatus
   );
@@ -257,7 +257,7 @@ export interface MigrationResult {
  * 4. 調査系タスクを type: investigation に変更
  * 5. mainStatus/v2Substatus を旧 status から変換
  */
-export async function migrateToV2(
+export async function migrate(
   projectPath: string,
   options: { dryRun?: boolean } = {}
 ): Promise<MigrationResult> {
@@ -323,7 +323,7 @@ export async function migrateToV2(
 
       // 2. mainStatus / v2Substatus の決定
       if (!task.mainStatus || !task.v2Substatus) {
-        const { mainStatus, substatus } = convertToV2Status(task);
+        const { mainStatus, substatus } = convertStatus(task);
         task.mainStatus = mainStatus;
         task.v2Substatus = substatus;
         changes.mainStatus = mainStatus;

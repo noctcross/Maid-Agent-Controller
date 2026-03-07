@@ -8,7 +8,7 @@
  * - 統計サマリーの種別対応
  * - レビューキュー表示
  */
-export interface V2Step {
+export interface Step {
     id: string;
     title: string;
     description?: string;
@@ -21,7 +21,7 @@ export interface V2Step {
     updatedAt?: string;
     hasReport?: boolean;
 }
-export interface V2Work {
+export interface Work {
     id: string;
     title: string;
     description?: string;
@@ -32,11 +32,11 @@ export interface V2Work {
     assignees?: Array<{
         agentId: string;
     }>;
-    steps: V2Step[];
+    steps: Step[];
     updatedAt?: string;
     hasReport?: boolean;
 }
-export interface V2Task {
+export interface Task {
     id: string;
     title: string;
     description?: string;
@@ -48,17 +48,17 @@ export interface V2Task {
     assignees: Array<{
         agentId: string;
     }>;
-    works: V2Work[];
+    works: Work[];
     displayStatus?: string;
     displayIcon?: string;
     archived?: boolean;
     updatedAt?: string;
     hasReport?: boolean;
 }
-export type V2Goal = V2Task;
-export type V2Phase = V2Work;
-export type V2Action = V2Step;
-export interface V2ReviewTask {
+export type Goal = Task;
+export type Phase = Work;
+export type Action = Step;
+export interface ReviewTask {
     id: string;
     title: string;
     type: string;
@@ -69,14 +69,14 @@ export interface V2ReviewTask {
         agentId: string;
     }>;
 }
-export interface V2Artifact {
+export interface Artifact {
     path: string;
     type: string;
     retention: string;
     taskId: string;
     createdAt: string;
 }
-export interface V2Stats {
+export interface Stats {
     taskCount: number;
     workCount: number;
     stepCount: number;
@@ -88,17 +88,17 @@ export interface V2Stats {
 /**
  * Task一覧をツリー形式のHTMLで生成
  */
-export declare function generateTaskTreeHtml(tasks: V2Task[], projectPath: string): string;
+export declare function generateTaskTreeHtml(tasks: Task[], projectPath: string): string;
 export declare const generateGoalTreeHtml: typeof generateTaskTreeHtml;
 /**
  * レビューキューのHTMLを生成
  */
-export declare function generateReviewQueueHtml(reviewTasks: V2ReviewTask[], projectPath: string): string;
+export declare function generateReviewQueueHtml(reviewTasks: ReviewTask[], projectPath: string): string;
 /**
  * 成果物一覧のHTMLを生成
  */
-export declare function generateArtifactsHtml(artifacts: V2Artifact[], projectPath: string): string;
+export declare function generateArtifactsHtml(artifacts: Artifact[], projectPath: string): string;
 /**
  * V2.1統計サマリーのHTMLを生成
  */
-export declare function generateV2StatsHtml(stats: V2Stats): string;
+export declare function generateStatsHtml(stats: Stats): string;

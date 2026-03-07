@@ -32,7 +32,7 @@ export declare function getAgentRole(agentId: string): OperatorRole;
 /**
  * V2.1: ステータス変換（旧 → 新）
  */
-export declare function convertToV2Status(task: Task): {
+export declare function convertStatus(task: Task): {
     mainStatus: TaskMainStatus;
     substatus: TaskSubstatus;
 };
@@ -41,7 +41,7 @@ export declare function convertToV2Status(task: Task): {
  *
  * 実装計画書 3.2 準拠
  */
-export declare function mapLegacyToV2Status(legacyStatus: TaskStatus, legacySubstatus: string | null): {
+export declare function mapLegacyStatus(legacyStatus: TaskStatus, legacySubstatus: string | null): {
     mainStatus: TaskMainStatus;
     v2Substatus: TaskSubstatus;
 };
@@ -52,7 +52,7 @@ export declare function mapLegacyToV2Status(legacyStatus: TaskStatus, legacySubs
  * - 既に V2.1 形式の場合はそのまま返す
  * - archivedフラグを独立フラグとして設定
  */
-export declare function migrateTaskToV2(task: Task): Task;
+export declare function migrateTask(task: Task): Task;
 /**
  * マイグレーション結果
  */
@@ -77,7 +77,7 @@ export interface MigrationResult {
  * 4. 調査系タスクを type: investigation に変更
  * 5. mainStatus/v2Substatus を旧 status から変換
  */
-export declare function migrateToV2(projectPath: string, options?: {
+export declare function migrate(projectPath: string, options?: {
     dryRun?: boolean;
 }): Promise<MigrationResult>;
 /**

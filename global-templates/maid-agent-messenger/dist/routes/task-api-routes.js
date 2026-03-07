@@ -3,9 +3,9 @@
  * GET/PATCH /api/tasks/*, GET /api/dashboard
  */
 import { Router } from "express";
-import { executeListTasks, executeGetTask, executeUpdateTask, executeGetReport, archiveReport, executeGetTeamStatus, generateV2DashboardData, 
+import { executeListTasks, executeGetTask, executeUpdateTask, executeGetReport, archiveReport, executeGetTeamStatus, generateDashboardData, 
 // V2.1 マイグレーション
-migrateToV2, checkMigrationStatus, } from "../services/index.js";
+migrate, checkMigrationStatus, } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
@@ -308,7 +308,7 @@ export function createTaskApiRoutes(deps = {}) {
         try {
             const projectPath = getProjectPathFromRequest(req);
             const { dryRun } = req.body;
-            const result = await migrateToV2(projectPath, { dryRun: dryRun === true });
+            const result = await migrate(projectPath, { dryRun: dryRun === true });
             res.json({
                 success: true,
                 dryRun: dryRun === true,
@@ -347,7 +347,7 @@ export function createTaskApiRoutes(deps = {}) {
             const includeTeamStatus = req.query.includeTeamStatus === "true";
             // V2ダッシュボードデータを取得（並列実行）
             const [v2Data, skillCandidatesResult, improvementsResult] = await Promise.all([
-                generateV2DashboardData(projectPath, {
+                generateDashboardData(projectPath, {
                     statusFilter,
                     showArchived,
                     limit,

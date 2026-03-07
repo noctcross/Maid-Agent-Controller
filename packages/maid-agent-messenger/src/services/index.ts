@@ -19,9 +19,9 @@ export {
   resolveBlockedTasks,
   checkGoalAutoClose,
   inferTaskType,
-  convertToV2Status,
+  convertStatus,
   // V2.1: ダッシュボードデータ生成
-  generateV2DashboardData,
+  generateDashboardData,
   type CreateTaskParams,
   type CreateTaskResult,
   type GetTaskParams,
@@ -36,7 +36,7 @@ export {
   type Assignee,
   type TasksData,
   // V2.1 マイグレーション
-  migrateToV2,
+  migrate,
   checkMigrationStatus,
   // V2.1 型
   type TaskType,
@@ -49,17 +49,17 @@ export {
   type DependencyResolutionResult,
   type MigrationResult,
   // V2.1 ダッシュボードデータ型
-  type V2DashboardData,
-  type V2TaskData,
-  type V2WorkData,
-  type V2StepData,
+  type DashboardData,
+  type TaskData,
+  type WorkData,
+  type StepData,
   // 後方互換エイリアス
-  type V2GoalData,
-  type V2PhaseData,
-  type V2ActionData,
-  type V2ReviewTaskData,
-  type V2ArtifactData,
-  type V2StatsData,
+  type GoalData,
+  type PhaseData,
+  type ActionData,
+  type ReviewTaskData,
+  type ArtifactData,
+  type StatsData,
 } from "./task-manager.js";
 
 // レポート取得

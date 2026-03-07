@@ -12,7 +12,7 @@
  *
  * @returns `<script>` タグを含むHTMLスクリプト文字列
  */
-export function getV2DashboardScript() {
+export function getDashboardScript() {
     return `
   <script>
     // ========================================

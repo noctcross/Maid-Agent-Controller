@@ -8,9 +8,9 @@
  * V2.1 ダッシュボード用CSS
  * モックアップ dashboard-v2.1.html から抽出
  */
-export declare function getV2DashboardStyles(): string;
+export declare function getV2SectionStyles(): string;
 /**
  * V2検索・絞り込みセクションのCSS
  */
-export declare function getV2SearchFilterStyles(): string;
+export declare function getSearchFilterStyles(): string;
 export declare function getDashboardStyles(): string;

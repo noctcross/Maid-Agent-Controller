@@ -18,8 +18,8 @@ export { withTasksLock, loadTasksReadOnly, } from "./task-core.js";
 // CRUD操作
 export { executeCreateTask, executeGetTask, executeListTasks, executeGetTaskChildren, executeUpdateTask, compareTaskIds, } from "./task-crud.js";
 // V2.1 ステータス関連・マイグレーション
-export { inferTaskType, validateStatusTransition, getAgentRole, convertToV2Status, mapLegacyToV2Status, migrateTaskToV2, migrateToV2, checkMigrationStatus, } from "./task-v2-migration.js";
+export { inferTaskType, validateStatusTransition, getAgentRole, convertStatus, mapLegacyStatus, migrateTask, migrate, checkMigrationStatus, } from "./task-v2-migration.js";
 // 統計・ダッシュボード
-export { computeGoalDisplayStatus, generateV2DashboardData, } from "./task-stats.js";
+export { computeGoalDisplayStatus, generateDashboardData, } from "./task-stats.js";
 // 自動クローズ・依存解消
 export { resolveBlockedTasks, checkGoalAutoClose, checkAndAutoCloseParent, } from "./task-auto-close.js";

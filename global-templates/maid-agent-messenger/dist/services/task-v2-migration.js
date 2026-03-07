@@ -103,7 +103,7 @@ export function getAgentRole(agentId) {
 /**
  * V2.1: ステータス変換（旧 → 新）
  */
-export function convertToV2Status(task) {
+export function convertStatus(task) {
     // 既にV2.1形式の場合
     if (task.mainStatus && task.v2Substatus) {
         return { mainStatus: task.mainStatus, substatus: task.v2Substatus };
@@ -138,7 +138,7 @@ export function convertToV2Status(task) {
  *
  * 実装計画書 3.2 準拠
  */
-export function mapLegacyToV2Status(legacyStatus, legacySubstatus) {
+export function mapLegacyStatus(legacyStatus, legacySubstatus) {
     switch (legacyStatus) {
         case "pending":
             return { mainStatus: "open", v2Substatus: "pending" };
@@ -167,13 +167,13 @@ export function mapLegacyToV2Status(legacyStatus, legacySubstatus) {
  * - 既に V2.1 形式の場合はそのまま返す
  * - archivedフラグを独立フラグとして設定
  */
-export function migrateTaskToV2(task) {
+export function migrateTask(task) {
     // 既に V2.1 形式の場合はそのまま返す
     if (task.mainStatus && task.v2Substatus) {
         return task;
     }
     // 旧ステータスからV2.1ステータスへ変換
-    const { mainStatus, v2Substatus } = mapLegacyToV2Status(task.status, task.substatus);
+    const { mainStatus, v2Substatus } = mapLegacyStatus(task.status, task.substatus);
     // archivedフラグの決定
     // - 旧 substatus が "archived" の場合
     // - reviewed が true の場合（チェック済み完了タスク）
@@ -205,7 +205,7 @@ export function migrateTaskToV2(task) {
  * 4. 調査系タスクを type: investigation に変更
  * 5. mainStatus/v2Substatus を旧 status から変換
  */
-export async function migrateToV2(projectPath, options = {}) {
+export async function migrate(projectPath, options = {}) {
     const result = {
         totalTasks: 0,
         migratedTasks: 0,
@@ -264,7 +264,7 @@ export async function migrateToV2(projectPath, options = {}) {
             }
             // 2. mainStatus / v2Substatus の決定
             if (!task.mainStatus || !task.v2Substatus) {
-                const { mainStatus, substatus } = convertToV2Status(task);
+                const { mainStatus, substatus } = convertStatus(task);
                 task.mainStatus = mainStatus;
                 task.v2Substatus = substatus;
                 changes.mainStatus = mainStatus;

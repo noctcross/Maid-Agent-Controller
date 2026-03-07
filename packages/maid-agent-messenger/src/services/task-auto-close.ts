@@ -12,7 +12,7 @@ import type {
 } from "../types/task-manager-types.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { withTasksLock, loadTasksReadOnly } from "./task-core.js";
-import { inferTaskType, convertToV2Status } from "./task-v2-migration.js";
+import { inferTaskType, convertStatus } from "./task-v2-migration.js";
 
 // =============================================================================
 // V2.1: 依存解消自動通知機能
@@ -134,7 +134,7 @@ export async function checkGoalAutoClose(
 
   // 全Phaseが completed かチェック
   const allPhasesCompleted = phases.every((p) => {
-    const { substatus } = convertToV2Status(p);
+    const { substatus } = convertStatus(p);
     return substatus === "completed" || substatus === "archived";
   });
 
@@ -194,7 +194,7 @@ export async function checkAndAutoCloseParent(
     }
 
     // 親がすでに完了している場合はスキップ
-    const { substatus: parentSubstatus } = convertToV2Status(parent);
+    const { substatus: parentSubstatus } = convertStatus(parent);
     if (parentSubstatus === "completed" || parentSubstatus === "archived") {
       // 親がすでに完了していても、さらに上の親をチェック
       currentTaskId = parentId;
@@ -231,7 +231,7 @@ export async function checkAndAutoCloseParent(
 
     // 全子タスクが completed かチェック
     const allSiblingsCompleted = siblings.every((s) => {
-      const { substatus } = convertToV2Status(s);
+      const { substatus } = convertStatus(s);
       return substatus === "completed" || substatus === "archived";
     });
 

@@ -12,7 +12,7 @@ import { getScopedMarkdownStyles } from "./markdown-styles.js";
  * V2.1 ダッシュボード用CSS
  * モックアップ dashboard-v2.1.html から抽出
  */
-export function getV2DashboardStyles(): string {
+export function getV2SectionStyles(): string {
   return `
     /* ========================================
      * V2.1 Dashboard Styles
@@ -1453,7 +1453,7 @@ export function getV2DashboardStyles(): string {
 /**
  * V2検索・絞り込みセクションのCSS
  */
-export function getV2SearchFilterStyles(): string {
+export function getSearchFilterStyles(): string {
   return `
     /* ===========================================
        V2 検索・絞り込みセクション - 1行コンパクト
@@ -2135,7 +2135,7 @@ export function getDashboardStyles(): string {
       from { transform: translateX(0); opacity: 1; }
       to { transform: translateX(100%); opacity: 0; }
     }
-    ${getV2DashboardStyles()}
-    ${getV2SearchFilterStyles()}
+    ${getV2SectionStyles()}
+    ${getSearchFilterStyles()}
   `;
 }

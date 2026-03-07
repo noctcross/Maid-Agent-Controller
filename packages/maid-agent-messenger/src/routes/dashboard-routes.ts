@@ -12,34 +12,34 @@ import {
   executeGetTeamStatus,
   executeUpdateTask,
   executeGetReport,
-  generateV2DashboardData,
+  generateDashboardData,
   type Task,
 } from "../services/index.js";
 import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { extractAgentIdFromPath, generateAgentBackgroundSnippet } from "../utils/agent-image.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
-import type { DashboardData } from "../views/dashboard-html.js";
+import type { HtmlDashboardData } from "../views/dashboard-html.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 import { logger } from "../utils/logger.js";
 
-// DashboardData型を再エクスポート
-export type { DashboardData };
+// HtmlDashboardData型を再エクスポート
+export type { HtmlDashboardData };
 
 // 依存関数の型定義
 // 部分的なタスクオブジェクトや異なる型の配列を許容するため any[] を使用
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface DashboardRoutesDeps {
-  generateDashboardHtml: (data: DashboardData, editorScheme?: string) => string;
+  generateDashboardHtml: (data: HtmlDashboardData, editorScheme?: string) => string;
   generateTaskHtml: (tasks: any[], type: string, projectPath: string, scheme?: string) => string;
   composeMasterWaitingHtml: (masterWaitingTasks: any[], masterReviewTasks: any[], projectPath: string, scheme?: string) => string;
   // V2.1 HTML生成関数（SSE更新用）
   generateTaskTreeHtml?: (tasks: any[], projectPath: string) => string;
   generateReviewQueueHtml?: (reviewTasks: any[], projectPath: string) => string;
   generateArtifactsHtml?: (artifacts: any[], projectPath: string) => string;
-  generateV2StatsHtml?: (stats: any) => string;
-  generateV2TeamStatusHtml?: (teamStatus: any[]) => string;
+  generateStatsHtml?: (stats: any) => string;
+  generateTeamStatusHtml?: (teamStatus: any[]) => string;
   wsServer?: DashboardWebSocketServer; // WebSocket サーバー（オプション）
 }
 
@@ -51,8 +51,8 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     generateTaskTreeHtml,
     generateReviewQueueHtml,
     generateArtifactsHtml,
-    generateV2StatsHtml,
-    generateV2TeamStatusHtml,
+    generateStatsHtml,
+    generateTeamStatusHtml,
     wsServer,
   } = deps;
   const router = Router();
@@ -95,7 +95,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
         executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
         executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),
-        generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }),  // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
+        generateDashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }),  // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
       ]);
 
       // 本日完了タスクをカウント
@@ -244,7 +244,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
         executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
         executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
         executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
-        generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }),  // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
+        generateDashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }),  // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
         executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),  // チーム状態
       ]);
 
@@ -297,10 +297,10 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
           goals: generateTaskTreeHtml ? generateTaskTreeHtml(v2Data.v2Goals, projectPath) : undefined,
           reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
           artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
-          stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
+          stats: generateStatsHtml ? generateStatsHtml(v2Data.v2Stats) : undefined,
         },
         // チーム状態HTML
-        teamStatusHtml: generateV2TeamStatusHtml ? generateV2TeamStatusHtml(teamStatus.agents) : undefined,
+        teamStatusHtml: generateTeamStatusHtml ? generateTeamStatusHtml(teamStatus.agents) : undefined,
       };
 
       res.setHeader("Content-Type", "application/json");
@@ -351,7 +351,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
             executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
             executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),
             executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
-            generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }),  // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
+            generateDashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }),  // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
           ]);
 
           const completedTodayCount = (completedAll.tasks as Task[]).filter((task) => {
@@ -394,7 +394,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
             goals: generateTaskTreeHtml ? generateTaskTreeHtml(v2Data.v2Goals, projectPath) : undefined,
             reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
             artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
-            stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
+            stats: generateStatsHtml ? generateStatsHtml(v2Data.v2Stats) : undefined,
           };
 
           res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data, v2Html })}\n\n`);
@@ -483,7 +483,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
       const assignee = req.query.assignee as string | undefined;
 
       // V2.1 ダッシュボードデータを取得（ページネーション・ソート・フィルタ適用）
-      const v2Data = await generateV2DashboardData(projectPath, {
+      const v2Data = await generateDashboardData(projectPath, {
         offset,
         limit,
         statusFilter,

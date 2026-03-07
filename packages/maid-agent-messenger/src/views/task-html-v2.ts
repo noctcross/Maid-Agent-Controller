@@ -14,7 +14,7 @@ import { formatDateJstShort, formatRelativeTime } from "../utils/yaml-helper.js"
 
 // === 型定義 ===
 
-export interface V2Step {
+export interface Step {
   id: string;
   title: string;
   description?: string;
@@ -26,7 +26,7 @@ export interface V2Step {
   hasReport?: boolean;
 }
 
-export interface V2Work {
+export interface Work {
   id: string;
   title: string;
   description?: string;
@@ -35,12 +35,12 @@ export interface V2Work {
   v2Substatus: string;
   reviewStatus?: string;
   assignees?: Array<{ agentId: string }>;
-  steps: V2Step[];
+  steps: Step[];
   updatedAt?: string;
   hasReport?: boolean;
 }
 
-export interface V2Task {
+export interface Task {
   id: string;
   title: string;
   description?: string;
@@ -50,7 +50,7 @@ export interface V2Task {
   size?: string;
   reviewStatus?: string;
   assignees: Array<{ agentId: string }>;
-  works: V2Work[];
+  works: Work[];
   // Task階層連動: 子Workの状態から計算された表示用ステータス
   displayStatus?: string;
   displayIcon?: string;
@@ -62,11 +62,11 @@ export interface V2Task {
 }
 
 // 後方互換エイリアス
-export type V2Goal = V2Task;
-export type V2Phase = V2Work;
-export type V2Action = V2Step;
+export type Goal = Task;
+export type Phase = Work;
+export type Action = Step;
 
-export interface V2ReviewTask {
+export interface ReviewTask {
   id: string;
   title: string;
   type: string;
@@ -76,7 +76,7 @@ export interface V2ReviewTask {
   assignees: Array<{ agentId: string }>;
 }
 
-export interface V2Artifact {
+export interface Artifact {
   path: string;
   type: string;
   retention: string;
@@ -84,7 +84,7 @@ export interface V2Artifact {
   createdAt: string;
 }
 
-export interface V2Stats {
+export interface Stats {
   taskCount: number;
   workCount: number;
   stepCount: number;
@@ -189,7 +189,7 @@ function generateAssigneesHtml(assignees: Array<{ agentId: string }> | undefined
 /**
  * Task一覧をツリー形式のHTMLで生成
  */
-export function generateTaskTreeHtml(tasks: V2Task[], projectPath: string): string {
+export function generateTaskTreeHtml(tasks: Task[], projectPath: string): string {
   if (!tasks || tasks.length === 0) {
     return '<div class="empty-message">なし</div>';
   }
@@ -203,7 +203,7 @@ export const generateGoalTreeHtml = generateTaskTreeHtml;
 /**
  * 単一TaskのHTML生成
  */
-function generateTaskItemHtml(task: V2Task, projectPath: string): string {
+function generateTaskItemHtml(task: Task, projectPath: string): string {
   // Task階層連動: displayStatus/displayIconがある場合は優先使用
   const statusIcon = task.displayIcon || STATUS_ICONS[task.v2Substatus] || "❓";
   const statusText = task.displayStatus || STATUS_TEXT_JP[task.v2Substatus] || task.v2Substatus;
@@ -252,7 +252,7 @@ function generateTaskItemHtml(task: V2Task, projectPath: string): string {
 /**
  * Work単体のHTML生成
  */
-function generateWorkItemHtml(work: V2Work, projectPath: string): string {
+function generateWorkItemHtml(work: Work, projectPath: string): string {
   const statusIcon = STATUS_ICONS[work.v2Substatus] || "❓";
   const statusClass = STATUS_CLASSES[work.v2Substatus] || "";
   const reviewBadge = work.reviewStatus ? generateReviewBadgeHtml(work.reviewStatus) : "";
@@ -285,7 +285,7 @@ function generateWorkItemHtml(work: V2Work, projectPath: string): string {
 /**
  * Step単体のHTML生成
  */
-function generateStepItemHtml(step: V2Step, isLast: boolean, projectPath: string): string {
+function generateStepItemHtml(step: Step, isLast: boolean, projectPath: string): string {
   const statusClass = step.v2Substatus === "completed" ? "completed" :
                       step.v2Substatus === "working" ? "current" : "";
   const icon = isLast ? "└" : "├";
@@ -343,7 +343,7 @@ function generateReportLinkHtml(taskId: string, taskType: string, projectPath: s
 /**
  * レビューキューのHTMLを生成
  */
-export function generateReviewQueueHtml(reviewTasks: V2ReviewTask[], projectPath: string): string {
+export function generateReviewQueueHtml(reviewTasks: ReviewTask[], projectPath: string): string {
   if (!reviewTasks || reviewTasks.length === 0) {
     return '<div class="empty-message">なし</div>';
   }
@@ -381,7 +381,7 @@ export function generateReviewQueueHtml(reviewTasks: V2ReviewTask[], projectPath
 /**
  * 成果物一覧のHTMLを生成
  */
-export function generateArtifactsHtml(artifacts: V2Artifact[], projectPath: string): string {
+export function generateArtifactsHtml(artifacts: Artifact[], projectPath: string): string {
   if (!artifacts || artifacts.length === 0) {
     return '<div class="empty-message">なし</div>';
   }
@@ -405,7 +405,7 @@ export function generateArtifactsHtml(artifacts: V2Artifact[], projectPath: stri
 /**
  * V2.1統計サマリーのHTMLを生成
  */
-export function generateV2StatsHtml(stats: V2Stats): string {
+export function generateStatsHtml(stats: Stats): string {
   return `<div class="grid grid-stats">
     <div class="stat-card">
       <div class="number">${stats.taskCount}</div>

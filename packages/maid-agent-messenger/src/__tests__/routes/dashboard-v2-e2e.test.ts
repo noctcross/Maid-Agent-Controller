@@ -36,7 +36,7 @@ jest.unstable_mockModule("../../services/index.js", () => ({
   executeGetTeamStatus: mockExecuteGetTeamStatus,
   executeUpdateTask: mockExecuteUpdateTask,
   executeGetReport: mockExecuteGetReport,
-  generateV2DashboardData: mockGenerateV2DashboardData,
+  generateDashboardData: mockGenerateV2DashboardData,
 }));
 
 jest.unstable_mockModule("../../middleware/project-path.js", () => ({
@@ -251,7 +251,7 @@ describe("TC-E1-1: Goalsツリー表示", () => {
     expect(res.text).toMatch(/✅|🔵/);
   });
 
-  it("generateV2DashboardDataが呼び出される", async () => {
+  it("generateDashboardDataが呼び出される", async () => {
     await supertest(app)
       .get("/dashboard?version=v2")
       .set("X-Maid-Project-Path", TEST_PROJECT_PATH);

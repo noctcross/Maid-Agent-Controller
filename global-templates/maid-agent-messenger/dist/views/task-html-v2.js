@@ -286,7 +286,7 @@ export function generateArtifactsHtml(artifacts, projectPath) {
 /**
  * V2.1統計サマリーのHTMLを生成
  */
-export function generateV2StatsHtml(stats) {
+export function generateStatsHtml(stats) {
     return `<div class="grid grid-stats">
     <div class="stat-card">
       <div class="number">${stats.taskCount}</div>

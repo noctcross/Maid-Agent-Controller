@@ -14,16 +14,16 @@ import {
   generateTaskTreeHtml,
   generateReviewQueueHtml,
   generateArtifactsHtml,
-  generateV2StatsHtml,
-  type V2Task,
-  type V2ReviewTask,
-  type V2Artifact,
-  type V2Stats,
+  generateStatsHtml,
+  type Task,
+  type ReviewTask,
+  type Artifact,
+  type Stats,
 } from "../../views/task-html-v2.js";
 
 // === テストデータ ===
 
-const mockTasks: V2Task[] = [
+const mockTasks: Task[] = [
   {
     id: "289",
     title: "ダッシュボード構造改善",
@@ -93,7 +93,7 @@ const mockTasks: V2Task[] = [
   },
 ];
 
-const mockReviewQueue: V2ReviewTask[] = [
+const mockReviewQueue: ReviewTask[] = [
   {
     id: "301",
     title: "API設計レビュー",
@@ -114,7 +114,7 @@ const mockReviewQueue: V2ReviewTask[] = [
   },
 ];
 
-const mockArtifacts: V2Artifact[] = [
+const mockArtifacts: Artifact[] = [
   {
     path: "docs/decisions/dashboard-v2.1.md",
     type: "design",
@@ -131,7 +131,7 @@ const mockArtifacts: V2Artifact[] = [
   },
 ];
 
-const mockV2Stats: V2Stats = {
+const mockStats: Stats = {
   taskCount: 3,
   workCount: 12,
   stepCount: 24,
@@ -256,7 +256,7 @@ describe("generateTaskTreeHtml - Taskグルーピング表示", () => {
   });
 
   it("アーカイブ済みTaskにはアーカイブプレースホルダーとdata-archivedが設定される", () => {
-    const archivedTasks: V2Task[] = [
+    const archivedTasks: Task[] = [
       {
         id: "400",
         title: "アーカイブ済みタスク",
@@ -354,9 +354,9 @@ describe("generateArtifactsHtml - 成果物パネル", () => {
 
 // === V2.1統計サマリーテスト ===
 
-describe("generateV2StatsHtml - V2.1統計サマリー", () => {
+describe("generateStatsHtml - V2.1統計サマリー", () => {
   it("Task/Work/Step件数が表示される", () => {
-    const html = generateV2StatsHtml(mockV2Stats);
+    const html = generateStatsHtml(mockStats);
 
     expect(html).toContain("3"); // taskCount
     expect(html).toContain("🎯"); // Task icon
@@ -367,14 +367,14 @@ describe("generateV2StatsHtml - V2.1統計サマリー", () => {
   });
 
   it("完了件数が表示される", () => {
-    const html = generateV2StatsHtml(mockV2Stats);
+    const html = generateStatsHtml(mockStats);
 
     expect(html).toContain("45"); // completedCount
     expect(html).toContain("✅"); // Completed icon
   });
 
   it("要対応件数が表示される", () => {
-    const html = generateV2StatsHtml(mockV2Stats);
+    const html = generateStatsHtml(mockStats);
 
     expect(html).toContain("stat-card");
     // actionRequiredCount (warning style)
@@ -382,13 +382,13 @@ describe("generateV2StatsHtml - V2.1統計サマリー", () => {
   });
 
   it("レビュー待ち件数が表示される", () => {
-    const html = generateV2StatsHtml(mockV2Stats);
+    const html = generateStatsHtml(mockStats);
 
     expect(html).toContain("4"); // reviewPendingCount
   });
 
   it("提案件数が表示される", () => {
-    const html = generateV2StatsHtml(mockV2Stats);
+    const html = generateStatsHtml(mockStats);
 
     expect(html).toContain("3"); // proposalCount
     expect(html).toContain("💡"); // Proposal icon

@@ -12,4 +12,4 @@
  *
  * @returns `<script>` タグを含むHTMLスクリプト文字列
  */
-export declare function getV2DashboardScript(): string;
+export declare function getDashboardScript(): string;

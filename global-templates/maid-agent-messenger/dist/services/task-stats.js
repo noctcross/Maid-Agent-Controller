@@ -5,7 +5,7 @@
  * task-manager.ts から責務分割のため分離。
  */
 import { loadTasksReadOnly } from "./task-core.js";
-import { inferTaskType, convertToV2Status } from "./task-v2-migration.js";
+import { inferTaskType, convertStatus } from "./task-v2-migration.js";
 import { logger } from "../utils/logger.js";
 /**
  * V2.1: Goal階層連動 - 子Phaseの状態から親Goalの表示ステータスを計算
@@ -79,7 +79,7 @@ function mapSubstatusToDisplay(substatus) {
 /**
  * タスク一覧からV2.1ダッシュボードデータを生成
  */
-export async function generateV2DashboardData(projectPath, options = {}) {
+export async function generateDashboardData(projectPath, options = {}) {
     const { showArchived = false, statusFilter = "open", offset = 0, limit = 10, sortField = "id", sortOrder = "desc", sortBy = "updated", search, priority, assignee, } = options;
     const data = await loadTasksReadOnly(projectPath);
     const tasks = data.tasks;
@@ -196,7 +196,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
         .filter((g) => {
         if (statusFilter === "all")
             return true;
-        const { mainStatus } = convertToV2Status(g);
+        const { mainStatus } = convertStatus(g);
         if (statusFilter === "open")
             return mainStatus === "open";
         if (statusFilter === "closed")
@@ -208,7 +208,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
         // 検索・担当者フィルタ（階層全体で検索）
         .filter((g) => matchesHierarchy(g, search, assignee))
         .map((goal) => {
-        const { mainStatus, substatus } = convertToV2Status(goal);
+        const { mainStatus, substatus } = convertStatus(goal);
         // このGoalに属するPhaseを取得（sortByに応じてソート）
         const goalPhases = phases
             .filter((p) => p.parentId === goal.id)
@@ -225,7 +225,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             }
         });
         const v2Works = goalPhases.map((phase) => {
-            const phaseStatus = convertToV2Status(phase);
+            const phaseStatus = convertStatus(phase);
             // このWorkに属するStepを取得（sortByに応じてソート）
             const phaseActions = actions
                 .filter((a) => a.parentId === phase.id)
@@ -242,7 +242,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
                 }
             });
             const v2Steps = phaseActions.map((action) => {
-                const actionStatus = convertToV2Status(action);
+                const actionStatus = convertStatus(action);
                 return {
                     id: action.id,
                     title: action.title || `Step #${action.id}`,
@@ -355,7 +355,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
     });
     // V2Stats: 統計情報
     const completedCount = tasks.filter((t) => {
-        const status = convertToV2Status(t);
+        const status = convertStatus(t);
         return status.substatus === "completed" || status.substatus === "archived";
     }).length;
     const actionRequiredCount = tasks.filter((t) => t.actionRequired === true && t.status !== "completed").length;
@@ -374,7 +374,7 @@ export async function generateV2DashboardData(projectPath, options = {}) {
             return false;
         }
         // V2.1ステータスでの除外（mainStatus: closed）
-        const { mainStatus } = convertToV2Status(t);
+        const { mainStatus } = convertStatus(t);
         if (mainStatus === "closed") {
             return false;
         }

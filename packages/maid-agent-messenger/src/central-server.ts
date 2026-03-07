@@ -28,7 +28,7 @@ import imageRoutes from "./routes/image-routes.js";
 import qualityRoutes from "./routes/quality-routes.js";
 
 // ビュー
-import { generateDashboardHtml, generateV2TeamStatusHtml } from "./views/dashboard-html.js";
+import { generateDashboardHtml, generateTeamStatusHtml } from "./views/dashboard-html.js";
 import { generateTopPageHtml } from "./views/top-page-html.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js";
 // V2.1 ビュー
@@ -36,7 +36,7 @@ import {
   generateTaskTreeHtml,
   generateReviewQueueHtml,
   generateArtifactsHtml,
-  generateV2StatsHtml,
+  generateStatsHtml,
 } from "./views/task-html-v2.js";
 
 import { loopbackOnly } from "./middleware/loopback-only.js";
@@ -130,8 +130,8 @@ async function main(): Promise<void> {
     generateTaskTreeHtml,
     generateReviewQueueHtml,
     generateArtifactsHtml,
-    generateV2StatsHtml,
-    generateV2TeamStatusHtml,
+    generateStatsHtml,
+    generateTeamStatusHtml,
     wsServer,
   }));
   app.use(fileRoutes);

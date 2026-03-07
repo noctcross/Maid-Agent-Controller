@@ -7,4 +7,4 @@
  * @module dashboard-scripts
  */
 export { type DashboardScriptParams, getDashboardHeadScript, getReportOverlayScript, } from "./dashboard-scripts-common.js";
-export { getV2DashboardScript } from "./dashboard-scripts-v2.js";
+export { getDashboardScript } from "./dashboard-scripts-v2.js";

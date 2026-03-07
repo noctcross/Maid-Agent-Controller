@@ -8,18 +8,18 @@
  * - dashboard-template.ts: HTMLボディテンプレート
  */
 import type { AgentStatus } from "../types/index.js";
-import { type V2Task, type V2ReviewTask, type V2Artifact, type V2Stats } from "./task-html-v2.js";
+import { type Task, type ReviewTask, type Artifact, type Stats } from "./task-html-v2.js";
 /**
  * V2チーム状態セクションのHTML生成
  * 各メイドの現在の状態をカード形式で表示
  */
-export declare function generateV2TeamStatusHtml(teamStatus: AgentStatus[]): string;
+export declare function generateTeamStatusHtml(teamStatus: AgentStatus[]): string;
 /**
  * V2検索・絞り込みセクションのHTML生成
  * 検索ボックスと優先度・担当者フィルターを表示
  */
 export declare function generateV2SearchFilterHtml(teamStatus: AgentStatus[]): string;
-export interface DashboardData {
+export interface HtmlDashboardData {
     projectPath: string;
     timestamp: string;
     pending: Array<{
@@ -98,11 +98,11 @@ export interface DashboardData {
         completedTodayCount: number;
     };
     serverUrl: string;
-    v2Goals?: V2Task[];
-    v2ReviewQueue?: V2ReviewTask[];
-    v2Artifacts?: V2Artifact[];
-    v2Stats?: V2Stats;
-    dashboardVersion?: "v1" | "v2";
+    v2Goals?: Task[];
+    v2ReviewQueue?: ReviewTask[];
+    v2Artifacts?: Artifact[];
+    v2Stats?: Stats;
+    dashboardVersion?: "v2";
 }
 /**
  * ダッシュボードHTMLを生成
@@ -111,4 +111,4 @@ export interface DashboardData {
  * @param editorScheme - エディタスキーム（デフォルト: "vscode"）
  * @returns 完全なHTML文字列
  */
-export declare function generateDashboardHtml(data: DashboardData, editorScheme?: string): string;
+export declare function generateDashboardHtml(data: HtmlDashboardData, editorScheme?: string): string;

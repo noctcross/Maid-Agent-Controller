@@ -6,7 +6,7 @@ import { Router } from "express";
 import { createHash } from "crypto";
 import { loadConfig, getServerUrl } from "../utils/config-loader.js";
 import { getJstTimestamp } from "../utils/yaml-helper.js";
-import { executeListTasks, executeGetTeamStatus, executeUpdateTask, executeGetReport, generateV2DashboardData, } from "../services/index.js";
+import { executeListTasks, executeGetTeamStatus, executeUpdateTask, executeGetReport, generateDashboardData, } from "../services/index.js";
 import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { extractAgentIdFromPath, generateAgentBackgroundSnippet } from "../utils/agent-image.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
@@ -14,7 +14,7 @@ import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 import { logger } from "../utils/logger.js";
 export function createDashboardRoutes(deps) {
-    const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateV2StatsHtml, generateV2TeamStatusHtml, wsServer, } = deps;
+    const { generateDashboardHtml, generateTaskHtml, composeMasterWaitingHtml, generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateStatsHtml, generateTeamStatusHtml, wsServer, } = deps;
     const router = Router();
     // GET /dashboard - HTMLダッシュボード（ブラウザ用）
     router.get("/dashboard", async (req, res) => {
@@ -31,9 +31,8 @@ export function createDashboardRoutes(deps) {
             // エディタスキームを取得（?editor=vscode|windsurf|cursor、設定ファイルのデフォルト値を使用）
             const config = await loadConfig();
             const editorScheme = req.query.editor || config.dashboard.editor;
-            // バージョンパラメータ（デフォルト: v2）
-            const versionParam = req.query.version;
-            const dashboardVersion = versionParam === "v1" ? "v1" : "v2";
+            // ダッシュボードバージョン（v2固定）
+            const dashboardVersion = "v2";
             // 並列でデータを取得（Phase 1: 特殊カテゴリ・blocked追加, Phase 2: 本日完了追加）
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -49,7 +48,7 @@ export function createDashboardRoutes(deps) {
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
                 executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),
-                generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
+                generateDashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
             ]);
             // 本日完了タスクをカウント
             const completedTodayCount = completedAll.tasks.filter((task) => {
@@ -84,7 +83,7 @@ export function createDashboardRoutes(deps) {
                 v2ReviewQueue: v2Data.v2ReviewQueue,
                 v2Artifacts: v2Data.v2Artifacts,
                 v2Stats: v2Data.v2Stats,
-                // V1/V2切り替え
+                // ダッシュボードバージョン
                 dashboardVersion,
             }, editorScheme);
             // アクセス記録（非同期、レスポンスをブロックしない）
@@ -181,7 +180,7 @@ export function createDashboardRoutes(deps) {
                 executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
                 executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
                 executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
-                generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
+                generateDashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
                 executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }), // チーム状態
             ]);
             const completedTodayCount = completedAll.tasks.filter((task) => {
@@ -231,10 +230,10 @@ export function createDashboardRoutes(deps) {
                     goals: generateTaskTreeHtml ? generateTaskTreeHtml(v2Data.v2Goals, projectPath) : undefined,
                     reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
                     artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
-                    stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
+                    stats: generateStatsHtml ? generateStatsHtml(v2Data.v2Stats) : undefined,
                 },
                 // チーム状態HTML
-                teamStatusHtml: generateV2TeamStatusHtml ? generateV2TeamStatusHtml(teamStatus.agents) : undefined,
+                teamStatusHtml: generateTeamStatusHtml ? generateTeamStatusHtml(teamStatus.agents) : undefined,
             };
             res.setHeader("Content-Type", "application/json");
             res.json(data);
@@ -277,7 +276,7 @@ export function createDashboardRoutes(deps) {
                         executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
                         executeListTasks(projectPath, { category: ["skill_candidate"], status: sseActiveStatuses }),
                         executeListTasks(projectPath, { category: ["improvement"], status: sseActiveStatuses }),
-                        generateV2DashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
+                        generateDashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }), // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
                     ]);
                     const completedTodayCount = completedAll.tasks.filter((task) => {
                         if (!task.completedAt)
@@ -315,7 +314,7 @@ export function createDashboardRoutes(deps) {
                         goals: generateTaskTreeHtml ? generateTaskTreeHtml(v2Data.v2Goals, projectPath) : undefined,
                         reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
                         artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
-                        stats: generateV2StatsHtml ? generateV2StatsHtml(v2Data.v2Stats) : undefined,
+                        stats: generateStatsHtml ? generateStatsHtml(v2Data.v2Stats) : undefined,
                     };
                     res.write(`data: ${JSON.stringify({ type: "tasks", tasks: tasksHtml, v2: v2Data, v2Html })}\n\n`);
                 }
@@ -391,7 +390,7 @@ export function createDashboardRoutes(deps) {
                 : undefined;
             const assignee = req.query.assignee;
             // V2.1 ダッシュボードデータを取得（ページネーション・ソート・フィルタ適用）
-            const v2Data = await generateV2DashboardData(projectPath, {
+            const v2Data = await generateDashboardData(projectPath, {
                 offset,
                 limit,
                 statusFilter,

@@ -15,7 +15,7 @@ import { getDashboardStyles } from "./dashboard-styles.js";
 import {
   getDashboardHeadScript,
   getReportOverlayScript,
-  getV2DashboardScript,
+  getDashboardScript,
   type DashboardScriptParams,
 } from "./dashboard-scripts.js";
 import {
@@ -28,11 +28,11 @@ import {
   generateTaskTreeHtml,
   generateReviewQueueHtml,
   generateArtifactsHtml,
-  generateV2StatsHtml,
-  type V2Task,
-  type V2ReviewTask,
-  type V2Artifact,
-  type V2Stats,
+  generateStatsHtml,
+  type Task,
+  type ReviewTask,
+  type Artifact,
+  type Stats,
 } from "./task-html-v2.js";
 
 // メイド名マッピング（日本語表示用）
@@ -61,7 +61,7 @@ const STATUS_CONFIG: Record<string, { icon: string; label: string; color: string
  * V2チーム状態セクションのHTML生成
  * 各メイドの現在の状態をカード形式で表示
  */
-export function generateV2TeamStatusHtml(teamStatus: AgentStatus[]): string {
+export function generateTeamStatusHtml(teamStatus: AgentStatus[]): string {
   if (!teamStatus || teamStatus.length === 0) {
     return '<div class="empty-message">チーム情報がありません</div>';
   }
@@ -143,8 +143,8 @@ export function generateV2SearchFilterHtml(teamStatus: AgentStatus[]): string {
     </div>`;
 }
 
-// DashboardData型定義
-export interface DashboardData {
+// HtmlDashboardData型定義
+export interface HtmlDashboardData {
   projectPath: string;
   timestamp: string;
   pending: Array<{
@@ -210,10 +210,10 @@ export interface DashboardData {
   };
   serverUrl: string; // サーバーの実URL（ポーリング用）
   // V2.1: Task階層表示用データ（オプション）
-  v2Goals?: V2Task[];
-  v2ReviewQueue?: V2ReviewTask[];
-  v2Artifacts?: V2Artifact[];
-  v2Stats?: V2Stats;
+  v2Goals?: Task[];
+  v2ReviewQueue?: ReviewTask[];
+  v2Artifacts?: Artifact[];
+  v2Stats?: Stats;
   // ダッシュボードバージョン（v2固定）
   dashboardVersion?: "v2";
 }
@@ -226,7 +226,7 @@ export interface DashboardData {
  * @returns 完全なHTML文字列
  */
 export function generateDashboardHtml(
-  data: DashboardData,
+  data: HtmlDashboardData,
   editorScheme: string = "vscode"
 ): string {
   const {
@@ -351,7 +351,7 @@ export function generateDashboardHtml(
     ? generateArtifactsHtml(data.v2Artifacts, projectPath)
     : "";
   const v2StatsHtml = data.v2Stats
-    ? generateV2StatsHtml(data.v2Stats)
+    ? generateStatsHtml(data.v2Stats)
     : "";
 
   // WebSocket接続用のCSPホスト生成
@@ -417,7 +417,7 @@ export function generateDashboardHtml(
           <span class="count-badge">${teamStatus.length}</span>
         </div>
         <div class="collapsible-content">
-          ${generateV2TeamStatusHtml(teamStatus)}
+          ${generateTeamStatusHtml(teamStatus)}
         </div>
       </div>
 
@@ -566,7 +566,7 @@ ${v2SectionsHtml}
 ${gridClose}
 ${getReportOverlayHtml()}
 ${getReportOverlayScript()}
-${getV2DashboardScript()}
+${getDashboardScript()}
 </body>
 </html>`;
 }

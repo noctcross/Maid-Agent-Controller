@@ -11,8 +11,10 @@ const mockExecuteGetTask = jest.fn<any>();
 const mockExecuteUpdateTask = jest.fn<any>();
 const mockExecuteGetReport = jest.fn<any>();
 const mockArchiveReport = jest.fn<any>();
-const mockMigrateToV2 = jest.fn<any>();
+const mockMigrate = jest.fn<any>();
 const mockCheckMigrationStatus = jest.fn<any>();
+const mockExecuteGetTeamStatus = jest.fn<any>();
+const mockGenerateDashboardData = jest.fn<any>();
 
 jest.unstable_mockModule("../../services/index.js", () => ({
   executeListTasks: mockExecuteListTasks,
@@ -20,8 +22,10 @@ jest.unstable_mockModule("../../services/index.js", () => ({
   executeUpdateTask: mockExecuteUpdateTask,
   executeGetReport: mockExecuteGetReport,
   archiveReport: mockArchiveReport,
-  migrateToV2: mockMigrateToV2,
+  migrate: mockMigrate,
   checkMigrationStatus: mockCheckMigrationStatus,
+  executeGetTeamStatus: mockExecuteGetTeamStatus,
+  generateDashboardData: mockGenerateDashboardData,
 }));
 
 jest.unstable_mockModule("../../middleware/project-path.js", () => ({
@@ -30,6 +34,7 @@ jest.unstable_mockModule("../../middleware/project-path.js", () => ({
 
 jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   getTimestamp: () => "2026-02-09T00:00:00+09:00",
+  getJstTimestamp: () => "2026-02-09 00:00:00",
   stringifyYaml: (data: unknown) => JSON.stringify(data),
 }));
 

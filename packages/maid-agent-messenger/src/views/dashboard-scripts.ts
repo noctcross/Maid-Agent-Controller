@@ -15,4 +15,4 @@ export {
 } from "./dashboard-scripts-common.js";
 
 // V2モジュール
-export { getV2DashboardScript } from "./dashboard-scripts-v2.js";
+export { getDashboardScript } from "./dashboard-scripts-v2.js";

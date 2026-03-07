@@ -1,8 +1,8 @@
 import { describe, it, expect } from "@jest/globals";
 import { generateDashboardHtml } from "../../views/dashboard-html.js";
-import type { DashboardData } from "../../views/dashboard-html.js";
+import type { HtmlDashboardData } from "../../views/dashboard-html.js";
 
-const minimalDashboardData: DashboardData = {
+const minimalHtmlDashboardData: HtmlDashboardData = {
   projectPath: "/test/project",
   timestamp: "2026-02-08T00:00:00+09:00",
   pending: [],
@@ -28,7 +28,7 @@ const minimalDashboardData: DashboardData = {
 describe("serverBaseUrl の動的化", () => {
   it("生成HTMLに window.location.origin が含まれること", () => {
     const html = generateDashboardHtml({
-      ...minimalDashboardData,
+      ...minimalHtmlDashboardData,
       serverUrl: "http://127.0.0.1:3100",
     });
     expect(html).toContain("window.location.origin");
@@ -36,7 +36,7 @@ describe("serverBaseUrl の動的化", () => {
 
   it("生成HTMLにサーバー設定値が埋め込まれること", () => {
     const html = generateDashboardHtml({
-      ...minimalDashboardData,
+      ...minimalHtmlDashboardData,
       serverUrl: "http://192.168.1.100:3100",
     });
     expect(html).toContain("http://192.168.1.100:3100");
@@ -44,7 +44,7 @@ describe("serverBaseUrl の動的化", () => {
 
   it("ハードコード http://127.0.0.1:3100 が含まれないこと", () => {
     const html = generateDashboardHtml({
-      ...minimalDashboardData,
+      ...minimalHtmlDashboardData,
       serverUrl: "http://127.0.0.1:3100",
     });
     expect(html).not.toContain("const serverBaseUrl = 'http://127.0.0.1:3100'");
@@ -53,14 +53,14 @@ describe("serverBaseUrl の動的化", () => {
 
 describe("generateDashboardHtml - V2ダッシュボード基本構造", () => {
   it("V2ダッシュボードのヘッダーが表示される", () => {
-    const html = generateDashboardHtml(minimalDashboardData);
+    const html = generateDashboardHtml(minimalHtmlDashboardData);
     expect(html).toContain("Maid Agent Dashboard");
     expect(html).toContain("/test/project");
   });
 
   it("V2セクション（v2Goals等）がある場合、v2-sectionsとgoalコンテナが含まれる", () => {
     const html = generateDashboardHtml({
-      ...minimalDashboardData,
+      ...minimalHtmlDashboardData,
       v2Goals: [{
         id: "goal-001",
         title: "テストGoal",

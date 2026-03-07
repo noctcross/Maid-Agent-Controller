@@ -67,10 +67,10 @@ export {
   inferTaskType,
   validateStatusTransition,
   getAgentRole,
-  convertToV2Status,
-  mapLegacyToV2Status,
-  migrateTaskToV2,
-  migrateToV2,
+  convertStatus,
+  mapLegacyStatus,
+  migrateTask,
+  migrate,
   checkMigrationStatus,
 } from "./task-v2-migration.js";
 export type {
@@ -80,20 +80,20 @@ export type {
 // 統計・ダッシュボード
 export {
   computeGoalDisplayStatus,
-  generateV2DashboardData,
+  generateDashboardData,
 } from "./task-stats.js";
 export type {
-  V2DashboardData,
-  V2StepData,
-  V2WorkData,
-  V2TaskData,
-  V2GoalData,
-  V2PhaseData,
-  V2ActionData,
-  V2ReviewTaskData,
-  V2ArtifactData,
-  V2StatsData,
-  V2DashboardOptions,
+  DashboardData,
+  StepData,
+  WorkData,
+  TaskData,
+  GoalData,
+  PhaseData,
+  ActionData,
+  ReviewTaskData,
+  ArtifactData,
+  StatsData,
+  DashboardOptions,
 } from "./task-stats.js";
 
 // 自動クローズ・依存解消

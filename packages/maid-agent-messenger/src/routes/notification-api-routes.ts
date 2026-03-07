@@ -178,6 +178,38 @@ router.get("/api/notifications", async (req: Request, res: Response) => {
 });
 
 /**
+ * 単一エージェントにメッセージを送信
+ */
+async function sendToAgent(
+  projectPath: string,
+  target: string,
+  message: string,
+  historyPath: string
+): Promise<boolean> {
+  const escapedMessage = message.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+  const isSlashCommand = message.startsWith('/');
+  const command = isSlashCommand
+    ? `maidctl notify --from master --no-prefix ${target} "${escapedMessage}"`
+    : `maidctl notify --from master ${target} "${escapedMessage}"`;
+
+  try {
+    await execAsync(command, { cwd: projectPath, timeout: 10000 });
+    return true;
+  } catch (execError) {
+    // maidctl が失敗しても history.log には記録を試みる（フォールバック）
+    logger.warn(`maidctl notify failed for ${target}, falling back to history.log only`, execError instanceof Error ? execError : { error: execError });
+
+    const now = new Date();
+    const jstOffset = 9 * 60 * 60 * 1000;
+    const jstDate = new Date(now.getTime() + jstOffset);
+    const timestamp = jstDate.toISOString().replace("T", " ").slice(0, 19);
+    const entry = `[${timestamp}] master → ${target}: ${message}\n`;
+    await fs.appendFile(historyPath, entry, "utf-8");
+    return false;
+  }
+}
+
+/**
  * POST /api/notifications - 通知送信
  */
 router.post("/api/notifications", async (req: Request, res: Response) => {
@@ -195,15 +227,6 @@ router.post("/api/notifications", async (req: Request, res: Response) => {
       return;
     }
 
-    // 有効なターゲットか確認
-    if (!VALID_TARGETS.includes(to)) {
-      res.status(400).json({
-        error: `Invalid target: ${to}`,
-        validTargets: VALID_TARGETS,
-      });
-      return;
-    }
-
     const historyPath = path.join(
       projectPath,
       ".maid-agent/system/data/notifications/history.log"
@@ -217,23 +240,47 @@ router.post("/api/notifications", async (req: Request, res: Response) => {
       await fs.mkdir(historyDir, { recursive: true });
     }
 
-    // maidctl notify --from master を呼び出し（tmuxセッションへの送信 + history.log記録）
-    const escapedMessage = message.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
-    const command = `maidctl notify --from master ${to} "${escapedMessage}"`;
+    // "all" の場合は全エージェントにブロードキャスト
+    if (to === "all") {
+      const results: { target: string; success: boolean }[] = [];
 
-    try {
-      await execAsync(command, { cwd: projectPath, timeout: 10000 });
-    } catch (execError) {
-      // maidctl が失敗しても history.log には記録を試みる（フォールバック）
-      logger.warn("maidctl notify failed, falling back to history.log only", execError instanceof Error ? execError : { error: execError });
+      // 全エージェントに順次送信（少し間隔を空ける）
+      for (const target of VALID_TARGETS) {
+        const success = await sendToAgent(projectPath, target, message, historyPath);
+        results.push({ target, success });
+        // 次の送信まで少し待つ（tmux送信の安定性のため）
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
 
+      const successCount = results.filter(r => r.success).length;
       const now = new Date();
       const jstOffset = 9 * 60 * 60 * 1000;
       const jstDate = new Date(now.getTime() + jstOffset);
       const timestamp = jstDate.toISOString().replace("T", " ").slice(0, 19);
-      const entry = `[${timestamp}] master → ${to}: ${message}\n`;
-      await fs.appendFile(historyPath, entry, "utf-8");
+
+      logger.info(`Broadcast sent: master → all (${successCount}/${VALID_TARGETS.length} succeeded)`);
+      res.json({
+        success: true,
+        broadcast: true,
+        totalTargets: VALID_TARGETS.length,
+        successCount,
+        results,
+        timestamp: formatTimestamp(timestamp),
+      });
+      return;
     }
+
+    // 有効なターゲットか確認（個別送信）
+    if (!VALID_TARGETS.includes(to)) {
+      res.status(400).json({
+        error: `Invalid target: ${to}`,
+        validTargets: [...VALID_TARGETS, "all"],
+      });
+      return;
+    }
+
+    // 個別エージェントへの送信
+    await sendToAgent(projectPath, to, message, historyPath);
 
     // レスポンス生成（タイムスタンプは現在時刻で）
     const now = new Date();

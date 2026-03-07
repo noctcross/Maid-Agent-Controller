@@ -16,7 +16,6 @@ import { getTimestamp } from "./utils/yaml-helper.js";
 import { TIMEOUTS } from "./utils/constants.js";
 
 // ルーター
-import legacyRoutes from "./routes/legacy-routes.js";
 import { createTaskApiRoutes } from "./routes/task-api-routes.js";
 import { createCliApiRoutes } from "./routes/cli-api-routes.js";
 import { createDashboardRoutes } from "./routes/dashboard-routes.js";
@@ -141,7 +140,6 @@ async function main(): Promise<void> {
   app.use(responseApiRoutes);
   app.use(imageRoutes);
   // 非公開エンドポイント（loopbackのみ）
-  app.use(loopbackOnly, legacyRoutes);
   app.use(loopbackOnly, createTaskApiRoutes({ wsServer }));
   app.use(loopbackOnly, createCliApiRoutes({ wsServer }));
   app.use(loopbackOnly, qualityRoutes);

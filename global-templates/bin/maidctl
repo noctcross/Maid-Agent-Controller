@@ -1369,20 +1369,27 @@ cmd_notify() {
   local target=""
   local message=""
   local from_sender=""
+  local no_prefix=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --help|-h)
         echo "使用法: maidctl notify <target> \"<message>\""
         echo "        maidctl notify --from <sender> <target> \"<message>\""
+        echo "        maidctl notify --no-prefix <target> \"<message>\""
         echo ""
         echo "有効なターゲット: butler chief $VALID_AGENTS"
         echo "  --from: 送信者を明示的に指定（API等tmux外からの呼び出し用）"
+        echo "  --no-prefix: [From: sender] プレフィックスを付けない（/コマンド用）"
         return 0
         ;;
       --from)
         from_sender="$2"
         shift 2
+        ;;
+      --no-prefix)
+        no_prefix=true
+        shift
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
@@ -1414,8 +1421,12 @@ cmd_notify() {
     exit $EXIT_INVALID_ARGS
   fi
 
-  # --from オプションがあれば maid-notify に渡す
-  if [ -n "$from_sender" ]; then
+  # オプションに応じて maid-notify を呼び出し
+  if [ "$no_prefix" = true ] && [ -n "$from_sender" ]; then
+    exec "$notify_path" --from "$from_sender" --no-prefix "$target" "$message"
+  elif [ "$no_prefix" = true ]; then
+    exec "$notify_path" --no-prefix "$target" "$message"
+  elif [ -n "$from_sender" ]; then
     exec "$notify_path" --from "$from_sender" "$target" "$message"
   else
     exec "$notify_path" "$target" "$message"

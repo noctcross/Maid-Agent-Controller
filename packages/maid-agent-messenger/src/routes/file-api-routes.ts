@@ -32,6 +32,23 @@ const ALLOWED_EXTENSIONS = new Set([
   ".env.example", ".gitignore", ".editorconfig",
 ]);
 
+/** 画像拡張子 */
+const IMAGE_EXTENSIONS = new Set([
+  ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp",
+]);
+
+/** 画像のMIMEタイプ */
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".bmp": "image/bmp",
+};
+
 /** 隠しファイル・ディレクトリのパターン */
 const HIDDEN_PATTERNS = [
   /^\.git$/,
@@ -262,6 +279,84 @@ router.get("/api/files/content", async (req: Request, res: Response) => {
     }
     const message = error instanceof Error ? error.message : "Unknown error";
     logger.error("Failed to read file", error instanceof Error ? error : { error });
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/files/raw
+ * ファイルを直接配信（画像等のバイナリファイル用）
+ */
+router.get("/api/files/raw", async (req: Request, res: Response) => {
+  try {
+    const projectPath = req.query.project as string;
+    let filePath = req.query.path as string;
+
+    if (!projectPath) {
+      res.status(400).json({ error: "Missing project parameter" });
+      return;
+    }
+
+    if (!filePath) {
+      res.status(400).json({ error: "Missing path parameter" });
+      return;
+    }
+
+    // 絶対パスに変換
+    if (!path.isAbsolute(filePath)) {
+      filePath = path.join(projectPath, filePath);
+    }
+
+    // パス検証
+    const validation = await validatePath(filePath, projectPath);
+    if (!validation.valid) {
+      logger.warn(`Path traversal blocked: ${filePath}`);
+      res.status(403).json({ error: validation.error });
+      return;
+    }
+
+    // ファイルかどうか確認
+    const stats = await fs.stat(validation.resolvedPath);
+    if (!stats.isFile()) {
+      res.status(400).json({ error: "Path is not a file" });
+      return;
+    }
+
+    const fileName = path.basename(validation.resolvedPath);
+    const ext = path.extname(fileName).toLowerCase();
+
+    // 画像ファイルか確認
+    if (!IMAGE_EXTENSIONS.has(ext)) {
+      res.status(403).json({
+        error: "File type not allowed for raw access",
+        allowedExtensions: Array.from(IMAGE_EXTENSIONS),
+      });
+      return;
+    }
+
+    // ファイルサイズ制限（10MB）
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+    if (stats.size > MAX_IMAGE_SIZE) {
+      res.status(413).json({
+        error: "File too large",
+        maxSize: MAX_IMAGE_SIZE,
+        actualSize: stats.size,
+      });
+      return;
+    }
+
+    // Content-Type を設定して配信
+    const mimeType = IMAGE_MIME_TYPES[ext] || "application/octet-stream";
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.sendFile(validation.resolvedPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      res.status(404).json({ error: "File not found" });
+      return;
+    }
+    const message = error instanceof Error ? error.message : "Unknown error";
+    logger.error("Failed to serve raw file", error instanceof Error ? error : { error });
     res.status(500).json({ error: message });
   }
 });

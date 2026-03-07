@@ -13,7 +13,7 @@ import { getDashboardStyles } from "./dashboard-styles.js";
 import { getDashboardHeadScript, getReportOverlayScript, getDashboardScript, } from "./dashboard-scripts.js";
 import { getReportOverlayHtml, } from "./dashboard-template.js";
 // V2.1: Task階層表示・レビューキュー・成果物・統計
-import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateStatsHtml, } from "./task-html-v2.js";
+import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateStatsHtml, } from "./task-tree.js";
 // メイド名マッピング（日本語表示用）
 const MAID_DISPLAY_NAMES = {
     emma: "Emma",

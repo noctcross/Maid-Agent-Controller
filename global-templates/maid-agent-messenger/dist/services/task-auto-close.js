@@ -8,7 +8,7 @@
  */
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { withTasksLock, loadTasksReadOnly } from "./task-core.js";
-import { inferTaskType, convertStatus } from "./task-v2-migration.js";
+import { inferTaskType, convertStatus } from "./task-migration.js";
 /**
  * タスク完了時に依存しているタスクを自動的に waiting → assigned に更新
  *

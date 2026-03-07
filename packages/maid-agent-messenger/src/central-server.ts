@@ -37,7 +37,7 @@ import {
   generateReviewQueueHtml,
   generateArtifactsHtml,
   generateStatsHtml,
-} from "./views/task-html-v2.js";
+} from "./views/task-tree.js";
 
 import { loopbackOnly } from "./middleware/loopback-only.js";
 import { DashboardWebSocketServer } from "./websocket/dashboard-ws.js";

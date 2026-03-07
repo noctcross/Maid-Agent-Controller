@@ -29,7 +29,7 @@ import { generateDashboardHtml, generateTeamStatusHtml } from "./views/dashboard
 import { generateTopPageHtml } from "./views/top-page-html.js";
 import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js";
 // V2.1 ビュー
-import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateStatsHtml, } from "./views/task-html-v2.js";
+import { generateTaskTreeHtml, generateReviewQueueHtml, generateArtifactsHtml, generateStatsHtml, } from "./views/task-tree.js";
 import { loopbackOnly } from "./middleware/loopback-only.js";
 import { DashboardWebSocketServer } from "./websocket/dashboard-ws.js";
 import { NotificationWebSocketServer } from "./websocket/notification-ws.js";

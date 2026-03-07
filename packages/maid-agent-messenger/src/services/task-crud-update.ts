@@ -17,7 +17,7 @@ import type {
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { withTasksLock } from "./task-core.js";
 import { logger } from "../utils/logger.js";
-import { getAgentRole, validateStatusTransition } from "./task-v2-migration.js";
+import { getAgentRole, validateStatusTransition } from "./task-migration.js";
 import { checkAndAutoCloseParent, resolveBlockedTasks } from "./task-auto-close.js";
 
 // === Update操作 ===

@@ -10,7 +10,7 @@ import type {
   TaskType,
 } from "../types/task-manager-types.js";
 import { loadTasksReadOnly } from "./task-core.js";
-import { inferTaskType, convertStatus } from "./task-v2-migration.js";
+import { inferTaskType, convertStatus } from "./task-migration.js";
 import { logger } from "../utils/logger.js";
 
 /**

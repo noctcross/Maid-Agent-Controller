@@ -5,7 +5,7 @@
  * task-manager.ts から責務分割のため分離。
  */
 import { loadTasksReadOnly } from "./task-core.js";
-import { inferTaskType, convertStatus } from "./task-v2-migration.js";
+import { inferTaskType, convertStatus } from "./task-migration.js";
 import { logger } from "../utils/logger.js";
 /**
  * V2.1: Goal階層連動 - 子Phaseの状態から親Goalの表示ステータスを計算

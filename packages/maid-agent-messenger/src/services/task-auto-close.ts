@@ -12,7 +12,7 @@ import type {
 } from "../types/task-manager-types.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { withTasksLock, loadTasksReadOnly } from "./task-core.js";
-import { inferTaskType, convertStatus } from "./task-v2-migration.js";
+import { inferTaskType, convertStatus } from "./task-migration.js";
 
 // =============================================================================
 // V2.1: 依存解消自動通知機能

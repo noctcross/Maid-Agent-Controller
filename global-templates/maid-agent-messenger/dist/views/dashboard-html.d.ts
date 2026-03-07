@@ -8,7 +8,7 @@
  * - dashboard-template.ts: HTMLボディテンプレート
  */
 import type { AgentStatus } from "../types/index.js";
-import { type Task, type ReviewTask, type Artifact, type Stats } from "./task-html-v2.js";
+import { type Task, type ReviewTask, type Artifact, type Stats } from "./task-tree.js";
 /**
  * V2チーム状態セクションのHTML生成
  * 各メイドの現在の状態をカード形式で表示

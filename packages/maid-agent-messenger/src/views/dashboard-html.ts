@@ -33,7 +33,7 @@ import {
   type ReviewTask,
   type Artifact,
   type Stats,
-} from "./task-html-v2.js";
+} from "./task-tree.js";
 
 // メイド名マッピング（日本語表示用）
 const MAID_DISPLAY_NAMES: Record<string, string> = {

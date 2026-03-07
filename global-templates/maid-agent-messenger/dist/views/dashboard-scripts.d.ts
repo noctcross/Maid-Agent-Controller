@@ -1,10 +1,16 @@
 /**
- * Dashboard JavaScript コード生成 - エントリポイント
+ * Dashboard JavaScript コード生成
  *
- * dashboard-html.ts から抽出したJavaScriptコードを生成する関数群。
- * CSP制約のためインラインスクリプトとして埋め込む必要がある。
+ * ダッシュボード用のスクリプト
+ * Goal展開/折りたたみ、ページネーション、フィルター機能
  *
  * @module dashboard-scripts
  */
 export { type DashboardScriptParams, getDashboardHeadScript, getReportOverlayScript, } from "./dashboard-scripts-common.js";
-export { getDashboardScript } from "./dashboard-scripts-v2.js";
+/**
+ * V2.1 Dashboard用スクリプトを生成
+ * Goal展開/折りたたみ機能を提供
+ *
+ * @returns `<script>` タグを含むHTMLスクリプト文字列
+ */
+export declare function getDashboardScript(): string;

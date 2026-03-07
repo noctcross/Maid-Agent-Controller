@@ -7,7 +7,7 @@
  * 責務分割:
  * - task-core.ts: 共通ユーティリティ（withTasksLock, loadTasksReadOnly）
  * - task-crud.ts: CRUD操作（create, get, list, update）
- * - task-v2-migration.ts: V2.1ステータス関連・マイグレーション
+ * - task-migration.ts: V2.1ステータス関連・マイグレーション
  * - task-stats.ts: ダッシュボードデータ生成・統計処理
  * - task-auto-close.ts: 自動クローズ・依存解消処理
  * - task-manager.ts（本ファイル）: エントリポイント（全モジュールをre-export）
@@ -72,10 +72,10 @@ export {
   migrateTask,
   migrate,
   checkMigrationStatus,
-} from "./task-v2-migration.js";
+} from "./task-migration.js";
 export type {
   MigrationResult,
-} from "./task-v2-migration.js";
+} from "./task-migration.js";
 
 // 統計・ダッシュボード
 export {

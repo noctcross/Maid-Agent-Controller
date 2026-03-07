@@ -19,7 +19,7 @@ import {
   type ReviewTask,
   type Artifact,
   type Stats,
-} from "../../views/task-html-v2.js";
+} from "../../views/task-tree.js";
 
 // === テストデータ ===
 

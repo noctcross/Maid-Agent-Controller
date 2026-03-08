@@ -177,9 +177,9 @@ export async function updateDashboard(ctx: DataFetcherContext): Promise<DataFetc
         if (!ctx.dashboardInitialized) {
             await initializeDashboard(ctx, serverUrl, normalizedPath);
             state.dashboardInitialized = true;
-        } else {
-            await updateDashboardData(ctx, serverUrl, normalizedPath);
         }
+        // SPA版は初期化後はWebview内で直接API/WebSocket通信するため、
+        // 拡張機能側からの更新は不要
         state.dashboardConsecutiveFailures = 0;
     } catch (error) {
         state.dashboardConsecutiveFailures = (ctx.dashboardConsecutiveFailures || 0) + 1;
@@ -207,7 +207,10 @@ export async function updateDashboard(ctx: DataFetcherContext): Promise<DataFetc
 }
 
 /**
- * ダッシュボードを初期化（初回HTML設定）
+ * ダッシュボードを初期化（SPA版HTML設定）
+ *
+ * SPA版はWebview内で直接API/WebSocket通信するため、
+ * CSPメタタグを追加して許可する
  */
 export async function initializeDashboard(
     ctx: DataFetcherContext,
@@ -216,7 +219,8 @@ export async function initializeDashboard(
 ): Promise<void> {
     if (!ctx.dashboardPanel) return;
 
-    const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(projectPath)}`;
+    // SPA版エンドポイントからHTMLを取得
+    const dashboardUrl = `${serverUrl}/dashboard-spa?project=${encodeURIComponent(projectPath)}`;
     const response = await fetch(dashboardUrl);
 
     if (!response.ok) {
@@ -225,17 +229,13 @@ export async function initializeDashboard(
 
     let html = await response.text();
 
-    const messageListenerScript = generateMessageListenerScript();
-    html = html.replace('</body>', messageListenerScript + '</body>');
+    // VSCode Webview用のCSPメタタグを挿入
+    // SPA版は直接fetch/WebSocket通信するため、connect-srcで許可が必要
+    const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src http://localhost:* ws://localhost:*; img-src https: data:; font-src https: data:;">`;
+    html = html.replace('<head>', `<head>\n    ${cspMeta}`);
 
     ctx.dashboardPanel.webview.html = html;
-    ctx.log('[Dashboard] 初回HTML設定完了（postMessageリスナー追加済み）');
-
-    // 非同期処理中にパネルが閉じられる可能性があるため、存在確認後に実行
-    const panelRef = ctx.dashboardPanel;
-    refreshDashboardData(ctx, panelRef).catch((err) => {
-        ctx.log(`[Dashboard] 初回V2 Goalsデータ取得エラー: ${err}`);
-    });
+    ctx.log('[Dashboard] SPA版HTML設定完了（CSP追加済み）');
 }
 
 /**

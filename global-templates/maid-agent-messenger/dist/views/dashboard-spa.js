@@ -153,6 +153,11 @@ ${styles}
     .goal-item {
       margin-bottom: 4px;
     }
+    /* アーカイブ済みタスクの背景色 */
+    .goal-item[data-archived="true"] .goal-header {
+      background: rgba(100, 100, 100, 0.3) !important;
+      opacity: 0.6;
+    }
     .goal-header {
       display: flex;
       align-items: center;
@@ -625,7 +630,8 @@ ${styles}
       // ========================================
       function fetchApi(endpoint, options) {
         options = options || {};
-        var url = endpoint;
+        // VSCode Webview対応: serverUrlを使って絶対URLを構築
+        var url = serverUrl + endpoint;
         if (url.indexOf('?') === -1) {
           url += '?project=' + encodeURIComponent(projectPath);
         } else {
@@ -997,7 +1003,7 @@ ${styles}
 
         // 報告書リンク
         var reportLinkClass = goal.hasReport ? 'report-link' : 'report-link report-link-empty';
-        var reportLink = '<a href="/report?task=' + encodeURIComponent(id) + '&project=' + encodeURIComponent(projectPath) + '" class="' + reportLinkClass + '" title="統合サマリーを開く" onclick="event.stopPropagation()">📄</a>';
+        var reportLink = '<span class="' + reportLinkClass + '" title="統合サマリーを開く" onclick="event.stopPropagation();openReport(\\'' + escapeHtml(id) + '\\')">📄</span>';
 
         // タスク詳細データ
         var taskInfoBase64 = encodeTaskInfo({
@@ -1025,9 +1031,9 @@ ${styles}
         var isCompleted = effectiveSubstatus === 'completed';
         var archiveHtml;
         if (isArchived) {
-          archiveHtml = '<button class="archive-btn archived-badge" data-task-id="' + escapeHtml(id) + '" title="アーカイブ済み（クリックで解除）" onclick="event.stopPropagation();toggleArchive(\\'' + escapeHtml(id) + '\\')">📦</button>';
+          archiveHtml = '<button class="archive-btn archived-badge" data-task-id="' + escapeHtml(id) + '" title="アーカイブ済み（クリックで解除）" onclick="event.stopPropagation();toggleArchive(\\'' + escapeHtml(id) + '\\', true)">📦</button>';
         } else if (isCompleted) {
-          archiveHtml = '<button class="archive-btn" data-task-id="' + escapeHtml(id) + '" title="アーカイブする" onclick="event.stopPropagation();toggleArchive(\\'' + escapeHtml(id) + '\\')">📦</button>';
+          archiveHtml = '<button class="archive-btn" data-task-id="' + escapeHtml(id) + '" title="アーカイブする" onclick="event.stopPropagation();toggleArchive(\\'' + escapeHtml(id) + '\\', false)">📦</button>';
         } else {
           archiveHtml = '<button class="archive-btn archive-btn-disabled" disabled title="完了後にアーカイブ可能" onclick="event.stopPropagation()">📦</button>';
         }
@@ -1082,7 +1088,7 @@ ${styles}
 
         // 報告書リンク
         var reportLinkClass = work.hasReport ? 'report-link' : 'report-link report-link-empty';
-        var reportLink = '<a href="/report?task=' + encodeURIComponent(id) + '&project=' + encodeURIComponent(projectPath) + '" class="' + reportLinkClass + '" title="Work報告書を開く" onclick="event.stopPropagation()">📄</a>';
+        var reportLink = '<span class="' + reportLinkClass + '" title="Work報告書を開く" onclick="event.stopPropagation();openReport(\\'' + escapeHtml(id) + '\\')">📄</span>';
 
         // タスク詳細データ
         var taskInfoBase64 = encodeTaskInfo({
@@ -1140,7 +1146,7 @@ ${styles}
 
         // 報告書リンク
         var reportLinkClass = step.hasReport ? 'report-link' : 'report-link report-link-empty';
-        var reportLink = '<a href="/report?task=' + encodeURIComponent(id) + '&project=' + encodeURIComponent(projectPath) + '" class="' + reportLinkClass + '" title="Step報告書を開く" onclick="event.stopPropagation()">📄</a>';
+        var reportLink = '<span class="' + reportLinkClass + '" title="Step報告書を開く" onclick="event.stopPropagation();openReport(\\'' + escapeHtml(id) + '\\')">📄</span>';
 
         // タスク詳細データ
         var taskInfoBase64 = encodeTaskInfo({
@@ -1388,11 +1394,11 @@ ${styles}
       // ========================================
       // タスク操作
       // ========================================
-      window.toggleArchive = function(taskId) {
+      window.toggleArchive = function(taskId, currentlyArchived) {
         fetchApi('/api/tasks/' + encodeURIComponent(taskId), {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ archived: true })
+          body: JSON.stringify({ archived: !currentlyArchived })
         }).then(function() {
           refreshDashboard();
         }).catch(function(err) {
@@ -1506,7 +1512,7 @@ ${styles}
 
             document.getElementById('reportTitle').textContent = '報告書 - #' + taskId.replace('task-', '');
             document.getElementById('reportContent').innerHTML = html;
-            document.getElementById('reportOverlay').classList.add('show');
+            document.getElementById('reportOverlay').classList.add('visible');
             closeTaskDetail();
           })
           .catch(function(err) {
@@ -1515,15 +1521,80 @@ ${styles}
       };
 
       window.closeReportOverlay = function() {
-        document.getElementById('reportOverlay').classList.remove('show');
+        document.getElementById('reportOverlay').classList.remove('visible');
       };
 
       // ========================================
       // ファイルを開く
       // ========================================
-      window.openFile = function(path) {
-        window.open('/file?path=' + encodeURIComponent(path) + '&project=' + encodeURIComponent(projectPath), '_blank');
+      window.openFile = function(filePath) {
+        console.log('[SPA] openFile called with:', filePath);
+        // VSCode Webview環境ではファイル内容をオーバーレイに表示
+        if (isVSCodeWebview) {
+          var apiUrl = '/api/files/content?path=' + encodeURIComponent(filePath);
+          console.log('[SPA] Fetching:', serverUrl + apiUrl);
+          fetchApi(apiUrl)
+            .then(function(data) {
+              if (data.error) {
+                console.error('[SPA] Failed to open file:', data.error);
+                document.getElementById('reportTitle').textContent = 'エラー';
+                document.getElementById('reportContent').innerHTML = '<div style="color: #f44336; padding: 20px;">ファイルを開けませんでした: ' + escapeHtml(data.error) + '</div>';
+                document.getElementById('reportOverlay').classList.add('visible');
+                return;
+              }
+              var html = data.htmlContent || '<pre>' + escapeHtml(data.content || '') + '</pre>';
+              document.getElementById('reportTitle').textContent = filePath.split('/').pop() || filePath;
+              document.getElementById('reportContent').innerHTML = html;
+              document.getElementById('reportOverlay').classList.add('visible');
+            })
+            .catch(function(err) {
+              console.error('[SPA] Failed to open file:', err.message);
+              document.getElementById('reportTitle').textContent = 'エラー';
+              document.getElementById('reportContent').innerHTML = '<div style="color: #f44336; padding: 20px;">ファイルを開けませんでした: ' + escapeHtml(err.message) + '</div>';
+              document.getElementById('reportOverlay').classList.add('visible');
+            });
+        } else {
+          window.open(serverUrl + '/file?path=' + encodeURIComponent(filePath) + '&project=' + encodeURIComponent(projectPath), '_blank');
+        }
       };
+
+      // 報告書オーバーレイ内のリンククリックをインターセプト
+      var reportOverlay = document.getElementById('reportOverlay');
+      reportOverlay.addEventListener('click', function(e) {
+        var target = e.target;
+        while (target && target !== this) {
+          if (target.tagName === 'A') {
+            e.preventDefault();
+            // data-path属性があればそれを使用（ファイルリンク）
+            var dataPath = target.getAttribute('data-path');
+            var href = target.getAttribute('href');
+
+            if (dataPath) {
+              // ファイルパスが直接指定されている場合
+              openFile(dataPath);
+            } else if (href && href.startsWith('/file?')) {
+              // /file?path=...形式の場合、pathパラメータを抽出
+              var match = href.match(/path=([^&]+)/);
+              if (match) {
+                var filePath = decodeURIComponent(match[1]);
+                openFile(filePath);
+              }
+            } else if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('vscode-webview://')) {
+              // 相対パスの場合
+              openFile(href.replace(/^\\.\\//g, ''));
+            } else if (href && href.startsWith('http')) {
+              // 外部URLの場合
+              if (isVSCodeWebview) {
+                console.log('[SPA] External link (not supported in Webview):', href);
+              } else {
+                window.open(href, '_blank');
+              }
+            }
+            return;
+          }
+          target = target.parentElement;
+        }
+      });
 
       // ========================================
       // WebSocket

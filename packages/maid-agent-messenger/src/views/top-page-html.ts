@@ -1,10 +1,9 @@
 /**
  * トップページ（プロジェクト一覧）HTML生成
+ * SPA対応: 静的HTMLシェル + クライアントJSでAPI呼び出し
  */
 
 import type { ProjectEntry } from "../services/project-registry.js";
-import { escapeHtml } from "../markdown-utils.js";
-import { formatRelativeTime } from "../utils/yaml-helper.js";
 import { COLORS } from "./shared-styles.js";
 
 export interface ProjectWithStats extends ProjectEntry {
@@ -16,61 +15,9 @@ export interface ProjectWithStats extends ProjectEntry {
   status: "available" | "unavailable";
 }
 
-/**
- * パスを省略表示
- */
-function truncatePath(path: string, maxLength: number = 40): string {
-  if (path.length <= maxLength) return path;
-  const parts = path.split("/");
-  if (parts.length <= 3) return path;
-  return `.../${parts.slice(-2).join("/")}`;
-}
-
-export function generateTopPageHtml(projects: ProjectWithStats[]): string {
-  const projectCards = projects
-    .map((project) => {
-      const displayName = project.displayName || project.name;
-      const statusClass = project.status === "available" ? "" : "unavailable";
-      const pinnedIcon = project.pinned ? '<span class="pin-icon">📌</span>' : "";
-
-      let statsHtml = "";
-      if (project.status === "available" && project.stats) {
-        statsHtml = `
-          <div class="card-stats">
-            <span class="stat pending">待機 ${project.stats.pendingCount}</span>
-            <span class="stat working">進行 ${project.stats.workingCount}</span>
-            <span class="stat completed">完了 ${project.stats.completedTodayCount}</span>
-          </div>`;
-      } else if (project.status === "unavailable") {
-        statsHtml = '<div class="card-stats"><span class="stat unavailable">利用不可</span></div>';
-      }
-
-      const encodedPath = encodeURIComponent(project.path);
-
-      return `
-        <div class="project-card ${statusClass}" data-path="${escapeHtml(project.path)}">
-          <div class="card-header">
-            ${pinnedIcon}
-            <h2 class="card-name">${escapeHtml(displayName)}</h2>
-            <button class="card-menu" onclick="event.stopPropagation(); toggleMenu(this)">⋮</button>
-            <div class="dropdown-menu">
-              <button onclick="event.stopPropagation(); togglePin('${encodedPath}')">${project.pinned ? "📌 ピン解除" : "📌 ピン留め"}</button>
-              <button onclick="event.stopPropagation(); toggleHide('${encodedPath}')">🙈 非表示</button>
-            </div>
-          </div>
-          <div class="card-path" title="${escapeHtml(project.path)}">${escapeHtml(truncatePath(project.path))}</div>
-          ${statsHtml}
-          <div class="card-footer">最終アクセス: ${formatRelativeTime(project.lastAccessedAt)}</div>
-          <div class="card-click-area" onclick="navigateToProject('${encodedPath}')"></div>
-        </div>`;
-    })
-    .join("\n");
-
-  const addProjectCard = `
-    <div class="project-card add-card" onclick="showAddModal()">
-      <div class="add-icon">＋</div>
-      <div class="add-text">プロジェクトを追加</div>
-    </div>`;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- SPA化により引数は使用しない（後方互換のため維持）
+export function generateTopPageHtml(_projects: ProjectWithStats[]): string {
+  // SPA: 静的HTMLシェルを返す（プロジェクト一覧はクライアントJSで取得・レンダリング）
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -132,6 +79,18 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
       display: flex;
       flex-direction: column;
       gap: 16px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-secondary);
+    }
+
+    .error {
+      text-align: center;
+      padding: 40px;
+      color: #ef5350;
     }
 
     .project-card {
@@ -373,9 +332,8 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
   </header>
 
   <main>
-    <div class="project-list">
-      ${projectCards}
-      ${addProjectCard}
+    <div class="project-list" id="project-list">
+      <div class="loading">📂 プロジェクトを読み込み中...</div>
     </div>
   </main>
 
@@ -393,19 +351,128 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
   </div>
 
   <script>
+    // HTML エスケープ関数
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // パスを省略表示
+    function truncatePath(path, maxLength) {
+      maxLength = maxLength || 40;
+      if (path.length <= maxLength) return path;
+      var parts = path.split('/');
+      if (parts.length <= 3) return path;
+      return '.../' + parts.slice(-2).join('/');
+    }
+
+    // 相対時間フォーマット
+    function formatRelativeTime(dateStr) {
+      if (!dateStr) return '不明';
+      var date = new Date(dateStr);
+      var now = new Date();
+      var diffMs = now - date;
+      var diffMin = Math.floor(diffMs / 60000);
+      var diffHour = Math.floor(diffMs / 3600000);
+      var diffDay = Math.floor(diffMs / 86400000);
+
+      if (diffMin < 1) return 'たった今';
+      if (diffMin < 60) return diffMin + '分前';
+      if (diffHour < 24) return diffHour + '時間前';
+      if (diffDay < 7) return diffDay + '日前';
+      return date.toLocaleDateString('ja-JP');
+    }
+
+    // プロジェクトカードのHTMLを生成
+    function renderProjectCard(project) {
+      var displayName = project.displayName || project.name;
+      var statusClass = project.status === 'available' ? '' : 'unavailable';
+      var pinnedIcon = project.pinned ? '<span class="pin-icon">📌</span>' : '';
+
+      var statsHtml = '';
+      if (project.status === 'available' && project.stats) {
+        statsHtml = '<div class="card-stats">' +
+          '<span class="stat pending">待機 ' + project.stats.pendingCount + '</span>' +
+          '<span class="stat working">進行 ' + project.stats.workingCount + '</span>' +
+          '<span class="stat completed">完了 ' + project.stats.completedTodayCount + '</span>' +
+          '</div>';
+      } else if (project.status === 'unavailable') {
+        statsHtml = '<div class="card-stats"><span class="stat unavailable">利用不可</span></div>';
+      }
+
+      var encodedPath = encodeURIComponent(project.path);
+      var pinLabel = project.pinned ? '📌 ピン解除' : '📌 ピン留め';
+
+      return '<div class="project-card ' + statusClass + '" data-path="' + escapeHtml(project.path) + '">' +
+        '<div class="card-header">' +
+        pinnedIcon +
+        '<h2 class="card-name">' + escapeHtml(displayName) + '</h2>' +
+        '<button class="card-menu" onclick="event.stopPropagation(); toggleMenu(this)">⋮</button>' +
+        '<div class="dropdown-menu">' +
+        '<button onclick="event.stopPropagation(); togglePin(\\'' + encodedPath + '\\')">' + pinLabel + '</button>' +
+        '<button onclick="event.stopPropagation(); toggleHide(\\'' + encodedPath + '\\')">🙈 非表示</button>' +
+        '</div>' +
+        '</div>' +
+        '<div class="card-path" title="' + escapeHtml(project.path) + '">' + escapeHtml(truncatePath(project.path)) + '</div>' +
+        statsHtml +
+        '<div class="card-footer">最終アクセス: ' + formatRelativeTime(project.lastAccessedAt) + '</div>' +
+        '<div class="card-click-area" onclick="navigateToProject(\\'' + encodedPath + '\\')"></div>' +
+        '</div>';
+    }
+
+    // プロジェクト追加カードのHTML
+    var addProjectCardHtml = '<div class="project-card add-card" onclick="showAddModal()">' +
+      '<div class="add-icon">＋</div>' +
+      '<div class="add-text">プロジェクトを追加</div>' +
+      '</div>';
+
+    // APIからプロジェクト一覧を取得してレンダリング
+    function loadProjects() {
+      fetch('/api/projects')
+        .then(function(response) {
+          if (!response.ok) {
+            return response.json().then(function(data) {
+              throw new Error(data.error || 'プロジェクト一覧の取得に失敗しました');
+            });
+          }
+          return response.json();
+        })
+        .then(function(data) {
+          var listEl = document.getElementById('project-list');
+          if (!data.projects || data.projects.length === 0) {
+            listEl.innerHTML = addProjectCardHtml;
+            return;
+          }
+
+          var html = data.projects.map(renderProjectCard).join('\\n') + addProjectCardHtml;
+          listEl.innerHTML = html;
+        })
+        .catch(function(error) {
+          document.getElementById('project-list').innerHTML =
+            '<div class="error">' + escapeHtml(error.message) + '</div>' + addProjectCardHtml;
+        });
+    }
+
     // ドロップダウンメニュー
     function toggleMenu(btn) {
-      const menu = btn.nextElementSibling;
+      var menu = btn.nextElementSibling;
       // 他のメニューを閉じる
-      document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+      document.querySelectorAll('.dropdown-menu.show').forEach(function(m) {
         if (m !== menu) m.classList.remove('show');
       });
       menu.classList.toggle('show');
     }
 
     // ページクリックでメニューを閉じる
-    document.addEventListener('click', () => {
-      document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
+    document.addEventListener('click', function() {
+      document.querySelectorAll('.dropdown-menu.show').forEach(function(m) {
+        m.classList.remove('show');
+      });
     });
 
     // プロジェクトへ遷移
@@ -414,34 +481,36 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
     }
 
     // ピン留めトグル
-    async function togglePin(encodedPath) {
-      try {
-        const res = await fetch('/api/projects/' + encodedPath + '/pin', { method: 'PATCH' });
-        if (res.ok) {
-          window.location.reload();
-        } else {
-          alert('ピン留めの変更に失敗しました');
-        }
-      } catch (e) {
-        console.error('[togglePin] エラー:', e);
-        alert('エラーが発生しました: ' + (e.message || e));
-      }
+    function togglePin(encodedPath) {
+      fetch('/api/projects/' + encodedPath + '/pin', { method: 'PATCH' })
+        .then(function(res) {
+          if (res.ok) {
+            loadProjects();  // リロードではなくAPI再取得
+          } else {
+            alert('ピン留めの変更に失敗しました');
+          }
+        })
+        .catch(function(e) {
+          console.error('[togglePin] エラー:', e);
+          alert('エラーが発生しました: ' + (e.message || e));
+        });
     }
 
     // 非表示トグル
-    async function toggleHide(encodedPath) {
+    function toggleHide(encodedPath) {
       if (!confirm('このプロジェクトを非表示にしますか？')) return;
-      try {
-        const res = await fetch('/api/projects/' + encodedPath + '/hide', { method: 'PATCH' });
-        if (res.ok) {
-          window.location.reload();
-        } else {
-          alert('非表示の変更に失敗しました');
-        }
-      } catch (e) {
-        console.error('[toggleHide] エラー:', e);
-        alert('エラーが発生しました: ' + (e.message || e));
-      }
+      fetch('/api/projects/' + encodedPath + '/hide', { method: 'PATCH' })
+        .then(function(res) {
+          if (res.ok) {
+            loadProjects();  // リロードではなくAPI再取得
+          } else {
+            alert('非表示の変更に失敗しました');
+          }
+        })
+        .catch(function(e) {
+          console.error('[toggleHide] エラー:', e);
+          alert('エラーが発生しました: ' + (e.message || e));
+        });
     }
 
     // モーダル表示
@@ -457,7 +526,7 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
 
     // プロジェクト追加（ダッシュボードに遷移して自動登録）
     function addProject() {
-      const path = document.getElementById('projectPathInput').value.trim();
+      var path = document.getElementById('projectPathInput').value.trim();
       if (!path) {
         alert('プロジェクトパスを入力してください');
         return;
@@ -466,14 +535,17 @@ export function generateTopPageHtml(projects: ProjectWithStats[]): string {
     }
 
     // モーダル外クリックで閉じる
-    document.getElementById('addModal').addEventListener('click', (e) => {
+    document.getElementById('addModal').addEventListener('click', function(e) {
       if (e.target.id === 'addModal') hideAddModal();
     });
 
     // Escキーでモーダルを閉じる
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') hideAddModal();
     });
+
+    // ページ読み込み時にプロジェクト一覧を取得
+    loadProjects();
   </script>
 </body>
 </html>`;

@@ -22,6 +22,8 @@ import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
+import { convertMarkdownToHtml, linkifyProjectPaths } from "../markdown-utils.js";
+import { extractAgentIdFromPath } from "../utils/agent-image.js";
 
 export interface TaskApiRoutesDeps {
   wsServer?: DashboardWebSocketServer;
@@ -192,7 +194,24 @@ router.get("/api/tasks/:id/report", async (req: Request, res: Response) => {
       return;
     }
 
-    res.json(result);
+    // レポートにhtmlContentとagentIdを追加
+    const reportsWithHtml = result.reports.map((report) => {
+      if (report.error || !report.content) {
+        return report;
+      }
+      // Markdown → HTML変換、パスリンク化
+      const rawHtml = convertMarkdownToHtml(report.content);
+      const htmlContent = linkifyProjectPaths(rawHtml, projectPath);
+      // エージェントID抽出
+      const agentId = report.path ? extractAgentIdFromPath(report.path) : null;
+      return { ...report, htmlContent, agentId };
+    });
+
+    // 最初のレポートのagentIdを全体に含める
+    const firstReport = reportsWithHtml.find(r => "agentId" in r && r.agentId);
+    const agentId = (firstReport && "agentId" in firstReport) ? firstReport.agentId : null;
+
+    res.json({ ...result, reports: reportsWithHtml, agentId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     res.status(500).json({ error: "Report retrieval failed", details: message });

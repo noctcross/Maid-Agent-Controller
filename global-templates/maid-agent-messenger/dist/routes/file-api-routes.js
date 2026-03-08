@@ -6,7 +6,8 @@
 import { Router } from "express";
 import path from "path";
 import * as fs from "fs/promises";
-import { convertMarkdownToHtml } from "../markdown-utils.js";
+import { convertMarkdownToHtml, linkifyProjectPaths } from "../markdown-utils.js";
+import { extractAgentIdFromPath } from "../utils/agent-image.js";
 import { logger } from "../utils/logger.js";
 const router = Router();
 /** 許可する拡張子（セキュリティ対策） */
@@ -216,14 +217,24 @@ router.get("/api/files/content", async (req, res) => {
         // ファイル読み込み
         const content = await fs.readFile(validation.resolvedPath, "utf-8");
         const isMarkdown = /\.(md|markdown)$/i.test(fileName);
+        // Markdown → HTML変換（パスリンク化適用）
+        let htmlContent;
+        if (isMarkdown) {
+            const rawHtml = convertMarkdownToHtml(content);
+            htmlContent = linkifyProjectPaths(rawHtml, projectPath);
+        }
+        // エージェントID抽出（背景イラスト用）
+        const agentId = extractAgentIdFromPath(validation.resolvedPath);
         res.json({
             path: path.relative(projectPath, validation.resolvedPath),
+            absolutePath: validation.resolvedPath,
             name: fileName,
             content,
             size: stats.size,
             modifiedAt: stats.mtime.toISOString(),
             isMarkdown,
-            htmlContent: isMarkdown ? convertMarkdownToHtml(content) : undefined,
+            htmlContent,
+            agentId,
         });
     }
     catch (error) {

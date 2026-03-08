@@ -251,17 +251,17 @@ describe("GET /api/tasks/:id/report", () => {
   it("レポートを返す", async () => {
     mockExecuteGetReport.mockResolvedValue({
       success: true,
-      entries: [{ content: "Report content", timestamp: "2026-02-09" }],
+      reports: [{ path: "reports/test.md", content: "Report content" }],
     });
 
     const res = await supertest(app).get("/api/tasks/095/report").expect(200);
 
     expect(res.body.success).toBe(true);
-    expect(res.body.entries).toHaveLength(1);
+    expect(res.body.reports).toHaveLength(1);
   });
 
   it("limit指定を正しくパースする", async () => {
-    mockExecuteGetReport.mockResolvedValue({ success: true, entries: [] });
+    mockExecuteGetReport.mockResolvedValue({ success: true, reports: [] });
 
     await supertest(app).get("/api/tasks/095/report?limit=5").expect(200);
 

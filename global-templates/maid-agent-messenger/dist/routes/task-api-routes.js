@@ -9,6 +9,8 @@ migrate, checkMigrationStatus, } from "../services/index.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
+import { convertMarkdownToHtml, linkifyProjectPaths } from "../markdown-utils.js";
+import { extractAgentIdFromPath } from "../utils/agent-image.js";
 export function createTaskApiRoutes(deps = {}) {
     const { wsServer } = deps;
     const router = Router();
@@ -148,7 +150,22 @@ export function createTaskApiRoutes(deps = {}) {
                 res.status(404).json({ error: result.message, taskId: req.params.id });
                 return;
             }
-            res.json(result);
+            // レポートにhtmlContentとagentIdを追加
+            const reportsWithHtml = result.reports.map((report) => {
+                if (report.error || !report.content) {
+                    return report;
+                }
+                // Markdown → HTML変換、パスリンク化
+                const rawHtml = convertMarkdownToHtml(report.content);
+                const htmlContent = linkifyProjectPaths(rawHtml, projectPath);
+                // エージェントID抽出
+                const agentId = report.path ? extractAgentIdFromPath(report.path) : null;
+                return { ...report, htmlContent, agentId };
+            });
+            // 最初のレポートのagentIdを全体に含める
+            const firstReport = reportsWithHtml.find(r => "agentId" in r && r.agentId);
+            const agentId = (firstReport && "agentId" in firstReport) ? firstReport.agentId : null;
+            res.json({ ...result, reports: reportsWithHtml, agentId });
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";

@@ -1,6 +1,6 @@
 /**
  * ダッシュボードエンドポイント
- * GET /dashboard, /dashboard/completed, /dashboard/data
+ * GET /dashboard, /dashboard/completed, /dashboard-spa
  */
 
 import { Router, Request, Response } from "express";
@@ -11,14 +11,14 @@ import {
   executeListTasks,
   executeGetTeamStatus,
   executeUpdateTask,
-  executeGetReport,
   generateDashboardData,
   type Task,
 } from "../services/index.js";
-import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
-import { extractAgentIdFromPath, generateAgentBackgroundSnippet } from "../utils/agent-image.js";
+import { escapeHtml } from "../markdown-utils.js";
+import { extractAgentIdFromPath } from "../utils/agent-image.js";
 import { getQueueMaidPath } from "../utils/path-helpers.js";
 import type { HtmlDashboardData } from "../views/dashboard-html.js";
+import { generateDashboardSpaHtml } from "../views/dashboard-spa.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
@@ -148,6 +148,38 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     }
   });
 
+  // GET /dashboard-spa - SPA版ダッシュボード（並行稼働用）
+  router.get("/dashboard-spa", async (req: Request, res: Response) => {
+    try {
+      // project未指定時 → トップページにリダイレクト
+      if (!req.query.project && !req.headers["x-maid-project-path"]) {
+        res.redirect("/");
+        return;
+      }
+
+      const projectPath = req.query.project
+        ? (req.query.project as string)
+        : getProjectPathFromRequest(req);
+
+      const config = await loadConfig();
+      const serverUrl = getServerUrl(config);
+
+      // SPA版HTMLシェルを生成
+      const html = generateDashboardSpaHtml(projectPath, serverUrl);
+
+      // アクセス記録（非同期、レスポンスをブロックしない）
+      recordProjectAccess(projectPath).catch((err) =>
+        logger.error("Failed to record project access", err instanceof Error ? err : { error: err })
+      );
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).send(`<html><body><h1>Error</h1><p>${message}</p></body></html>`);
+    }
+  });
+
   // GET /dashboard/completed - 完了タスクページネーション用
   router.get("/dashboard/completed", async (req: Request, res: Response) => {
     try {
@@ -194,155 +226,6 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({ error: message });
-    }
-  });
-
-  // GET /dashboard/data - JSON APIエンドポイント（VSCode Webview用）
-  router.get("/dashboard/data", async (req: Request, res: Response) => {
-    try {
-      const projectPath = req.query.project
-        ? decodeURIComponent(req.query.project as string)
-        : getProjectPathFromRequest(req);
-
-      // エディタスキームを取得
-      const config = await loadConfig();
-      const editorScheme = (req.query.editor as string) || config.dashboard.editor;
-
-      // クライアントの完了セクション表示設定を取得
-      const completedLimit = parseInt(req.query.completedLimit as string) || 10;
-      const completedOffset = parseInt(req.query.completedOffset as string) || 0;
-      const completedReviewedParam = req.query.completedReviewed as string | undefined;
-      const completedStarredParam = req.query.completedStarred as string | undefined;
-      const completedReviewed = completedReviewedParam === "yes" ? true : completedReviewedParam === "no" ? false : undefined;
-      const completedStarred = completedStarredParam === "yes" ? true : completedStarredParam === "no" ? false : undefined;
-      const clientCompletedHash = req.query.completedHash as string | undefined;
-      // 完了セクションのソート設定を取得
-      const completedSortField = (req.query.completedSortField as string) === "updatedAt" ? "updatedAt" : "id";
-      // テキスト検索パラメータ
-      const completedSearch = (req.query.completedSearch as string) || undefined;
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const ACTIVE_STATUSES: ("pending" | "assigned" | "working" | "blocked")[] = ["pending", "assigned", "working", "blocked"];
-
-      const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, v2Data, teamStatus] = await Promise.all([
-        executeListTasks(projectPath, { status: ["pending"] }),
-        executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
-        executeListTasks(projectPath, {
-          status: ["completed"],
-          limit: completedLimit,
-          offset: completedOffset,
-          reviewed: completedReviewed,
-          starred: completedStarred,
-          search: completedSearch,
-          sortField: completedSortField,
-          sortOrder: "desc",
-        }),
-        executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }),
-        executeListTasks(projectPath, { actionRequired: true, status: ACTIVE_STATUSES }),
-        executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
-        executeListTasks(projectPath, { category: ["skill_candidate"], status: ACTIVE_STATUSES }),
-        executeListTasks(projectPath, { category: ["improvement"], status: ACTIVE_STATUSES }),
-        generateDashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }),  // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
-        executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),  // チーム状態
-      ]);
-
-      const completedTodayCount = (completedAll.tasks as Task[]).filter((task) => {
-        if (!task.completedAt) return false;
-        const completedDate = new Date(task.completedAt);
-        return completedDate >= today;
-      }).length;
-
-      // 待機中から特殊カテゴリとactionRequiredを除外
-      const specialCategories = ["skill_candidate", "improvement"];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Task | TaskSummary のユニオン型対応
-      const filteredPendingTasks = pending.tasks.filter((t: any) => {
-        return (!t.category || !specialCategories.includes(t.category)) && !t.actionRequired;
-      });
-
-      // 完了セクションのHTML生成とハッシュ計算
-      const completedHtml = generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme);
-      const completedHash = createHash("md5").update(completedHtml).digest("hex").substring(0, 16);
-      const completedChanged = clientCompletedHash !== completedHash;
-
-      // WebSocketと同じ形式でHTML文字列を返す
-      const data = {
-        stats: {
-          pendingCount: filteredPendingTasks.length,
-          workingCount: working.total,
-          masterWaitingCount: masterWaiting.total + masterReview.total,
-          completedTodayCount,
-          timestamp: getJstTimestamp(),
-        },
-        tasks: {
-          pending: generateTaskHtml(filteredPendingTasks, "pending", projectPath),
-          working: generateTaskHtml(working.tasks, "working", projectPath),
-          completed: completedChanged ? completedHtml : undefined,
-          masterWaiting: composeMasterWaitingHtml(masterWaiting.tasks, masterReview.tasks, projectPath),
-          masterReview: "",
-          skillCandidates: generateTaskHtml(skillCandidates.tasks, "skill_candidate", projectPath),
-          improvements: generateTaskHtml(improvements.tasks, "improvement", projectPath),
-        },
-        completedMeta: {
-          changed: completedChanged,
-          hash: completedHash,
-          total: completed.total,
-        },
-        serverUrl: getServerUrl(config),
-        // V2.1 データ
-        v2: v2Data,
-        // V2.1 HTML（関数が提供されている場合）
-        v2Html: {
-          goals: generateTaskTreeHtml ? generateTaskTreeHtml(v2Data.v2Goals, projectPath) : undefined,
-          reviewQueue: generateReviewQueueHtml ? generateReviewQueueHtml(v2Data.v2ReviewQueue, projectPath) : undefined,
-          artifacts: generateArtifactsHtml ? generateArtifactsHtml(v2Data.v2Artifacts, projectPath) : undefined,
-          stats: generateStatsHtml ? generateStatsHtml(v2Data.v2Stats) : undefined,
-        },
-        // チーム状態HTML
-        teamStatusHtml: generateTeamStatusHtml ? generateTeamStatusHtml(teamStatus.agents) : undefined,
-      };
-
-      res.setHeader("Content-Type", "application/json");
-      res.json(data);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ error: message });
-    }
-  });
-
-  // PATCH /dashboard/tasks/:id/review - レビュー済みトグル（LAN公開）
-  router.patch("/dashboard/tasks/:id/review", async (req: Request, res: Response) => {
-    try {
-      const projectPath = getProjectPathFromRequest(req);
-      const txId = req.get("X-Transaction-Id");
-      const { reviewed } = req.body;
-
-      const result = await executeUpdateTask(projectPath, {
-        taskId: req.params.id,
-        reviewed: reviewed !== undefined ? reviewed : true,
-      });
-
-      if (!result.success) {
-        res.status(404).json({ error: "Task not found", taskId: req.params.id });
-        return;
-      }
-
-      // WebSocket通知: タスク更新をリアルタイム配信（即座にbroadcast）
-      if (wsServer) {
-        wsServer.broadcast(projectPath, {
-          type: "taskUpdated",
-          taskId: req.params.id,
-          field: "reviewed",
-          value: result.task?.reviewed,
-          txId,
-        });
-      }
-
-      res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ error: "Review toggle failed", details: message });
     }
   });
 
@@ -403,41 +286,6 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({ error: message });
-    }
-  });
-
-  // PATCH /dashboard/tasks/:id/star - スタートグル（LAN公開）
-  router.patch("/dashboard/tasks/:id/star", async (req: Request, res: Response) => {
-    try {
-      const projectPath = getProjectPathFromRequest(req);
-      const txId = req.get("X-Transaction-Id");
-      const { starred } = req.body;
-
-      const result = await executeUpdateTask(projectPath, {
-        taskId: req.params.id,
-        starred: starred !== undefined ? starred : true,
-      });
-
-      if (!result.success) {
-        res.status(404).json({ error: "Task not found", taskId: req.params.id });
-        return;
-      }
-
-      // WebSocket通知: タスク更新をリアルタイム配信（即座にbroadcast）
-      if (wsServer) {
-        wsServer.broadcast(projectPath, {
-          type: "taskUpdated",
-          taskId: req.params.id,
-          field: "starred",
-          value: result.task?.starred,
-          txId,
-        });
-      }
-
-      res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ error: "Star toggle failed", details: message });
     }
   });
 
@@ -511,69 +359,30 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     }
   });
 
-  // GET /report - 報告書表示（LAN公開）
+  // GET /report - 報告書表示（SPA: 静的HTMLシェル + クライアントJSでAPI呼び出し）
   router.get("/report", async (req: Request, res: Response) => {
-    try {
-      const taskId = req.query.task as string;
-      if (!taskId) {
-        res.status(400).send("<html><body><h1>Error</h1><p>task parameter is required</p></body></html>");
-        return;
-      }
+    const taskId = req.query.task as string;
+    if (!taskId) {
+      res.status(400).send(`<!DOCTYPE html>
+<html><head><title>Error</title>
+<style>body{font-family:sans-serif;background:#1e1e1e;color:#ccc;padding:40px;text-align:center;}
+.error{color:#f14c4c;font-size:1.5rem;}</style></head>
+<body><div class="error">⚠️ パラメータエラー</div><p>task パラメータが必要です</p>
+<a href="javascript:history.back()" style="color:#4ec9b0;">← 戻る</a></body></html>`);
+      return;
+    }
 
-      const projectPath = req.query.project
-        ? decodeURIComponent(req.query.project as string)
-        : getProjectPathFromRequest(req);
+    const projectPath = req.query.project
+      ? decodeURIComponent(req.query.project as string)
+      : getProjectPathFromRequest(req);
 
-      const result = await executeGetReport(projectPath, { taskId });
-
-      if (!result.success) {
-        res.status(404).send(`<html><body><h1>Not Found</h1><p>${escapeHtml(result.message || "Report not found")}</p></body></html>`);
-        return;
-      }
-
-      if (result.reports.length === 0) {
-        res.status(404).send(`<html><body><h1>Not Found</h1><p>このタスクには報告書が登録されていません</p></body></html>`);
-        return;
-      }
-
-      // 報告書の内容をHTMLに変換
-      const reportsHtml = result.reports.map((report) => {
-        if (report.error) {
-          return `<div class="report-error"><h3>${escapeHtml(report.path)}</h3><p class="error">${escapeHtml(report.error)}</p></div>`;
-        }
-        if (!report.content) {
-          return `<div class="report-error"><h3>${escapeHtml(report.path)}</h3><p class="error">内容を取得できませんでした</p></div>`;
-        }
-        // Markdown → HTML変換、パスリンク化
-        let html = convertMarkdownToHtml(report.content);
-        html = linkifyProjectPaths(html, projectPath);
-        return `<div class="report-content">
-          <h3 class="report-path">${escapeHtml(report.path)}</h3>
-          <div class="report-body">${html}</div>
-        </div>`;
-      }).join("\n");
-
-      // エージェント背景イラスト（最初のレポートからエージェントIDを抽出）
-      let agentBgCss = "";
-      let agentBgHtml = "";
-      const firstReport = result.reports.find(r => r.path && !r.error);
-      if (firstReport) {
-        const agentId = extractAgentIdFromPath(firstReport.path);
-        if (agentId) {
-          const imageUrl = `/agent-image?agent=${encodeURIComponent(agentId)}&project=${encodeURIComponent(projectPath)}`;
-          const snippet = generateAgentBackgroundSnippet(imageUrl);
-          agentBgCss = snippet.css;
-          agentBgHtml = snippet.bodyHtml;
-        }
-      }
-
-      // /file エンドポイントと同じスタイルを使用
-      const pageHtml = `<!DOCTYPE html>
+    // 静的HTMLシェルを返す（実際のレポート取得はクライアントJSがAPIを呼び出す）
+    const html = `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>報告書 - ${escapeHtml(taskId)}</title>
+  <title>報告書 - 読み込み中...</title>
   <style>
     :root {
       --bg-start: #1a1a2e;
@@ -648,25 +457,109 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     .path-link:hover { text-decoration: underline; background: rgba(86, 156, 214, 0.1); }
     .report-error { background: rgba(255,0,0,0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
     .error { color: #ff6b6b; }
-    ${agentBgCss}
+    .loading { text-align: center; padding: 40px; color: #888; }
+    /* エージェント背景イラスト */
+    .agent-background {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      width: 300px;
+      height: 400px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: bottom right;
+      opacity: 0.15;
+      pointer-events: none;
+      z-index: -1;
+    }
   </style>
 </head>
 <body>
   <div class="page-header">
-    <div class="page-title">📄 報告書 - ${escapeHtml(taskId)}</div>
+    <div class="page-title" id="page-title">📄 報告書 - 読み込み中...</div>
     <a href="/dashboard?project=${encodeURIComponent(projectPath)}" class="back-link">← ダッシュボードに戻る</a>
   </div>
-  ${reportsHtml}
-  ${agentBgHtml}
+  <div id="content">
+    <div class="loading">📂 報告書を読み込み中...</div>
+  </div>
+  <div class="agent-background" id="agent-bg"></div>
+
+  <script>
+    (function() {
+      var taskId = ${JSON.stringify(taskId)};
+      var projectPath = ${JSON.stringify(projectPath)};
+
+      // APIからレポート内容を取得
+      var apiUrl = '/api/tasks/' + encodeURIComponent(taskId) + '/report?project=' + encodeURIComponent(projectPath);
+
+      fetch(apiUrl)
+        .then(function(response) {
+          if (!response.ok) {
+            return response.json().then(function(data) {
+              throw new Error(data.error || '報告書の取得に失敗しました');
+            });
+          }
+          return response.json();
+        })
+        .then(function(data) {
+          // タイトル更新
+          document.title = '報告書 - ' + taskId;
+          document.getElementById('page-title').textContent = '📄 報告書 - ' + taskId;
+
+          var contentEl = document.getElementById('content');
+
+          if (!data.reports || data.reports.length === 0) {
+            contentEl.innerHTML = '<div class="report-error"><p class="error">このタスクには報告書が登録されていません</p></div>';
+            return;
+          }
+
+          // 報告書を表示
+          var html = data.reports.map(function(report) {
+            if (report.error) {
+              return '<div class="report-error"><h3>' + escapeHtml(report.path) + '</h3><p class="error">' + escapeHtml(report.error) + '</p></div>';
+            }
+            if (!report.htmlContent && !report.content) {
+              return '<div class="report-error"><h3>' + escapeHtml(report.path) + '</h3><p class="error">内容を取得できませんでした</p></div>';
+            }
+            // htmlContent（Markdown変換済み）があればそれを使用
+            var body = report.htmlContent || '<pre>' + escapeHtml(report.content) + '</pre>';
+            return '<div class="report-content">' +
+              '<h3 class="report-path">' + escapeHtml(report.path) + '</h3>' +
+              '<div class="report-body">' + body + '</div>' +
+              '</div>';
+          }).join('');
+
+          contentEl.innerHTML = html;
+
+          // エージェント背景イラスト
+          if (data.agentId && projectPath) {
+            var bgEl = document.getElementById('agent-bg');
+            var imageUrl = '/agent-image?agent=' + encodeURIComponent(data.agentId) + '&project=' + encodeURIComponent(projectPath);
+            bgEl.style.backgroundImage = 'url(' + imageUrl + ')';
+          }
+        })
+        .catch(function(error) {
+          document.getElementById('page-title').textContent = '⚠️ エラー';
+          document.getElementById('content').innerHTML = '<div class="report-error"><p class="error">' + (error.message || '報告書の読み込みに失敗しました') + '</p></div>';
+        });
+
+      // HTML エスケープ関数
+      function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+    })();
+  </script>
 </body>
 </html>`;
 
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(pageHtml);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).send(`<html><body><h1>Error</h1><p>${escapeHtml(message)}</p></body></html>`);
-    }
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
   });
 
   return router;

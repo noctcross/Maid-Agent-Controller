@@ -186,7 +186,7 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
       if (_vscodeApi) {
         _vscodeApi.postMessage({ command: 'toggleReview', taskId: taskId, reviewed: newValue, txId: txId });
       } else {
-        fetch('/dashboard/tasks/' + taskId + '/review', {
+        fetch('/api/tasks/' + taskId + '/review', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}', 'X-Transaction-Id': txId },
           body: JSON.stringify({ reviewed: newValue })
@@ -238,7 +238,7 @@ export function getDashboardHeadScript(params: DashboardScriptParams): string {
       if (_vscodeApi) {
         _vscodeApi.postMessage({ command: 'toggleStar', taskId: taskId, starred: newValue, txId: txId });
       } else {
-        fetch('/dashboard/tasks/' + taskId + '/star', {
+        fetch('/api/tasks/' + taskId + '/star', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'X-Maid-Project-Path': '${escapeHtml(projectPath)}', 'X-Transaction-Id': txId },
           body: JSON.stringify({ starred: newValue })

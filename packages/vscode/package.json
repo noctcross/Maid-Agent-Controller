@@ -1,0 +1,21 @@
+{
+  "name": "@maid-agent/vscode",
+  "version": "1.0.0",
+  "description": "VSCode extension source for Maid Agent Controller",
+  "private": true,
+  "main": "out/extension.js",
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "clean": "rm -rf out"
+  },
+  "dependencies": {
+    "@maid-agent/types": "*",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

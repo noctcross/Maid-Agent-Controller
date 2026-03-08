@@ -24,7 +24,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./out/extension.js",
+  "main": "./packages/vscode/out/extension.js",
   "contributes": {
     "commands": [
       {
@@ -210,8 +210,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "compile": "tsc --build",
+    "watch": "tsc --build --watch"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -221,5 +221,8 @@
   },
   "dependencies": {
     "yaml": "^2.8.2"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

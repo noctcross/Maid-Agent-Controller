@@ -1538,8 +1538,25 @@ ${styles}
             try {
               var msg = JSON.parse(event.data);
               console.log('[SPA] WebSocket:', msg.type);
-              if (msg.type === 'taskUpdated' || msg.type === 'taskCreated' || msg.type === 'refresh') {
-                refreshDashboard();
+              switch (msg.type) {
+                case 'taskUpdated':
+                case 'taskCreated':
+                case 'taskDeleted':
+                case 'taskAssigned':
+                case 'statusUpdated':
+                case 'refresh':
+                  refreshDashboard();
+                  break;
+                case 'ping':
+                  if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'pong' }));
+                  }
+                  break;
+                case 'connected':
+                  console.log('[SPA] Session ID:', msg.sessionId);
+                  break;
+                default:
+                  console.log('[SPA] Unknown message type:', msg.type);
               }
             } catch (e) {
               console.error('[SPA] WebSocket parse error:', e);

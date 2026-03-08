@@ -282,6 +282,8 @@ export function getDashboardScript() {
             case 'taskUpdated':
             case 'taskCreated':
             case 'taskDeleted':
+            case 'taskAssigned':
+            case 'statusUpdated':
               // タスク更新イベント → デバウンスしてダッシュボードをリフレッシュ
               debouncedRefreshDashboard();
               break;

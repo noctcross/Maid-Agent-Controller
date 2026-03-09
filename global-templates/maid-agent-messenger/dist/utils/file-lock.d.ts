@@ -16,3 +16,4 @@ export declare function withFileLock<T>(filePath: string, operation: () => Promi
  * ファイルがロックされているか確認
  */
 export declare function isLocked(filePath: string): Promise<boolean>;
+//# sourceMappingURL=file-lock.d.ts.map

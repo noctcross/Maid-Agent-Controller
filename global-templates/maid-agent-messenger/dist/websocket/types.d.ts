@@ -86,3 +86,4 @@ export interface WebSocketConfig {
 }
 export declare const DEFAULT_WS_CONFIG: WebSocketConfig;
 export {};
+//# sourceMappingURL=types.d.ts.map

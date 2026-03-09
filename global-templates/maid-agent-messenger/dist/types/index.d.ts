@@ -1,7 +1,9 @@
 /**
  * Maid Agent System - 型定義
  * V2.1: Goal/Phase/Action/Investigation 階層構造対応
+ * V5.0.0: @maid-agent/types からの re-export を追加
  */
+export type { Task, Assignee, TaskSummary, TasksData, UpdateTaskParams, SideEffectResults, UpdateTaskResult, EscalationInfo, OperatorRole, StatusTransitionValidation, } from "@maid-agent/types";
 export declare const MAID_IDS: readonly ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"];
 export type MaidId = (typeof MAID_IDS)[number];
 export declare const ALL_AGENT_IDS: readonly ["butler", "chief", "emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"];
@@ -22,12 +24,7 @@ export declare const REVIEW_STATUSES: readonly ["pending", "in_review", "approve
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 export declare const RETENTION_LEVELS: readonly ["L1", "L2", "L3"];
 export type RetentionLevel = (typeof RETENTION_LEVELS)[number];
-export interface TaskArtifact {
-    type: string;
-    path: string;
-    base?: "temporary" | "permanent";
-    retention: RetentionLevel;
-}
+export type { TaskArtifact } from "@maid-agent/types";
 export declare const LEGACY_TASK_STATUSES: readonly ["idle", "assigned", "working", "completed", "blocked"];
 export type LegacyTaskStatus = (typeof LEGACY_TASK_STATUSES)[number];
 export declare const UPDATABLE_STATUSES: readonly ["working", "completed", "blocked"];
@@ -52,7 +49,7 @@ export interface TaskV2 {
     size?: TaskSize;
     tentative?: boolean;
     blockedBy?: string[];
-    artifacts?: TaskArtifact[];
+    artifacts?: import("@maid-agent/types").TaskArtifact[];
     reviewStatus?: ReviewStatus;
     priority: "high" | "medium" | "low";
     category: TaskCategory;
@@ -70,7 +67,7 @@ export interface TaskV2 {
     archivedAt?: string | null;
 }
 /**
- * タスク割り当て情報
+ * タスク割り当て情報（Server固有）
  */
 export interface TaskAssignee {
     agentId: AgentId;
@@ -151,3 +148,4 @@ export interface GetTeamStatusOutput {
     summary: Record<string, number>;
     agents: AgentStatus[];
 }
+//# sourceMappingURL=index.d.ts.map

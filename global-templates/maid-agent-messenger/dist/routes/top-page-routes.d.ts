@@ -10,3 +10,4 @@ export interface TopPageRoutesDeps {
 }
 export declare function createTopPageRoutes(deps: TopPageRoutesDeps): Router;
 export { recordProjectAccess };
+//# sourceMappingURL=top-page-routes.d.ts.map

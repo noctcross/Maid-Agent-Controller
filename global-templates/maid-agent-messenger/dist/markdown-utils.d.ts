@@ -48,3 +48,4 @@ export declare function resolveToAbsolutePath(relativePath: string, projectPath:
  * @returns リンク化されたHTML文字列
  */
 export declare function linkifyProjectPaths(html: string, projectPath: string, pathPrefixes?: string[]): string;
+//# sourceMappingURL=markdown-utils.d.ts.map

@@ -23,3 +23,4 @@ export interface AssignTaskParams {
  * タスクを割り当て
  */
 export declare function executeAssignTask(params: AssignTaskParams): Promise<AssignTaskOutput>;
+//# sourceMappingURL=assign-task.d.ts.map

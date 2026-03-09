@@ -30,3 +30,4 @@ export declare function getDashboardHeadScript(params: DashboardScriptParams): s
  * @returns `<script>` タグを含むHTMLスクリプト文字列
  */
 export declare function getReportOverlayScript(): string;
+//# sourceMappingURL=dashboard-scripts-common.d.ts.map

@@ -13,3 +13,4 @@ import type { UpdateTaskParams, UpdateTaskResult } from "../types/task-manager-t
  * tasks.yaml 更新後、副作用（maid yaml同期・レポートアーカイブ・テンプレート初期化）を実行。
  */
 export declare function executeUpdateTask(projectPath: string, params: UpdateTaskParams): Promise<UpdateTaskResult>;
+//# sourceMappingURL=task-crud-update.d.ts.map

@@ -112,3 +112,4 @@ export interface HtmlDashboardData {
  * @returns 完全なHTML文字列
  */
 export declare function generateDashboardHtml(data: HtmlDashboardData, editorScheme?: string): string;
+//# sourceMappingURL=dashboard-html.d.ts.map

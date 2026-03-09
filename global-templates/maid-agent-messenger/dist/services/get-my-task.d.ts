@@ -28,3 +28,4 @@ export interface GetMyTaskResult extends GetMyTaskOutput {
  * タスク情報を取得
  */
 export declare function executeGetMyTask(params: GetMyTaskParams): Promise<GetMyTaskResult>;
+//# sourceMappingURL=get-my-task.d.ts.map

@@ -44,8 +44,8 @@ export async function executeGetTask(projectPath, params) {
  * 例: "048" < "048-1" < "048-2" < "048-10" (文字列比較だと "048-10" < "048-2" になる)
  */
 export function compareTaskIds(a, b) {
-    const partsA = a.split("-").map(Number);
-    const partsB = b.split("-").map(Number);
+    const partsA = String(a).split("-").map(Number);
+    const partsB = String(b).split("-").map(Number);
     const maxLen = Math.max(partsA.length, partsB.length);
     for (let i = 0; i < maxLen; i++) {
         const numA = partsA[i] ?? -1;

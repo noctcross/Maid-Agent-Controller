@@ -23,3 +23,4 @@ export interface GetReportResult {
  * レポート内容を取得
  */
 export declare function executeGetReport(projectPath: string, params: GetReportParams): Promise<GetReportResult>;
+//# sourceMappingURL=get-report.d.ts.map

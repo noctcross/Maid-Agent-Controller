@@ -62,3 +62,4 @@ export declare class DashboardWebSocketServer {
      */
     close(): void;
 }
+//# sourceMappingURL=dashboard-ws.d.ts.map

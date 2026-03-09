@@ -17,3 +17,4 @@ export declare function withTasksLock<T>(projectPath: string, operation: (data: 
  * 読み取り専用（ロックなし）- 一覧表示など更新を伴わない場合
  */
 export declare function loadTasksReadOnly(projectPath: string): Promise<TasksData>;
+//# sourceMappingURL=task-core.d.ts.map

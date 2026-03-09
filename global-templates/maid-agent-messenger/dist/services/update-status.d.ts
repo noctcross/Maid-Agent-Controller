@@ -24,3 +24,4 @@ export interface UpdateStatusParams {
  * ステータスを更新
  */
 export declare function executeUpdateStatus(params: UpdateStatusParams): Promise<UpdateStatusOutput>;
+//# sourceMappingURL=update-status.d.ts.map

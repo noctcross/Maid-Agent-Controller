@@ -9,3 +9,4 @@
  * Goal詳細画面用スタイルを取得
  */
 export declare function getGoalDetailStyles(): string;
+//# sourceMappingURL=goal-detail-styles.d.ts.map

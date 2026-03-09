@@ -89,3 +89,4 @@ export declare function checkMigrationStatus(projectPath: string): Promise<{
     legacyTasks: number;
     migrationRequired: boolean;
 }>;
+//# sourceMappingURL=task-migration.d.ts.map

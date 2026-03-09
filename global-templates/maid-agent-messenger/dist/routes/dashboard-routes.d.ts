@@ -18,3 +18,4 @@ export interface DashboardRoutesDeps {
     wsServer?: DashboardWebSocketServer;
 }
 export declare function createDashboardRoutes(deps: DashboardRoutesDeps): Router;
+//# sourceMappingURL=dashboard-routes.d.ts.map

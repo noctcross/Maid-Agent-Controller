@@ -15,3 +15,4 @@
  * SPA版ダッシュボードの静的HTMLシェルを生成
  */
 export declare function generateDashboardSpaHtml(projectPath: string, serverUrl: string): string;
+//# sourceMappingURL=dashboard-spa.d.ts.map

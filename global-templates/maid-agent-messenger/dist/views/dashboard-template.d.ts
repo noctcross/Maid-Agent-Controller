@@ -61,3 +61,4 @@ export declare function getDashboardBodyTemplate(params: DashboardBodyParams): s
  * @returns レポートオーバーレイのHTML文字列
  */
 export declare function getReportOverlayHtml(): string;
+//# sourceMappingURL=dashboard-template.d.ts.map

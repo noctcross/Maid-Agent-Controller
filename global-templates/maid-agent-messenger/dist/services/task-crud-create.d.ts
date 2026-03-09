@@ -30,3 +30,4 @@ export interface CreateTaskResult {
  * 理由: 作業中メイドへのアサインを防ぐガード条件がassign_taskにあるため。
  */
 export declare function executeCreateTask(projectPath: string, params: CreateTaskParams): Promise<CreateTaskResult>;
+//# sourceMappingURL=task-crud-create.d.ts.map

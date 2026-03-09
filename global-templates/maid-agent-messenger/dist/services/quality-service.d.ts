@@ -115,3 +115,4 @@ export interface ClaudeCLIResult {
  * 定額プラン内で利用可能
  */
 export declare function runClaudeCLI(prompt: string, options?: ClaudeCLIOptions): Promise<ClaudeCLIResult>;
+//# sourceMappingURL=quality-service.d.ts.map

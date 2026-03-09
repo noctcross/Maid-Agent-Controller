@@ -22,3 +22,4 @@ export { computeGoalDisplayStatus, generateDashboardData, } from "./task-stats.j
 export type { DashboardData, StepData, WorkData, TaskData, GoalData, PhaseData, ActionData, ReviewTaskData, ArtifactData, StatsData, DashboardOptions, } from "./task-stats.js";
 export { resolveBlockedTasks, checkGoalAutoClose, checkAndAutoCloseParent, } from "./task-auto-close.js";
 export type { DependencyResolutionResult, } from "./task-auto-close.js";
+//# sourceMappingURL=task-manager.d.ts.map

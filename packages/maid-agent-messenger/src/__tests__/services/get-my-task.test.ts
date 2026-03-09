@@ -137,11 +137,11 @@ describe("executeGetMyTask", () => {
     expect(result.parent_chain).toBeDefined();
     expect(result.parent_chain).toHaveLength(2);
 
-    // Goal が先（配列の最初）
+    // Task が先（配列の最初）
     expect(result.parent_chain![0].id).toBe("task-100");
     expect(result.parent_chain![0].type).toBe("task");
 
-    // Phase が次
+    // Work が次
     expect(result.parent_chain![1].id).toBe("task-100-P1");
     expect(result.parent_chain![1].type).toBe("work");
   });

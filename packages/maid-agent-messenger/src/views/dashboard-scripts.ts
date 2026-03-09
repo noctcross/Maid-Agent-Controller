@@ -67,7 +67,7 @@ export function getDashboardScript(): string {
      * Task展開/折りたたみを切り替える
      * @param {HTMLElement} header - クリックされたgoal-header要素
      */
-    function toggleGoal(header) {
+    function toggleTask(header) {
       var goalItem = header.closest('.goal-item');
       if (!goalItem) return;
 
@@ -91,7 +91,7 @@ export function getDashboardScript(): string {
      * Work展開/折りたたみを切り替える
      * @param {HTMLElement} header - クリックされたwork-header要素
      */
-    function togglePhase(header) {
+    function toggleWork(header) {
       var phaseItem = header.closest('.work-item');
       if (!phaseItem) return;
 
@@ -368,21 +368,21 @@ export function getDashboardScript(): string {
         // リンクやボタンのクリックは除外
         if (target.closest('a') || target.closest('button')) return;
 
-        // goal-headerのクリックをチェック
-        var goalHeader = target.closest('.goal-header');
-        if (goalHeader) {
-          console.log('[V2.1] Goal header clicked via delegation');
+        // task-headerのクリックをチェック
+        var taskHeader = target.closest('.task-header');
+        if (taskHeader) {
+          console.log('[V2.1] Task header clicked via delegation');
           e.stopPropagation();
-          toggleGoal(goalHeader);
+          toggleTask(taskHeader);
           return;
         }
 
         // work-headerのクリックをチェック
-        var phaseHeader = target.closest('.work-header');
-        if (phaseHeader) {
+        var workHeader = target.closest('.work-header');
+        if (workHeader) {
           console.log('[V2.1] Work header clicked via delegation');
           e.stopPropagation();
-          togglePhase(phaseHeader);
+          toggleWork(workHeader);
           return;
         }
       });
@@ -596,15 +596,15 @@ export function getDashboardScript(): string {
       var goalsList = document.getElementById('v2-goals-list');
       if (!goalsList) return;
 
-      var goalItems = Array.from(goalsList.querySelectorAll('.goal-item'));
-      if (goalItems.length === 0) return;
+      var taskItems = Array.from(goalsList.querySelectorAll('.goal-item'));
+      if (taskItems.length === 0) return;
 
       // 現在のソート状態でソート実行
-      goalItems.sort(function(a, b) {
+      taskItems.sort(function(a, b) {
         if (goalsSortState === 'id-desc' || goalsSortState === 'id-asc') {
           var idA = a.getAttribute('data-id') || '';
           var idB = b.getAttribute('data-id') || '';
-          var cmp = compareGoalIds(idA, idB);
+          var cmp = compareTaskIds(idA, idB);
           return goalsSortState === 'id-desc' ? -cmp : cmp;
         } else {
           // updated-desc: 新しい順=降順
@@ -619,20 +619,20 @@ export function getDashboardScript(): string {
           } else if (!updA && updB) {
             return 1;
           }
-          return -compareGoalIds(a.getAttribute('data-id') || '', b.getAttribute('data-id') || '');
+          return -compareTaskIds(a.getAttribute('data-id') || '', b.getAttribute('data-id') || '');
         }
       });
 
       // DOM再配置
-      goalItems.forEach(function(item) {
+      taskItems.forEach(function(item) {
         goalsList.appendChild(item);
       });
     }
 
     /**
-     * Goal IDを比較（数字部分を考慮）
+     * Task IDを比較（数字部分を考慮）
      */
-    function compareGoalIds(a, b) {
+    function compareTaskIds(a, b) {
       var partsA = a.split('-');
       var partsB = b.split('-');
       for (var i = 0; i < Math.max(partsA.length, partsB.length); i++) {
@@ -1080,7 +1080,7 @@ export function getDashboardScript(): string {
       if (hasChildren) {
         var sortedWorks = goal.works.slice().sort(function(a, b) {
           if (goalsSortState === 'id-desc' || goalsSortState === 'id-asc') {
-            var cmp = compareGoalIds(a.id || '', b.id || '');
+            var cmp = compareTaskIds(a.id || '', b.id || '');
             return goalsSortState === 'id-desc' ? -cmp : cmp;
           } else {
             // updated-desc/asc: 更新日時でソート
@@ -1097,7 +1097,7 @@ export function getDashboardScript(): string {
               return goalsSortState === 'updated-desc' ? 1 : -1;
             }
             // フォールバック: ID降順
-            return -compareGoalIds(a.id || '', b.id || '');
+            return -compareTaskIds(a.id || '', b.id || '');
           }
         });
         worksHtml = '<div class="goal-content"><div class="work-tree">' +
@@ -1218,7 +1218,7 @@ export function getDashboardScript(): string {
       if (work.steps && work.steps.length > 0) {
         var sortedSteps = work.steps.slice().sort(function(a, b) {
           if (goalsSortState === 'id-desc' || goalsSortState === 'id-asc') {
-            var cmp = compareGoalIds(a.id || '', b.id || '');
+            var cmp = compareTaskIds(a.id || '', b.id || '');
             return goalsSortState === 'id-desc' ? -cmp : cmp;
           } else {
             // updated-desc/asc: 更新日時でソート
@@ -1235,7 +1235,7 @@ export function getDashboardScript(): string {
               return goalsSortState === 'updated-desc' ? 1 : -1;
             }
             // フォールバック: ID降順
-            return -compareGoalIds(a.id || '', b.id || '');
+            return -compareTaskIds(a.id || '', b.id || '');
           }
         });
         stepsHtml = '<div class="step-list">' +

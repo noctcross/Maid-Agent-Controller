@@ -377,7 +377,7 @@ describe("GET /api/dashboard", () => {
   it("モバイル向けダッシュボードJSONを返す", async () => {
     // V2.1形式のモック設定
     mockGenerateDashboardData.mockResolvedValue({
-      v2Goals: [{ id: "001", title: "Test Goal", type: "task", mainStatus: "open", subStatus: "working", works: [] }],
+      v2Goals: [{ id: "001", title: "Test Task", type: "task", mainStatus: "open", subStatus: "working", works: [] }],
       v2ReviewQueue: [],
       v2Artifacts: [],
       v2Stats: { taskCount: 1, workCount: 0, stepCount: 0, completedCount: 0, actionRequiredCount: 0, reviewPendingCount: 0, proposalCount: 0 },

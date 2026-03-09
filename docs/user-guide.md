@@ -78,7 +78,7 @@ VSCode コマンドパレット（`Ctrl+Shift+P`）から `Maid Agent: Init Glob
 │   └── dist/
 ├── system/
 │   └── config/
-│       └── mcp-server.yaml  # サーバー設定
+│       └── maid-agent-messenger.yaml  # サーバー設定
 └── rules/                   # グローバルルール（任意）
 ```
 
@@ -105,7 +105,7 @@ VSCode コマンドパレット（`Ctrl+Shift+P`）から `Maid Agent: Init Glob
 │   └── reports/           # 報告書アーカイブ
 └── system/
     ├── bin/               # maid-notify 等のスクリプト
-    ├── config/            # settings.yaml, mcp-server.yaml
+    ├── config/            # settings.yaml, maid-agent-messenger.yaml
     ├── data/              # tasks.yaml, maid/, reports/
     └── resources/         # images/ 等
 ```
@@ -272,9 +272,9 @@ memory:
   graph_path: "~/.claude/memory/"
 ```
 
-### 2-2. mcp-server.yaml
+### 2-2. maid-agent-messenger.yaml
 
-**場所**: `.maid-agent/system/config/mcp-server.yaml`
+**場所**: `.maid-agent/system/config/maid-agent-messenger.yaml`
 
 MCPサーバーの動作設定。
 
@@ -439,7 +439,7 @@ diff .maid-agent/agents/instructions/butler.md \
 
 タスク一覧、エージェントステータス、報告書をブラウザで確認できる。
 
-**ポート変更**: `mcp-server.yaml` の `server.port` を変更。
+**ポート変更**: `maid-agent-messenger.yaml` の `server.port` を変更。
 
 ### 4-2. VSCode サイドバー
 
@@ -783,7 +783,7 @@ Session not found. Client should create a new session by sending an initialize r
 pm2 logs maid-agent-messenger --lines 50
 
 # よくある原因:
-# 1. ポート競合 → mcp-server.yaml の port を変更
+# 1. ポート競合 → maid-agent-messenger.yaml の port を変更
 # 2. Node.jsバージョン不足 → node -v で確認（v18以上が必要）
 # 3. デプロイ未実行 → npm run build && node deploy-local.js を実行
 ```
@@ -1023,7 +1023,7 @@ description: いつこのスキルを使うか、具体的なユースケース�
     │   └── session-start-hook.sh      # セッション開始フック
     ├── config/
     │   ├── settings.yaml              # メイン設定ファイル
-    │   ├── mcp-server.yaml            # MCPサーバー設定
+    │   ├── maid-agent-messenger.yaml            # MCPサーバー設定
     │   └── .session-name              # tmuxセッション名
     ├── data/
     │   ├── maid/                      # 各メイドの状態

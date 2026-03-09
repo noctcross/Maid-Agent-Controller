@@ -1,7 +1,7 @@
 /**
- * MCP Server 設定ローダー
+ * Maid Agent Messenger 設定ローダー
  *
- * .maid-agent/config/mcp-server.yaml から設定を読み込む
+ * ~/.maid-agent/system/config/maid-agent-messenger.yaml から設定を読み込む
  */
 import * as fs from "fs/promises";
 import * as os from "os";
@@ -11,33 +11,16 @@ import { TIMEOUTS } from "./constants.js";
 import { logger } from "./logger.js";
 const DEFAULT_CONFIG = {
     server: {
-        mode: "hybrid",
         port: 3100,
         host: "0.0.0.0",
-    },
-    central: {
-        connection_timeout: 3000,
-        reconnect_interval: TIMEOUTS.RECONNECT_INTERVAL,
-        max_reconnect_attempts: 10,
-        reconnect_backoff_factor: 1.5,
-        max_reconnect_interval: TIMEOUTS.MAX_RECONNECT_INTERVAL,
-    },
-    fallback: {
-        enabled: true,
-        auto_recover: true,
     },
     dashboard: {
         editor: "vscode",
     },
     keepalive: {
-        session_idle_timeout: 1800000,
-        gc_interval: 60000,
         http_keepalive_timeout: 65000,
         http_headers_timeout: 66000,
-        ping_enabled: true,
         ping_interval: TIMEOUTS.PING_INTERVAL,
-        ping_timeout: TIMEOUTS.PING_TIMEOUT,
-        max_missed_pings: 2,
     },
     pm2: {
         max_memory_restart: "500M",
@@ -58,9 +41,9 @@ function getConfigPath() {
     if (process.env.MAID_MCP_CONFIG) {
         return process.env.MAID_MCP_CONFIG;
     }
-    // グローバル設定: ~/.maid-agent/system/config/mcp-server.yaml
+    // グローバル設定: ~/.maid-agent/system/config/maid-agent-messenger.yaml
     const homeDir = os.homedir();
-    return path.join(homeDir, ".maid-agent", "system", "config", "mcp-server.yaml");
+    return path.join(homeDir, ".maid-agent", "system", "config", "maid-agent-messenger.yaml");
 }
 /**
  * 設定ファイルを読み込む
@@ -78,8 +61,6 @@ export async function loadConfig() {
         // デフォルト値とマージ
         cachedConfig = {
             server: { ...DEFAULT_CONFIG.server, ...parsed.server },
-            central: { ...DEFAULT_CONFIG.central, ...parsed.central },
-            fallback: { ...DEFAULT_CONFIG.fallback, ...parsed.fallback },
             dashboard: { ...DEFAULT_CONFIG.dashboard, ...parsed.dashboard },
             keepalive: { ...DEFAULT_CONFIG.keepalive, ...parsed.keepalive },
             pm2: { ...DEFAULT_CONFIG.pm2, ...parsed.pm2 },

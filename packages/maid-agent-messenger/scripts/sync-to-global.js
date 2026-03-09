@@ -19,8 +19,13 @@ const itemsToCopy = [
   'bin',
   'package.json',
   'package-lock.json',
-  'ecosystem.config.cjs',
-  '.gitignore'
+  'ecosystem.config.cjs'
+];
+
+// コピー後に削除するフォルダ（テスト用ビルド成果物など）
+const itemsToRemoveAfterCopy = [
+  'dist/__tests__',
+  'dist/services/__tests__'
 ];
 
 /**
@@ -77,6 +82,15 @@ for (const item of itemsToCopy) {
     // ファイルはそのままコピー
     fs.copyFileSync(srcPath, destPath);
     console.log(`  ✓ Copied: ${item}`);
+  }
+}
+
+// 不要なフォルダを削除（テスト用ビルド成果物など）
+for (const item of itemsToRemoveAfterCopy) {
+  const targetPath = path.join(targetDir, item);
+  if (fs.existsSync(targetPath)) {
+    removeDir(targetPath);
+    console.log(`  🗑 Removed: ${item}/`);
   }
 }
 

@@ -1,5 +1,4 @@
 /**
- * normalizeTaskId テスト
+ * タスクID正規化ユーティリティのテスト
  */
 export {};
-//# sourceMappingURL=task-id.test.d.ts.map

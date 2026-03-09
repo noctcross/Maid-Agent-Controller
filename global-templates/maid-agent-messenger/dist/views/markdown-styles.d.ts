@@ -21,4 +21,3 @@ export declare function getMarkdownStyles(): string;
  * @param parentSelector - 親セレクタ（例: ".report-overlay-content"）
  */
 export declare function getScopedMarkdownStyles(parentSelector: string): string;
-//# sourceMappingURL=markdown-styles.d.ts.map

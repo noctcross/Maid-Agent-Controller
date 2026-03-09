@@ -7,4 +7,3 @@
  */
 import { Request, Response, NextFunction } from "express";
 export declare const loopbackOnly: (req: Request, res: Response, next: NextFunction) => void;
-//# sourceMappingURL=loopback-only.d.ts.map

@@ -298,8 +298,8 @@ export async function generateDashboardData(
 
   // タスクID比較用ヘルパー（数値部分を考慮）
   const compareTaskIds = (idA: string, idB: string): number => {
-    const partsA = idA.split("-");
-    const partsB = idB.split("-");
+    const partsA = String(idA).split("-");
+    const partsB = String(idB).split("-");
     for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
       const pa = i < partsA.length ? parseInt(partsA[i], 10) : -1;
       const pb = i < partsB.length ? parseInt(partsB[i], 10) : -1;

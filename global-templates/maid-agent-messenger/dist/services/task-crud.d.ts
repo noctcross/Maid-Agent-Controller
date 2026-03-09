@@ -14,4 +14,3 @@ export { type CreateTaskParams, type CreateTaskResult, executeCreateTask, } from
 export { type GetTaskParams, type GetTaskResult, type ListTasksParams, type ListTasksResult, executeGetTask, executeListTasks, executeGetTaskChildren, compareTaskIds, } from "./task-crud-read.js";
 export { executeUpdateTask } from "./task-crud-update.js";
 export type { UpdateTaskParams, UpdateTaskResult, } from "../types/task-manager-types.js";
-//# sourceMappingURL=task-crud.d.ts.map

@@ -14,4 +14,3 @@ export declare const TIMEOUTS: {
     /** 最大再接続間隔 (2分) - 再接続の最大待ち時間 */
     readonly MAX_RECONNECT_INTERVAL: 120000;
 };
-//# sourceMappingURL=constants.d.ts.map

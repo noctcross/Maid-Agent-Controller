@@ -52,4 +52,3 @@ export declare const logger: Logger;
  * wsLogger.info('Connection established'); // [timestamp] [INFO] [WebSocket] Connection established
  */
 export declare function createPrefixedLogger(prefix: string): Logger;
-//# sourceMappingURL=logger.d.ts.map

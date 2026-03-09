@@ -51,4 +51,3 @@ export declare function generateAgentBackgroundSnippet(imageUrl: string): {
     css: string;
     bodyHtml: string;
 };
-//# sourceMappingURL=agent-image.d.ts.map

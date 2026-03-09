@@ -129,4 +129,3 @@ export interface DashboardOptions {
  * タスク一覧からV2.1ダッシュボードデータを生成
  */
 export declare function generateDashboardData(projectPath: string, options?: DashboardOptions): Promise<DashboardData>;
-//# sourceMappingURL=task-stats.d.ts.map

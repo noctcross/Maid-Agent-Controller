@@ -18,4 +18,3 @@ export declare function generateTaskHtml(tasks: any[], type: string, projectPath
  * 両方空の場合は「なし」を1つだけ表示する
  */
 export declare function composeMasterWaitingHtml(masterWaitingTasks: any[], masterReviewTasks: any[], projectPath: string, scheme?: string): string;
-//# sourceMappingURL=task-html.d.ts.map

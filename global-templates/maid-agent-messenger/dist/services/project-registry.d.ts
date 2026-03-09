@@ -22,4 +22,3 @@ export declare function recordProjectAccess(projectPath: string): Promise<void>;
 export declare function listProjects(): Promise<ProjectEntry[]>;
 export declare function togglePin(projectPath: string): Promise<boolean>;
 export declare function toggleHide(projectPath: string): Promise<boolean>;
-//# sourceMappingURL=project-registry.d.ts.map

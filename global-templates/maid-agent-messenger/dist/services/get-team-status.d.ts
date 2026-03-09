@@ -23,4 +23,3 @@ export interface ExtendedGetTeamStatusOutput extends GetTeamStatusOutput {
  * Phase 3: フィルタ対応
  */
 export declare function executeGetTeamStatus(params: GetTeamStatusParams): Promise<ExtendedGetTeamStatusOutput>;
-//# sourceMappingURL=get-team-status.d.ts.map

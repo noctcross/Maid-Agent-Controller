@@ -7,4 +7,3 @@
  * V5.0.0: @maid-agent/types からの re-export に変更
  */
 export type { TaskStatus, TaskType, TaskMainStatus, TaskSubstatus, TaskSize, ReviewStatus, OperatorRole, StatusTransitionValidation, RetentionLevel, TaskArtifact, EscalationInfo, TaskCategory, Assignee, Task, TaskSummary, TasksData, UpdateTaskParams, SideEffectResults, UpdateTaskResult, } from "@maid-agent/types";
-//# sourceMappingURL=task-manager-types.d.ts.map

@@ -63,4 +63,3 @@ export declare function clearConfigCache(): void;
  * ブラウザからアクセス可能なURLを返す（0.0.0.0 → localhost に変換）
  */
 export declare function getServerUrl(config: McpServerConfig): string;
-//# sourceMappingURL=config-loader.d.ts.map

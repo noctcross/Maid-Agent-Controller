@@ -12,4 +12,3 @@ export interface ProjectWithStats extends ProjectEntry {
     status: "available" | "unavailable";
 }
 export declare function generateTopPageHtml(_projects: ProjectWithStats[]): string;
-//# sourceMappingURL=top-page-html.d.ts.map

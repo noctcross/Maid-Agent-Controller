@@ -14,4 +14,3 @@ export { type DashboardScriptParams, getDashboardHeadScript, getReportOverlayScr
  * @returns `<script>` タグを含むHTMLスクリプト文字列
  */
 export declare function getDashboardScript(): string;
-//# sourceMappingURL=dashboard-scripts.d.ts.map

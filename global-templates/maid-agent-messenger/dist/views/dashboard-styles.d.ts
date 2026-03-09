@@ -14,4 +14,3 @@ export declare function getV2SectionStyles(): string;
  */
 export declare function getSearchFilterStyles(): string;
 export declare function getDashboardStyles(): string;
-//# sourceMappingURL=dashboard-styles.d.ts.map

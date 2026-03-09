@@ -40,4 +40,3 @@ export declare function archiveReport(projectPath: string, task: Task, agentId: 
  * 各副作用は try-catch で保護され、失敗しても全体は成功扱い。
  */
 export declare function executeSideEffects(projectPath: string, task: Task, params: UpdateTaskParams, prevStatus: string, prevAssignees: Assignee[]): Promise<SideEffectResults>;
-//# sourceMappingURL=task-side-effects.d.ts.map

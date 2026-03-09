@@ -56,4 +56,3 @@ export declare function getBaseResetStyles(): string;
  * カード共通スタイル
  */
 export declare function getCardStyles(): string;
-//# sourceMappingURL=shared-styles.d.ts.map

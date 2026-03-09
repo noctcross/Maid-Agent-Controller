@@ -12,4 +12,3 @@ declare const router: import("express-serve-static-core").Router;
  */
 export declare function handleAgentImage(req: Request, res: Response): Promise<void>;
 export default router;
-//# sourceMappingURL=image-routes.d.ts.map

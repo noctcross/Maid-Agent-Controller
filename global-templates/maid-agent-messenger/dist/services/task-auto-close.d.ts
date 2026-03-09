@@ -57,4 +57,3 @@ export declare function checkGoalAutoClose(projectPath: string, goalId: string):
 export declare function checkAndAutoCloseParent(projectPath: string, completedTaskId: string): Promise<{
     autoClosedIds: string[];
 }>;
-//# sourceMappingURL=task-auto-close.d.ts.map

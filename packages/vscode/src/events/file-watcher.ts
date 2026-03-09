@@ -167,7 +167,7 @@ function checkMaidReportToChief(
                     ctx.log(`[報告チェック] ${maidName} がメイド長への報告を忘れている可能性`);
 
                     // リマインドを送信
-                    const reminder = `レポートを更新したようですが、メイド長への報告はお済みですか？\n完了した場合は .maid-agent/system/bin/maid-notify chief "タスク完了の報告" を実行してください。`;
+                    const reminder = `レポートを更新したようですが、メイド長への報告はお済みですか？\n完了した場合は maidctl notify chief "タスク完了の報告" を実行してください。`;
                     await ctx.sendMessageToAgent(maidName, reminder);
 
                     ctx.log(`[報告チェック] ${maidName} にリマインドを送信しました`);

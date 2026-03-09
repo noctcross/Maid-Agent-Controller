@@ -30,7 +30,7 @@ vi.mock('../../utils/environment', () => ({
 // pm2-setup モック
 vi.mock('../pm2-setup', () => ({
   runShellCommand: vi.fn(),
-  getMcpServerPath: vi.fn(() => '~/.maid-agent/maid-agent-messenger'),
+  getMessengerPath: vi.fn(() => '~/.maid-agent/maid-agent-messenger'),
 }));
 
 // package-manager モック

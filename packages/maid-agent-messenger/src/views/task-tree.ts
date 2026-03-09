@@ -61,9 +61,12 @@ export interface Task {
   hasReport?: boolean;
 }
 
-// 後方互換エイリアス
+// 後方互換エイリアス（非推奨: Task/Work/Step を使用してください）
+/** @deprecated Use Task instead */
 export type Goal = Task;
+/** @deprecated Use Work instead */
 export type Phase = Work;
+/** @deprecated Use Step instead */
 export type Action = Step;
 
 export interface ReviewTask {

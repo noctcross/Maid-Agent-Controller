@@ -29,7 +29,7 @@ export function initializeTmuxSession(ctx: AgentContext): void {
         ctx.tmuxManager.createSession();
         ctx.log(`[tmux] セッション '${ctx.tmuxSessionName}' を作成しました`);
 
-        // セッション名をファイルに保存（maid-notify用）
+        // セッション名をファイルに保存（maidctl notify用）
         ctx.saveSessionNameToFile();
 
         // 通知システムを自動開始（ファイル監視含む）- サイレントモード
@@ -40,7 +40,7 @@ export function initializeTmuxSession(ctx: AgentContext): void {
 }
 
 /**
- * セッション名をファイルに保存（maid-notify用）
+ * セッション名をファイルに保存（maidctl notify用）
  */
 export function saveSessionNameToFile(ctx: AgentContext): void {
     if (!ctx.maidAgentPath || !ctx.tmuxSessionName) return;

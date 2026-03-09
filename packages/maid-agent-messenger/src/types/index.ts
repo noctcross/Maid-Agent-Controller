@@ -1,6 +1,6 @@
 /**
  * Maid Agent System - 型定義
- * V2.1: Goal/Phase/Action/Investigation 階層構造対応
+ * V2.1: Task/Work/Step/Investigation 階層構造対応
  * V5.0.0: @maid-agent/types からの re-export を追加
  */
 
@@ -48,9 +48,9 @@ export type AgentId = (typeof ALL_AGENT_IDS)[number];
 // V2.1: タスク種別（実行時定数）
 // =============================================================================
 export const TASK_TYPES = [
-  "task",          // タスク（ご主人様の指示単位）- 旧 goal
-  "work",          // ワーク（成果物単位の作業グループ）- 旧 phase
-  "step",          // ステップ（メイド1人で完結する作業）- 旧 action
+  "task",          // タスク（ご主人様の指示単位）
+  "work",          // ワーク（成果物単位の作業グループ）
+  "step",          // ステップ（メイド1人で完結する作業）
   "investigation", // 調査タスク（docs/昇格対象）
 ] as const;
 
@@ -114,8 +114,8 @@ export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 // V2.1: 成果物 Retention レベル（実行時定数）
 // =============================================================================
 export const RETENTION_LEVELS = [
-  "L1",  // Phase完了後 7日で削除
-  "L2",  // Goal完了後 30日で削除
+  "L1",  // Work完了後 7日で削除
+  "L2",  // Task完了後 30日で削除
   "L3",  // 永続（docs/配下）
 ] as const;
 
@@ -175,17 +175,17 @@ export type TaskStatus = LegacyTaskStatus;
 
 /**
  * V2.1 タスクインターフェース
- * Goal/Phase/Action/Investigation の階層構造に対応
+ * Task/Work/Step/Investigation の階層構造に対応
  */
 export interface TaskV2 {
   // === 基本情報 ===
   id: string;
-  parentId: string | null;          // 親タスクID（Phase→Goal, Action→Phase）
+  parentId: string | null;          // 親タスクID（Work→Task, Step→Work）
   title: string;                    // タスクタイトル
   description: string | null;       // タスク説明
 
   // === V2.1: タスク種別・状態 ===
-  type: TaskType;                   // goal/phase/action/investigation
+  type: TaskType;                   // task/work/step/investigation
   status: TaskMainStatus;           // open/closed
   substatus: TaskSubstatus;         // pending/assigned/working/checkpoint/waiting/completed/archived
 

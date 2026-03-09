@@ -11,7 +11,7 @@ import * as path from 'path';
 import { SetupContext, ExecutionEnvironment } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { detectPackageManager, PackageManager } from '../utils/package-manager';
-import { runShellCommand, getMcpServerPath } from './pm2-setup';
+import { runShellCommand, getMessengerPath } from './pm2-setup';
 
 // =============================================================================
 // 型定義
@@ -195,7 +195,7 @@ export async function analyzeRequirements(ctx: SetupContext): Promise<GlobalRequ
 
     const requirements: GlobalRequirements = {
         platform: CURRENT_ENV,
-        packageManager: detectPackageManager(getMcpServerPath()),
+        packageManager: detectPackageManager(getMessengerPath()),
         needs: {
             wslInstall: false,
             ubuntuInstall: false,

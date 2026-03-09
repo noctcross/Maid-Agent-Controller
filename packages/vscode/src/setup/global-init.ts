@@ -113,13 +113,13 @@ function buildExecutionSteps(
         });
     }
 
-    // MCPサーバーセットアップ（npm install, pm2 start）
+    // サーバーセットアップ（npm install, pm2 start）
     steps.push({
-        id: 'mcpServerSetup',
-        progressMessage: 'MCPサーバーをセットアップ中...',
+        id: 'messengerServerSetup',
+        progressMessage: 'サーバーをセットアップ中...',
         critical: true,
         execute: async (ctx) => {
-            await setupMcpServer(ctx);
+            await setupMessengerServer(ctx);
         },
     });
 
@@ -303,9 +303,9 @@ async function installPm2(ctx: SetupContext, password?: string): Promise<void> {
     // パスワードは事前に取得済み
     const { runShellCommand } = await import('./pm2-setup');
     const { detectPackageManager, PM_CONFIG } = await import('../utils/package-manager');
-    const { getMcpServerPath } = await import('./pm2-setup');
+    const { getMessengerPath } = await import('./pm2-setup');
 
-    const pm = detectPackageManager(getMcpServerPath());
+    const pm = detectPackageManager(getMessengerPath());
     const installCmd = PM_CONFIG[pm].globalInstall('pm2');
 
     try {
@@ -333,23 +333,23 @@ async function installPm2(ctx: SetupContext, password?: string): Promise<void> {
 }
 
 /**
- * MCPサーバーセットアップ（npm install, pm2 start, pm2 save）
+ * サーバーセットアップ（npm install, pm2 start, pm2 save）
  */
-async function setupMcpServer(ctx: SetupContext): Promise<void> {
+async function setupMessengerServer(ctx: SetupContext): Promise<void> {
     const { runShellCommand } = await import('./pm2-setup');
     const { detectPackageManager, PM_CONFIG } = await import('../utils/package-manager');
-    const { getMcpServerPath } = await import('./pm2-setup');
+    const { getMessengerPath } = await import('./pm2-setup');
 
-    const mcpServerPath = getMcpServerPath();
-    const pm = detectPackageManager(mcpServerPath);
+    const messengerPath = getMessengerPath();
+    const pm = detectPackageManager(messengerPath);
 
     // npm/pnpm/yarn install
-    ctx.log('[Global] MCPサーバー依存関係インストール中...');
+    ctx.log('[Global] サーバー依存関係インストール中...');
     const installCmd = PM_CONFIG[pm].install;
-    runShellCommand(`cd "${mcpServerPath}" && ${installCmd}`, { stdio: 'pipe' });
+    runShellCommand(`cd "${messengerPath}" && ${installCmd}`, { stdio: 'pipe' });
 
     // pm2でプロセス起動
-    ctx.log('[Global] MCPサーバー起動中...');
+    ctx.log('[Global] サーバー起動中...');
     try {
         // 既存プロセスを停止（エラーは無視）
         try {
@@ -360,16 +360,16 @@ async function setupMcpServer(ctx: SetupContext): Promise<void> {
 
         // 新規起動
         runShellCommand(
-            `pm2 start "${path.join(mcpServerPath, 'dist', 'index.js')}" --name maid-agent-messenger`,
+            `pm2 start "${path.join(messengerPath, 'dist', 'index.js')}" --name maid-agent-messenger`,
             { stdio: 'pipe' }
         );
 
         // 設定を保存
         runShellCommand('pm2 save', { stdio: 'pipe' });
-        ctx.log('[Global] MCPサーバーセットアップ完了');
+        ctx.log('[Global] サーバーセットアップ完了');
     } catch (error) {
-        ctx.log(`[Global] MCPサーバーセットアップ失敗: ${error}`);
-        throw new Error('MCPサーバーセットアップに失敗しました');
+        ctx.log(`[Global] サーバーセットアップ失敗: ${error}`);
+        throw new Error('サーバーセットアップに失敗しました');
     }
 }
 

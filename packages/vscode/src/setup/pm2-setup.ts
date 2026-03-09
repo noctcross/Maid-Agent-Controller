@@ -93,9 +93,9 @@ async function promptNativePassword(
 }
 
 /**
- * MCPサーバーのパスを取得（OS環境に応じた形式）
+ * サーバーのパスを取得（OS環境に応じた形式）
  */
-export function getMcpServerPath(): string {
+export function getMessengerPath(): string {
     if (CURRENT_ENV === 'windows-native') {
         // Windows: WSL内のパス
         return '~/.maid-agent/maid-agent-messenger';
@@ -107,14 +107,14 @@ export function getMcpServerPath(): string {
 }
 
 /**
- * MCPサーバー（maid-agent-messenger）をセットアップ
+ * サーバー（maid-agent-messenger）をセットアップ
  * - npm install
  * - pm2 start
  * - pm2 save
  * - pm2 startup（自動起動設定）
  */
-export async function setupMcpServer(ctx: SetupContext): Promise<void> {
-    const messengerPath = getMcpServerPath();
+export async function setupMessengerServer(ctx: SetupContext): Promise<void> {
+    const messengerPath = getMessengerPath();
     const messengerPathForShell = CURRENT_ENV === 'windows-native'
         ? '~/.maid-agent/maid-agent-messenger'  // WSL内では~が使える
         : messengerPath;
@@ -132,17 +132,17 @@ export async function setupMcpServer(ctx: SetupContext): Promise<void> {
         // 進捗表示
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: 'MCPサーバーをセットアップ中...',
+            title: 'サーバーをセットアップ中...',
             cancellable: false
         }, async (progress) => {
             // 1. pm2 インストール確認
             progress.report({ message: 'pm2 を確認中...' });
             try {
                 runShellCommand('which pm2', { stdio: 'pipe' });
-                ctx.log('[MCP] pm2 確認OK');
+                ctx.log('[PM2] pm2 確認OK');
             } catch {
                 // pm2がない場合は自動インストール
-                ctx.log('[MCP] pm2 が見つかりません。インストールします...');
+                ctx.log('[PM2] pm2 が見つかりません。インストールします...');
 
                 const installed = await installPm2(ctx);
                 if (!installed) {
@@ -157,9 +157,9 @@ export async function setupMcpServer(ctx: SetupContext): Promise<void> {
                 runShellCommand(`cd ${messengerPathForShell} && ${PM_CONFIG[pm].install}`, {
                     timeout: 120000 // 2分タイムアウト
                 });
-                ctx.log(`[MCP] ${PM_CONFIG[pm].displayName} install 完了`);
+                ctx.log(`[PM2] ${PM_CONFIG[pm].displayName} install 完了`);
             } catch (error) {
-                ctx.log(`[MCP] ${PM_CONFIG[pm].displayName} install 失敗: ${error}`);
+                ctx.log(`[PM2] ${PM_CONFIG[pm].displayName} install 失敗: ${error}`);
                 throw new Error(`${PM_CONFIG[pm].displayName} install に失敗しました`);
             }
 
@@ -172,9 +172,9 @@ export async function setupMcpServer(ctx: SetupContext): Promise<void> {
                 } catch { /* ignore */ }
 
                 runShellCommand(`cd ${messengerPathForShell} && pm2 start ecosystem.config.cjs`);
-                ctx.log('[MCP] pm2 start 完了');
+                ctx.log('[PM2] pm2 start 完了');
             } catch (error) {
-                ctx.log(`[MCP] pm2 start 失敗: ${error}`);
+                ctx.log(`[PM2] pm2 start 失敗: ${error}`);
                 throw new Error('pm2 start に失敗しました');
             }
 
@@ -182,22 +182,22 @@ export async function setupMcpServer(ctx: SetupContext): Promise<void> {
             progress.report({ message: 'pm2 状態を保存中...' });
             try {
                 runShellCommand('pm2 save');
-                ctx.log('[MCP] pm2 save 完了');
+                ctx.log('[PM2] pm2 save 完了');
             } catch (error) {
-                ctx.log(`[MCP] pm2 save 失敗: ${error}`);
+                ctx.log(`[PM2] pm2 save 失敗: ${error}`);
                 // saveの失敗は致命的ではないので続行
             }
         });
 
-        vscode.window.showInformationMessage('✅ MCPサーバーを起動しました');
+        vscode.window.showInformationMessage('✅ サーバーを起動しました');
 
         // 4. 自動起動設定の確認（キャッシュしたパスワードを渡す）
         await setupPm2Startup(ctx, cachedWslPassword);
 
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        vscode.window.showErrorMessage(`MCPサーバーのセットアップに失敗: ${message}`);
-        ctx.log(`[ERROR] MCPサーバーセットアップ失敗: ${error}`);
+        vscode.window.showErrorMessage(`サーバーのセットアップに失敗: ${message}`);
+        ctx.log(`[ERROR] サーバーセットアップ失敗: ${error}`);
     } finally {
         // セキュリティ: パスワードをクリア
         cachedWslPassword = undefined;
@@ -218,7 +218,7 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
     }
 
     // Windows (WSL) 環境の場合
-    const pm = detectPackageManager(getMcpServerPath());
+    const pm = detectPackageManager(getMessengerPath());
 
     // パスワードレスsudoが設定されている場合
     if (checkPasswordlessSudo()) {
@@ -234,11 +234,11 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
                 );
             });
 
-            ctx.log('[MCP] pm2 インストール完了（パスワードレス）');
+            ctx.log('[PM2] pm2 インストール完了（パスワードレス）');
             vscode.window.showInformationMessage('✅ pm2 をインストールしました');
             return true;
         } catch (error) {
-            ctx.log(`[MCP] pm2 インストール失敗（パスワードレス）: ${error}`);
+            ctx.log(`[PM2] pm2 インストール失敗（パスワードレス）: ${error}`);
             // パスワードレスで失敗した場合、パスワード入力にフォールバック
         }
     }
@@ -249,7 +249,7 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
         const password = await promptWslPassword('pm2 のインストール', attempt, MAX_ATTEMPTS);
 
         if (password === undefined) {
-            ctx.log('[MCP] pm2 インストールがキャンセルされました');
+            ctx.log('[PM2] pm2 インストールがキャンセルされました');
             return false;
         }
 
@@ -265,12 +265,12 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
                 );
             });
 
-            ctx.log('[MCP] pm2 インストール完了');
+            ctx.log('[PM2] pm2 インストール完了');
             vscode.window.showInformationMessage('✅ pm2 をインストールしました');
             cachedWslPassword = password; // startup用にキャッシュ
             return true;
         } catch (error) {
-            ctx.log(`[MCP] pm2 インストール試行 ${attempt} 失敗: ${error}`);
+            ctx.log(`[PM2] pm2 インストール試行 ${attempt} 失敗: ${error}`);
         }
     }
 
@@ -286,7 +286,7 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
  * pm2をMac/Linux環境でインストール
  */
 async function installPm2Native(ctx: SetupContext): Promise<boolean> {
-    const pm = detectPackageManager(getMcpServerPath());
+    const pm = detectPackageManager(getMessengerPath());
     const installCmd = PM_CONFIG[pm].globalInstall('pm2');
 
     // 1. パスワードレスsudoが利用可能か確認
@@ -304,11 +304,11 @@ async function installPm2Native(ctx: SetupContext): Promise<boolean> {
                 });
             });
 
-            ctx.log('[MCP] pm2 インストール完了（パスワードレス・ネイティブ）');
+            ctx.log('[PM2] pm2 インストール完了（パスワードレス・ネイティブ）');
             vscode.window.showInformationMessage('✅ pm2 をインストールしました');
             return true;
         } catch (error) {
-            ctx.log(`[MCP] pm2 インストール失敗（パスワードレス）: ${error}`);
+            ctx.log(`[PM2] pm2 インストール失敗（パスワードレス）: ${error}`);
             // フォールバック: パスワード入力へ
         }
     }
@@ -319,7 +319,7 @@ async function installPm2Native(ctx: SetupContext): Promise<boolean> {
         const password = await promptNativePassword('pm2 のインストール', attempt, MAX_ATTEMPTS);
 
         if (password === undefined) {
-            ctx.log('[MCP] pm2 インストールがキャンセルされました');
+            ctx.log('[PM2] pm2 インストールがキャンセルされました');
             return false;
         }
 
@@ -336,13 +336,13 @@ async function installPm2Native(ctx: SetupContext): Promise<boolean> {
                 });
             });
 
-            ctx.log('[MCP] pm2 インストール完了（ネイティブ）');
+            ctx.log('[PM2] pm2 インストール完了（ネイティブ）');
             vscode.window.showInformationMessage('✅ pm2 をインストールしました');
             // パスワードをキャッシュ（startup用）
             cachedNativePassword = password;
             return true;
         } catch (error) {
-            ctx.log(`[MCP] pm2 インストール試行 ${attempt} 失敗: ${error}`);
+            ctx.log(`[PM2] pm2 インストール試行 ${attempt} 失敗: ${error}`);
         }
     }
 
@@ -386,21 +386,21 @@ export async function setupPm2Startup(ctx: SetupContext, cachedPassword?: string
             }
         }
 
-        ctx.log(`[MCP] pm2 startup 出力: ${output}`);
+        ctx.log(`[PM2] pm2 startup 出力: ${output}`);
 
         const match = output.match(/sudo .+$/m);
         if (!match) {
             if (output.includes('already')) {
                 // 既に設定済みの場合はポップアップを出さずに終了
-                ctx.log('[MCP] pm2 startup 既に設定済み');
+                ctx.log('[PM2] pm2 startup 既に設定済み');
                 return;
             }
             throw new Error('startup コマンドを取得できませんでした');
         }
         startupCommand = match[0];
-        ctx.log(`[MCP] startup コマンド: ${startupCommand}`);
+        ctx.log(`[PM2] startup コマンド: ${startupCommand}`);
     } catch (error) {
-        ctx.log(`[MCP] pm2 startup 取得失敗: ${error}`);
+        ctx.log(`[PM2] pm2 startup 取得失敗: ${error}`);
         vscode.window.showWarningMessage('自動起動設定の取得に失敗しました');
         return;
     }
@@ -409,11 +409,11 @@ export async function setupPm2Startup(ctx: SetupContext, cachedPassword?: string
     const command = startupCommand
         .replace(/^sudo\s+/, '')
         .replace(/env\s+PATH=[^\s]+\s+/, '');
-    ctx.log(`[MCP] startup コマンド（整形後）: ${command}`);
+    ctx.log(`[PM2] startup コマンド（整形後）: ${command}`);
 
     // シェルメタ文字の拒否（コマンドインジェクション防止）
     if (/[;&|`$()\n\r<>]/.test(command)) {
-        ctx.log('[MCP] pm2 startup コマンドに不正な文字が含まれています');
+        ctx.log('[PM2] pm2 startup コマンドに不正な文字が含まれています');
         vscode.window.showErrorMessage('自動起動コマンドに不正な文字が含まれています');
         return;
     }
@@ -425,24 +425,24 @@ export async function setupPm2Startup(ctx: SetupContext, cachedPassword?: string
                 `wsl bash -c "sudo -n ${command}"`,
                 { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' }
             );
-            ctx.log('[MCP] pm2 startup 設定完了（パスワードレス・自動）');
+            ctx.log('[PM2] pm2 startup 設定完了（パスワードレス・自動）');
             vscode.window.showInformationMessage('✅ 自動起動を設定しました');
             return;
         } catch (error) {
-            ctx.log(`[MCP] pm2 startup 失敗（パスワードレス）: ${error}`);
+            ctx.log(`[PM2] pm2 startup 失敗（パスワードレス）: ${error}`);
             // パスワードレスで失敗した場合、ユーザーに確認してからパスワード入力にフォールバック
         }
     }
 
     // パスワードレスsudoが未設定、またはパスワードレス実行に失敗した場合は確認ダイアログを表示
     const choice = await vscode.window.showInformationMessage(
-        'MCPサーバーの自動起動を設定しますか？\n（WSL起動時に自動で起動します）',
+        'サーバーの自動起動を設定しますか？\n（WSL起動時に自動で起動します）',
         '設定する',
         'スキップ'
     );
 
     if (choice !== '設定する') {
-        ctx.log('[MCP] pm2 startup をスキップ');
+        ctx.log('[PM2] pm2 startup をスキップ');
         return;
     }
 
@@ -462,17 +462,17 @@ export async function setupPm2Startup(ctx: SetupContext, cachedPassword?: string
         }
 
         try {
-            ctx.log(`[MCP] 実行コマンド: ${command}`);
+            ctx.log(`[PM2] 実行コマンド: ${command}`);
             execSync(
                 `wsl bash -c "sudo -S ${command}"`,
                 { encoding: 'utf-8', timeout: 30000, input: password + '\n' }
             );
-            ctx.log('[MCP] pm2 startup 設定完了');
+            ctx.log('[PM2] pm2 startup 設定完了');
             vscode.window.showInformationMessage('✅ 自動起動を設定しました');
             return;
         } catch (error) {
             attempts++;
-            ctx.log(`[MCP] pm2 startup 失敗 (${attempts}/${maxAttempts}): ${error}`);
+            ctx.log(`[PM2] pm2 startup 失敗 (${attempts}/${maxAttempts}): ${error}`);
             password = undefined; // 次回は新規入力
         }
     }
@@ -495,24 +495,24 @@ async function setupPm2StartupNative(ctx: SetupContext): Promise<void> {
         } else if (execError && typeof execError === 'object' && 'message' in execError) {
             output = (execError as Error).message;
         } else {
-            ctx.log(`[MCP] pm2 startup 取得失敗: ${execError}`);
+            ctx.log(`[PM2] pm2 startup 取得失敗: ${execError}`);
             vscode.window.showWarningMessage('自動起動設定の取得に失敗しました');
             return;
         }
     }
 
-    ctx.log(`[MCP] pm2 startup 出力: ${output}`);
+    ctx.log(`[PM2] pm2 startup 出力: ${output}`);
 
     // 既に設定済みか確認
     if (output.includes('already')) {
-        ctx.log('[MCP] pm2 startup 既に設定済み');
+        ctx.log('[PM2] pm2 startup 既に設定済み');
         return;
     }
 
     // sudoコマンドを抽出
     const match = output.match(/sudo .+$/m);
     if (!match) {
-        ctx.log('[MCP] startup コマンドが見つかりません');
+        ctx.log('[PM2] startup コマンドが見つかりません');
         return;
     }
 
@@ -520,13 +520,13 @@ async function setupPm2StartupNative(ctx: SetupContext): Promise<void> {
 
     // ユーザーに確認
     const choice = await vscode.window.showInformationMessage(
-        'MCPサーバーの自動起動を設定しますか？\n（システム起動時に自動で起動します）',
+        'サーバーの自動起動を設定しますか？\n（システム起動時に自動で起動します）',
         '設定する',
         'スキップ'
     );
 
     if (choice !== '設定する') {
-        ctx.log('[MCP] pm2 startup をスキップ');
+        ctx.log('[PM2] pm2 startup をスキップ');
         return;
     }
 
@@ -547,11 +547,11 @@ async function setupPm2StartupNative(ctx: SetupContext): Promise<void> {
                 });
             });
 
-            ctx.log('[MCP] pm2 startup 設定完了（パスワードレス・ネイティブ）');
+            ctx.log('[PM2] pm2 startup 設定完了（パスワードレス・ネイティブ）');
             vscode.window.showInformationMessage('✅ 自動起動を設定しました');
             return;
         } catch (error) {
-            ctx.log(`[MCP] pm2 startup 失敗（パスワードレス）: ${error}`);
+            ctx.log(`[PM2] pm2 startup 失敗（パスワードレス）: ${error}`);
             // フォールバック: パスワード入力へ
         }
     }
@@ -572,11 +572,11 @@ async function setupPm2StartupNative(ctx: SetupContext): Promise<void> {
                 });
             });
 
-            ctx.log('[MCP] pm2 startup 設定完了（キャッシュパスワード）');
+            ctx.log('[PM2] pm2 startup 設定完了（キャッシュパスワード）');
             vscode.window.showInformationMessage('✅ 自動起動を設定しました');
             return;
         } catch (error) {
-            ctx.log(`[MCP] pm2 startup 失敗（キャッシュパスワード）: ${error}`);
+            ctx.log(`[PM2] pm2 startup 失敗（キャッシュパスワード）: ${error}`);
             cachedNativePassword = undefined; // キャッシュクリア
         }
     }
@@ -587,7 +587,7 @@ async function setupPm2StartupNative(ctx: SetupContext): Promise<void> {
         const password = await promptNativePassword('pm2 startup 設定', attempt, MAX_ATTEMPTS);
 
         if (password === undefined) {
-            ctx.log('[MCP] pm2 startup がキャンセルされました');
+            ctx.log('[PM2] pm2 startup がキャンセルされました');
             return;
         }
 
@@ -605,11 +605,11 @@ async function setupPm2StartupNative(ctx: SetupContext): Promise<void> {
                 });
             });
 
-            ctx.log('[MCP] pm2 startup 設定完了（ネイティブ）');
+            ctx.log('[PM2] pm2 startup 設定完了（ネイティブ）');
             vscode.window.showInformationMessage('✅ 自動起動を設定しました');
             return;
         } catch (error) {
-            ctx.log(`[MCP] pm2 startup 試行 ${attempt} 失敗: ${error}`);
+            ctx.log(`[PM2] pm2 startup 試行 ${attempt} 失敗: ${error}`);
         }
     }
 

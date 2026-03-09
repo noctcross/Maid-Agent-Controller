@@ -14,3 +14,7 @@ packages/maid-agent-messenger/scripts/deploy-local.js
 
 # Test logs
 ts-jest.log
+
+# Private apps (clone separately)
+apps/mobile/
+apps/desktop/

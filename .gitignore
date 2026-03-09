@@ -16,5 +16,5 @@ packages/maid-agent-messenger/scripts/deploy-local.js
 ts-jest.log
 
 # Private apps (clone separately)
-apps/mobile/
-apps/desktop/
+apps/MobileSylvia/
+apps/MaidAgentDesktop/

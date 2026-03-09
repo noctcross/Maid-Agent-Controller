@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -84,4 +84,7 @@ console.log('✅ Sync complete!');
 
 // Optional: run local deploy script if it exists (.gitignored)
 const deployLocalPath = path.join(__dirname, 'deploy-local.js');
-if (fs.existsSync(deployLocalPath)) { await import(deployLocalPath); }
+if (fs.existsSync(deployLocalPath)) {
+  // Windows対応: pathToFileURL でfile:// URLに変換
+  await import(pathToFileURL(deployLocalPath));
+}

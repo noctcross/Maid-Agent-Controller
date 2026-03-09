@@ -1,0 +1,345 @@
+/**
+ * markdown-utils テスト
+ * linkifyProjectPaths() と resolveToAbsolutePath() のユニットテスト
+ */
+
+import { describe, it, expect } from "@jest/globals";
+import * as os from "os";
+import * as path from "path";
+import {
+  convertMarkdownToHtml,
+  linkifyProjectPaths,
+  resolveToAbsolutePath,
+  DEFAULT_PATH_PREFIXES,
+} from "../markdown-utils.js";
+
+// テスト用定数（環境非依存）
+const PROJECT_PATH = path.join(os.tmpdir(), "TestProject");
+
+describe("resolveToAbsolutePath", () => {
+  it("プロジェクトパスで相対パスを絶対パスに変換する", () => {
+    const projectPath = path.join(os.tmpdir(), "Project");
+    const result = resolveToAbsolutePath("docs/a.md", projectPath);
+    expect(result).toBe(path.join(projectPath, "docs/a.md"));
+  });
+
+  it("Windowsプロジェクトパスでも正しく動作する", () => {
+    const result = resolveToAbsolutePath("docs/a.md", "C:/Users/noct/Project");
+    expect(result).toBe("C:/Users/noct/Project/docs/a.md");
+  });
+
+  it("ネストの深いパスを正しく変換する", () => {
+    const projectPath = path.join(os.tmpdir(), "Project");
+    const result = resolveToAbsolutePath(
+      ".maid-agent/master/reports/task-061-lily.md",
+      projectPath,
+    );
+    expect(result).toBe(path.join(projectPath, ".maid-agent/master/reports/task-061-lily.md"));
+  });
+});
+
+describe("linkifyProjectPaths", () => {
+  // --- 基本パス検出 ---
+
+  it("docs/ パスをリンク化する", () => {
+    const input = "<p>docs/plans/xxx.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain('<a href="/file?path=');
+    expect(result).toContain('class="path-link"');
+    expect(result).toContain(">docs/plans/xxx.md</a>");
+    expect(result).toContain("を参照</p>");
+  });
+
+  it(".maid-agent/ パスをリンク化する", () => {
+    const input = "<p>.maid-agent/master/reports/xxx.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain('<a href="/file?path=');
+    expect(result).toContain(">.maid-agent/master/reports/xxx.md</a>");
+  });
+
+  it("src/ パスをリンク化する", () => {
+    const input = "<p>src/views/dashboard-html.ts を変更</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">src/views/dashboard-html.ts</a>");
+  });
+
+  it("拡張子なしのディレクトリパスはリンク化しない（#249: 拡張子必須）", () => {
+    const input = "<p>src/routes/ を確認</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    // #249: 拡張子必須に変更したため、ディレクトリパスはリンク化されない
+    expect(result).toBe(input);
+  });
+
+  it("複数パスを同時にリンク化する", () => {
+    const input = "<p>docs/a.md と src/b.ts を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/a.md</a>");
+    expect(result).toContain(">src/b.ts</a>");
+  });
+
+  it("存在しないパスもリンク化する（存在チェックはしない）", () => {
+    const input = "<p>docs/nonexistent.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/nonexistent.md</a>");
+  });
+
+  // --- リンクにprojectパラメータが付与される ---
+
+  it("リンクにprojectクエリパラメータが含まれる", () => {
+    const input = "<p>docs/a.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(`&project=${encodeURIComponent(PROJECT_PATH)}`);
+  });
+
+  it("リンクにdata-path属性が含まれる（CSP対応）", () => {
+    const input = "<p>docs/a.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain('data-path="');
+    // onclickは使用しない（CSP違反回避）
+    expect(result).not.toContain('onclick=');
+  });
+
+  it("data-path属性のパスがそのまま（Windows変換されない）", () => {
+    const input = "<p>docs/a.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    // プロジェクトパスがそのまま使われること
+    const expectedPath = path.join(PROJECT_PATH, "docs/a.md");
+    expect(result).toContain(`data-path="${expectedPath}"`);
+    // Windowsパスに変換されていないこと
+    expect(result).not.toContain("C:/Users/noct");
+  });
+
+  // --- 除外条件 ---
+
+  it("<pre><code>内のパスはリンク化しない", () => {
+    const input = "<pre><code>src/index.ts</code></pre>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toBe(input);
+  });
+
+  it("インライン<code>内のパスはリンク化する（報告書のバッククォート対応）", () => {
+    const input = "<code>src/index.ts</code>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">src/index.ts</a>");
+  });
+
+  it("属性付き<code>内のパスもリンク化する", () => {
+    const input = '<code class="language-typescript">src/index.ts</code>';
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">src/index.ts</a>");
+  });
+
+  it("属性付き<pre>内のパスはリンク化しない", () => {
+    const input = '<pre class="highlight"><code>docs/plans/xxx.md</code></pre>';
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toBe(input);
+  });
+
+  it("<a>タグ内のパスは二重リンク化しない", () => {
+    const input = '<a href="/file?path=xxx">docs/xxx.md</a>';
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toBe(input);
+  });
+
+  it("属性付き<a>タグ内のパスは二重リンク化しない", () => {
+    const input = '<a href="/file?path=xxx" class="report-link">docs/xxx.md</a>';
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toBe(input);
+  });
+
+  // --- 混在ケース ---
+
+  it("インライン<code>内もテキスト部分も両方リンク化する", () => {
+    const input = "<p><code>src/a.ts</code> と docs/b.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    // <code>内もリンク化される
+    expect(result).toContain(">src/a.ts</a>");
+    // テキスト部分もリンク化する
+    expect(result).toContain(">docs/b.md</a>");
+  });
+
+  // --- カスタムプレフィクス ---
+
+  it("第3引数でカスタムプレフィクスを指定できる", () => {
+    const input = "<p>custom/path/file.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH, ["custom"]);
+    expect(result).toContain(">custom/path/file.md</a>");
+  });
+
+  it("デフォルトプレフィクスにない文字列はリンク化しない", () => {
+    const input = "<p>unknown/path/file.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toBe(input);
+  });
+
+  // --- DEFAULT_PATH_PREFIXES ---
+
+  it("DEFAULT_PATH_PREFIXES がエクスポートされている", () => {
+    expect(Array.isArray(DEFAULT_PATH_PREFIXES)).toBe(true);
+    expect(DEFAULT_PATH_PREFIXES.length).toBeGreaterThan(0);
+  });
+
+  // --- 特殊文字を含むパス（#223対応） ---
+
+  it("#を含むパスをリンク化する", () => {
+    const input = "<p>.maid-agent/master/reports/task-221-rose-#221_バグ調査.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">.maid-agent/master/reports/task-221-rose-#221_バグ調査.md</a>");
+  });
+
+  it("半角括弧を含むパスをリンク化する", () => {
+    const input = "<p>docs/design/機能追加(v2).md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/design/機能追加(v2).md</a>");
+  });
+
+  it("全角括弧を含むパスをリンク化する", () => {
+    const input = "<p>docs/設計（詳細）/overview.md</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/設計（詳細）/overview.md</a>");
+  });
+
+  // --- パス終端の判定（#249対応） ---
+
+  it("パス終端の)を含めない", () => {
+    const input = "<p>(docs/plans/file.md)</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/plans/file.md</a>)");
+    expect(result).not.toContain(".md)</a>");
+  });
+
+  it("パス終端の」を含めない", () => {
+    const input = "<p>「docs/plans/file.md」</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/plans/file.md</a>」");
+  });
+
+  it("ファイル名内の()は正しくリンク化する", () => {
+    const input = "<p>docs/plans/file(draft).md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/plans/file(draft).md</a>");
+  });
+
+  it("ファイル名に.mdが含まれても最後の拡張子で終端する", () => {
+    const input = "<p>.maid-agent/master/reports/task-maid.mdの更新検討.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">.maid-agent/master/reports/task-maid.mdの更新検討.md</a>");
+  });
+
+  it("バージョン番号を含むパスを正しくリンク化する", () => {
+    const input = "<p>docs/v1.2.3/readme.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">docs/v1.2.3/readme.md</a>");
+  });
+});
+
+describe("convertMarkdownToHtml", () => {
+  // --- テーブル対応 ---
+
+  it("Markdownテーブルを<table>に変換する", () => {
+    const input = "| Header1 | Header2 |\n|---------|--------|\n| Data1 | Data2 |";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("<table");
+    expect(result).toContain("<thead>");
+    expect(result).toContain("<th>Header1</th>");
+    expect(result).toContain("<th>Header2</th>");
+    expect(result).toContain("<tbody>");
+    expect(result).toContain("<td>Data1</td>");
+    expect(result).toContain("<td>Data2</td>");
+  });
+
+  it("複数行のテーブルを正しく変換する", () => {
+    const input = "| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("<th>A</th>");
+    expect(result).toContain("<td>1</td>");
+    expect(result).toContain("<td>6</td>");
+  });
+
+  it("テーブルの前後にテキストがあっても正しく変換する", () => {
+    const input = "テーブルの前\n\n| H1 | H2 |\n|---|---|\n| D1 | D2 |\n\nテーブルの後";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("<table");
+    expect(result).toContain("テーブルの前");
+    expect(result).toContain("テーブルの後");
+  });
+
+  // --- チェックボックス対応 ---
+
+  it("チェック済みチェックボックスを変換する", () => {
+    const input = "- [x] 完了したタスク";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("checked");
+    expect(result).toContain("完了したタスク");
+  });
+
+  it("未チェックのチェックボックスを変換する", () => {
+    const input = "- [ ] 未完了タスク";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("未完了タスク");
+    // チェック済みクラスがないこと
+    expect(result).not.toContain("checked");
+  });
+
+  it("チェックボックスと通常リストが混在する場合", () => {
+    const input = "- [x] 完了\n- [ ] 未完了\n- 通常項目";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("完了");
+    expect(result).toContain("未完了");
+    expect(result).toContain("通常項目");
+  });
+
+  // --- 改行コード統一 ---
+
+  it("Windows改行コード(CRLF)を正しく処理する", () => {
+    const input = "# Title\r\n\r\nParagraph\r\n";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("<h1>");
+    expect(result).toContain("Title");
+    expect(result).toContain("Paragraph");
+    // \r が残っていないこと
+    expect(result).not.toContain("\r");
+  });
+
+  // --- エスケープされた改行の変換（#219対応） ---
+
+  it("エスケープされた改行(\\\\n)を実際の改行に変換する", () => {
+    // YAML ダブルクォート文字列で \\n と書かれたものがリテラル \n として読み込まれるケースに対応
+    const input = "## 背景\\n説明文";
+    const result = convertMarkdownToHtml(input);
+    expect(result).toContain("<h2>");
+    expect(result).toContain("背景");
+    // \\n がリテラルとして残っていないこと
+    expect(result).not.toContain("\\n");
+  });
+
+  it("複数のエスケープされた改行を変換する", () => {
+    const input = "行1\\n行2\\n\\n行4";
+    const result = convertMarkdownToHtml(input);
+    // 単一改行は<br>に、二重改行は段落区切りに
+    expect(result).toContain("<br>");
+    expect(result).toContain("</p><p>");
+    expect(result).not.toContain("\\n");
+  });
+
+  // --- 既存機能の回帰テスト ---
+
+  it("見出し変換が引き続き動作する", () => {
+    const result = convertMarkdownToHtml("# H1\n## H2\n### H3");
+    expect(result).toContain("<h1>");
+    expect(result).toContain("<h2>");
+    expect(result).toContain("<h3>");
+  });
+
+  it("コードブロック変換が引き続き動作する", () => {
+    const result = convertMarkdownToHtml("```js\nconsole.log('hello');\n```");
+    expect(result).toContain("<pre>");
+    expect(result).toContain("<code");
+  });
+
+  it("番号付きリスト変換が引き続き動作する", () => {
+    const result = convertMarkdownToHtml("1. First\n2. Second");
+    expect(result).toContain("<ol>");
+    expect(result).toContain("<li>");
+  });
+});

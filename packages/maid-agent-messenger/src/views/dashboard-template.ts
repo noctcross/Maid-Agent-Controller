@@ -89,7 +89,7 @@ export function getDashboardBodyTemplate(params: DashboardBodyParams): string {
   </div>
 
   <div class="grid">
-    <!-- Phase 2: 統計セクション -->
+    <!-- 統計セクション -->
     <div class="card stats-section">
       <div class="stats-grid">
         <div class="stat-item stat-pending">
@@ -120,7 +120,7 @@ export function getDashboardBodyTemplate(params: DashboardBodyParams): string {
       </div>
     </div>
 
-    <!-- Phase 3: フィルタ/検索コントロール -->
+    <!-- フィルタ/検索コントロール -->
     <div class="controls-section">
       <input type="text" class="search-box" id="searchBox" placeholder="🔍 タスクID / 説明で検索..." />
       <div class="filter-group">

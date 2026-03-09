@@ -78,7 +78,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
       // ダッシュボードバージョン（v2固定）
       const dashboardVersion: "v2" = "v2";
 
-      // 並列でデータを取得（Phase 1: 特殊カテゴリ・blocked追加, Phase 2: 本日完了追加）
+      // 並列でデータを取得（特殊カテゴリ・blocked・本日完了含む）
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -229,7 +229,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     }
   });
 
-  // GET /dashboard/goals - Goals ページネーション用エンドポイント
+  // GET /dashboard/goals - Tasks ページネーション用エンドポイント
   router.get("/dashboard/goals", async (req: Request, res: Response) => {
     try {
       const projectPath = req.query.project
@@ -324,7 +324,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     }
   });
 
-  // PATCH /dashboard/tasks/:id/close - Goal完了（LAN公開）
+  // PATCH /dashboard/tasks/:id/close - Task完了（LAN公開）
   router.patch("/dashboard/tasks/:id/close", async (req: Request, res: Response) => {
     try {
       const projectPath = getProjectPathFromRequest(req);
@@ -355,7 +355,7 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
       res.json({ success: true, mainStatus: result.task?.mainStatus, subStatus: result.task?.subStatus });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ error: "Close goal failed", details: message });
+      res.status(500).json({ error: "Close task failed", details: message });
     }
   });
 

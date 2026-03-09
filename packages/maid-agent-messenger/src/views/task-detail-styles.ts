@@ -1,18 +1,18 @@
 /**
- * Goal詳細画面CSS定義
+ * Task詳細画面CSS定義
  * goal-detail-v2.1.html モックアップから抽出
  *
- * V2.1 Dashboard用のGoal詳細画面スタイルを定義。
+ * V2.1 Dashboard用のTask詳細画面スタイルを定義。
  * 共通CSS変数はshared-styles.tsから継承。
  */
 
 /**
- * Goal詳細画面用スタイルを取得
+ * Task詳細画面用スタイルを取得
  */
-export function getGoalDetailStyles(): string {
+export function getTaskDetailStyles(): string {
   return `
     /* ========================================
-     * Goal Detail V2.1 Styles
+     * Task Detail V2.1 Styles
      * ======================================== */
 
     /* Container */
@@ -153,15 +153,15 @@ export function getGoalDetailStyles(): string {
       color: var(--v2-accent-green);
     }
 
-    /* Goal Detail Phase Tree (extends base phase-tree) */
-    .goal-detail-container .phase-tree {
+    /* Task Detail Work Tree (extends base work-tree) */
+    .goal-detail-container .work-tree {
       background: var(--v2-bg-card);
       border-radius: 8px;
       padding: 15px;
       border-left: none;
     }
 
-    .goal-detail-container .phase-item {
+    .goal-detail-container .work-item {
       position: relative;
       padding: 15px;
       margin-bottom: 10px;
@@ -169,39 +169,39 @@ export function getGoalDetailStyles(): string {
       border-left: 4px solid var(--v2-border-color);
     }
 
-    .goal-detail-container .phase-item:last-child {
+    .goal-detail-container .work-item:last-child {
       margin-bottom: 0;
     }
 
-    .goal-detail-container .phase-item::before {
+    .goal-detail-container .work-item::before {
       display: none;
     }
 
-    .goal-detail-container .phase-item.completed {
+    .goal-detail-container .work-item.completed {
       border-left-color: var(--v2-accent-green);
       background: rgba(76, 175, 80, 0.05);
     }
 
-    .goal-detail-container .phase-item.active {
+    .goal-detail-container .work-item.active {
       border-left-color: var(--v2-accent-blue);
       background: rgba(74, 144, 217, 0.1);
     }
 
-    .goal-detail-container .phase-item.pending {
+    .goal-detail-container .work-item.pending {
       border-left-color: var(--v2-text-secondary);
       opacity: 0.7;
     }
 
-    .goal-detail-container .phase-item.highlight {
+    .goal-detail-container .work-item.highlight {
       background: rgba(255, 253, 231, 0.15);
       border-left-color: var(--v2-accent-yellow);
     }
 
-    .goal-detail-container .phase-header {
+    .goal-detail-container .work-header {
       margin-bottom: 8px;
     }
 
-    .goal-detail-container .phase-name {
+    .goal-detail-container .work-name {
       font-weight: 600;
       font-size: 1rem;
     }
@@ -213,7 +213,7 @@ export function getGoalDetailStyles(): string {
       font-size: 0.75rem;
     }
 
-    /* Current Action Marker */
+    /* Current Step Marker */
     .goal-detail-container .current-marker {
       color: var(--v2-accent-yellow);
       font-weight: bold;
@@ -259,7 +259,7 @@ export function getGoalDetailStyles(): string {
       font-size: 0.85rem;
     }
 
-    /* Goal Detail Card Override */
+    /* Task Detail Card Override */
     .goal-detail-container .card {
       background: var(--v2-bg-secondary);
       border-radius: 10px;
@@ -285,7 +285,7 @@ export function getGoalDetailStyles(): string {
       margin: 0;
     }
 
-    /* Goal Detail Responsive */
+    /* Task Detail Responsive */
     @media (max-width: 768px) {
       .info-grid {
         grid-template-columns: 1fr;
@@ -298,3 +298,6 @@ export function getGoalDetailStyles(): string {
     }
   `;
 }
+
+/** @deprecated Use getTaskDetailStyles instead */
+export const getGoalDetailStyles = getTaskDetailStyles;

@@ -32,7 +32,7 @@ export async function executeUpdateTask(
   projectPath: string,
   params: UpdateTaskParams
 ): Promise<UpdateTaskResult> {
-  // Phase 1: tasks.yaml 更新（ロック内）
+  // Step 1: tasks.yaml 更新（ロック内）
   const lockResult = await withTasksLock<{
     result: UpdateTaskResult;
     prevStatus: string;
@@ -270,7 +270,7 @@ export async function executeUpdateTask(
 
   const { result, prevStatus, prevAssignees } = lockResult;
 
-  // Phase 2: 副作用実行（tasks.yaml ロック外）
+  // Step 2: 副作用実行（tasks.yaml ロック外）
   if (result.success && result.task) {
     try {
       const { executeSideEffects } = await import("./task-side-effects.js");
@@ -333,7 +333,7 @@ export async function executeUpdateTask(
         if (autoCloseResult.autoClosedIds.length > 0) {
           result.sideEffects = result.sideEffects || {};
           result.sideEffects.autoClosedParents = autoCloseResult.autoClosedIds;
-          // 後方互換: 最初にクローズされた親を goalAutoClosed に設定
+          // 後方互換: 最初にクローズされた親を goalAutoClosed に設定（非推奨: autoClosedParents を使用）
           result.sideEffects.goalAutoClosed = autoCloseResult.autoClosedIds[0];
         }
       } catch (error) {

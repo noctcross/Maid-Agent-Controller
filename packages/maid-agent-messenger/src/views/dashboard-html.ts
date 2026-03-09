@@ -400,7 +400,7 @@ export function generateDashboardHtml(
   // V2.1セクションHTML（データがある場合のみ表示）
   const v2SectionsHtml = (data.v2Goals || data.v2ReviewQueue || data.v2Artifacts || data.v2Stats)
     ? `
-    <!-- V2.1: Goal階層・レビューキュー・成果物セクション -->
+    <!-- V2.1: Task階層・レビューキュー・成果物セクション -->
     <div class="v2-sections" style="grid-column: 1 / -1; margin-top: 1rem;">
       ${v2StatsHtml ? `
       <div class="card v2-stats-section" data-section="v2-stats">

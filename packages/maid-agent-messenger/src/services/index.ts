@@ -9,7 +9,7 @@ export { executeUpdateStatus, type UpdateStatusParams } from "./update-status.js
 export { executeAssignTask, type AssignTaskParams } from "./assign-task.js";
 export { executeGetTeamStatus, type GetTeamStatusParams } from "./get-team-status.js";
 
-// タスク管理サービス（Phase 1 + Phase 3 + V2.1）
+// タスク管理サービス（V2.1）
 export {
   executeCreateTask,
   executeGetTask,

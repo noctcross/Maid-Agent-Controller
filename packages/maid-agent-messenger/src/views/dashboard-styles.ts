@@ -84,7 +84,7 @@ export function getV2SectionStyles(): string {
       color: var(--v2-accent-red);
     }
 
-    /* V2.1 Goals Pagination */
+    /* V2.1 Tasks Pagination */
     .v2-goals-pagination-wrapper {
       display: flex;
       align-items: center;
@@ -284,7 +284,7 @@ export function getV2SectionStyles(): string {
       color: var(--v2-accent-blue, #4a9eff);
     }
 
-    /* V2.1 Goal Tree */
+    /* V2.1 Task Tree */
     .goal-tree-container {
       /* コンテンツに合わせて自然に伸びる（高さ制限撤廃） */
       max-height: none;
@@ -293,7 +293,7 @@ export function getV2SectionStyles(): string {
 
     /* V2.1 archived タスクのスタイル */
     .goal-item[data-archived="true"],
-    .phase-item[data-archived="true"],
+    .work-item[data-archived="true"],
     .step-item[data-archived="true"] {
       opacity: 0.5;
       background: var(--v2-bg-archived, rgba(100, 100, 100, 0.3));
@@ -326,7 +326,7 @@ export function getV2SectionStyles(): string {
       background: rgba(255,255,255,0.05);
     }
 
-    .goal-toggle, .phase-toggle {
+    .goal-toggle, .work-toggle {
       font-size: 0.8rem;
       transition: transform 0.2s;
       cursor: pointer;
@@ -334,7 +334,7 @@ export function getV2SectionStyles(): string {
       width: 16px;
     }
 
-    .goal-toggle.collapsed, .phase-toggle.collapsed {
+    .goal-toggle.collapsed, .work-toggle.collapsed {
       transform: rotate(-90deg);
     }
 
@@ -343,11 +343,11 @@ export function getV2SectionStyles(): string {
       cursor: default;
     }
 
-    .phase-header {
+    .work-header {
       cursor: pointer;
     }
 
-    .phase-header:hover {
+    .work-header:hover {
       background: rgba(255,255,255,0.05);
     }
 
@@ -396,7 +396,7 @@ export function getV2SectionStyles(): string {
       min-width: 70px;
     }
 
-    .phase-assignees,
+    .work-assignees,
     .step-assignees {
       font-size: 0.7rem;
       color: var(--v2-text-secondary);
@@ -424,12 +424,12 @@ export function getV2SectionStyles(): string {
       margin-left: 4px;
     }
 
-    .badge-goal {
+    .badge-task {
       background: var(--v2-accent-purple);
       color: white;
     }
 
-    .badge-phase {
+    .badge-work {
       background: var(--v2-accent-blue);
       color: white;
     }
@@ -493,20 +493,20 @@ export function getV2SectionStyles(): string {
       color: var(--v2-status-checkpoint);
     }
 
-    /* V2.1 Phase Tree - Compact */
-    .phase-tree {
+    /* V2.1 Work Tree - Compact */
+    .work-tree {
       border-left: 2px solid var(--v2-border-color);
       padding-left: 12px;
       margin-left: 4px;
     }
 
-    .phase-item {
+    .work-item {
       position: relative;
       padding: 4px 0;
       font-size: 0.85rem;
     }
 
-    .phase-item::before {
+    .work-item::before {
       content: '';
       position: absolute;
       left: -14px;
@@ -516,28 +516,28 @@ export function getV2SectionStyles(): string {
       background: var(--v2-border-color);
     }
 
-    .phase-item.highlight {
+    .work-item.highlight {
       background: rgba(255, 193, 7, 0.1);
       border-radius: 4px;
       padding-left: 8px;
       margin-left: -8px;
     }
 
-    .phase-header {
+    .work-header {
       display: flex;
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
     }
 
-    .phase-id {
+    .work-id {
       color: var(--v2-accent-blue);
       font-size: 0.85rem;
       min-width: 70px;
       flex-shrink: 0;
     }
 
-    .phase-name {
+    .work-name {
       font-weight: 500;
       flex: 1;
       min-width: 80px;
@@ -546,23 +546,23 @@ export function getV2SectionStyles(): string {
       white-space: nowrap;
     }
 
-    .phase-status {
+    .work-status {
       padding: 2px 8px;
       border-radius: 4px;
       font-size: 0.75rem;
     }
 
-    .phase-status.completed {
+    .work-status.completed {
       background: rgba(76, 175, 80, 0.2);
       color: var(--v2-status-completed);
     }
 
-    .phase-status.active {
+    .work-status.active {
       background: rgba(74, 144, 217, 0.2);
       color: var(--v2-status-active);
     }
 
-    .phase-status.pending {
+    .work-status.pending {
       background: rgba(136, 136, 136, 0.2);
       color: var(--v2-status-paused);
     }
@@ -966,7 +966,7 @@ export function getV2SectionStyles(): string {
         gap: 6px;
       }
 
-      /* Goal/Phase ヘッダーをコンパクトに */
+      /* Task/Work ヘッダーをコンパクトに */
       .goal-header {
         flex-wrap: wrap;
         padding: 4px 8px;
@@ -975,10 +975,10 @@ export function getV2SectionStyles(): string {
         font-size: 0.7rem;
         padding: 1px 4px;
       }
-      .phase-header {
+      .work-header {
         flex-wrap: wrap;
       }
-      .phase-header .status {
+      .work-header .status {
         font-size: 0.7rem;
         padding: 1px 4px;
       }
@@ -1027,7 +1027,7 @@ export function getV2SectionStyles(): string {
         text-overflow: ellipsis;
       }
 
-      /* V2.1 Goal階層 */
+      /* V2.1 Task階層 */
       .goal-item {
         margin-bottom: 8px;
       }
@@ -1053,15 +1053,15 @@ export function getV2SectionStyles(): string {
         min-width: 0;
       }
       /* V2.1 スマホ: 全てのmin-widthを解除して縮小可能に */
-      .phase-id,
-      .phase-name,
+      .work-id,
+      .work-name,
       .step-name,
       .step-status,
       .stat-item {
         min-width: 0;
       }
       /* V2.1 スマホ: バッジ類を非表示にしてタイトルを優先表示 */
-      .goal-header .badge-goal,
+      .goal-header .badge-task,
       .goal-header .badge-size {
         display: none;
       }
@@ -1075,13 +1075,13 @@ export function getV2SectionStyles(): string {
       }
       /* V2.1 スマホ: ステータスはアイコンのみ表示（テキスト非表示） */
       .goal-header .status-text,
-      .phase-header .status-text,
+      .work-header .status-text,
       .step-item .status-text {
         display: none;
       }
       /* V2.1 スマホ: ステータス要素のmin-widthを解除、背景色なしに統一 */
       .goal-header .status,
-      .phase-header .status,
+      .work-header .status,
       .step-item .step-status {
         min-width: auto;
         padding: 1px 4px;
@@ -1094,7 +1094,7 @@ export function getV2SectionStyles(): string {
       }
       /* V2.1 スマホ: 担当者エリアに固定幅を設定して縦揃え、背景色なし */
       .goal-assignees-inline,
-      .phase-assignees,
+      .work-assignees,
       .step-assignees {
         min-width: 20px;
         background: transparent;
@@ -1102,11 +1102,11 @@ export function getV2SectionStyles(): string {
       }
       /* V2.1 スマホ: 報告書アイコンの間隔を統一（gapに任せる） */
       .goal-header .report-link,
-      .phase-header .report-link {
+      .work-header .report-link {
         margin-left: 0;
       }
-      /* V2.1 スマホ: Phase階層も同様にバッジを縮小 */
-      .phase-header .badge {
+      /* V2.1 スマホ: Work階層も同様にバッジを縮小 */
+      .work-header .badge {
         display: none;
       }
       .goal-content {
@@ -1133,24 +1133,24 @@ export function getV2SectionStyles(): string {
         gap: 4px;
       }
 
-      /* V2.1 Phase */
-      .phase-tree {
+      /* V2.1 Work */
+      .work-tree {
         padding-left: 12px;
       }
-      .phase-item {
+      .work-item {
         font-size: 0.9rem;
         padding: 6px 0;
       }
-      .phase-header {
+      .work-header {
         gap: 6px;
       }
-      .phase-id {
+      .work-id {
         font-size: 0.85rem;
       }
-      .phase-name {
+      .work-name {
         font-size: 0.9rem;
       }
-      .phase-status {
+      .work-status {
         font-size: 0.8rem;
         padding: 2px 8px;
       }
@@ -1957,7 +1957,7 @@ export function getDashboardStyles(): string {
       background: rgba(86, 156, 214, 0.3);
       border-color: #569cd6;
     }
-    /* Goal手動クローズボタン */
+    /* Task手動クローズボタン */
     .close-goal-btn {
       background: rgba(76, 175, 80, 0.15);
       border: 1px solid rgba(76, 175, 80, 0.4);

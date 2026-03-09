@@ -2,7 +2,7 @@
  * Dashboard JavaScript コード生成
  *
  * ダッシュボード用のスクリプト
- * Goal展開/折りたたみ、ページネーション、フィルター機能
+ * Task展開/折りたたみ、ページネーション、フィルター機能
  *
  * @module dashboard-scripts
  */
@@ -16,7 +16,7 @@ export {
 
 /**
  * V2.1 Dashboard用スクリプトを生成
- * Goal展開/折りたたみ機能を提供
+ * Task展開/折りたたみ機能を提供
  *
  * @returns `<script>` タグを含むHTMLスクリプト文字列
  */
@@ -33,7 +33,7 @@ export function getDashboardScript(): string {
     var isVSCodeWebview = window.location.protocol === 'vscode-webview:';
     var serverBaseUrl = isVSCodeWebview ? (window.serverBaseUrl || 'http://localhost:3100') : window.location.origin;
 
-    // V2.1 Goals ページネーション状態（Open/Closed 別管理）
+    // V2.1 Tasks ページネーション状態（Open/Closed 別管理）
     // Open（進行中）- ページネーションあり
     var v2GoalsOpenCurrentPage = 0;
     var v2GoalsOpenLimit = 10;
@@ -64,7 +64,7 @@ export function getDashboardScript(): string {
     var v2GoalsSortOrder = 'desc';
 
     /**
-     * Goal展開/折りたたみを切り替える
+     * Task展開/折りたたみを切り替える
      * @param {HTMLElement} header - クリックされたgoal-header要素
      */
     function toggleGoal(header) {
@@ -73,7 +73,7 @@ export function getDashboardScript(): string {
 
       var toggle = header.querySelector('.goal-toggle');
       var content = goalItem.querySelector('.goal-content');
-      // content が null でも toggle の状態は変更する（phases が空の Goal 対応）
+      // content が null でも toggle の状態は変更する（works が空の Task 対応）
 
       // 折りたたみ状態を切り替え
       if (toggle.classList.contains('collapsed')) {
@@ -88,11 +88,11 @@ export function getDashboardScript(): string {
     }
 
     /**
-     * Phase展開/折りたたみを切り替える
-     * @param {HTMLElement} header - クリックされたphase-header要素
+     * Work展開/折りたたみを切り替える
+     * @param {HTMLElement} header - クリックされたwork-header要素
      */
     function togglePhase(header) {
-      var phaseItem = header.closest('.phase-item');
+      var phaseItem = header.closest('.work-item');
       if (!phaseItem) return;
 
       var stepList = phaseItem.querySelector('.step-list');
@@ -377,10 +377,10 @@ export function getDashboardScript(): string {
           return;
         }
 
-        // phase-headerのクリックをチェック
-        var phaseHeader = target.closest('.phase-header');
+        // work-headerのクリックをチェック
+        var phaseHeader = target.closest('.work-header');
         if (phaseHeader) {
-          console.log('[V2.1] Phase header clicked via delegation');
+          console.log('[V2.1] Work header clicked via delegation');
           e.stopPropagation();
           togglePhase(phaseHeader);
           return;
@@ -414,8 +414,8 @@ export function getDashboardScript(): string {
         }
       });
 
-      // phase-headerのphase-item.collapsedも初期化
-      document.querySelectorAll('.phase-item.collapsed').forEach(function(phaseItem) {
+      // work-headerのwork-item.collapsedも初期化
+      document.querySelectorAll('.work-item.collapsed').forEach(function(phaseItem) {
         var stepList = phaseItem.querySelector('.step-list');
         if (stepList) {
           stepList.style.display = 'none';
@@ -1100,7 +1100,7 @@ export function getDashboardScript(): string {
             return -compareGoalIds(a.id || '', b.id || '');
           }
         });
-        worksHtml = '<div class="goal-content"><div class="phase-tree">' +
+        worksHtml = '<div class="goal-content"><div class="work-tree">' +
           sortedWorks.map(function(work) { return renderPhaseItem(work); }).join('\\n') +
           '</div></div>';
       }
@@ -1118,7 +1118,7 @@ export function getDashboardScript(): string {
       // 手動クローズボタン: mainStatus=open かつ 全Work完了の場合のみ表示
       var closeHtml = '';
       if (isOpen && allWorksCompleted) {
-        closeHtml = '<button class="close-goal-btn" data-task-id="' + escapeHtmlClient(goal.id) + '" title="Goalを完了にする" onclick="event.stopPropagation()">✅完了</button>';
+        closeHtml = '<button class="close-goal-btn" data-task-id="' + escapeHtmlClient(goal.id) + '" title="Taskを完了にする" onclick="event.stopPropagation()">✅完了</button>';
       }
 
       // アーカイブ関連: 常にアイコンを表示（列ずれ防止）
@@ -1144,7 +1144,7 @@ export function getDashboardScript(): string {
           '<span class="goal-toggle ' + toggleClass + '">' + toggleIcon + '</span>' +
           '<span class="goal-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(goal.id) + '</span>' +
           '<span class="goal-title">' + escapeHtmlClient(goal.title) + '</span>' +
-          '<span class="badge badge-goal">Goal</span>' +
+          '<span class="badge badge-task">Task</span>' +
           (goal.size ? '<span class="badge badge-size">' + escapeHtmlClient(goal.size) + '</span>' : '') +
           '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + escapeHtmlClient(statusText) + '</span></span>' +
           assigneesHtml +
@@ -1190,11 +1190,11 @@ export function getDashboardScript(): string {
           return '<span class="assignee-item"><span class="assignee-icon">' + icon + '</span><span class="assignee-name">' + escapeHtmlClient(a.agentId) + '</span></span>';
         }).join(' ');
         if (items) {
-          assigneesHtml = '<span class="phase-assignees">' + items + '</span>';
+          assigneesHtml = '<span class="work-assignees">' + items + '</span>';
         }
       }
       if (!assigneesHtml) {
-        assigneesHtml = '<span class="phase-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
+        assigneesHtml = '<span class="work-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
       }
 
       // 報告書リンク（未登録時はクリック不可＋薄い表示）
@@ -1245,10 +1245,10 @@ export function getDashboardScript(): string {
           '</div>';
       }
 
-      return '<div class="phase-item ' + (work.subStatus === 'active' ? 'highlight' : '') + '" data-id="' + escapeHtmlClient(work.id) + '">' +
-        '<div class="phase-header">' +
-          '<span class="phase-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(work.id) + '</span>' +
-          '<span class="phase-name">[' + escapeHtmlClient(work.title) + '] Work</span>' +
+      return '<div class="work-item ' + (work.subStatus === 'active' ? 'highlight' : '') + '" data-id="' + escapeHtmlClient(work.id) + '">' +
+        '<div class="work-header">' +
+          '<span class="work-id task-id-clickable" data-task-info="' + taskInfoBase64 + '">#' + escapeHtmlClient(work.id) + '</span>' +
+          '<span class="work-name">[' + escapeHtmlClient(work.title) + '] Work</span>' +
           '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + statusText + '</span></span>' +
           assigneesHtml +
           reportLink +
@@ -1592,7 +1592,7 @@ export function getDashboardScript(): string {
     }
 
     /**
-     * Goalを完了にする（API呼び出し）
+     * Taskを完了にする（API呼び出し）
      */
     function closeGoal(taskId, btn) {
       console.log('[closeGoal] taskId:', taskId);

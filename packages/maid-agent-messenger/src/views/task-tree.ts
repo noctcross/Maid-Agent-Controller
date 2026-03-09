@@ -61,14 +61,6 @@ export interface Task {
   hasReport?: boolean;
 }
 
-// 後方互換エイリアス（非推奨: Task/Work/Step を使用してください）
-/** @deprecated Use Task instead */
-export type Goal = Task;
-/** @deprecated Use Work instead */
-export type Phase = Work;
-/** @deprecated Use Step instead */
-export type Action = Step;
-
 export interface ReviewTask {
   id: string;
   title: string;
@@ -199,9 +191,6 @@ export function generateTaskTreeHtml(tasks: Task[], projectPath: string): string
 
   return tasks.map((task) => generateTaskItemHtml(task, projectPath)).join("\n");
 }
-
-// 後方互換エイリアス
-export const generateGoalTreeHtml = generateTaskTreeHtml;
 
 /**
  * 単一TaskのHTML生成

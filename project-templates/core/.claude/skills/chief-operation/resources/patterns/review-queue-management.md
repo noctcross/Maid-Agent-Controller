@@ -48,7 +48,7 @@ V2.1で導入されたレビューキューの運用方法。
 | 変更ファイル数 | <= 3 | 少量変更 |
 | 変更行数 | <= 100 | 軽微な修正 |
 | テストあり | true | テストが書かれている |
-| タスク種別 | action | Action タスクのみ |
+| タスク種別 | step | Step タスクのみ |
 | セキュリティファイル変更 | なし | .env, credentials 等 |
 | 設定ファイル変更 | なし | config.*, *.yaml 等 |
 
@@ -63,7 +63,7 @@ maidctl review list
 # 優先度順に表示される
 # - high: 他タスクがblocked、ご主人様指示
 # - normal: 通常
-# - low: simple Goal、軽微な変更
+# - low: simple Task、軽微な変更
 ```
 
 ### Step 2: レビュー実施
@@ -122,8 +122,8 @@ maidctl notify {メイド} "#TASK_ID にレビュー指摘があります。#NEW
 |------|--------|------|
 | 他タスクが blocked | high | 依存解消を優先 |
 | ご主人様指示タスク | high | 重要タスク |
-| standard/complex Goal | normal | 通常 |
-| simple Goal | low | 軽微な変更 |
+| standard/complex Task | normal | 通常 |
+| simple Task | low | 軽微な変更 |
 
 ### 優先度の手動調整
 
@@ -143,7 +143,7 @@ maidctl notify {レビュー担当メイド} "#TASK_ID のコードレビュー�
 
 **委任基準:**
 - 軽微な変更（変更100行以下）
-- Actionタスク（PhaseやGoalは委任しない）
+- Stepタスクのみ（Work/Taskは委任しない）
 - セキュリティ/設定変更なし
 
 詳細は [peer-review](peer-review.md) パターンを参照。

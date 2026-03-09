@@ -1,23 +1,23 @@
-# Goal自動クローズ判断パターン
+# Task自動クローズ判断パターン
 
 ## 概要
 
-Goal完了判定の基準と、自動クローズ/手動クローズの判断フロー。
-V2.1で導入された自動クローズ機能により、条件を満たすGoalは自動的にクローズされる。
+Task完了判定の基準と、自動クローズ/手動クローズの判断フロー。
+V2.1で導入された自動クローズ機能により、条件を満たすTaskは自動的にクローズされる。
 
 ## 適用条件
 
-- 全Phaseが完了した時
-- Goal完了の判断が必要な時
+- 全Workが完了した時
+- Task完了の判断が必要な時
 
 ## 自動クローズ条件
 
 ```yaml
 auto_close:
-  goal:
+  task:
     conditions:
-      - all_phases_completed: true
-      - has_review_phase: true    # レビューPhaseが存在する場合
+      - all_works_completed: true
+      - has_review_work: true    # レビューWorkが存在する場合
       - review_approved: true     # レビュー承認済み
     exclude_categories:
       - skill_candidate           # スキル候補あり → 手動クローズ
@@ -29,17 +29,17 @@ auto_close:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Goal完了判定フロー                                          │
+│  Task完了判定フロー                                          │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  全Phase完了?                                                │
+│  全Work完了?                                                 │
 │      │                                                       │
-│      ├── No → Goalは継続（未完了Phaseあり）                  │
+│      ├── No → Taskは継続（未完了Workあり）                   │
 │      │                                                       │
 │      └── Yes                                                 │
 │           │                                                  │
 │           ▼                                                  │
-│  レビューPhaseあり & 承認済み?                               │
+│  レビューWorkあり & 承認済み?                                │
 │      │                                                       │
 │      ├── No → 手動クローズ                                   │
 │      │   └── 執事がレビュー後に判断                         │
@@ -54,7 +54,7 @@ auto_close:
 │      │   └── 人間の判断が必要                               │
 │      │                                                       │
 │      └── No → 自動クローズ                                   │
-│          └── システムが自動的にGoalをclosed                 │
+│          └── システムが自動的にTaskをclosed                  │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -63,16 +63,16 @@ auto_close:
 
 | 条件 | クローズ方法 | 理由 |
 |------|-------------|------|
-| 全Phase完了 + レビュー承認済み + 除外カテゴリなし | **自動** | 条件が明確 |
-| 全Phase完了 + 除外カテゴリあり | **手動** | 人間の判断が必要 |
-| simple Goal（Phase省略） | **手動** | レビューPhaseがないため |
-| tentative Goal | **手動** | 再定義判断が必要 |
+| 全Work完了 + レビュー承認済み + 除外カテゴリなし | **自動** | 条件が明確 |
+| 全Work完了 + 除外カテゴリあり | **手動** | 人間の判断が必要 |
+| simple Task（Work省略） | **手動** | レビューWorkがないため |
+| tentative Task | **手動** | 再定義判断が必要 |
 
 ## 手動クローズが必要なケース
 
-### 1. Simple Goal
+### 1. Simple Task
 
-- Phase省略のため、レビューPhaseが存在しない
+- Work省略のため、レビューWorkが存在しない
 - 執事が作業結果を確認してクローズ
 
 ```bash
@@ -80,7 +80,7 @@ auto_close:
 maidctl task update 311 --status closed
 ```
 
-### 2. Tentative Goal
+### 2. Tentative Task
 
 - 調査結果に基づく判断が必要
 - 再定義 or クローズを執事が決定
@@ -91,7 +91,7 @@ maidctl task update 310 --status closed
 
 # 実装に進む場合
 maidctl task update 310 --tentative false
-# → 通常Goalとして継続
+# → 通常Taskとして継続
 ```
 
 ### 3. 除外カテゴリあり
@@ -109,8 +109,8 @@ maidctl task update 320 --status closed
 
 | タイミング | 対象 | 実行者 |
 |-----------|------|--------|
-| Phase完了時 | Phase成果物 | メイド長 |
-| Goal完了前 | Goal全体サマリー | 執事 or ご主人様 |
+| Work完了時 | Work成果物 | メイド長 |
+| Task完了前 | Task全体サマリー | 執事 or ご主人様 |
 | 自動クローズ前 | 最終確認 | システム（条件チェック） |
 
 ## CLI例
@@ -132,19 +132,19 @@ maidctl task update 100 --archived
 ### 自動クローズ確認
 
 ```bash
-# Goal状態を確認
+# Task状態を確認
 maidctl task get 100
-→ status: open, all_phases_completed: true, review_approved: true
+→ status: open, all_works_completed: true, review_approved: true
 → auto_close_eligible: true
 
 # 自動クローズが実行される
-# (システムが条件を満たしたGoalを自動的にclosed)
+# (システムが条件を満たしたTaskを自動的にclosed)
 ```
 
 ### 手動クローズ
 
 ```bash
-# 手動でGoalをクローズ
+# 手動でTaskをクローズ
 maidctl task update 100 --status closed
 ```
 
@@ -157,7 +157,7 @@ maidctl task update 100 --status closed
 2. メイド長がスキル候補を確認
 3. 採用 → スキル作成タスクを別途作成
 4. 不採用 → カテゴリを解除
-5. 執事がGoalをクローズ
+5. 執事がTaskをクローズ
 ```
 
 ### improvement がある場合
@@ -167,7 +167,7 @@ maidctl task update 100 --status closed
 2. 執事が改善提案を確認
 3. 採用 → 改善タスクを別途作成
 4. 不採用 → カテゴリを解除
-5. 執事がGoalをクローズ
+5. 執事がTaskをクローズ
 ```
 
 ### action_required がある場合
@@ -176,7 +176,7 @@ maidctl task update 100 --status closed
 1. メイドがご主人様判断待ちを報告
 2. ご主人様が判断・対応
 3. 対応完了 → カテゴリを解除
-4. 執事がGoalをクローズ
+4. 執事がTaskをクローズ
 ```
 
 ## 注意事項
@@ -187,6 +187,6 @@ maidctl task update 100 --status closed
 
 ## 関連パターン
 
-- [goal-phase-decomposition.md](goal-phase-decomposition.md) - Goal分解
-- [simple-goal-patterns.md](simple-goal-patterns.md) - Simple Goal（手動クローズ）
-- [tentative-goal.md](tentative-goal.md) - Tentative Goal（手動クローズ）
+- [task-work-decomposition.md](task-work-decomposition.md) - Task分解
+- [simple-task-patterns.md](simple-task-patterns.md) - Simple Task（手動クローズ）
+- [tentative-task.md](tentative-task.md) - Tentative Task（手動クローズ）

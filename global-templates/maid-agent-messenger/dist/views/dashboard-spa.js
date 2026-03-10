@@ -149,7 +149,7 @@ ${styles}
       font-size: 24px;
       cursor: pointer;
     }
-    /* Goal展開/折りたたみ - 現行準拠 */
+    /* Task展開/折りたたみ - 現行準拠 */
     .goal-item {
       margin-bottom: 4px;
     }
@@ -187,20 +187,20 @@ ${styles}
       margin-left: 0;
       padding-left: 16px;
     }
-    /* Phase/Step - 現行準拠 */
-    .phase-item {
+    /* Work/Step - 現行準拠 */
+    .work-item {
       margin-left: 8px;
       padding-left: 8px;
       border-left: 2px solid var(--v2-border);
     }
-    .phase-header {
+    .work-header {
       display: flex;
       align-items: center;
       gap: 6px;
       padding: 2px 0;
       cursor: pointer;
     }
-    .phase-header:hover {
+    .work-header:hover {
       background: rgba(255,255,255,0.05);
     }
     .step-item {
@@ -1041,7 +1041,7 @@ ${styles}
         // Workをレンダリング
         var worksHtml = '';
         if (hasChildren) {
-          worksHtml = '<div class="goal-content" style="' + (isCollapsed ? 'display:none;' : '') + '"><div class="phase-tree">' +
+          worksHtml = '<div class="goal-content" style="' + (isCollapsed ? 'display:none;' : '') + '"><div class="work-tree">' +
             works.map(function(work) { return renderPhaseItem(work); }).join('') +
             '</div></div>';
         }
@@ -1051,7 +1051,7 @@ ${styles}
             '<span class="goal-toggle ' + toggleClass + '">' + toggleIcon + '</span>' +
             '<span class="goal-id task-id-clickable" data-task-info="' + taskInfoBase64 + '" onclick="event.stopPropagation();showTaskDetail(\\'' + escapeHtml(id) + '\\')">#' + escapeHtml(id) + '</span>' +
             '<span class="goal-title">' + escapeHtml(title) + '</span>' +
-            '<span class="badge badge-goal">Goal</span>' +
+            '<span class="badge badge-task">Task</span>' +
             (goal.size ? '<span class="badge badge-size">' + escapeHtml(goal.size) + '</span>' : '') +
             '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + escapeHtml(statusText) + '</span></span>' +
             assigneesHtml +
@@ -1080,10 +1080,10 @@ ${styles}
             var icon = maidIcons[a.agentId.toLowerCase()] || '👤';
             return '<span class="assignee-item"><span class="assignee-icon">' + icon + '</span><span class="assignee-name">' + escapeHtml(a.agentId) + '</span></span>';
           }).join(' ');
-          if (items) assigneesHtml = '<span class="phase-assignees">' + items + '</span>';
+          if (items) assigneesHtml = '<span class="work-assignees">' + items + '</span>';
         }
         if (!assigneesHtml) {
-          assigneesHtml = '<span class="phase-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
+          assigneesHtml = '<span class="work-assignees no-assignee"><span class="assignee-icon">－</span><span class="assignee-name">担当なし</span></span>';
         }
 
         // 報告書リンク
@@ -1108,10 +1108,10 @@ ${styles}
             '</div>';
         }
 
-        return '<div class="phase-item ' + (status === 'working' ? 'highlight' : '') + '" data-id="' + escapeHtml(id) + '">' +
-          '<div class="phase-header">' +
-            '<span class="phase-id task-id-clickable" data-task-info="' + taskInfoBase64 + '" onclick="showTaskDetail(\\'' + escapeHtml(id) + '\\')">#' + escapeHtml(id) + '</span>' +
-            '<span class="phase-name">[' + escapeHtml(title) + '] Work</span>' +
+        return '<div class="work-item ' + (status === 'working' ? 'highlight' : '') + '" data-id="' + escapeHtml(id) + '">' +
+          '<div class="work-header">' +
+            '<span class="work-id task-id-clickable" data-task-info="' + taskInfoBase64 + '" onclick="showTaskDetail(\\'' + escapeHtml(id) + '\\')">#' + escapeHtml(id) + '</span>' +
+            '<span class="work-name">[' + escapeHtml(title) + '] Work</span>' +
             '<span class="status ' + statusClass + '">' + statusIcon + '<span class="status-text"> ' + statusText + '</span></span>' +
             assigneesHtml +
             reportLink +

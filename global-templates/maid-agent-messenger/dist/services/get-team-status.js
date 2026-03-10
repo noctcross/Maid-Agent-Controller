@@ -2,7 +2,7 @@
  * get_team_status ビジネスロジック
  *
  * 全メイドのステータス一覧を取得する処理
- * Phase 3: フィルタ対応（status, agentId, includeCompleted）
+ * フィルタ対応（status, agentId, includeCompleted）
  */
 import path from "path";
 import { MAID_IDS } from "../types/index.js";
@@ -10,7 +10,7 @@ import { readYamlFile, getTimestamp, fileExists } from "../utils/yaml-helper.js"
 import { executeListTasks } from "./task-manager.js";
 /**
  * チームステータスを取得
- * Phase 3: フィルタ対応
+ * フィルタ対応（status, agentId, includeCompleted）
  */
 export async function executeGetTeamStatus(params) {
     const { queueMaidPath, filter } = params;
@@ -36,7 +36,7 @@ export async function executeGetTeamStatus(params) {
                 id,
                 status,
                 task_id: task.task_id || null,
-                // Phase 2: チーム状態詳細化用フィールド
+                // チーム状態詳細化用フィールド
                 started_at: task.started_at || null,
                 task_title: task.title || null,
                 task_description: task.description || null,

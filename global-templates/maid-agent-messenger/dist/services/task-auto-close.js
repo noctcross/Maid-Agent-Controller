@@ -52,11 +52,11 @@ export async function resolveBlockedTasks(projectPath, completedTaskId) {
     return { unblockedTasks };
 }
 /**
- * V2.1: Goal の自動クローズ判定
+ * V2.1: Task の自動クローズ判定
  *
  * 条件:
- * - 全Phaseが completed
- * - レビューPhaseが存在する場合は approved
+ * - 全Workが completed
+ * - レビューWorkが存在する場合は approved
  * - 除外カテゴリなし (skill_candidate, improvement)
  * - actionRequired フラグ付きタスクは別途管理
  */
@@ -84,17 +84,17 @@ export async function checkGoalAutoClose(projectPath, goalId) {
     // 子Workを取得
     const phases = data.tasks.filter((t) => t.parentId === goalId && inferTaskType(t) === "work");
     if (phases.length === 0) {
-        return { canAutoClose: false, reason: "No phases found" };
+        return { canAutoClose: false, reason: "No works found" };
     }
-    // 全Phaseが completed かチェック
+    // 全Workが completed かチェック
     const allPhasesCompleted = phases.every((p) => {
         const { substatus } = convertStatus(p);
         return substatus === "completed" || substatus === "archived";
     });
     if (!allPhasesCompleted) {
-        return { canAutoClose: false, reason: "Not all phases completed" };
+        return { canAutoClose: false, reason: "Not all works completed" };
     }
-    // レビューPhaseの approved チェック（reviewStatus がある場合）
+    // レビューWorkの approved チェック（reviewStatus がある場合）
     const reviewPhases = phases.filter((p) => p.reviewStatus !== undefined);
     if (reviewPhases.length > 0) {
         const allReviewsApproved = reviewPhases.every((p) => p.reviewStatus === "approved");

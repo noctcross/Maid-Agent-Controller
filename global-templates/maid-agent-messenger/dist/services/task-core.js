@@ -32,8 +32,6 @@ function parseTasksData(content) {
             if (!task.updatedAt) {
                 const timestamps = [
                     task.completedAt,
-                    task.starredAt,
-                    task.reviewedAt,
                     task.actionRequiredAt,
                     task.startedAt,
                     task.assignedAt,

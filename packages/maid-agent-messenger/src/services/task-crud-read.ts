@@ -132,16 +132,6 @@ export async function executeListTasks(
   if (params.category?.length) {
     tasks = tasks.filter((t) => params.category!.includes(t.category || "task"));
   }
-  if (params.reviewed !== undefined) {
-    tasks = tasks.filter((t) =>
-      params.reviewed ? t.reviewed === true : !t.reviewed
-    );
-  }
-  if (params.starred !== undefined) {
-    tasks = tasks.filter((t) =>
-      params.starred ? t.starred === true : !t.starred
-    );
-  }
   if (params.actionRequired !== undefined) {
     tasks = tasks.filter((t) =>
       params.actionRequired ? t.actionRequired === true : !t.actionRequired

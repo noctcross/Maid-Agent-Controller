@@ -44,7 +44,7 @@ export class MultiAgentController {
     private dashboardPanel: vscode.WebviewPanel | undefined;
     private dashboardInitialized = false;
     private dashboardConsecutiveFailures = 0;  // ダッシュボード接続の連続失敗回数
-    private completedViewState: CompletedViewState = { limit: 10, offset: 0, reviewed: undefined, starred: undefined, hash: '', completedSortField: undefined };
+    private completedViewState: CompletedViewState = { limit: 10, offset: 0, hash: '', completedSortField: undefined };
     private reportViewerPanel: vscode.WebviewPanel | undefined;
     private settings: MaidAgentSettings | undefined;
     // イベント監視の状態（モジュール分離）

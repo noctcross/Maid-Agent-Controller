@@ -5,14 +5,14 @@
  * task-manager.ts から責務分割のため分離。
  */
 /**
- * V2.1: Goal階層連動 - 子Phaseの状態から親Goalの表示ステータスを計算
+ * V2.1: Task階層連動 - 子Workの状態から親Taskの表示ステータスを計算
  *
  * 設計書より:
- * - 全Phase pending → Goal「未着手」⏸️
- * - いずれかPhase assigned → Goal「準備中」📋
- * - いずれかPhase working → Goal「進行中」🔵
- * - いずれかPhase waiting/checkpoint → Goal「ブロック中」⚠️
- * - 全Phase completed → Goal「完了可能」✅
+ * - 全Work pending → Task「未着手」⏸️
+ * - いずれかWork assigned → Task「準備中」📋
+ * - いずれかWork working → Task「進行中」🔵
+ * - いずれかWork waiting/checkpoint → Task「ブロック中」⚠️
+ * - 全Work completed → Task「完了可能」✅
  */
 export declare function computeGoalDisplayStatus(goalSubstatus: string, phases: Array<{
     subStatus: string;

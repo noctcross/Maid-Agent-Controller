@@ -15,8 +15,7 @@ export interface ProjectWithStats extends ProjectEntry {
   status: "available" | "unavailable";
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- SPA化により引数は使用しない（後方互換のため維持）
-export function generateTopPageHtml(_projects: ProjectWithStats[]): string {
+export function generateTopPageHtml(): string {
   // SPA: 静的HTMLシェルを返す（プロジェクト一覧はクライアントJSで取得・レンダリング）
 
   return `<!DOCTYPE html>

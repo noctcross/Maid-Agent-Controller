@@ -2,7 +2,7 @@
  * get_team_status ビジネスロジック
  *
  * 全メイドのステータス一覧を取得する処理
- * Phase 3: フィルタ対応（status, agentId, includeCompleted）
+ * フィルタ対応（status, agentId, includeCompleted）
  */
 import { type GetTeamStatusOutput } from "../types/index.js";
 import { type Task } from "./task-manager.js";
@@ -20,6 +20,6 @@ export interface ExtendedGetTeamStatusOutput extends GetTeamStatusOutput {
 }
 /**
  * チームステータスを取得
- * Phase 3: フィルタ対応
+ * フィルタ対応（status, agentId, includeCompleted）
  */
 export declare function executeGetTeamStatus(params: GetTeamStatusParams): Promise<ExtendedGetTeamStatusOutput>;

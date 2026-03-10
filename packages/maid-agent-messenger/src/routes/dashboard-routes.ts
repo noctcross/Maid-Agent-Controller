@@ -1,155 +1,32 @@
 /**
  * ダッシュボードエンドポイント
- * GET /dashboard, /dashboard/completed, /dashboard-spa
+ * GET /dashboard, /dashboard/goals, /report
+ * PATCH /dashboard/tasks/:id/archive, /dashboard/tasks/:id/close
  */
 
 import { Router, Request, Response } from "express";
-import { createHash } from "crypto";
 import { loadConfig, getServerUrl } from "../utils/config-loader.js";
-import { getJstTimestamp } from "../utils/yaml-helper.js";
 import {
-  executeListTasks,
-  executeGetTeamStatus,
   executeUpdateTask,
   generateDashboardData,
-  type Task,
 } from "../services/index.js";
-import { escapeHtml } from "../markdown-utils.js";
-import { extractAgentIdFromPath } from "../utils/agent-image.js";
-import { getQueueMaidPath } from "../utils/path-helpers.js";
-import type { HtmlDashboardData } from "../views/dashboard-html.js";
 import { generateDashboardSpaHtml } from "../views/dashboard-spa.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { recordProjectAccess } from "../services/project-registry.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 import { logger } from "../utils/logger.js";
 
-// HtmlDashboardData型を再エクスポート
-export type { HtmlDashboardData };
-
-// 依存関数の型定義
-// 部分的なタスクオブジェクトや異なる型の配列を許容するため any[] を使用
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// 依存関数の型定義（SPA版では最小限）
 export interface DashboardRoutesDeps {
-  generateDashboardHtml: (data: HtmlDashboardData, editorScheme?: string) => string;
-  generateTaskHtml: (tasks: any[], type: string, projectPath: string, scheme?: string) => string;
-  composeMasterWaitingHtml: (masterWaitingTasks: any[], masterReviewTasks: any[], projectPath: string, scheme?: string) => string;
-  // V2.1 HTML生成関数（リアルタイム更新用）
-  generateTaskTreeHtml?: (tasks: any[], projectPath: string) => string;
-  generateReviewQueueHtml?: (reviewTasks: any[], projectPath: string) => string;
-  generateArtifactsHtml?: (artifacts: any[], projectPath: string) => string;
-  generateStatsHtml?: (stats: any) => string;
-  generateTeamStatusHtml?: (teamStatus: any[]) => string;
   wsServer?: DashboardWebSocketServer; // WebSocket サーバー（オプション）
 }
 
 export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
-  const {
-    generateDashboardHtml,
-    generateTaskHtml,
-    composeMasterWaitingHtml,
-    generateTaskTreeHtml,
-    generateReviewQueueHtml,
-    generateArtifactsHtml,
-    generateStatsHtml,
-    generateTeamStatusHtml,
-    wsServer,
-  } = deps;
+  const { wsServer } = deps;
   const router = Router();
 
-  // GET /dashboard - HTMLダッシュボード（ブラウザ用）
+  // GET /dashboard - SPA版ダッシュボード
   router.get("/dashboard", async (req: Request, res: Response) => {
-    try {
-      // project未指定時 → トップページにリダイレクト
-      if (!req.query.project && !req.headers["x-maid-project-path"]) {
-        res.redirect("/");
-        return;
-      }
-
-      // クエリパラメータからプロジェクトパスを取得（?project=/path/to/project）
-      const projectPath = req.query.project
-        ? (req.query.project as string)
-        : getProjectPathFromRequest(req);
-
-      // エディタスキームを取得（?editor=vscode|windsurf|cursor、設定ファイルのデフォルト値を使用）
-      const config = await loadConfig();
-      const editorScheme = (req.query.editor as string) || config.dashboard.editor;
-
-      // ダッシュボードバージョン（v2固定）
-      const dashboardVersion: "v2" = "v2";
-
-      // 並列でデータを取得（特殊カテゴリ・blocked・本日完了含む）
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      // 完了セクションのソート設定を取得
-      const completedSortField = (req.query.completedSortField as string) === "updatedAt" ? "updatedAt" : "id";
-
-      const [pending, working, completed, completedAll, masterWaiting, masterReview, skillCandidates, improvements, teamStatus, v2Data] = await Promise.all([
-        executeListTasks(projectPath, { status: ["pending"] }),
-        executeListTasks(projectPath, { status: ["working", "assigned", "blocked"] }),
-        executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: completedSortField, sortOrder: "desc" }),
-        executeListTasks(projectPath, { status: ["completed"], sortField: "completedAt", sortOrder: "desc", limit: 500 }),  // 本日完了カウント用
-        executeListTasks(projectPath, { actionRequired: true, status: ["pending", "assigned", "working", "blocked"] }),
-        executeListTasks(projectPath, { actionRequired: true, status: ["completed"], reviewed: false }),
-        executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
-        executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
-        executeGetTeamStatus({ queueMaidPath: getQueueMaidPath(projectPath) }),
-        generateDashboardData(projectPath, { statusFilter: "all", showArchived: true, limit: 500 }),  // V2.1 ダッシュボードデータ（クライアントサイドでフィルタリング）
-      ]);
-
-      // 本日完了タスクをカウント
-      const completedTodayCount = (completedAll.tasks as Task[]).filter((task) => {
-        if (!task.completedAt) return false;
-        const completedDate = new Date(task.completedAt);
-        return completedDate >= today;
-      }).length;
-
-      // HTML生成
-      const SPECIAL_CATEGORIES = ["skill_candidate", "improvement"];
-      const html = generateDashboardHtml({
-        projectPath,
-        timestamp: getJstTimestamp(),
-        pending: pending.tasks as Task[],
-        working: working.tasks as Task[],
-        recentCompleted: completed.tasks as Task[],
-        completedTotal: completed.total,
-        masterWaiting: masterWaiting.tasks as Task[],
-        masterReview: masterReview.tasks as Task[],
-        skillCandidates: skillCandidates.tasks as Task[],
-        improvements: improvements.tasks as Task[],
-        teamStatus: teamStatus.agents,
-        stats: {
-          pendingCount: (pending.tasks as Task[]).filter((t) => !t.category || !SPECIAL_CATEGORIES.includes(t.category)).length,
-          workingCount: working.total,
-          masterWaitingCount: masterWaiting.total + masterReview.total,
-          completedTodayCount,
-        },
-        serverUrl: getServerUrl(config),
-        // V2.1 データ
-        v2Goals: v2Data.v2Goals,
-        v2ReviewQueue: v2Data.v2ReviewQueue,
-        v2Artifacts: v2Data.v2Artifacts,
-        v2Stats: v2Data.v2Stats,
-        // ダッシュボードバージョン
-        dashboardVersion,
-      }, editorScheme);
-
-      // アクセス記録（非同期、レスポンスをブロックしない）
-      recordProjectAccess(projectPath).catch((err) =>
-        logger.error("Failed to record project access", err instanceof Error ? err : { error: err })
-      );
-
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(html);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).send(`<html><body><h1>Error</h1><p>${message}</p></body></html>`);
-    }
-  });
-
-  // GET /dashboard-spa - SPA版ダッシュボード（並行稼働用）
-  router.get("/dashboard-spa", async (req: Request, res: Response) => {
     try {
       // project未指定時 → トップページにリダイレクト
       if (!req.query.project && !req.headers["x-maid-project-path"]) {
@@ -177,55 +54,6 @@ export function createDashboardRoutes(deps: DashboardRoutesDeps): Router {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(500).send(`<html><body><h1>Error</h1><p>${message}</p></body></html>`);
-    }
-  });
-
-  // GET /dashboard/completed - 完了タスクページネーション用
-  router.get("/dashboard/completed", async (req: Request, res: Response) => {
-    try {
-      const projectPath = req.query.project
-        ? decodeURIComponent(req.query.project as string)
-        : getProjectPathFromRequest(req);
-
-      const config = await loadConfig();
-      const editorScheme = (req.query.editor as string) || config.dashboard.editor;
-
-      const offset = parseInt(req.query.offset as string) || 0;
-      const limit = parseInt(req.query.limit as string) || 10;
-
-      // reviewed/starredフィルタ: "yes" → true, "no" → false, 未指定 → undefined
-      const reviewedParam = req.query.reviewed as string | undefined;
-      const starredParam = req.query.starred as string | undefined;
-      const reviewed = reviewedParam === "yes" ? true : reviewedParam === "no" ? false : undefined;
-      const starred = starredParam === "yes" ? true : starredParam === "no" ? false : undefined;
-
-      // 完了セクションのソート設定を取得
-      const completedSortField = (req.query.completedSortField as string) === "updatedAt" ? "updatedAt" : "id";
-
-      // テキスト検索パラメータ
-      const search = (req.query.search as string) || undefined;
-
-      const completed = await executeListTasks(projectPath, {
-        status: ["completed"],
-        limit,
-        offset,
-        reviewed,
-        starred,
-        search,
-        sortField: completedSortField,
-        sortOrder: "desc",
-      });
-
-      res.json({
-        html: generateTaskHtml(completed.tasks, "completed", projectPath, editorScheme),
-        total: completed.total,
-        offset,
-        limit,
-        hasMore: completed.hasMore,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ error: message });
     }
   });
 

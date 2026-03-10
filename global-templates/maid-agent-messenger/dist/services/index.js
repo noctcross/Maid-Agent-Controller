@@ -7,7 +7,7 @@ export { executeGetMyTask } from "./get-my-task.js";
 export { executeUpdateStatus } from "./update-status.js";
 export { executeAssignTask } from "./assign-task.js";
 export { executeGetTeamStatus } from "./get-team-status.js";
-// タスク管理サービス（Phase 1 + Phase 3 + V2.1）
+// タスク管理サービス（V2.1）
 export { executeCreateTask, executeGetTask, executeListTasks, executeUpdateTask, 
 // V2.1: 依存解消・自動クローズ
 resolveBlockedTasks, checkGoalAutoClose, inferTaskType, convertStatus, 

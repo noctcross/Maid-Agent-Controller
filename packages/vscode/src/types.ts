@@ -120,8 +120,6 @@ export interface AgentContext {
 export interface CompletedViewState {
     limit: number;
     offset: number;
-    reviewed: string | undefined;
-    starred: string | undefined;
     hash: string;
     completedSortField: string | undefined;
 }

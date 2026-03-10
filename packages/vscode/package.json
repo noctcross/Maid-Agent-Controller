@@ -10,6 +10,8 @@
     "clean": "rm -rf out"
   },
   "dependencies": {
+    "@maid-agent/api-client": "*",
+    "@maid-agent/constants": "*",
     "@maid-agent/types": "*",
     "yaml": "^2.8.2"
   },

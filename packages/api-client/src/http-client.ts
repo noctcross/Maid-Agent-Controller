@@ -27,13 +27,13 @@ import {
   UnauthorizedError,
   NotFoundError,
   ServerError,
-} from "./errors.js";
+} from "./errors";
 import {
   ENDPOINTS,
   type DashboardOptions,
   type NotificationListOptions,
   type ResponsesListOptions,
-} from "./endpoints.js";
+} from "./endpoints";
 
 /**
  * HTTPリクエストオプション

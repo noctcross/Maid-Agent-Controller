@@ -8,21 +8,21 @@ import { loadTasksReadOnly } from "./task-core.js";
 import { inferTaskType, convertStatus } from "./task-migration.js";
 import { logger } from "../utils/logger.js";
 /**
- * V2.1: Goal階層連動 - 子Phaseの状態から親Goalの表示ステータスを計算
+ * V2.1: Task階層連動 - 子Workの状態から親Taskの表示ステータスを計算
  *
  * 設計書より:
- * - 全Phase pending → Goal「未着手」⏸️
- * - いずれかPhase assigned → Goal「準備中」📋
- * - いずれかPhase working → Goal「進行中」🔵
- * - いずれかPhase waiting/checkpoint → Goal「ブロック中」⚠️
- * - 全Phase completed → Goal「完了可能」✅
+ * - 全Work pending → Task「未着手」⏸️
+ * - いずれかWork assigned → Task「準備中」📋
+ * - いずれかWork working → Task「進行中」🔵
+ * - いずれかWork waiting/checkpoint → Task「ブロック中」⚠️
+ * - 全Work completed → Task「完了可能」✅
  */
 export function computeGoalDisplayStatus(goalSubstatus, phases, goalMainStatus) {
-    // Goal自身が closed/completed の場合は「完了」を返す
+    // Task自身が closed/completed の場合は「完了」を返す
     if (goalMainStatus === "closed" || goalSubstatus === "completed") {
         return { displayStatus: "完了", displayIcon: "✅" };
     }
-    // Phaseがない場合はGoal自身のステータスを使用
+    // Workがない場合はTask自身のステータスを使用
     if (phases.length === 0) {
         return mapSubstatusToDisplay(goalSubstatus);
     }
@@ -31,24 +31,24 @@ export function computeGoalDisplayStatus(goalSubstatus, phases, goalMainStatus) 
     if (substatuses.some((s) => s === "waiting" || s === "checkpoint")) {
         return { displayStatus: "ブロック中", displayIcon: "⚠️" };
     }
-    // 全Phase完了（Goalがまだopenの場合）
+    // 全Work完了（Taskがまだopenの場合）
     if (phases.every((p) => p.subStatus === "completed" || p.mainStatus === "closed")) {
         return { displayStatus: "完了可能", displayIcon: "✅" };
     }
-    // いずれかPhase working（active は後方互換）
+    // いずれかWork working（active は後方互換）
     if (substatuses.some((s) => s === "working" || s === "active")) {
         return { displayStatus: "進行中", displayIcon: "🔵" };
     }
-    // いずれかPhase assigned
+    // いずれかWork assigned
     if (substatuses.some((s) => s === "assigned")) {
         return { displayStatus: "準備中", displayIcon: "📋" };
     }
-    // 全Phase pending（paused は後方互換）
+    // 全Work pending（paused は後方互換）
     if (substatuses.every((s) => s === "pending" || s === "paused")) {
         return { displayStatus: "未着手", displayIcon: "⏸️" };
     }
     // フォールバック
-    logger.warn(`Unexpected phase states: ${substatuses.join(", ")}, defaulting to 進行中`);
+    logger.warn(`Unexpected work states: ${substatuses.join(", ")}, defaulting to 進行中`);
     return { displayStatus: "進行中", displayIcon: "🔵" };
 }
 /**
@@ -90,7 +90,7 @@ export async function generateDashboardData(projectPath, options = {}) {
     }
     /**
      * タスク種別を判定（親タスクの情報も使用）
-     * 1. type が 'goal', 'phase', 'investigation' の場合はそのまま使用
+     * 1. type が 'task', 'work', 'investigation' の場合はそのまま使用
      * 2. type が 'step' または未設定の場合は親タスク構造で判定:
      *    - parentId がない → task
      *    - parentId があり、親の parentId がない → work（Taskの直接の子）
@@ -165,7 +165,7 @@ export async function generateDashboardData(projectPath, options = {}) {
     };
     // 階層全体で検索・担当者がマッチするか判定
     const matchesHierarchy = (goal, searchTerm, targetAssignee) => {
-        // Goalレベルでマッチ
+        // Taskレベルでマッチ
         if (searchTerm && matchesSearch(goal, searchTerm))
             return true;
         if (targetAssignee && hasAssignee(goal, targetAssignee))
@@ -188,7 +188,7 @@ export async function generateDashboardData(projectPath, options = {}) {
         // searchTermもtargetAssigneeも指定なしの場合はtrue
         return !searchTerm && !targetAssignee;
     };
-    // V2Goals: Goal階層構造を構築（フィルタ → 変換 → ソートの順で処理）
+    // V2Tasks: Task階層構造を構築（フィルタ → 変換 → ソートの順で処理）
     const v2Goals = goals
         // archivedフィルタ: デフォルトでarchivedを除外
         .filter((g) => showArchived || g.archived !== true)
@@ -209,7 +209,7 @@ export async function generateDashboardData(projectPath, options = {}) {
         .filter((g) => matchesHierarchy(g, search, assignee))
         .map((goal) => {
         const { mainStatus, substatus } = convertStatus(goal);
-        // このGoalに属するPhaseを取得（sortByに応じてソート）
+        // このTaskに属するWorkを取得（sortByに応じてソート）
         const goalPhases = phases
             .filter((p) => p.parentId === goal.id)
             .sort((a, b) => {
@@ -226,7 +226,7 @@ export async function generateDashboardData(projectPath, options = {}) {
         });
         const v2Works = goalPhases.map((phase) => {
             const phaseStatus = convertStatus(phase);
-            // このWorkに属するStepを取得（sortByに応じてソート）
+            // このWorkに属するStepを取得（sortByに応じてソート）（Workレベル）
             const phaseActions = actions
                 .filter((a) => a.parentId === phase.id)
                 .sort((a, b) => {

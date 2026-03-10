@@ -1,6 +1,6 @@
 /**
  * Maid Agent System - 型定義
- * V2.1: Goal/Phase/Action/Investigation 階層構造対応
+ * V2.1: Task/Work/Step/Investigation 階層構造対応
  * V5.0.0: @maid-agent/types からの re-export を追加
  */
 export type { Task, Assignee, TaskSummary, TasksData, UpdateTaskParams, SideEffectResults, UpdateTaskResult, EscalationInfo, OperatorRole, StatusTransitionValidation, } from "@maid-agent/types";
@@ -36,7 +36,7 @@ export type TaskCategory = (typeof TASK_CATEGORIES)[number];
 export type TaskStatus = LegacyTaskStatus;
 /**
  * V2.1 タスクインターフェース
- * Goal/Phase/Action/Investigation の階層構造に対応
+ * Task/Work/Step/Investigation の階層構造に対応
  */
 export interface TaskV2 {
     id: string;

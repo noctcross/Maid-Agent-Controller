@@ -20,12 +20,8 @@ export interface MessageHandlerContext {
     openFileWithPreview: (path: string) => void;
     /** 報告書を開く */
     openReport: (taskId: string, project: string) => void;
-    /** レビュートグル */
-    toggleTaskReview: (taskId: string, reviewed: boolean, txId?: string) => void;
-    /** スタートグル */
-    toggleTaskStar: (taskId: string, starred: boolean, txId?: string) => void;
     /** 完了タスクページ取得 */
-    fetchCompletedPage: (offset: number, limit: number, reviewed?: string, starred?: string, completedSortField?: string) => void;
+    fetchCompletedPage: (offset: number, limit: number, completedSortField?: string) => void;
     /** 完了ビュー状態更新 */
     updateCompletedViewState: (state: CompletedViewStateUpdate) => void;
     /** ダッシュボードデータ再取得（WebSocket用） */
@@ -40,8 +36,6 @@ export interface MessageHandlerContext {
 export interface CompletedViewStateUpdate {
     limit?: number;
     offset?: number;
-    reviewed?: string;
-    starred?: string;
     hash?: string;
     completedSortField?: string;
 }
@@ -74,18 +68,10 @@ export function setupDashboardMessageHandler(
                 case 'openReport':
                     ctx.openReport(message.taskId, message.project);
                     break;
-                case 'toggleReview':
-                    ctx.toggleTaskReview(message.taskId, message.reviewed, message.txId);
-                    break;
-                case 'toggleStar':
-                    ctx.toggleTaskStar(message.taskId, message.starred, message.txId);
-                    break;
                 case 'completedPage':
                     ctx.fetchCompletedPage(
                         message.offset,
                         message.limit,
-                        message.reviewed,
-                        message.starred,
                         message.completedSortField
                     );
                     break;
@@ -93,8 +79,6 @@ export function setupDashboardMessageHandler(
                     ctx.updateCompletedViewState({
                         limit: message.limit ?? 10,
                         offset: message.offset ?? 0,
-                        reviewed: message.reviewed,
-                        starred: message.starred,
                         hash: message.hash ?? '',
                         completedSortField: message.completedSortField,
                     });

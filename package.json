@@ -43,23 +43,8 @@
         "category": "Maid Agent"
       },
       {
-        "command": "multiAgent.startButler",
-        "title": "Call Butler - 執事を呼ぶ",
-        "category": "Maid Agent"
-      },
-      {
-        "command": "multiAgent.startChiefMaid",
-        "title": "Call Chief - メイド長を呼ぶ",
-        "category": "Maid Agent"
-      },
-      {
-        "command": "multiAgent.startAgents",
-        "title": "Call Butler & Chief - 執事とメイド長を呼ぶ",
-        "category": "Maid Agent"
-      },
-      {
-        "command": "multiAgent.startSelectedMaids",
-        "title": "Call Maids Pick - メイドを選んで呼ぶ",
+        "command": "multiAgent.callAgent",
+        "title": "Call Agent - エージェントを呼ぶ",
         "category": "Maid Agent"
       },
       {

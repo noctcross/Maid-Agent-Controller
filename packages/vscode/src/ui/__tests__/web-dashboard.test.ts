@@ -112,8 +112,6 @@ describe('web-dashboard', () => {
             completedViewState: {
                 limit: 10,
                 offset: 0,
-                reviewed: undefined,
-                starred: undefined,
                 hash: '',
                 completedSortField: undefined,
             },
@@ -143,8 +141,6 @@ describe('web-dashboard', () => {
             completedViewState: {
                 limit: 10,
                 offset: 0,
-                reviewed: undefined,
-                starred: undefined,
                 hash: '',
                 completedSortField: undefined,
             },
@@ -287,50 +283,6 @@ describe('web-dashboard', () => {
         });
     });
 
-    describe('toggleTaskReview', () => {
-        it('レビューフラグを更新するAPIを呼び出すこと', async () => {
-            const { toggleTaskReview } = await import('../web-dashboard');
-
-            mockCtx.workspaceRoot = '/test/workspace';
-
-            await toggleTaskReview(mockCtx, 'task-001', true, 'tx-123');
-
-            expect(mockFetch).toHaveBeenCalledWith(
-                'http://localhost:3100/dashboard/tasks/task-001/review',
-                expect.objectContaining({
-                    method: 'PATCH',
-                    headers: expect.objectContaining({
-                        'Content-Type': 'application/json',
-                        'X-Transaction-Id': 'tx-123',
-                    }),
-                    body: JSON.stringify({ reviewed: true }),
-                })
-            );
-        });
-    });
-
-    describe('toggleTaskStar', () => {
-        it('スターフラグを更新するAPIを呼び出すこと', async () => {
-            const { toggleTaskStar } = await import('../web-dashboard');
-
-            mockCtx.workspaceRoot = '/test/workspace';
-
-            await toggleTaskStar(mockCtx, 'task-002', true, 'tx-456');
-
-            expect(mockFetch).toHaveBeenCalledWith(
-                'http://localhost:3100/dashboard/tasks/task-002/star',
-                expect.objectContaining({
-                    method: 'PATCH',
-                    headers: expect.objectContaining({
-                        'Content-Type': 'application/json',
-                        'X-Transaction-Id': 'tx-456',
-                    }),
-                    body: JSON.stringify({ starred: true }),
-                })
-            );
-        });
-    });
-
     describe('fetchCompletedPage', () => {
         it('完了タスクのページネーションデータを取得してpostMessageで送信すること', async () => {
             const { fetchCompletedPage } = await import('../web-dashboard');
@@ -356,14 +308,13 @@ describe('web-dashboard', () => {
                 }),
             });
 
-            await fetchCompletedPage(mockCtx, 10, 10, 'yes', undefined, 'completedAt');
+            await fetchCompletedPage(mockCtx, 10, 10, 'completedAt');
 
             // APIが正しいパラメータで呼ばれたことを確認
             const fetchCall = mockFetch.mock.calls[0][0] as string;
             expect(fetchCall).toContain('/dashboard/completed');
             expect(fetchCall).toContain('offset=10');
             expect(fetchCall).toContain('limit=10');
-            expect(fetchCall).toContain('reviewed=yes');
             expect(fetchCall).toContain('completedSortField=completedAt');
 
             // postMessageが送信されたことを確認

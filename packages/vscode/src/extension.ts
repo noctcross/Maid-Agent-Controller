@@ -96,37 +96,40 @@ export function activate(context: vscode.ExtensionContext) {
                 console.error('[Maid Agent] resumeSessions:', error);
             }
         }),
-        vscode.commands.registerCommand('multiAgent.startButler', async () => {
+        vscode.commands.registerCommand('multiAgent.callAgent', async () => {
             try {
-                await controller.startButler();
+                const items: vscode.QuickPickItem[] = [
+                    { label: '$(person) 執事を呼ぶ', description: '執事 (butler) を起動', detail: '🎩' },
+                    { label: '$(organization) メイド長を呼ぶ', description: 'メイド長 (chief) を起動', detail: '👑' },
+                    { label: '$(organization) 執事とメイド長を呼ぶ', description: '執事とメイド長を同時に起動', detail: '🎩👑' },
+                    { label: '$(list-selection) メイドを選んで呼ぶ', description: 'メイドを選択して起動', detail: '🎀' },
+                ];
+
+                const selected = await vscode.window.showQuickPick(items, {
+                    placeHolder: 'どのエージェントを呼びますか？',
+                    title: 'Call Agent - エージェントを呼ぶ',
+                });
+
+                if (!selected) return;
+
+                switch (selected.detail) {
+                    case '🎩':
+                        await controller.startButler();
+                        break;
+                    case '👑':
+                        await controller.startChiefMaid();
+                        break;
+                    case '🎩👑':
+                        await controller.startButler();
+                        await controller.startChiefMaid();
+                        break;
+                    case '🎀':
+                        await controller.startSelectedMaids();
+                        break;
+                }
             } catch (error) {
-                vscode.window.showErrorMessage(`執事の起動に失敗しました: ${error}`);
-                console.error('[Maid Agent] startButler:', error);
-            }
-        }),
-        vscode.commands.registerCommand('multiAgent.startChiefMaid', async () => {
-            try {
-                await controller.startChiefMaid();
-            } catch (error) {
-                vscode.window.showErrorMessage(`メイド長の起動に失敗しました: ${error}`);
-                console.error('[Maid Agent] startChiefMaid:', error);
-            }
-        }),
-        vscode.commands.registerCommand('multiAgent.startAgents', async () => {
-            try {
-                await controller.startButler();
-                await controller.startChiefMaid();
-            } catch (error) {
-                vscode.window.showErrorMessage(`エージェント起動に失敗しました: ${error}`);
-                console.error('[Maid Agent] startAgents:', error);
-            }
-        }),
-        vscode.commands.registerCommand('multiAgent.startSelectedMaids', async () => {
-            try {
-                await controller.startSelectedMaids();
-            } catch (error) {
-                vscode.window.showErrorMessage(`メイド起動に失敗しました: ${error}`);
-                console.error('[Maid Agent] startSelectedMaids:', error);
+                vscode.window.showErrorMessage(`エージェント呼び出しに失敗しました: ${error}`);
+                console.error('[Maid Agent] callAgent:', error);
             }
         }),
         vscode.commands.registerCommand('multiAgent.startAll', async () => {

@@ -5,7 +5,7 @@
  */
 
 // HTTP Client
-export { MaidAgentClient, type ApiClientConfig, type RequestOptions } from "./http-client.js";
+export { MaidAgentClient, type ApiClientConfig, type RequestOptions } from "./http-client";
 
 // WebSocket Clients
 export {
@@ -14,16 +14,19 @@ export {
   type WebSocketClientConfig,
   type WSEventHandler,
   type ConnectionStateHandler,
-} from "./ws-client.js";
+} from "./ws-client";
 
 // Endpoints
 export {
   ENDPOINTS,
   buildWebSocketUrl,
   type DashboardOptions,
+  type DashboardDataOptions,
+  type V2GoalsOptions,
+  type CompletedTasksOptions,
   type NotificationListOptions,
   type ResponsesListOptions,
-} from "./endpoints.js";
+} from "./endpoints";
 
 // Errors
 export {
@@ -35,4 +38,4 @@ export {
   NotFoundError,
   ServerError,
   ValidationError,
-} from "./errors.js";
+} from "./errors";

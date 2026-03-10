@@ -6,6 +6,7 @@
  */
 
 import * as vscode from 'vscode';
+import { ENDPOINTS } from '@maid-agent/api-client';
 import { ViewContext } from '../types';
 
 // ダッシュボードモジュールから各機能をインポート
@@ -16,8 +17,6 @@ import {
     initializeDashboard,
     updateDashboardData,
     extractErrorCode,
-    toggleTaskReview as toggleTaskReviewImpl,
-    toggleTaskStar as toggleTaskStarImpl,
     fetchCompletedPage as fetchCompletedPageImpl,
     openDashboardInBrowser as openDashboardInBrowserImpl,
     openMaidAgentFile as openMaidAgentFileImpl,
@@ -48,18 +47,12 @@ function createMessageHandlerContext(ctx: ViewContext): MessageHandlerContext {
         showController: () => ctx.showController(),
         openFileWithPreview: (path: string) => openFileWithPreview(ctx, path),
         openReport: (taskId: string, project: string) => openReport(ctx, taskId, project),
-        toggleTaskReview: (taskId: string, reviewed: boolean, txId?: string) =>
-            toggleTaskReview(ctx, taskId, reviewed, txId),
-        toggleTaskStar: (taskId: string, starred: boolean, txId?: string) =>
-            toggleTaskStar(ctx, taskId, starred, txId),
-        fetchCompletedPage: (offset: number, limit: number, reviewed?: string, starred?: string, completedSortField?: string) =>
-            fetchCompletedPage(ctx, offset, limit, reviewed, starred, completedSortField),
+        fetchCompletedPage: (offset: number, limit: number, completedSortField?: string) =>
+            fetchCompletedPage(ctx, offset, limit, completedSortField),
         updateCompletedViewState: (state: CompletedViewStateUpdate) => {
             ctx.completedViewState = {
                 limit: state.limit ?? 10,
                 offset: state.offset ?? 0,
-                reviewed: state.reviewed,
-                starred: state.starred,
                 hash: state.hash ?? '',
                 completedSortField: state.completedSortField,
             };
@@ -172,27 +165,11 @@ export async function updateDashboard(ctx: ViewContext): Promise<void> {
 }
 
 /**
- * 完了タスクのレビュー済みフラグをトグル
- */
-export async function toggleTaskReview(ctx: ViewContext, taskId: string, reviewed: boolean, txId?: string): Promise<void> {
-    const taskCtx = createTaskActionContext(ctx);
-    await toggleTaskReviewImpl(taskCtx, taskId, reviewed, txId);
-}
-
-/**
- * 完了タスクのスターフラグをトグル
- */
-export async function toggleTaskStar(ctx: ViewContext, taskId: string, starred: boolean, txId?: string): Promise<void> {
-    const taskCtx = createTaskActionContext(ctx);
-    await toggleTaskStarImpl(taskCtx, taskId, starred, txId);
-}
-
-/**
  * 完了タスクのページネーションデータを取得してWebviewに送信
  */
-export async function fetchCompletedPage(ctx: ViewContext, offset: number, limit: number, reviewed?: string, starred?: string, completedSortField?: string): Promise<void> {
+export async function fetchCompletedPage(ctx: ViewContext, offset: number, limit: number, completedSortField?: string): Promise<void> {
     const taskCtx = createTaskActionContext(ctx);
-    await fetchCompletedPageImpl(taskCtx, offset, limit, reviewed, starred, completedSortField);
+    await fetchCompletedPageImpl(taskCtx, offset, limit, completedSortField);
 }
 
 /**
@@ -239,13 +216,9 @@ export async function openReport(ctx: ViewContext, taskId: string, project: stri
 
     try {
         // APIから報告書パスを取得
+        const reportEndpoint = ENDPOINTS.tasks.report(taskId, normalizedPath);
         const response = await fetch(
-            `${DASHBOARD_SERVER_URL}/api/tasks/${encodeURIComponent(taskId)}/report`,
-            {
-                headers: {
-                    'X-Maid-Project-Path': normalizedPath,
-                },
-            }
+            `${DASHBOARD_SERVER_URL}${reportEndpoint}`
         );
 
         if (!response.ok) {

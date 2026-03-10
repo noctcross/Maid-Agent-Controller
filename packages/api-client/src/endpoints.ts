@@ -21,6 +21,35 @@ export interface DashboardOptions {
 }
 
 /**
+ * ダッシュボードデータ取得オプション
+ */
+export interface DashboardDataOptions {
+  completedLimit?: number;
+  completedOffset?: number;
+  completedHash?: string;
+  completedSortField?: string;
+}
+
+/**
+ * V2 ゴール取得オプション
+ */
+export interface V2GoalsOptions {
+  status: "open" | "closed";
+  archived?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * 完了タスク取得オプション
+ */
+export interface CompletedTasksOptions {
+  offset?: number;
+  limit?: number;
+  completedSortField?: string;
+}
+
+/**
  * 通知一覧オプション
  */
 export interface NotificationListOptions {
@@ -43,6 +72,7 @@ export interface ResponsesListOptions {
 export const ENDPOINTS = {
   // ダッシュボード
   dashboard: {
+    /** ダッシュボードJSON API */
     data: (projectPath: string, options?: DashboardOptions): string => {
       const params = new URLSearchParams({ project: projectPath });
       if (options?.statusFilter) params.set("statusFilter", options.statusFilter);
@@ -56,6 +86,34 @@ export const ENDPOINTS = {
       if (options?.assignee) params.set("assignee", options.assignee);
       if (options?.includeTeamStatus) params.set("includeTeamStatus", "true");
       return `/api/dashboard?${params.toString()}`;
+    },
+    /** 旧ダッシュボードデータ API（IDE統合用） */
+    legacyData: (projectPath: string, options?: DashboardDataOptions): string => {
+      const params = new URLSearchParams({ project: projectPath });
+      if (options?.completedLimit) params.set("completedLimit", String(options.completedLimit));
+      if (options?.completedOffset) params.set("completedOffset", String(options.completedOffset));
+      if (options?.completedHash) params.set("completedHash", options.completedHash);
+      if (options?.completedSortField) params.set("completedSortField", options.completedSortField);
+      return `/dashboard/data?${params.toString()}`;
+    },
+    /** SPA版HTML取得 */
+    spa: (projectPath: string): string =>
+      `/dashboard?project=${encodeURIComponent(projectPath)}`,
+    /** V2 ゴール取得 */
+    v2Goals: (projectPath: string, options: V2GoalsOptions): string => {
+      const params = new URLSearchParams({ project: projectPath, status: options.status });
+      if (options.archived !== undefined) params.set("archived", String(options.archived));
+      if (options.limit) params.set("limit", String(options.limit));
+      if (options.offset) params.set("offset", String(options.offset));
+      return `/dashboard/v2/goals?${params.toString()}`;
+    },
+    /** 完了タスク一覧（ページネーション） */
+    completed: (projectPath: string, options?: CompletedTasksOptions): string => {
+      const params = new URLSearchParams({ project: projectPath });
+      if (options?.offset) params.set("offset", String(options.offset));
+      if (options?.limit) params.set("limit", String(options.limit));
+      if (options?.completedSortField) params.set("completedSortField", options.completedSortField);
+      return `/dashboard/completed?${params.toString()}`;
     },
   },
 
@@ -80,6 +138,9 @@ export const ENDPOINTS = {
       `/api/files/content?path=${encodeURIComponent(path)}&project=${encodeURIComponent(projectPath)}`,
     raw: (path: string, projectPath: string): string =>
       `/api/files/raw?path=${encodeURIComponent(path)}&project=${encodeURIComponent(projectPath)}`,
+    /** ファイルビュー（レンダリング済みHTML取得） */
+    view: (path: string, projectPath: string): string =>
+      `/file?path=${encodeURIComponent(path)}&project=${encodeURIComponent(projectPath)}`,
   },
 
   // 通知

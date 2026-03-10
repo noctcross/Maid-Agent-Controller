@@ -153,14 +153,6 @@ export async function executeUpdateTask(
         task.reportPaths.push(params.reportPath);
       }
     }
-    if (params.reviewed !== undefined) {
-      task.reviewed = params.reviewed;
-      task.reviewedAt = params.reviewed ? now : null;
-    }
-    if (params.starred !== undefined) {
-      task.starred = params.starred;
-      task.starredAt = params.starred ? now : null;
-    }
     if (params.actionRequired !== undefined) {
       task.actionRequired = params.actionRequired;
       task.actionRequiredAt = params.actionRequired ? now : null;

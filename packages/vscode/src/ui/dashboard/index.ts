@@ -25,8 +25,6 @@ export {
 
 // タスク操作
 export {
-    toggleTaskReview,
-    toggleTaskStar,
     fetchCompletedPage,
     type TaskActionContext,
 } from './task-actions';

@@ -4,9 +4,8 @@
  */
 import { Router } from "express";
 import { recordProjectAccess } from "../services/project-registry.js";
-import type { ProjectWithStats } from "../views/top-page-html.js";
 export interface TopPageRoutesDeps {
-    generateTopPageHtml: (projects: ProjectWithStats[]) => string;
+    generateTopPageHtml: () => string;
 }
 export declare function createTopPageRoutes(deps: TopPageRoutesDeps): Router;
 export { recordProjectAccess };

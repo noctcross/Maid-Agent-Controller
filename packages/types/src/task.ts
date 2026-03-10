@@ -87,10 +87,6 @@ export interface Task {
   updatedAt: string; // 最終更新日時
   reportPaths: string[];
   summary: string | null;
-  reviewed?: boolean; // チェック済みフラグ（完了タスク用）
-  starred?: boolean; // スター付きフラグ（完了タスク用）
-  reviewedAt?: string | null; // チェック日時
-  starredAt?: string | null; // スター日時
   actionRequired?: boolean; // ご主人様対応必要フラグ
   actionRequiredAt?: string | null; // 対応必要フラグ設定日時
 
@@ -142,8 +138,6 @@ export interface UpdateTaskParams {
   assignees?: Assignee[];
   summary?: string;
   reportPath?: string;
-  reviewed?: boolean;
-  starred?: boolean;
   actionRequired?: boolean; // ご主人様対応必要フラグ
   // --- 追加: unified-task-state-gateway ---
   title?: string; // タスクタイトル変更

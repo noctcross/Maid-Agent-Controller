@@ -5,6 +5,7 @@
  */
 
 import * as vscode from 'vscode';
+import { ENDPOINTS, type DashboardDataOptions, type V2GoalsOptions } from '@maid-agent/api-client';
 import { DASHBOARD_SERVER_URL, DASHBOARD_MAX_CONSECUTIVE_FAILURES } from '../../constants';
 import { CURRENT_ENV, windowsToWslPath } from '../../utils/environment';
 import { escapeHtml } from '../../utils/html-escape';
@@ -42,8 +43,6 @@ export interface DataFetcherState {
 export interface CompletedViewState {
     limit: number;
     offset: number;
-    reviewed: string | undefined;
-    starred: string | undefined;
     hash: string;
     completedSortField: string | undefined;
 }
@@ -84,16 +83,18 @@ export async function refreshDashboardData(
 
     try {
         const state = ctx.completedViewState;
-        let dataUrl = `${serverUrl}/dashboard/data?project=${encodeURIComponent(normalizedPath)}`;
-        dataUrl += `&completedLimit=${state.limit}`;
-        dataUrl += `&completedOffset=${state.offset}`;
-        if (state.reviewed) dataUrl += `&completedReviewed=${state.reviewed}`;
-        if (state.starred) dataUrl += `&completedStarred=${state.starred}`;
-        if (state.hash) dataUrl += `&completedHash=${state.hash}`;
-        if (state.completedSortField) dataUrl += `&completedSortField=${state.completedSortField}`;
+        const dataOptions: DashboardDataOptions = {
+            completedLimit: state.limit,
+            completedOffset: state.offset,
+            completedHash: state.hash || undefined,
+            completedSortField: state.completedSortField,
+        };
+        const dataUrl = `${serverUrl}${ENDPOINTS.dashboard.legacyData(normalizedPath, dataOptions)}`;
 
-        const v2GoalsOpenUrl = `${serverUrl}/dashboard/v2/goals?project=${encodeURIComponent(normalizedPath)}&status=open&archived=false&limit=10&offset=0`;
-        const v2GoalsClosedUrl = `${serverUrl}/dashboard/v2/goals?project=${encodeURIComponent(normalizedPath)}&status=closed&archived=false&limit=10&offset=0`;
+        const v2GoalsOpenOptions: V2GoalsOptions = { status: 'open', archived: false, limit: 10, offset: 0 };
+        const v2GoalsClosedOptions: V2GoalsOptions = { status: 'closed', archived: false, limit: 10, offset: 0 };
+        const v2GoalsOpenUrl = `${serverUrl}${ENDPOINTS.dashboard.v2Goals(normalizedPath, v2GoalsOpenOptions)}`;
+        const v2GoalsClosedUrl = `${serverUrl}${ENDPOINTS.dashboard.v2Goals(normalizedPath, v2GoalsClosedOptions)}`;
 
         const [response, goalsOpenResponse, goalsClosedResponse] = await Promise.all([
             fetch(dataUrl),
@@ -220,7 +221,7 @@ export async function initializeDashboard(
     if (!ctx.dashboardPanel) return;
 
     // SPA版エンドポイントからHTMLを取得
-    const dashboardUrl = `${serverUrl}/dashboard-spa?project=${encodeURIComponent(projectPath)}`;
+    const dashboardUrl = `${serverUrl}${ENDPOINTS.dashboard.spa(projectPath)}`;
     const response = await fetch(dashboardUrl);
 
     if (!response.ok) {
@@ -249,13 +250,13 @@ export async function updateDashboardData(
     if (!ctx.dashboardPanel) return;
 
     const state = ctx.completedViewState;
-    let dataUrl = `${serverUrl}/dashboard/data?project=${encodeURIComponent(projectPath)}`;
-    dataUrl += `&completedLimit=${state.limit}`;
-    dataUrl += `&completedOffset=${state.offset}`;
-    if (state.reviewed) dataUrl += `&completedReviewed=${state.reviewed}`;
-    if (state.starred) dataUrl += `&completedStarred=${state.starred}`;
-    if (state.hash) dataUrl += `&completedHash=${state.hash}`;
-    if (state.completedSortField) dataUrl += `&completedSortField=${state.completedSortField}`;
+    const dataOptions: DashboardDataOptions = {
+        completedLimit: state.limit,
+        completedOffset: state.offset,
+        completedHash: state.hash || undefined,
+        completedSortField: state.completedSortField,
+    };
+    const dataUrl = `${serverUrl}${ENDPOINTS.dashboard.legacyData(projectPath, dataOptions)}`;
 
     const response = await fetch(dataUrl);
 

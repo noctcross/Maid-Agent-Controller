@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ENDPOINTS } from '@maid-agent/api-client';
 import { DASHBOARD_SERVER_URL } from '../../constants';
 import { CURRENT_ENV, windowsToWslPath } from '../../utils/environment';
 import { simpleMarkdownToHtml } from '../../utils/markdown';
@@ -143,7 +144,7 @@ async function fetchRenderedFileHtml(ctx: FileViewerContext, filePath: string): 
             ? windowsToWslPath(projectPath)
             : projectPath;
 
-        const fileUrl = `${serverUrl}/file?path=${encodeURIComponent(filePath)}&project=${encodeURIComponent(normalizedProjectPath || '')}`;
+        const fileUrl = `${serverUrl}${ENDPOINTS.files.view(filePath, normalizedProjectPath || '')}`;
         const response = await fetch(fileUrl);
         if (!response.ok) return null;
 

@@ -10,7 +10,7 @@ import type {
   NotificationWSClientMessage,
   WebSocketMessage,
 } from "@maid-agent/types";
-import { ENDPOINTS, buildWebSocketUrl } from "./endpoints.js";
+import { ENDPOINTS, buildWebSocketUrl } from "./endpoints";
 
 /**
  * WebSocketクライアント設定

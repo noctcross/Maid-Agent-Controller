@@ -28,16 +28,7 @@ import imageRoutes from "./routes/image-routes.js";
 import qualityRoutes from "./routes/quality-routes.js";
 
 // ビュー
-import { generateDashboardHtml, generateTeamStatusHtml } from "./views/dashboard-html.js";
 import { generateTopPageHtml } from "./views/top-page-html.js";
-import { generateTaskHtml, composeMasterWaitingHtml } from "./views/task-html.js";
-// V2.1 ビュー
-import {
-  generateTaskTreeHtml,
-  generateReviewQueueHtml,
-  generateArtifactsHtml,
-  generateStatsHtml,
-} from "./views/task-tree.js";
 
 import { loopbackOnly } from "./middleware/loopback-only.js";
 import { DashboardWebSocketServer } from "./websocket/dashboard-ws.js";
@@ -123,17 +114,7 @@ async function main(): Promise<void> {
   // ※ loopbackOnly付きルートを先にマウントすると、パス指定なしの
   //    app.use(loopbackOnly, router) が全リクエストをブロックしてしまうため
   app.use(createTopPageRoutes({ generateTopPageHtml }));  // トップページ（プロジェクト一覧）
-  app.use(createDashboardRoutes({
-    generateDashboardHtml,
-    generateTaskHtml,
-    composeMasterWaitingHtml,
-    generateTaskTreeHtml,
-    generateReviewQueueHtml,
-    generateArtifactsHtml,
-    generateStatsHtml,
-    generateTeamStatusHtml,
-    wsServer,
-  }));
+  app.use(createDashboardRoutes({ wsServer }));  // SPA版ダッシュボード
   app.use(fileRoutes);
   app.use(fileApiRoutes);
   app.use(notificationApiRoutes);

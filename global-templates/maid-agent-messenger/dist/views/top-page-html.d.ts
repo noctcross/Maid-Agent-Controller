@@ -11,4 +11,4 @@ export interface ProjectWithStats extends ProjectEntry {
     } | null;
     status: "available" | "unavailable";
 }
-export declare function generateTopPageHtml(_projects: ProjectWithStats[]): string;
+export declare function generateTopPageHtml(): string;

@@ -12,7 +12,7 @@ export function createTopPageRoutes(deps) {
     const router = Router();
     // GET / — トップページHTML（SPA: 静的HTMLシェル + クライアントJSでAPI呼び出し）
     router.get("/", async (_req, res) => {
-        const html = generateTopPageHtml([]); // 空の配列で静的シェルを生成
+        const html = generateTopPageHtml();
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.send(html);
     });

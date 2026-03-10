@@ -1,6 +1,6 @@
 /**
  * Maid Agent System - 型定義
- * V2.1: Goal/Phase/Action/Investigation 階層構造対応
+ * V2.1: Task/Work/Step/Investigation 階層構造対応
  * V5.0.0: @maid-agent/types からの re-export を追加
  */
 import { logger } from "../utils/logger.js";
@@ -25,9 +25,9 @@ export const ALL_AGENT_IDS = ["butler", "chief", ...MAID_IDS];
 // V2.1: タスク種別（実行時定数）
 // =============================================================================
 export const TASK_TYPES = [
-    "task", // タスク（ご主人様の指示単位）- 旧 goal
-    "work", // ワーク（成果物単位の作業グループ）- 旧 phase
-    "step", // ステップ（メイド1人で完結する作業）- 旧 action
+    "task", // タスク（ご主人様の指示単位）
+    "work", // ワーク（成果物単位の作業グループ）
+    "step", // ステップ（メイド1人で完結する作業）
     "investigation", // 調査タスク（docs/昇格対象）
 ];
 // =============================================================================
@@ -71,8 +71,8 @@ export const REVIEW_STATUSES = [
 // V2.1: 成果物 Retention レベル（実行時定数）
 // =============================================================================
 export const RETENTION_LEVELS = [
-    "L1", // Phase完了後 7日で削除
-    "L2", // Goal完了後 30日で削除
+    "L1", // Work完了後 7日で削除
+    "L2", // Task完了後 30日で削除
     "L3", // 永続（docs/配下）
 ];
 // =============================================================================

@@ -19,7 +19,7 @@ import { checkAndAutoCloseParent, resolveBlockedTasks } from "./task-auto-close.
  * tasks.yaml 更新後、副作用（maid yaml同期・レポートアーカイブ・テンプレート初期化）を実行。
  */
 export async function executeUpdateTask(projectPath, params) {
-    // Phase 1: tasks.yaml 更新（ロック内）
+    // Step 1: tasks.yaml 更新（ロック内）
     const lockResult = await withTasksLock(projectPath, async (data) => {
         const taskIndex = data.tasks.findIndex((t) => t.id === params.taskId);
         if (taskIndex === -1) {
@@ -131,14 +131,6 @@ export async function executeUpdateTask(projectPath, params) {
                 task.reportPaths.push(params.reportPath);
             }
         }
-        if (params.reviewed !== undefined) {
-            task.reviewed = params.reviewed;
-            task.reviewedAt = params.reviewed ? now : null;
-        }
-        if (params.starred !== undefined) {
-            task.starred = params.starred;
-            task.starredAt = params.starred ? now : null;
-        }
         if (params.actionRequired !== undefined) {
             task.actionRequired = params.actionRequired;
             task.actionRequiredAt = params.actionRequired ? now : null;
@@ -241,7 +233,7 @@ export async function executeUpdateTask(projectPath, params) {
         return { data, result: { result, prevStatus, prevAssignees } };
     });
     const { result, prevStatus, prevAssignees } = lockResult;
-    // Phase 2: 副作用実行（tasks.yaml ロック外）
+    // Step 2: 副作用実行（tasks.yaml ロック外）
     if (result.success && result.task) {
         try {
             const { executeSideEffects } = await import("./task-side-effects.js");
@@ -299,7 +291,7 @@ export async function executeUpdateTask(projectPath, params) {
                 if (autoCloseResult.autoClosedIds.length > 0) {
                     result.sideEffects = result.sideEffects || {};
                     result.sideEffects.autoClosedParents = autoCloseResult.autoClosedIds;
-                    // 後方互換: 最初にクローズされた親を goalAutoClosed に設定
+                    // 後方互換: 最初にクローズされた親を goalAutoClosed に設定（非推奨: autoClosedParents を使用）
                     result.sideEffects.goalAutoClosed = autoCloseResult.autoClosedIds[0];
                 }
             }

@@ -89,7 +89,7 @@ export function createTaskApiRoutes(deps = {}) {
             // V2.1 拡張フィールド
             mainStatus, subStatus, type, size, tentative, blockedBy, artifacts, artifactAdd, reviewStatus, 
             // V2.1 追加フィールド
-            archived, actionRequired, starred, } = req.body;
+            archived, actionRequired, } = req.body;
             const result = await executeUpdateTask(projectPath, {
                 taskId: req.params.id,
                 status,
@@ -112,7 +112,6 @@ export function createTaskApiRoutes(deps = {}) {
                 // V2.1 追加
                 archived,
                 actionRequired,
-                starred,
             });
             if (!result.success) {
                 const errorMessage = result.error || "Task not found";
@@ -170,72 +169,6 @@ export function createTaskApiRoutes(deps = {}) {
         catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";
             res.status(500).json({ error: "Report retrieval failed", details: message });
-        }
-    });
-    // PATCH /api/tasks/:id/review - レビュー済みトグル
-    router.patch("/api/tasks/:id/review", async (req, res) => {
-        try {
-            const projectPath = getProjectPathFromRequest(req);
-            const txId = req.get("X-Transaction-Id");
-            const { reviewed } = req.body;
-            const result = await executeUpdateTask(projectPath, {
-                taskId: req.params.id,
-                reviewed: reviewed !== undefined ? reviewed : true,
-            });
-            if (!result.success) {
-                const errorMessage = result.error || "Task not found";
-                const statusCode = result.error ? 400 : 404;
-                res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
-                return;
-            }
-            // WebSocket通知: タスク更新をリアルタイム配信
-            if (wsServer) {
-                wsServer.broadcast(projectPath, {
-                    type: "taskUpdated",
-                    taskId: req.params.id,
-                    field: "reviewed",
-                    value: result.task?.reviewed,
-                    txId,
-                });
-            }
-            res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            res.status(500).json({ error: "Review toggle failed", details: message });
-        }
-    });
-    // PATCH /api/tasks/:id/star - スタートグル
-    router.patch("/api/tasks/:id/star", async (req, res) => {
-        try {
-            const projectPath = getProjectPathFromRequest(req);
-            const txId = req.get("X-Transaction-Id");
-            const { starred } = req.body;
-            const result = await executeUpdateTask(projectPath, {
-                taskId: req.params.id,
-                starred: starred !== undefined ? starred : true,
-            });
-            if (!result.success) {
-                const errorMessage = result.error || "Task not found";
-                const statusCode = result.error ? 400 : 404;
-                res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
-                return;
-            }
-            // WebSocket通知: タスク更新をリアルタイム配信
-            if (wsServer) {
-                wsServer.broadcast(projectPath, {
-                    type: "taskUpdated",
-                    taskId: req.params.id,
-                    field: "starred",
-                    value: result.task?.starred,
-                    txId,
-                });
-            }
-            res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            res.status(500).json({ error: "Star toggle failed", details: message });
         }
     });
     // 旧 GET /api/dashboard（pending/working/completed形式）は削除

@@ -1,13 +1,14 @@
 {
-  "name": "@maid-agent/api-client",
+  "name": "@maid-agent/constants",
   "version": "1.0.0",
-  "description": "HTTP/WebSocket API client for Maid Agent System",
+  "description": "Constants and agent definitions for Maid Agent System",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "require": "./dist/index.js"
+      "import": "./dist/index.js"
     }
   },
   "files": [
@@ -17,14 +18,10 @@
     "build": "tsc",
     "clean": "rm -rf dist"
   },
-  "dependencies": {
-    "@maid-agent/types": "file:../types"
-  },
   "keywords": [
     "maid-agent",
-    "api-client",
-    "http",
-    "websocket"
+    "constants",
+    "typescript"
   ],
   "license": "MIT"
 }

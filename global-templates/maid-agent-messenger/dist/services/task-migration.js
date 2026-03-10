@@ -176,8 +176,8 @@ export function migrateTask(task) {
     const { mainStatus, subStatus } = mapLegacyStatus(task.status, task.substatus);
     // archivedフラグの決定
     // - 旧 substatus が "archived" の場合
-    // - reviewed が true の場合（チェック済み完了タスク）
-    const archived = task.substatus === "archived" || task.reviewed === true;
+    // - 既にarchivedフラグがtrueの場合
+    const archived = task.substatus === "archived" || task.archived === true;
     // タスク種別の推定
     const type = task.type || inferTaskType(task);
     return {
@@ -186,7 +186,7 @@ export function migrateTask(task) {
         mainStatus,
         subStatus,
         archived,
-        archivedAt: archived ? (task.reviewedAt || task.completedAt || null) : null,
+        archivedAt: archived ? (task.archivedAt || task.completedAt || null) : null,
         // Task専用フィールドの初期化
         size: type === "task" ? (task.size || "standard") : undefined,
         tentative: type === "task" ? (task.tentative || false) : undefined,
@@ -305,11 +305,10 @@ export async function migrate(projectPath, options = {}) {
             }
             // 6. archived フラグの初期化（独立フラグ）
             // - 旧 substatus が "archived" の場合
-            // - reviewed が true の場合（チェック済み完了タスク）
             if (task.archived === undefined) {
-                const shouldArchive = task.substatus === "archived" || task.reviewed === true;
+                const shouldArchive = task.substatus === "archived";
                 task.archived = shouldArchive;
-                task.archivedAt = shouldArchive ? (task.reviewedAt || task.completedAt || null) : null;
+                task.archivedAt = shouldArchive ? (task.completedAt || null) : null;
                 if (shouldArchive) {
                     changes.archived = true;
                     changes.archivedAt = task.archivedAt;

@@ -5,17 +5,17 @@
  * task-manager.ts から責務分割のため分離。
  */
 /**
- * V2.1: Goal階層連動 - 子Phaseの状態から親Goalの表示ステータスを計算
+ * V2.1: Task階層連動 - 子Workの状態から親Taskの表示ステータスを計算
  *
  * 設計書より:
- * - 全Phase pending → Goal「未着手」⏸️
- * - いずれかPhase assigned → Goal「準備中」📋
- * - いずれかPhase working → Goal「進行中」🔵
- * - いずれかPhase waiting/checkpoint → Goal「ブロック中」⚠️
- * - 全Phase completed → Goal「完了可能」✅
+ * - 全Work pending → Task「未着手」⏸️
+ * - いずれかWork assigned → Task「準備中」📋
+ * - いずれかWork working → Task「進行中」🔵
+ * - いずれかWork waiting/checkpoint → Task「ブロック中」⚠️
+ * - 全Work completed → Task「完了可能」✅
  */
 export declare function computeGoalDisplayStatus(goalSubstatus: string, phases: Array<{
-    v2Substatus: string;
+    subStatus: string;
     mainStatus?: string;
 }>, goalMainStatus?: string): {
     displayStatus: string;
@@ -24,65 +24,66 @@ export declare function computeGoalDisplayStatus(goalSubstatus: string, phases: 
 /**
  * V2.1 ダッシュボードデータ
  */
-export interface V2DashboardData {
-    v2Goals: V2GoalData[];
-    v2ReviewQueue: V2ReviewTaskData[];
-    v2Artifacts: V2ArtifactData[];
-    v2Stats: V2StatsData;
+export interface DashboardData {
+    v2Goals: GoalData[];
+    v2ReviewQueue: ReviewTaskData[];
+    v2Artifacts: ArtifactData[];
+    v2Stats: StatsData;
     totalGoals: number;
 }
-export interface V2StepData {
+export interface StepData {
     id: string;
     title: string;
     description?: string;
     type: "step";
     mainStatus: string;
-    v2Substatus: string;
+    subStatus: string;
     assignees?: Array<{
         agentId: string;
     }>;
     updatedAt?: string;
     hasReport?: boolean;
 }
-export interface V2WorkData {
+export interface WorkData {
     id: string;
     title: string;
     description?: string;
     type: "work";
     mainStatus: string;
-    v2Substatus: string;
+    subStatus: string;
     reviewStatus?: string;
     assignees?: Array<{
         agentId: string;
     }>;
-    steps: V2StepData[];
+    steps: StepData[];
     updatedAt?: string;
     hasReport?: boolean;
 }
-export interface V2TaskData {
+export interface TaskData {
     id: string;
     title: string;
     description?: string;
     type: "task";
     mainStatus: string;
-    v2Substatus: string;
+    subStatus: string;
     size?: string;
     reviewStatus?: string;
     assignees: Array<{
         agentId: string;
     }>;
-    works: V2WorkData[];
+    works: WorkData[];
     displayStatus?: string;
     displayIcon?: string;
     archived?: boolean;
     updatedAt?: string;
     latestUpdatedAt?: string;
     hasReport?: boolean;
+    actionRequired?: boolean;
 }
-export type V2GoalData = V2TaskData;
-export type V2PhaseData = V2WorkData;
-export type V2ActionData = V2StepData;
-export interface V2ReviewTaskData {
+export type GoalData = TaskData;
+export type PhaseData = WorkData;
+export type ActionData = StepData;
+export interface ReviewTaskData {
     id: string;
     title: string;
     type: string;
@@ -93,14 +94,14 @@ export interface V2ReviewTaskData {
         agentId: string;
     }>;
 }
-export interface V2ArtifactData {
+export interface ArtifactData {
     path: string;
     type: string;
     retention: string;
     taskId: string;
     createdAt: string;
 }
-export interface V2StatsData {
+export interface StatsData {
     taskCount: number;
     workCount: number;
     stepCount: number;
@@ -112,7 +113,7 @@ export interface V2StatsData {
 /**
  * V2.1 ダッシュボードデータ生成オプション
  */
-export interface V2DashboardOptions {
+export interface DashboardOptions {
     showArchived?: boolean;
     statusFilter?: "open" | "closed" | "all";
     offset?: number;
@@ -127,4 +128,4 @@ export interface V2DashboardOptions {
 /**
  * タスク一覧からV2.1ダッシュボードデータを生成
  */
-export declare function generateV2DashboardData(projectPath: string, options?: V2DashboardOptions): Promise<V2DashboardData>;
+export declare function generateDashboardData(projectPath: string, options?: DashboardOptions): Promise<DashboardData>;

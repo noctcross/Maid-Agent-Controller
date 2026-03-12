@@ -1,82 +1,20 @@
 /**
  * ファイル表示エンドポイント
- * GET /file - ブラウザでマークダウンを表示
+ * GET /file - SPA: 静的HTMLシェル + クライアントJSでAPI呼び出し
  */
 import { Router } from "express";
-import path from "path";
-import * as fs from "fs/promises";
-import { convertMarkdownToHtml, escapeHtml, linkifyProjectPaths } from "../markdown-utils.js";
-import { extractAgentIdFromPath, generateAgentBackgroundSnippet } from "../utils/agent-image.js";
-import { logger } from "../utils/logger.js";
 const router = Router();
-router.get("/file", async (req, res) => {
-    try {
-        let filePath = req.query.path;
-        // projectPathがあればパスリンク化を適用（ダッシュボードからの遷移時に自動付加）
-        const projectPath = req.query.project;
-        if (!filePath) {
-            res.status(400).send("Missing path parameter");
-            return;
-        }
-        // URLデコード
-        filePath = decodeURIComponent(filePath);
-        // 相対パスの場合はprojectPathと結合して絶対パスに変換
-        if (projectPath && !path.isAbsolute(filePath)) {
-            filePath = path.join(projectPath, filePath);
-        }
-        // WSL環境でのみWindowsパス（C:/...）をWSLパス（/mnt/c/...）に変換
-        // Mac/Linuxでは変換不要
-        const isWslEnvironment = process.platform === 'linux' && process.env.WSL_DISTRO_NAME;
-        if (isWslEnvironment && /^[A-Z]:\//i.test(filePath)) {
-            const driveLetter = filePath[0].toLowerCase();
-            filePath = `/mnt/${driveLetter}/${filePath.slice(3)}`;
-        }
-        // パストラバーサル対策: projectPathが指定されている場合、その配下に限定
-        if (projectPath) {
-            // 正規化されたprojectPathを取得（末尾のスラッシュを統一）
-            const normalizedProjectPath = path.resolve(projectPath);
-            // シンボリックリンクを解決した実際のパスを取得
-            let resolvedFilePath;
-            try {
-                resolvedFilePath = await fs.realpath(filePath);
-            }
-            catch {
-                // ファイルが存在しない場合は path.resolve で正規化
-                resolvedFilePath = path.resolve(filePath);
-            }
-            // projectPath配下かどうかを確認
-            if (!resolvedFilePath.startsWith(normalizedProjectPath + path.sep) &&
-                resolvedFilePath !== normalizedProjectPath) {
-                logger.warn(`Path traversal blocked: ${filePath} is outside ${projectPath}`);
-                res.status(403).send("Access denied: path is outside project directory");
-                return;
-            }
-        }
-        // ファイル読み込み
-        const content = await fs.readFile(filePath, "utf-8");
-        const fileName = path.basename(filePath);
-        const isMarkdown = /\.(md|markdown)$/i.test(fileName);
-        // HTML生成
-        const markdownHtml = convertMarkdownToHtml(content);
-        const htmlContent = isMarkdown
-            ? (projectPath ? linkifyProjectPaths(markdownHtml, projectPath) : markdownHtml)
-            : `<pre>${escapeHtml(content)}</pre>`;
-        // エージェント背景イラスト
-        const agentId = extractAgentIdFromPath(filePath);
-        let agentBgCss = "";
-        let agentBgHtml = "";
-        if (agentId && projectPath) {
-            const imageUrl = `/agent-image?agent=${encodeURIComponent(agentId)}&project=${encodeURIComponent(projectPath)}`;
-            const snippet = generateAgentBackgroundSnippet(imageUrl);
-            agentBgCss = snippet.css;
-            agentBgHtml = snippet.bodyHtml;
-        }
-        const html = `<!DOCTYPE html>
+/**
+ * ファイル表示用の静的HTMLシェルを生成
+ * クライアントJSが /api/files/content を呼び出してコンテンツを取得・表示
+ */
+function generateFileViewerHtml(filePath, projectPath) {
+    return `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(fileName)}</title>
+  <title>ファイル - 読み込み中...</title>
   <style>
     :root {
       --bg-start: #1a1a2e;
@@ -115,6 +53,8 @@ router.get("/file", async (req, res) => {
     .back-link { color: var(--link-color); text-decoration: none; }
     .back-link:hover { text-decoration: underline; }
     .content { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 16px; }
+    .loading { text-align: center; padding: 40px; color: #888; }
+    .error { color: #f14c4c; text-align: center; padding: 40px; }
     h1, h2, h3, h4, h5, h6 { margin: 1.5em 0 0.5em; }
     h1 { font-size: 1.4em; color: var(--h1-color); border-bottom: 2px solid var(--h1-color); padding-bottom: 6px; }
     h2 { font-size: 1.15em; color: var(--h2-color); border-bottom: 1px solid var(--border-color); padding-bottom: 4px; }
@@ -148,45 +88,110 @@ router.get("/file", async (req, res) => {
     em { font-style: italic; color: #aaa; }
     .path-link { color: var(--link-color); text-decoration: none; border-bottom: 1px dotted var(--link-color); cursor: pointer; }
     .path-link:hover { text-decoration: underline; background: rgba(86, 156, 214, 0.1); }
-    ${agentBgCss}
+    /* エージェント背景イラスト */
+    .agent-background {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      width: 300px;
+      height: 400px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: bottom right;
+      opacity: 0.15;
+      pointer-events: none;
+      z-index: -1;
+    }
   </style>
 </head>
 <body>
   <div class="file-header">
     <div>
-      <div class="file-name">📄 ${escapeHtml(fileName)}</div>
-      <div class="file-path">${escapeHtml(filePath)}</div>
+      <div class="file-name" id="file-name">📄 読み込み中...</div>
+      <div class="file-path" id="file-path"></div>
     </div>
     <a href="javascript:history.back()" class="back-link">← 戻る</a>
   </div>
-  <div class="content">
-    ${htmlContent}
+  <div class="content" id="content">
+    <div class="loading">📂 ファイルを読み込み中...</div>
   </div>
-  ${agentBgHtml}
+  <div class="agent-background" id="agent-bg"></div>
+
   <script>
-    // path-link のクリックハンドラ（addEventListenerパターン、CSP対応）
-    // ファイルビューアではVSCode APIが使えないため、デフォルトリンク動作（href遷移）に委譲
-    document.querySelectorAll('.path-link').forEach(function(link) {
-      link.addEventListener('click', function(e) {
-        // ブラウザ環境: デフォルトのhref遷移をそのまま使用（何もしない）
-      });
-    });
+    (function() {
+      var filePath = ${JSON.stringify(filePath)};
+      var projectPath = ${JSON.stringify(projectPath)};
+
+      // APIからファイル内容を取得
+      var apiUrl = '/api/files/content?path=' + encodeURIComponent(filePath) + '&project=' + encodeURIComponent(projectPath);
+
+      fetch(apiUrl)
+        .then(function(response) {
+          if (!response.ok) {
+            return response.json().then(function(data) {
+              throw new Error(data.error || 'ファイルの取得に失敗しました');
+            });
+          }
+          return response.json();
+        })
+        .then(function(data) {
+          // タイトル更新
+          document.title = data.name + ' - ファイルビューア';
+          document.getElementById('file-name').textContent = '📄 ' + data.name;
+          document.getElementById('file-path').textContent = data.absolutePath || data.path;
+
+          // コンテンツ表示
+          var contentEl = document.getElementById('content');
+          if (data.isMarkdown && data.htmlContent) {
+            contentEl.innerHTML = data.htmlContent;
+          } else {
+            // 非Markdownファイルはプレーンテキスト表示
+            var pre = document.createElement('pre');
+            pre.textContent = data.content;
+            contentEl.innerHTML = '';
+            contentEl.appendChild(pre);
+          }
+
+          // エージェント背景イラスト
+          if (data.agentId && projectPath) {
+            var bgEl = document.getElementById('agent-bg');
+            var imageUrl = '/agent-image?agent=' + encodeURIComponent(data.agentId) + '&project=' + encodeURIComponent(projectPath);
+            bgEl.style.backgroundImage = 'url(' + imageUrl + ')';
+          }
+        })
+        .catch(function(error) {
+          document.getElementById('file-name').textContent = '⚠️ エラー';
+          document.getElementById('content').innerHTML = '<div class="error">' + (error.message || 'ファイルの読み込みに失敗しました') + '</div>';
+        });
+    })();
   </script>
 </body>
 </html>`;
-        res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.send(html);
+}
+router.get("/file", async (req, res) => {
+    const filePath = req.query.path;
+    const projectPath = req.query.project;
+    if (!filePath) {
+        res.status(400).send(`<!DOCTYPE html>
+<html><head><title>Error</title>
+<style>body{font-family:sans-serif;background:#1e1e1e;color:#ccc;padding:40px;text-align:center;}
+.error{color:#f14c4c;font-size:1.5rem;}</style></head>
+<body><div class="error">⚠️ パラメータエラー</div><p>path パラメータが必要です</p>
+<a href="javascript:history.back()" style="color:#4ec9b0;">← 戻る</a></body></html>`);
+        return;
     }
-    catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-        res.status(404).send(`
-      <!DOCTYPE html>
-      <html><head><title>File Not Found</title>
-      <style>body{font-family:sans-serif;background:#1e1e1e;color:#ccc;padding:40px;text-align:center;}
-      .error{color:#f14c4c;font-size:1.5rem;}</style></head>
-      <body><div class="error">⚠️ ファイルが見つかりません</div><p>${escapeHtml(message)}</p>
-      <a href="javascript:history.back()" style="color:#4ec9b0;">← 戻る</a></body></html>
-    `);
+    if (!projectPath) {
+        res.status(400).send(`<!DOCTYPE html>
+<html><head><title>Error</title>
+<style>body{font-family:sans-serif;background:#1e1e1e;color:#ccc;padding:40px;text-align:center;}
+.error{color:#f14c4c;font-size:1.5rem;}</style></head>
+<body><div class="error">⚠️ パラメータエラー</div><p>project パラメータが必要です</p>
+<a href="javascript:history.back()" style="color:#4ec9b0;">← 戻る</a></body></html>`);
+        return;
     }
+    // 静的HTMLシェルを返す（実際のファイル読み込みはクライアントJSがAPIを呼び出す）
+    const html = generateFileViewerHtml(decodeURIComponent(filePath), decodeURIComponent(projectPath));
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
 });
 export default router;

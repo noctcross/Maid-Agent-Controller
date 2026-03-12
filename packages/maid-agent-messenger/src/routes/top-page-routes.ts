@@ -16,15 +16,22 @@ import { executeListTasks } from "../services/index.js";
 import type { ProjectWithStats } from "../views/top-page-html.js";
 
 export interface TopPageRoutesDeps {
-  generateTopPageHtml: (projects: ProjectWithStats[]) => string;
+  generateTopPageHtml: () => string;
 }
 
 export function createTopPageRoutes(deps: TopPageRoutesDeps): Router {
   const { generateTopPageHtml } = deps;
   const router = Router();
 
-  // GET / — トップページHTML
+  // GET / — トップページHTML（SPA: 静的HTMLシェル + クライアントJSでAPI呼び出し）
   router.get("/", async (_req: Request, res: Response) => {
+    const html = generateTopPageHtml();
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  });
+
+  // GET /api/projects — JSON API（stats付き）
+  router.get("/api/projects", async (_req: Request, res: Response) => {
     try {
       const projects = await listProjects();
       const today = new Date();
@@ -68,21 +75,7 @@ export function createTopPageRoutes(deps: TopPageRoutesDeps): Router {
         })
       );
 
-      const html = generateTopPageHtml(projectsWithStats);
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.send(html);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).send(`<html><body><h1>Error</h1><p>${message}</p></body></html>`);
-    }
-  });
-
-  // GET /api/projects — JSON API
-  router.get("/api/projects", async (_req: Request, res: Response) => {
-    try {
-      const projects = await listProjects();
-      // 簡略化のため stats は省略（必要に応じて取得）
-      res.json({ projects });
+      res.json({ projects: projectsWithStats });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({ error: message });

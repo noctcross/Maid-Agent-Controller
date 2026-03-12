@@ -28,11 +28,11 @@ export interface DependencyResolutionResult {
  */
 export declare function resolveBlockedTasks(projectPath: string, completedTaskId: string): Promise<DependencyResolutionResult>;
 /**
- * V2.1: Goal の自動クローズ判定
+ * V2.1: Task の自動クローズ判定
  *
  * 条件:
- * - 全Phaseが completed
- * - レビューPhaseが存在する場合は approved
+ * - 全Workが completed
+ * - レビューWorkが存在する場合は approved
  * - 除外カテゴリなし (skill_candidate, improvement)
  * - actionRequired フラグ付きタスクは別途管理
  */

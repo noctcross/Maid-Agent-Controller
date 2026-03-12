@@ -430,7 +430,7 @@ LAN内の別端末からダッシュボードにアクセスできます。
 **セットアップ:**
 
 1. `%USERPROFILE%\.wslconfig` に `networkingMode=mirrored` を設定し、WSLを再起動
-2. `~/.maid-agent/system/config/mcp-server.yaml` の `host` を `0.0.0.0` に変更
+2. `~/.maid-agent/system/config/maid-agent-messenger.yaml` の `host` を `0.0.0.0` に変更
 3. Windows Firewall でポート3100のインバウンドルールを追加:
    ```powershell
    New-NetFireWallRule -DisplayName 'Maid Agent Dashboard' -Direction Inbound -LocalPort 3100 -Action Allow -Protocol TCP

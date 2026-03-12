@@ -18,18 +18,18 @@ describe("config-loader defaults", () => {
     clearConfigCache();
   });
 
-  it("session_idle_timeout のデフォルト値が30分(1800000ms)である", async () => {
+  it("http_keepalive_timeout のデフォルト値が65000msである", async () => {
     const config = await loadConfig();
-    expect(config.keepalive.session_idle_timeout).toBe(1800000);
+    expect(config.keepalive.http_keepalive_timeout).toBe(65000);
   });
 
-  it("max_missed_pings のデフォルト値が2である", async () => {
+  it("http_headers_timeout のデフォルト値が66000msである", async () => {
     const config = await loadConfig();
-    expect(config.keepalive.max_missed_pings).toBe(2);
+    expect(config.keepalive.http_headers_timeout).toBe(66000);
   });
 
-  it("ping_enabled のデフォルト値がtrueである", async () => {
+  it("ping_interval のデフォルト値が設定されている", async () => {
     const config = await loadConfig();
-    expect(config.keepalive.ping_enabled).toBe(true);
+    expect(config.keepalive.ping_interval).toBeGreaterThan(0);
   });
 });

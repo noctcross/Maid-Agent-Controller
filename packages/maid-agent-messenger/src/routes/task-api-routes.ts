@@ -11,9 +11,9 @@ import {
   executeGetReport,
   archiveReport,
   executeGetTeamStatus,
-  generateV2DashboardData,
+  generateDashboardData,
   // V2.1 マイグレーション
-  migrateToV2,
+  migrate,
   checkMigrationStatus,
   type TaskStatus,
 } from "../services/index.js";
@@ -22,6 +22,8 @@ import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { getTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
+import { convertMarkdownToHtml, linkifyProjectPaths } from "../markdown-utils.js";
+import { extractAgentIdFromPath } from "../utils/agent-image.js";
 
 export interface TaskApiRoutesDeps {
   wsServer?: DashboardWebSocketServer;
@@ -120,10 +122,10 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       status, substatus, summary, reportPath,
       title, description, priority,
       // V2.1 拡張フィールド
-      mainStatus, v2Substatus, type, size, tentative,
+      mainStatus, subStatus, type, size, tentative,
       blockedBy, artifacts, artifactAdd, reviewStatus,
       // V2.1 追加フィールド
-      archived, actionRequired, starred,
+      archived, actionRequired,
     } = req.body;
 
     const result = await executeUpdateTask(projectPath, {
@@ -137,7 +139,7 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       reportPath,
       // V2.1 拡張
       mainStatus,
-      v2Substatus,
+      subStatus,
       type,
       size,
       tentative,
@@ -148,7 +150,6 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       // V2.1 追加
       archived,
       actionRequired,
-      starred,
     });
 
     if (!result.success) {
@@ -192,115 +193,32 @@ router.get("/api/tasks/:id/report", async (req: Request, res: Response) => {
       return;
     }
 
-    res.json(result);
+    // レポートにhtmlContentとagentIdを追加
+    const reportsWithHtml = result.reports.map((report) => {
+      if (report.error || !report.content) {
+        return report;
+      }
+      // Markdown → HTML変換、パスリンク化
+      const rawHtml = convertMarkdownToHtml(report.content);
+      const htmlContent = linkifyProjectPaths(rawHtml, projectPath);
+      // エージェントID抽出
+      const agentId = report.path ? extractAgentIdFromPath(report.path) : null;
+      return { ...report, htmlContent, agentId };
+    });
+
+    // 最初のレポートのagentIdを全体に含める
+    const firstReport = reportsWithHtml.find(r => "agentId" in r && r.agentId);
+    const agentId = (firstReport && "agentId" in firstReport) ? firstReport.agentId : null;
+
+    res.json({ ...result, reports: reportsWithHtml, agentId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     res.status(500).json({ error: "Report retrieval failed", details: message });
   }
 });
 
-// PATCH /api/tasks/:id/review - レビュー済みトグル
-router.patch("/api/tasks/:id/review", async (req: Request, res: Response) => {
-  try {
-    const projectPath = getProjectPathFromRequest(req);
-    const txId = req.get("X-Transaction-Id");
-    const { reviewed } = req.body;
-
-    const result = await executeUpdateTask(projectPath, {
-      taskId: req.params.id,
-      reviewed: reviewed !== undefined ? reviewed : true,
-    });
-
-    if (!result.success) {
-      const errorMessage = result.error || "Task not found";
-      const statusCode = result.error ? 400 : 404;
-      res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
-      return;
-    }
-
-    // WebSocket通知: タスク更新をリアルタイム配信
-    if (wsServer) {
-      wsServer.broadcast(projectPath, {
-        type: "taskUpdated",
-        taskId: req.params.id,
-        field: "reviewed",
-        value: result.task?.reviewed,
-        txId,
-      });
-    }
-
-    res.json({ success: true, reviewed: result.task?.reviewed, reviewedAt: result.task?.reviewedAt });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: "Review toggle failed", details: message });
-  }
-});
-
-// PATCH /api/tasks/:id/star - スタートグル
-router.patch("/api/tasks/:id/star", async (req: Request, res: Response) => {
-  try {
-    const projectPath = getProjectPathFromRequest(req);
-    const txId = req.get("X-Transaction-Id");
-    const { starred } = req.body;
-
-    const result = await executeUpdateTask(projectPath, {
-      taskId: req.params.id,
-      starred: starred !== undefined ? starred : true,
-    });
-
-    if (!result.success) {
-      const errorMessage = result.error || "Task not found";
-      const statusCode = result.error ? 400 : 404;
-      res.status(statusCode).json({ error: errorMessage, taskId: req.params.id });
-      return;
-    }
-
-    // WebSocket通知: タスク更新をリアルタイム配信
-    if (wsServer) {
-      wsServer.broadcast(projectPath, {
-        type: "taskUpdated",
-        taskId: req.params.id,
-        field: "starred",
-        value: result.task?.starred,
-        txId,
-      });
-    }
-
-    res.json({ success: true, starred: result.task?.starred, starredAt: result.task?.starredAt });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: "Star toggle failed", details: message });
-  }
-});
-
-// GET /api/dashboard - ダッシュボードJSON
-router.get("/api/dashboard", async (req: Request, res: Response) => {
-  try {
-    const projectPath = getProjectPathFromRequest(req);
-
-    // 並列でタスクを取得
-    const [pending, working, completed] = await Promise.all([
-      executeListTasks(projectPath, { status: ["pending"] }),
-      executeListTasks(projectPath, { status: ["working", "assigned"] }),
-      executeListTasks(projectPath, { status: ["completed"], limit: 10, sortField: "id", sortOrder: "desc" }),
-    ]);
-
-    res.json({
-      timestamp: getTimestamp(),
-      summary: {
-        pendingCount: pending.total,
-        workingCount: working.total,
-        completedCount: completed.total,
-      },
-      pending: pending.tasks,
-      working: working.tasks,
-      recentCompleted: completed.tasks,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    res.status(500).json({ error: "Dashboard retrieval failed", details: message });
-  }
-});
+// 旧 GET /api/dashboard（pending/working/completed形式）は削除
+// モバイル向けの新形式は下部の Dashboard API セクションで定義
 
 // POST /api/tasks/:id/rearchive - 報告書を再アーカイブ
 router.post("/api/tasks/:id/rearchive", async (req: Request, res: Response) => {
@@ -377,7 +295,7 @@ router.post("/api/v2/migration/run", async (req: Request, res: Response) => {
     const projectPath = getProjectPathFromRequest(req);
     const { dryRun } = req.body;
 
-    const result = await migrateToV2(projectPath, { dryRun: dryRun === true });
+    const result = await migrate(projectPath, { dryRun: dryRun === true });
 
     res.json({
       success: true,
@@ -391,11 +309,11 @@ router.post("/api/v2/migration/run", async (req: Request, res: Response) => {
 });
 
 // =============================================================================
-// V2 Dashboard API（モバイル向け）
+// Dashboard API（モバイル向け）
 // =============================================================================
 
-// GET /api/v2/dashboard - V2ダッシュボードJSON（モバイル向け）
-router.get("/api/v2/dashboard", async (req: Request, res: Response) => {
+// GET /api/dashboard - ダッシュボードJSON（モバイル向け）
+router.get("/api/dashboard", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
 
@@ -423,18 +341,23 @@ router.get("/api/v2/dashboard", async (req: Request, res: Response) => {
     const assignee = req.query.assignee as string | undefined;
     const includeTeamStatus = req.query.includeTeamStatus === "true";
 
-    // V2ダッシュボードデータを取得
-    const v2Data = await generateV2DashboardData(projectPath, {
-      statusFilter,
-      showArchived,
-      limit,
-      offset,
-      sortField,
-      sortOrder,
-      search,
-      priority,
-      assignee,
-    });
+    // V2ダッシュボードデータを取得（並列実行）
+    const [v2Data, skillCandidatesResult, improvementsResult] = await Promise.all([
+      generateDashboardData(projectPath, {
+        statusFilter,
+        showArchived,
+        limit,
+        offset,
+        sortField,
+        sortOrder,
+        search,
+        priority,
+        assignee,
+      }),
+      // スキル化候補・改善提案を別途取得（Webダッシュボードと同様）
+      executeListTasks(projectPath, { category: ["skill_candidate"], status: ["pending", "assigned", "working", "blocked"] }),
+      executeListTasks(projectPath, { category: ["improvement"], status: ["pending", "assigned", "working", "blocked"] }),
+    ]);
 
     // チーム状態を取得（オプション）
     let teamStatus;
@@ -449,6 +372,18 @@ router.get("/api/v2/dashboard", async (req: Request, res: Response) => {
       reviewQueue: v2Data.v2ReviewQueue,
       artifacts: v2Data.v2Artifacts,
       stats: v2Data.v2Stats,
+
+      // スキル化候補・改善提案（別セクション用）
+      skillCandidates: skillCandidatesResult.tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: "description" in t ? t.description : undefined,
+      })),
+      improvements: improvementsResult.tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: "description" in t ? t.description : undefined,
+      })),
 
       // ページネーション情報
       totalGoals: v2Data.totalGoals,

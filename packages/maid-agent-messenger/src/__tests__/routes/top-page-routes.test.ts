@@ -30,7 +30,7 @@ const supertest = (await import("supertest")).default;
 const { createTopPageRoutes } = await import("../../routes/top-page-routes.js");
 
 // --- ビュー関数のスタブ ---
-const stubGenerateTopPageHtml = jest.fn<(...args: unknown[]) => string>()
+const stubGenerateTopPageHtml = jest.fn<() => string>()
   .mockReturnValue("<html><body>stub top page</body></html>");
 
 // --- テスト用app構築 ---

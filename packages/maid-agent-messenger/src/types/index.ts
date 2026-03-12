@@ -1,11 +1,30 @@
 /**
  * Maid Agent System - 型定義
- * V2.1: Goal/Phase/Action/Investigation 階層構造対応
+ * V2.1: Task/Work/Step/Investigation 階層構造対応
+ * V5.0.0: @maid-agent/types からの re-export を追加
  */
 
 import { logger } from "../utils/logger.js";
 
-// エージェントID
+// =============================================================================
+// @maid-agent/types からの re-export（共通型）
+// =============================================================================
+export type {
+  Task,
+  Assignee,
+  TaskSummary,
+  TasksData,
+  UpdateTaskParams,
+  SideEffectResults,
+  UpdateTaskResult,
+  EscalationInfo,
+  OperatorRole,
+  StatusTransitionValidation,
+} from "@maid-agent/types";
+
+// =============================================================================
+// エージェントID（実行時定数）
+// =============================================================================
 // ⚠️ 一貫性注意: この定義は VSCode拡張側 (src/utils/agents.ts の DEFAULT_MAID_ORDER) と
 //    同じ値・同じ順序を維持する必要があります。変更時は両方を更新してください。
 //    一貫性テスト: src/utils/__tests__/maid-id-consistency.test.ts
@@ -26,12 +45,12 @@ export const ALL_AGENT_IDS = ["butler", "chief", ...MAID_IDS] as const;
 export type AgentId = (typeof ALL_AGENT_IDS)[number];
 
 // =============================================================================
-// V2.1: タスク種別
+// V2.1: タスク種別（実行時定数）
 // =============================================================================
 export const TASK_TYPES = [
-  "task",          // タスク（ご主人様の指示単位）- 旧 goal
-  "work",          // ワーク（成果物単位の作業グループ）- 旧 phase
-  "step",          // ステップ（メイド1人で完結する作業）- 旧 action
+  "task",          // タスク（ご主人様の指示単位）
+  "work",          // ワーク（成果物単位の作業グループ）
+  "step",          // ステップ（メイド1人で完結する作業）
   "investigation", // 調査タスク（docs/昇格対象）
 ] as const;
 
@@ -69,7 +88,7 @@ export const CLOSED_SUBSTATUSES = ["completed"] as const;
 export type ClosedSubstatus = (typeof CLOSED_SUBSTATUSES)[number];
 
 // =============================================================================
-// V2.1: Task サイズ
+// V2.1: Task サイズ（実行時定数）
 // =============================================================================
 export const TASK_SIZES = [
   "simple",    // 0-1 works, typo修正、設定変更、調査のみ
@@ -80,7 +99,7 @@ export const TASK_SIZES = [
 export type TaskSize = (typeof TASK_SIZES)[number];
 
 // =============================================================================
-// V2.1: レビューステータス
+// V2.1: レビューステータス（実行時定数）
 // =============================================================================
 export const REVIEW_STATUSES = [
   "pending",     // レビュー待ち
@@ -92,25 +111,20 @@ export const REVIEW_STATUSES = [
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
 // =============================================================================
-// V2.1: 成果物 Retention レベル
+// V2.1: 成果物 Retention レベル（実行時定数）
 // =============================================================================
 export const RETENTION_LEVELS = [
-  "L1",  // Phase完了後 7日で削除
-  "L2",  // Goal完了後 30日で削除
+  "L1",  // Work完了後 7日で削除
+  "L2",  // Task完了後 30日で削除
   "L3",  // 永続（docs/配下）
 ] as const;
 
 export type RetentionLevel = (typeof RETENTION_LEVELS)[number];
 
 // =============================================================================
-// V2.1: 成果物インターフェース
+// V2.1: 成果物インターフェース（@maid-agent/types から re-export）
 // =============================================================================
-export interface TaskArtifact {
-  type: string;                    // summary, design, report, etc.
-  path: string;                    // 相対パス
-  base?: "temporary" | "permanent"; // ベースディレクトリ (default: temporary)
-  retention: RetentionLevel;
-}
+export type { TaskArtifact } from "@maid-agent/types";
 
 // =============================================================================
 // 後方互換: 旧タスクステータス (マイグレーション用)
@@ -156,22 +170,22 @@ export type TaskCategory = (typeof TASK_CATEGORIES)[number];
 export type TaskStatus = LegacyTaskStatus;
 
 // =============================================================================
-// V2.1: tasks.yaml タスク構造
+// V2.1: tasks.yaml タスク構造（Server固有）
 // =============================================================================
 
 /**
  * V2.1 タスクインターフェース
- * Goal/Phase/Action/Investigation の階層構造に対応
+ * Task/Work/Step/Investigation の階層構造に対応
  */
 export interface TaskV2 {
   // === 基本情報 ===
   id: string;
-  parentId: string | null;          // 親タスクID（Phase→Goal, Action→Phase）
+  parentId: string | null;          // 親タスクID（Work→Task, Step→Work）
   title: string;                    // タスクタイトル
   description: string | null;       // タスク説明
 
   // === V2.1: タスク種別・状態 ===
-  type: TaskType;                   // goal/phase/action/investigation
+  type: TaskType;                   // task/work/step/investigation
   status: TaskMainStatus;           // open/closed
   substatus: TaskSubstatus;         // pending/assigned/working/checkpoint/waiting/completed/archived
 
@@ -183,7 +197,7 @@ export interface TaskV2 {
   blockedBy?: string[];             // 依存先タスクID（waiting時）
 
   // === V2.1: 成果物 ===
-  artifacts?: TaskArtifact[];       // 成果物リスト
+  artifacts?: import("@maid-agent/types").TaskArtifact[];       // 成果物リスト
 
   // === V2.1: レビュー ===
   reviewStatus?: ReviewStatus;      // pending/in_review/approved/rejected
@@ -210,7 +224,7 @@ export interface TaskV2 {
 }
 
 /**
- * タスク割り当て情報
+ * タスク割り当て情報（Server固有）
  */
 export interface TaskAssignee {
   agentId: AgentId;
@@ -306,7 +320,9 @@ export function convertToLegacyStatus(
   }
 }
 
-// API出力型
+// =============================================================================
+// API出力型（Server固有）
+// =============================================================================
 export interface GetMyTaskOutput {
   task_id: string | null;
   description: string | null;

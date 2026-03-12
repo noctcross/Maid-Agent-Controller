@@ -74,8 +74,6 @@ export interface ListTasksParams {
   assignee?: string;
   parentId?: string | null;
   category?: TaskCategory[];
-  reviewed?: boolean;
-  starred?: boolean;
   actionRequired?: boolean;  // true: actionRequired=trueのタスクのみ
   search?: string;        // テキスト検索（id, title, description を部分一致検索）
   limit?: number;
@@ -96,8 +94,8 @@ export interface ListTasksResult {
  * 例: "048" < "048-1" < "048-2" < "048-10" (文字列比較だと "048-10" < "048-2" になる)
  */
 export function compareTaskIds(a: string, b: string): number {
-  const partsA = a.split("-").map(Number);
-  const partsB = b.split("-").map(Number);
+  const partsA = String(a).split("-").map(Number);
+  const partsB = String(b).split("-").map(Number);
   const maxLen = Math.max(partsA.length, partsB.length);
   for (let i = 0; i < maxLen; i++) {
     const numA = partsA[i] ?? -1;
@@ -131,16 +129,6 @@ export async function executeListTasks(
   }
   if (params.category?.length) {
     tasks = tasks.filter((t) => params.category!.includes(t.category || "task"));
-  }
-  if (params.reviewed !== undefined) {
-    tasks = tasks.filter((t) =>
-      params.reviewed ? t.reviewed === true : !t.reviewed
-    );
-  }
-  if (params.starred !== undefined) {
-    tasks = tasks.filter((t) =>
-      params.starred ? t.starred === true : !t.starred
-    );
   }
   if (params.actionRequired !== undefined) {
     tasks = tasks.filter((t) =>

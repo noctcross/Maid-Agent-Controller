@@ -6,7 +6,8 @@
 import { Router } from "express";
 import path from "path";
 import * as fs from "fs/promises";
-import { convertMarkdownToHtml } from "../markdown-utils.js";
+import { convertMarkdownToHtml, linkifyProjectPaths } from "../markdown-utils.js";
+import { extractAgentIdFromPath } from "../utils/agent-image.js";
 import { logger } from "../utils/logger.js";
 const router = Router();
 /** 許可する拡張子（セキュリティ対策） */
@@ -18,6 +19,21 @@ const ALLOWED_EXTENSIONS = new Set([
     ".py", ".rb", ".go", ".rs",
     ".env.example", ".gitignore", ".editorconfig",
 ]);
+/** 画像拡張子 */
+const IMAGE_EXTENSIONS = new Set([
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp",
+]);
+/** 画像のMIMEタイプ */
+const IMAGE_MIME_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".bmp": "image/bmp",
+};
 /** 隠しファイル・ディレクトリのパターン */
 const HIDDEN_PATTERNS = [
     /^\.git$/,
@@ -201,14 +217,24 @@ router.get("/api/files/content", async (req, res) => {
         // ファイル読み込み
         const content = await fs.readFile(validation.resolvedPath, "utf-8");
         const isMarkdown = /\.(md|markdown)$/i.test(fileName);
+        // Markdown → HTML変換（パスリンク化適用）
+        let htmlContent;
+        if (isMarkdown) {
+            const rawHtml = convertMarkdownToHtml(content);
+            htmlContent = linkifyProjectPaths(rawHtml, projectPath);
+        }
+        // エージェントID抽出（背景イラスト用）
+        const agentId = extractAgentIdFromPath(validation.resolvedPath);
         res.json({
             path: path.relative(projectPath, validation.resolvedPath),
+            absolutePath: validation.resolvedPath,
             name: fileName,
             content,
             size: stats.size,
             modifiedAt: stats.mtime.toISOString(),
             isMarkdown,
-            htmlContent: isMarkdown ? convertMarkdownToHtml(content) : undefined,
+            htmlContent,
+            agentId,
         });
     }
     catch (error) {
@@ -218,6 +244,75 @@ router.get("/api/files/content", async (req, res) => {
         }
         const message = error instanceof Error ? error.message : "Unknown error";
         logger.error("Failed to read file", error instanceof Error ? error : { error });
+        res.status(500).json({ error: message });
+    }
+});
+/**
+ * GET /api/files/raw
+ * ファイルを直接配信（画像等のバイナリファイル用）
+ */
+router.get("/api/files/raw", async (req, res) => {
+    try {
+        const projectPath = req.query.project;
+        let filePath = req.query.path;
+        if (!projectPath) {
+            res.status(400).json({ error: "Missing project parameter" });
+            return;
+        }
+        if (!filePath) {
+            res.status(400).json({ error: "Missing path parameter" });
+            return;
+        }
+        // 絶対パスに変換
+        if (!path.isAbsolute(filePath)) {
+            filePath = path.join(projectPath, filePath);
+        }
+        // パス検証
+        const validation = await validatePath(filePath, projectPath);
+        if (!validation.valid) {
+            logger.warn(`Path traversal blocked: ${filePath}`);
+            res.status(403).json({ error: validation.error });
+            return;
+        }
+        // ファイルかどうか確認
+        const stats = await fs.stat(validation.resolvedPath);
+        if (!stats.isFile()) {
+            res.status(400).json({ error: "Path is not a file" });
+            return;
+        }
+        const fileName = path.basename(validation.resolvedPath);
+        const ext = path.extname(fileName).toLowerCase();
+        // 画像ファイルか確認
+        if (!IMAGE_EXTENSIONS.has(ext)) {
+            res.status(403).json({
+                error: "File type not allowed for raw access",
+                allowedExtensions: Array.from(IMAGE_EXTENSIONS),
+            });
+            return;
+        }
+        // ファイルサイズ制限（10MB）
+        const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+        if (stats.size > MAX_IMAGE_SIZE) {
+            res.status(413).json({
+                error: "File too large",
+                maxSize: MAX_IMAGE_SIZE,
+                actualSize: stats.size,
+            });
+            return;
+        }
+        // Content-Type を設定して配信
+        const mimeType = IMAGE_MIME_TYPES[ext] || "application/octet-stream";
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Cache-Control", "public, max-age=3600");
+        res.sendFile(validation.resolvedPath);
+    }
+    catch (error) {
+        if (error.code === "ENOENT") {
+            res.status(404).json({ error: "File not found" });
+            return;
+        }
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("Failed to serve raw file", error instanceof Error ? error : { error });
         res.status(500).json({ error: message });
     }
 });

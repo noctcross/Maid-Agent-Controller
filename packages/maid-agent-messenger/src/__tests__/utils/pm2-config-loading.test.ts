@@ -14,7 +14,7 @@ describe("PM2 Config Loading", () => {
   it("デフォルト設定にpm2セクションが含まれること", async () => {
     // 存在しないパスを環境変数に設定してデフォルト値を使わせる
     const originalEnv = process.env.MAID_MCP_CONFIG;
-    process.env.MAID_MCP_CONFIG = "/nonexistent/path/mcp-server.yaml";
+    process.env.MAID_MCP_CONFIG = "/nonexistent/path/maid-agent-messenger.yaml";
 
     try {
       clearConfigCache();
@@ -38,7 +38,7 @@ describe("PM2 Config Loading", () => {
 
   it("pm2設定がMcpServerConfigインターフェースに準拠していること", async () => {
     const originalEnv = process.env.MAID_MCP_CONFIG;
-    process.env.MAID_MCP_CONFIG = "/nonexistent/path/mcp-server.yaml";
+    process.env.MAID_MCP_CONFIG = "/nonexistent/path/maid-agent-messenger.yaml";
 
     try {
       clearConfigCache();

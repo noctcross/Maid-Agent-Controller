@@ -26,7 +26,7 @@ describe("config-loader formatter settings", () => {
   it("should return default sanitize_description_max_length when not configured", async () => {
     mockReadFile.mockResolvedValue(`
 server:
-  mode: hybrid
+  port: 3100
 `);
     const config = await loadConfig();
     expect(config.formatter.sanitize_description_max_length).toBe(15);
@@ -35,7 +35,7 @@ server:
   it("should use configured sanitize_description_max_length", async () => {
     mockReadFile.mockResolvedValue(`
 server:
-  mode: hybrid
+  port: 3100
 formatter:
   sanitize_description_max_length: 25
 `);
@@ -51,6 +51,6 @@ formatter:
     const config = await loadConfig();
     expect(config.formatter.sanitize_description_max_length).toBe(30);
     // 他のデフォルト値も保持されていること
-    expect(config.server.mode).toBe("hybrid");
+    expect(config.server.port).toBe(3100);
   });
 });

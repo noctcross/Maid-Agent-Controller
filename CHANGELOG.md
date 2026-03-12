@@ -5,6 +5,53 @@ All notable changes to the Maid Agent Controller extension will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-03-12
+
+### Added
+
+- **設定ファイル自動移行**
+  - `mcp-server.yaml` → `maid-agent-messenger.yaml` の自動移行
+  - initGlobal 実行時に旧設定を検出して移行
+  - 旧ファイルは `.bak` にバックアップ
+
+### Changed
+
+- **モノレポ構成の整理**
+  - `packages/vscode/` に VSCode 拡張を移動
+  - `packages/maid-agent-messenger/` にサーバーを移動
+  - `@maid-agent/types` 共通型パッケージを追加
+  - `@maid-agent/api-client` API クライアントパッケージを追加
+
+- **ダッシュボードの SPA 化**
+  - ブラウザ版と VSCode Webview 版で同一の SPA を使用
+  - SSE エンドポイント廃止、WebSocket に統一
+  - V1 ダッシュボードを完全削除
+
+- **用語の統一**
+  - MCP → PM2/Messenger に用語変更
+  - `maid-notify` → `maidctl notify` に統合
+  - Goal/Phase/Action → Task/Work/Step に変更
+  - API パス・ファイル名から V2 prefix を削除
+
+- **設定ファイル名の変更**
+  - `mcp-server.yaml` → `maid-agent-messenger.yaml`
+  - 新構造: server/dashboard/keepalive セクション
+
+### Removed
+
+- **V1 ダッシュボード**
+  - V1 HTML/CSS/JS を完全削除
+  - legacy-routes.ts を削除
+  - SSE エンドポイント (`/dashboard/events`) を削除
+
+### Migration
+
+既存ユーザーは initGlobal を再実行してください:
+1. VSCode コマンドパレットで `Init Global` を実行
+2. 設定ファイルは自動移行されます（旧ファイルは .bak に保存）
+
+---
+
 ## [2.0.0] - 2026-03-05
 
 ### Added
@@ -30,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - reports-cleanup（報告書の整理ルール）
 
 - **V2.1 タスク管理スキーマ**
-  - 2層ステータス管理（mainStatus + v2Substatus）
+  - 2層ステータス管理（mainStatus + subStatus）
   - タスク種別: task, work, step, investigation
   - サブステータス: pending, assigned, working, checkpoint, waiting, completed
 

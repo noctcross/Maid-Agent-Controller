@@ -10,63 +10,63 @@ import type {
   TaskType,
 } from "../types/task-manager-types.js";
 import { loadTasksReadOnly } from "./task-core.js";
-import { inferTaskType, convertToV2Status } from "./task-v2-migration.js";
+import { inferTaskType, convertStatus } from "./task-migration.js";
 import { logger } from "../utils/logger.js";
 
 /**
- * V2.1: Goal階層連動 - 子Phaseの状態から親Goalの表示ステータスを計算
+ * V2.1: Task階層連動 - 子Workの状態から親Taskの表示ステータスを計算
  *
  * 設計書より:
- * - 全Phase pending → Goal「未着手」⏸️
- * - いずれかPhase assigned → Goal「準備中」📋
- * - いずれかPhase working → Goal「進行中」🔵
- * - いずれかPhase waiting/checkpoint → Goal「ブロック中」⚠️
- * - 全Phase completed → Goal「完了可能」✅
+ * - 全Work pending → Task「未着手」⏸️
+ * - いずれかWork assigned → Task「準備中」📋
+ * - いずれかWork working → Task「進行中」🔵
+ * - いずれかWork waiting/checkpoint → Task「ブロック中」⚠️
+ * - 全Work completed → Task「完了可能」✅
  */
 export function computeGoalDisplayStatus(
   goalSubstatus: string,
-  phases: Array<{ v2Substatus: string; mainStatus?: string }>,
+  phases: Array<{ subStatus: string; mainStatus?: string }>,
   goalMainStatus?: string
 ): { displayStatus: string; displayIcon: string } {
-  // Goal自身が closed/completed の場合は「完了」を返す
+  // Task自身が closed/completed の場合は「完了」を返す
   if (goalMainStatus === "closed" || goalSubstatus === "completed") {
     return { displayStatus: "完了", displayIcon: "✅" };
   }
 
-  // Phaseがない場合はGoal自身のステータスを使用
+  // Workがない場合はTask自身のステータスを使用
   if (phases.length === 0) {
     return mapSubstatusToDisplay(goalSubstatus);
   }
 
-  const substatuses = phases.map((p) => p.v2Substatus);
+  const substatuses = phases.map((p) => p.subStatus);
 
   // ブロック中（waiting/checkpoint）を最優先
   if (substatuses.some((s) => s === "waiting" || s === "checkpoint")) {
     return { displayStatus: "ブロック中", displayIcon: "⚠️" };
   }
 
-  // 全Phase完了（Goalがまだopenの場合）
-  if (phases.every((p) => p.v2Substatus === "completed" || p.mainStatus === "closed")) {
+  // 全Work完了（Taskがまだopenの場合）
+  if (phases.every((p) => p.subStatus === "completed" || p.mainStatus === "closed")) {
     return { displayStatus: "完了可能", displayIcon: "✅" };
   }
 
-  // いずれかPhase working（active は後方互換）
+  // いずれかWork working（active は後方互換）
   if (substatuses.some((s) => s === "working" || s === "active")) {
     return { displayStatus: "進行中", displayIcon: "🔵" };
   }
 
-  // いずれかPhase assigned
+  // いずれかWork assigned
   if (substatuses.some((s) => s === "assigned")) {
     return { displayStatus: "準備中", displayIcon: "📋" };
   }
 
-  // 全Phase pending（paused は後方互換）
+  // 全Work pending（paused は後方互換）
   if (substatuses.every((s) => s === "pending" || s === "paused")) {
     return { displayStatus: "未着手", displayIcon: "⏸️" };
   }
 
   // フォールバック
-  logger.warn(`Unexpected phase states: ${substatuses.join(", ")}, defaulting to 進行中`);
+  logger.warn(`Unexpected work states: ${substatuses.join(", ")}, defaulting to 進行中`);
   return { displayStatus: "進行中", displayIcon: "🔵" };
 }
 
@@ -103,53 +103,53 @@ function mapSubstatusToDisplay(substatus: string): { displayStatus: string; disp
 /**
  * V2.1 ダッシュボードデータ
  */
-export interface V2DashboardData {
-  v2Goals: V2GoalData[];
-  v2ReviewQueue: V2ReviewTaskData[];
-  v2Artifacts: V2ArtifactData[];
-  v2Stats: V2StatsData;
+export interface DashboardData {
+  v2Goals: GoalData[];
+  v2ReviewQueue: ReviewTaskData[];
+  v2Artifacts: ArtifactData[];
+  v2Stats: StatsData;
   totalGoals: number;
 }
 
-export interface V2StepData {
+export interface StepData {
   id: string;
   title: string;
   description?: string;
   type: "step";
   mainStatus: string;
-  v2Substatus: string;
+  subStatus: string;
   assignees?: Array<{ agentId: string }>;
   updatedAt?: string;
   // 報告書有無フラグ
   hasReport?: boolean;
 }
 
-export interface V2WorkData {
+export interface WorkData {
   id: string;
   title: string;
   description?: string;
   type: "work";
   mainStatus: string;
-  v2Substatus: string;
+  subStatus: string;
   reviewStatus?: string;
   assignees?: Array<{ agentId: string }>;
-  steps: V2StepData[];
+  steps: StepData[];
   updatedAt?: string;
   // 報告書有無フラグ
   hasReport?: boolean;
 }
 
-export interface V2TaskData {
+export interface TaskData {
   id: string;
   title: string;
   description?: string;
   type: "task";
   mainStatus: string;
-  v2Substatus: string;
+  subStatus: string;
   size?: string;
   reviewStatus?: string;
   assignees: Array<{ agentId: string }>;
-  works: V2WorkData[];
+  works: WorkData[];
   // Task階層連動: 子Workの状態から計算された表示用ステータス
   displayStatus?: string;
   displayIcon?: string;
@@ -161,14 +161,16 @@ export interface V2TaskData {
   latestUpdatedAt?: string;
   // 報告書有無フラグ
   hasReport?: boolean;
+  // 要対応フラグ
+  actionRequired?: boolean;
 }
 
 // 後方互換エイリアス
-export type V2GoalData = V2TaskData;
-export type V2PhaseData = V2WorkData;
-export type V2ActionData = V2StepData;
+export type GoalData = TaskData;
+export type PhaseData = WorkData;
+export type ActionData = StepData;
 
-export interface V2ReviewTaskData {
+export interface ReviewTaskData {
   id: string;
   title: string;
   type: string;
@@ -178,7 +180,7 @@ export interface V2ReviewTaskData {
   assignees: Array<{ agentId: string }>;
 }
 
-export interface V2ArtifactData {
+export interface ArtifactData {
   path: string;
   type: string;
   retention: string;
@@ -186,7 +188,7 @@ export interface V2ArtifactData {
   createdAt: string;
 }
 
-export interface V2StatsData {
+export interface StatsData {
   taskCount: number;
   workCount: number;
   stepCount: number;
@@ -199,7 +201,7 @@ export interface V2StatsData {
 /**
  * V2.1 ダッシュボードデータ生成オプション
  */
-export interface V2DashboardOptions {
+export interface DashboardOptions {
   showArchived?: boolean;                      // アーカイブ済みを表示（デフォルト: false）
   statusFilter?: "open" | "closed" | "all";    // ステータスフィルタ（デフォルト: "open"）
   offset?: number;                              // ページネーション: オフセット
@@ -216,10 +218,10 @@ export interface V2DashboardOptions {
 /**
  * タスク一覧からV2.1ダッシュボードデータを生成
  */
-export async function generateV2DashboardData(
+export async function generateDashboardData(
   projectPath: string,
-  options: V2DashboardOptions = {}
-): Promise<V2DashboardData> {
+  options: DashboardOptions = {}
+): Promise<DashboardData> {
   const {
     showArchived = false,
     statusFilter = "open",
@@ -243,7 +245,7 @@ export async function generateV2DashboardData(
 
   /**
    * タスク種別を判定（親タスクの情報も使用）
-   * 1. type が 'goal', 'phase', 'investigation' の場合はそのまま使用
+   * 1. type が 'task', 'work', 'investigation' の場合はそのまま使用
    * 2. type が 'step' または未設定の場合は親タスク構造で判定:
    *    - parentId がない → task
    *    - parentId があり、親の parentId がない → work（Taskの直接の子）
@@ -296,8 +298,8 @@ export async function generateV2DashboardData(
 
   // タスクID比較用ヘルパー（数値部分を考慮）
   const compareTaskIds = (idA: string, idB: string): number => {
-    const partsA = idA.split("-");
-    const partsB = idB.split("-");
+    const partsA = String(idA).split("-");
+    const partsB = String(idB).split("-");
     for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
       const pa = i < partsA.length ? parseInt(partsA[i], 10) : -1;
       const pb = i < partsB.length ? parseInt(partsB[i], 10) : -1;
@@ -326,7 +328,7 @@ export async function generateV2DashboardData(
     searchTerm: string | undefined,
     targetAssignee: string | undefined
   ): boolean => {
-    // Goalレベルでマッチ
+    // Taskレベルでマッチ
     if (searchTerm && matchesSearch(goal, searchTerm)) return true;
     if (targetAssignee && hasAssignee(goal, targetAssignee)) return true;
 
@@ -347,14 +349,14 @@ export async function generateV2DashboardData(
     return !searchTerm && !targetAssignee;
   };
 
-  // V2Goals: Goal階層構造を構築（フィルタ → 変換 → ソートの順で処理）
-  const v2Goals: V2GoalData[] = goals
+  // V2Tasks: Task階層構造を構築（フィルタ → 変換 → ソートの順で処理）
+  const v2Goals: GoalData[] = goals
     // archivedフィルタ: デフォルトでarchivedを除外
     .filter((g) => showArchived || g.archived !== true)
     // statusフィルタ: open/closed/all
     .filter((g) => {
       if (statusFilter === "all") return true;
-      const { mainStatus } = convertToV2Status(g);
+      const { mainStatus } = convertStatus(g);
       if (statusFilter === "open") return mainStatus === "open";
       if (statusFilter === "closed") return mainStatus === "closed";
       return true;
@@ -364,9 +366,9 @@ export async function generateV2DashboardData(
     // 検索・担当者フィルタ（階層全体で検索）
     .filter((g) => matchesHierarchy(g, search, assignee))
     .map((goal) => {
-      const { mainStatus, substatus } = convertToV2Status(goal);
+      const { mainStatus, substatus } = convertStatus(goal);
 
-      // このGoalに属するPhaseを取得（sortByに応じてソート）
+      // このTaskに属するWorkを取得（sortByに応じてソート）
       const goalPhases = phases
         .filter((p) => p.parentId === goal.id)
         .sort((a, b) => {
@@ -381,10 +383,10 @@ export async function generateV2DashboardData(
           }
         });
 
-      const v2Works: V2WorkData[] = goalPhases.map((phase) => {
-        const phaseStatus = convertToV2Status(phase);
+      const v2Works: WorkData[] = goalPhases.map((phase) => {
+        const phaseStatus = convertStatus(phase);
 
-        // このWorkに属するStepを取得（sortByに応じてソート）
+        // このWorkに属するStepを取得（sortByに応じてソート）（Workレベル）
         const phaseActions = actions
           .filter((a) => a.parentId === phase.id)
           .sort((a, b) => {
@@ -399,15 +401,15 @@ export async function generateV2DashboardData(
             }
           });
 
-        const v2Steps: V2StepData[] = phaseActions.map((action) => {
-          const actionStatus = convertToV2Status(action);
+        const v2Steps: StepData[] = phaseActions.map((action) => {
+          const actionStatus = convertStatus(action);
           return {
             id: action.id,
             title: action.title || `Step #${action.id}`,
             description: action.description,
             type: "step" as const,
             mainStatus: actionStatus.mainStatus,
-            v2Substatus: actionStatus.substatus,
+            subStatus: actionStatus.substatus,
             assignees: action.assignees?.map((a) => ({ agentId: a.agentId })),
             updatedAt: action.updatedAt,
             hasReport: (action.reportPaths?.length ?? 0) > 0,
@@ -420,7 +422,7 @@ export async function generateV2DashboardData(
           description: phase.description,
           type: "work" as const,
           mainStatus: phaseStatus.mainStatus,
-          v2Substatus: phaseStatus.substatus,
+          subStatus: phaseStatus.substatus,
           reviewStatus: phase.reviewStatus,
           assignees: phase.assignees?.map((a) => ({ agentId: a.agentId })),
           steps: v2Steps,
@@ -433,7 +435,7 @@ export async function generateV2DashboardData(
       // Task自身が closed の場合は「完了」を返す
       const { displayStatus, displayIcon } = computeGoalDisplayStatus(
         substatus,
-        v2Works.map((w) => ({ v2Substatus: w.v2Substatus, mainStatus: w.mainStatus })),
+        v2Works.map((w) => ({ subStatus: w.subStatus, mainStatus: w.mainStatus })),
         mainStatus
       );
 
@@ -452,7 +454,7 @@ export async function generateV2DashboardData(
         description: goal.description,
         type: "task" as const,
         mainStatus,
-        v2Substatus: substatus,
+        subStatus: substatus,
         size: goal.size,
         reviewStatus: goal.reviewStatus,
         assignees: goal.assignees?.map((a) => ({ agentId: a.agentId })) || [],
@@ -463,6 +465,7 @@ export async function generateV2DashboardData(
         updatedAt: goal.updatedAt,
         latestUpdatedAt,
         hasReport: (goal.reportPaths?.length ?? 0) > 0,
+        actionRequired: goal.actionRequired,
       };
     })
     // ソート: latestUpdatedAt を使用（子タスクの最新日時を含む）
@@ -484,7 +487,7 @@ export async function generateV2DashboardData(
   const paginatedV2Goals = v2Goals.slice(offset, offset + limit);
 
   // V2ReviewQueue: レビュー待ちタスク（updatedAt降順でソート）
-  const v2ReviewQueue: V2ReviewTaskData[] = tasks
+  const v2ReviewQueue: ReviewTaskData[] = tasks
     .filter((t) => t.reviewStatus === "pending" || t.reviewStatus === "in_review")
     .sort((a, b) => {
       const aTime = a.updatedAt || a.createdAt || "";
@@ -502,7 +505,7 @@ export async function generateV2DashboardData(
     }));
 
   // V2Artifacts: 成果物一覧（createdAt降順でソート）
-  const v2Artifacts: V2ArtifactData[] = [];
+  const v2Artifacts: ArtifactData[] = [];
   for (const task of tasks) {
     if (task.artifacts && Array.isArray(task.artifacts)) {
       for (const artifact of task.artifacts) {
@@ -525,7 +528,7 @@ export async function generateV2DashboardData(
 
   // V2Stats: 統計情報
   const completedCount = tasks.filter((t) => {
-    const status = convertToV2Status(t);
+    const status = convertStatus(t);
     return status.substatus === "completed" || status.substatus === "archived";
   }).length;
 
@@ -551,14 +554,14 @@ export async function generateV2DashboardData(
       return false;
     }
     // V2.1ステータスでの除外（mainStatus: closed）
-    const { mainStatus } = convertToV2Status(t);
+    const { mainStatus } = convertStatus(t);
     if (mainStatus === "closed") {
       return false;
     }
     return true;
   }).length;
 
-  const v2Stats: V2StatsData = {
+  const v2Stats: StatsData = {
     taskCount: goals.length,
     workCount: phases.length,
     stepCount: actions.length + investigations.length,

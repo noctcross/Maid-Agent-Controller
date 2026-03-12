@@ -79,7 +79,7 @@ escalation:
 │  メイド長: メイドに回答を通知                                  │
 │      │                                                       │
 │      ▼                                                       │
-│  メイド: 作業再開（v2Substatus → working）                    │
+│  メイド: 作業再開（subStatus → working）                    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -143,7 +143,7 @@ maidctl my-status blocked --substatus waiting --blocked-by task-100-2,task-100-3
 │      │   「依存タスク task-100-2 が完了しました」              │
 │      │                                                       │
 │      ▼                                                       │
-│  メイド A: 作業再開（v2Substatus → working）                  │
+│  メイド A: 作業再開（subStatus → working）                  │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```

@@ -23,7 +23,7 @@ async function loadTasksYaml(projectPath) {
     }
 }
 /**
- * タスクIDから親タスクの階層を取得（Goal→Phase→...の順）
+ * タスクIDから親タスクの階層を取得（Task→Work→...の順）
  */
 async function getParentChain(projectPath, taskId) {
     const tasksData = await loadTasksYaml(projectPath);
@@ -51,11 +51,11 @@ async function getParentChain(projectPath, taskId) {
             title: parent.title || "(タイトルなし)",
             type: parent.type || "step",
             description: parent.description,
-            v2Substatus: parent.v2Substatus,
+            subStatus: parent.subStatus,
         });
         parentId = parent.parentId;
     }
-    // 逆順にしてTask→Work→...の順にする
+    // 逆順にしてTask→Work→Step→...の順にする
     return chain.reverse();
 }
 /**

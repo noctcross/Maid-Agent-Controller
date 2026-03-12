@@ -10,7 +10,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { stringify } from "yaml";
 import {
-  generateV2DashboardData,
+  generateDashboardData,
   type TasksData,
   type Task,
 } from "../src/services/task-manager.js";
@@ -53,7 +53,7 @@ async function writeTasksYaml(data: TasksData): Promise<void> {
   await fs.writeFile(filePath, stringify(data), "utf-8");
 }
 
-describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
+describe("V2.1: generateDashboardData - sortBy パラメータ", () => {
   beforeEach(async () => {
     await setupTestProject();
   });
@@ -74,7 +74,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           type: "task",
           status: "working",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -86,7 +86,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100",
           status: "working",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-03T00:00:00Z", // 新しい
         }),
@@ -97,7 +97,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100",
           status: "pending",
           mainStatus: "open",
-          v2Substatus: "pending",
+          subStatus: "pending",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-02T00:00:00Z", // 古い
         }),
@@ -109,7 +109,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100-1",
           status: "working",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-04T00:00:00Z", // 新しい
         }),
@@ -120,7 +120,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100-1",
           status: "pending",
           mainStatus: "open",
-          v2Substatus: "pending",
+          subStatus: "pending",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-03T00:00:00Z", // 古い
         }),
@@ -128,7 +128,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
     };
     await writeTasksYaml(testData);
 
-    const result = await generateV2DashboardData(TEST_PROJECT_PATH, {
+    const result = await generateDashboardData(TEST_PROJECT_PATH, {
       sortBy: "id",
     });
 
@@ -159,7 +159,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           type: "task",
           status: "working",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -171,7 +171,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100",
           status: "pending",
           mainStatus: "open",
-          v2Substatus: "pending",
+          subStatus: "pending",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-02T00:00:00Z", // 古い
         }),
@@ -182,7 +182,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100",
           status: "working",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-03T00:00:00Z", // 新しい
         }),
@@ -194,7 +194,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100-1",
           status: "pending",
           mainStatus: "open",
-          v2Substatus: "pending",
+          subStatus: "pending",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-03T00:00:00Z", // 古い
         }),
@@ -205,7 +205,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100-1",
           status: "working",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-04T00:00:00Z", // 新しい
         }),
@@ -213,7 +213,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
     };
     await writeTasksYaml(testData);
 
-    const result = await generateV2DashboardData(TEST_PROJECT_PATH, {
+    const result = await generateDashboardData(TEST_PROJECT_PATH, {
       sortBy: "updated",
     });
 
@@ -243,7 +243,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           type: "task",
           status: "working",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -254,7 +254,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100",
           status: "pending",
           mainStatus: "open",
-          v2Substatus: "pending",
+          subStatus: "pending",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-02T00:00:00Z",
         }),
@@ -265,7 +265,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
           parentId: "100",
           status: "working",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-03T00:00:00Z",
         }),
@@ -274,7 +274,7 @@ describe("V2.1: generateV2DashboardData - sortBy パラメータ", () => {
     await writeTasksYaml(testData);
 
     // sortBy 未指定
-    const result = await generateV2DashboardData(TEST_PROJECT_PATH, {});
+    const result = await generateDashboardData(TEST_PROJECT_PATH, {});
 
     expect(result.v2Goals.length).toBe(1);
     const task = result.v2Goals[0];

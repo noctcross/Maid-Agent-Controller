@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,8 +19,13 @@ const itemsToCopy = [
   'bin',
   'package.json',
   'package-lock.json',
-  'ecosystem.config.cjs',
-  '.gitignore'
+  'ecosystem.config.cjs'
+];
+
+// コピー後に削除するフォルダ（テスト用ビルド成果物など）
+const itemsToRemoveAfterCopy = [
+  'dist/__tests__',
+  'dist/services/__tests__'
 ];
 
 /**
@@ -80,8 +85,20 @@ for (const item of itemsToCopy) {
   }
 }
 
+// 不要なフォルダを削除（テスト用ビルド成果物など）
+for (const item of itemsToRemoveAfterCopy) {
+  const targetPath = path.join(targetDir, item);
+  if (fs.existsSync(targetPath)) {
+    removeDir(targetPath);
+    console.log(`  🗑 Removed: ${item}/`);
+  }
+}
+
 console.log('✅ Sync complete!');
 
 // Optional: run local deploy script if it exists (.gitignored)
 const deployLocalPath = path.join(__dirname, 'deploy-local.js');
-if (fs.existsSync(deployLocalPath)) { await import(deployLocalPath); }
+if (fs.existsSync(deployLocalPath)) {
+  // Windows対応: pathToFileURL でfile:// URLに変換
+  await import(pathToFileURL(deployLocalPath));
+}

@@ -24,14 +24,14 @@ export interface GetMyTaskParams {
 export interface ParentTaskInfo {
   id: string;
   title: string;
-  type: string;         // goal, phase, action
+  type: string;         // task, work, step
   description?: string;
-  v2Substatus?: string;
+  subStatus?: string;
 }
 
 export interface GetMyTaskResult extends GetMyTaskOutput {
   message?: string;
-  parent_chain?: ParentTaskInfo[];  // 親タスクの階層（Goal→Phase→...）
+  parent_chain?: ParentTaskInfo[];  // 親タスクの階層（Task→Work→...）
 }
 
 /**
@@ -43,7 +43,7 @@ interface TaskYamlEntry {
   description?: string;
   type?: string;
   parentId?: string;
-  v2Substatus?: string;
+  subStatus?: string;
 }
 
 interface TasksYamlData {
@@ -67,7 +67,7 @@ async function loadTasksYaml(projectPath: string): Promise<TasksYamlData | null>
 }
 
 /**
- * タスクIDから親タスクの階層を取得（Goal→Phase→...の順）
+ * タスクIDから親タスクの階層を取得（Task→Work→...の順）
  */
 async function getParentChain(
   projectPath: string,
@@ -102,13 +102,13 @@ async function getParentChain(
       title: parent.title || "(タイトルなし)",
       type: parent.type || "step",
       description: parent.description,
-      v2Substatus: parent.v2Substatus,
+      subStatus: parent.subStatus,
     });
 
     parentId = parent.parentId;
   }
 
-  // 逆順にしてTask→Work→...の順にする
+  // 逆順にしてTask→Work→Step→...の順にする
   return chain.reverse();
 }
 

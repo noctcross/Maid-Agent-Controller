@@ -4,14 +4,9 @@ import type { KeepAliveConfig } from "../utils/config-loader.js";
 describe("central-server - Express timeout settings", () => {
   it("keepAliveTimeout と headersTimeout が設定ファイルの値で正しく定義される", () => {
     const config: KeepAliveConfig = {
-      session_idle_timeout: 300000,
-      gc_interval: 60000,
       http_keepalive_timeout: 65000,
       http_headers_timeout: 66000,
-      ping_enabled: true,
       ping_interval: 30000,
-      ping_timeout: 5000,
-      max_missed_pings: 2,
     };
 
     // 設定値が正しい範囲であることを検証

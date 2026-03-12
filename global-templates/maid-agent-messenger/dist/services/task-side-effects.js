@@ -297,7 +297,7 @@ export async function executeSideEffects(projectPath, task, params, prevStatus, 
     }
     // 副作用2: archiveReport（completed または checkpoint/waiting時）
     const isCompleted = params.status === "completed";
-    const isCheckpoint = params.v2Substatus === "checkpoint" || params.v2Substatus === "waiting";
+    const isCheckpoint = params.subStatus === "checkpoint" || params.subStatus === "waiting";
     if (isCompleted || isCheckpoint) {
         // completed時のみ初回チェックをスキップ（checkpoint/waitingはタイムスタンプ比較で重複防止）
         const isFirstComplete = isCompleted && prevStatus !== "completed";

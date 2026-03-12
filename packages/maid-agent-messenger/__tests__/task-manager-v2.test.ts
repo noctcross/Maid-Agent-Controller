@@ -4,8 +4,8 @@
  * V2.1 で追加された機能のテスト:
  * - resolveBlockedTasks: 依存解消自動通知
  * - checkGoalAutoClose: Goal自動クローズ判定
- * - migrateToV2: V2.1マイグレーション
- * - convertToV2Status: ステータス変換
+ * - migrate: V2.1マイグレーション
+ * - convertStatus: ステータス変換
  * - inferTaskType: タスク種別推定
  */
 
@@ -17,9 +17,9 @@ import {
   executeUpdateTask,
   resolveBlockedTasks,
   checkGoalAutoClose,
-  migrateToV2,
+  migrate,
   checkMigrationStatus,
-  convertToV2Status,
+  convertStatus,
   inferTaskType,
   type Task,
   type TasksData,
@@ -70,7 +70,7 @@ async function createLegacyTask(
     if (task) {
       delete task.type;
       delete task.mainStatus;
-      delete task.v2Substatus;
+      delete task.subStatus;
       delete task.size;
       delete task.tentative;
       delete task.artifacts;
@@ -112,7 +112,7 @@ describe("V2.1: resolveBlockedTasks - 依存解消自動通知", () => {
     // タスクBが waiting であることを確認
     let taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     const taskBData = taskBResult.task as Task;
-    expect(taskBData?.v2Substatus).toBe("waiting");
+    expect(taskBData?.subStatus).toBe("waiting");
     expect(taskBData?.blockedBy).toContain(taskA.taskId);
 
     // タスクA完了時に依存解消を実行
@@ -126,7 +126,7 @@ describe("V2.1: resolveBlockedTasks - 依存解消自動通知", () => {
     // タスクBが assigned になっていることを確認
     taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     const taskBUpdated = taskBResult.task as Task;
-    expect(taskBUpdated?.v2Substatus).toBe("assigned");
+    expect(taskBUpdated?.subStatus).toBe("assigned");
     expect(taskBUpdated?.blockedBy).toEqual([]);
   });
 
@@ -157,7 +157,7 @@ describe("V2.1: resolveBlockedTasks - 依存解消自動通知", () => {
     // タスクBはまだ waiting（Cが残っている）
     let taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     let taskBData = taskBResult.task as Task;
-    expect(taskBData?.v2Substatus).toBe("waiting");
+    expect(taskBData?.subStatus).toBe("waiting");
     expect(taskBData?.blockedBy).toEqual([taskC.taskId]);
 
     // タスクC完了
@@ -167,7 +167,7 @@ describe("V2.1: resolveBlockedTasks - 依存解消自動通知", () => {
     expect(result.unblockedTasks.length).toBe(1);
     taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     taskBData = taskBResult.task as Task;
-    expect(taskBData?.v2Substatus).toBe("assigned");
+    expect(taskBData?.subStatus).toBe("assigned");
     expect(taskBData?.blockedBy).toEqual([]);
   });
 });
@@ -205,30 +205,30 @@ describe("V2.1: checkGoalAutoClose - Goal自動クローズ判定", () => {
     // pending → assigned は chief 権限が必要
     await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: phase1.taskId,
-      v2Substatus: "assigned",
+      subStatus: "assigned",
       agentId: "chief",
     });
     await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: phase1.taskId,
-      v2Substatus: "working",
+      subStatus: "working",
     });
     await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: phase1.taskId,
-      v2Substatus: "completed",
+      subStatus: "completed",
     });
 
     await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: phase2.taskId,
-      v2Substatus: "assigned",
+      subStatus: "assigned",
       agentId: "chief",
     });
     await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: phase2.taskId,
-      v2Substatus: "working",
+      subStatus: "working",
     });
     await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: phase2.taskId,
-      v2Substatus: "completed",
+      subStatus: "completed",
     });
 
     // 自動クローズ判定
@@ -277,7 +277,7 @@ describe("V2.1: checkGoalAutoClose - Goal自動クローズ判定", () => {
 
     const result = await checkGoalAutoClose(TEST_PROJECT_PATH, goal.taskId);
     expect(result.canAutoClose).toBe(false);
-    expect(result.reason).toContain("Not all phases completed");
+    expect(result.reason).toContain("Not all works completed");
   });
 
   it("除外カテゴリ（skill_candidate等）のGoalは自動クローズ不可", async () => {
@@ -294,7 +294,7 @@ describe("V2.1: checkGoalAutoClose - Goal自動クローズ判定", () => {
   });
 });
 
-describe("V2.1: migrateToV2 - マイグレーション", () => {
+describe("V2.1: migrate - マイグレーション", () => {
   beforeEach(async () => {
     await setupTestProject();
   });
@@ -313,7 +313,7 @@ describe("V2.1: migrateToV2 - マイグレーション", () => {
     expect(status.v2Tasks).toBe(0);
 
     // マイグレーション実行
-    const result = await migrateToV2(TEST_PROJECT_PATH);
+    const result = await migrate(TEST_PROJECT_PATH);
 
     expect(result.migratedTasks).toBe(1);
     expect(result.skippedTasks).toBe(0);
@@ -328,7 +328,7 @@ describe("V2.1: migrateToV2 - マイグレーション", () => {
     await createLegacyTask("ドライランタスク");
 
     // dry-run マイグレーション
-    const result = await migrateToV2(TEST_PROJECT_PATH, { dryRun: true });
+    const result = await migrate(TEST_PROJECT_PATH, { dryRun: true });
 
     expect(result.migratedTasks).toBe(1);
 
@@ -346,7 +346,7 @@ describe("V2.1: migrateToV2 - マイグレーション", () => {
     });
 
     // マイグレーション実行
-    const result = await migrateToV2(TEST_PROJECT_PATH);
+    const result = await migrate(TEST_PROJECT_PATH);
 
     expect(result.migratedTasks).toBe(0);
     expect(result.skippedTasks).toBe(1);
@@ -359,7 +359,7 @@ describe("V2.1: migrateToV2 - マイグレーション", () => {
     await createLegacyTask("子タスク", { parentId });
 
     // マイグレーション
-    await migrateToV2(TEST_PROJECT_PATH);
+    await migrate(TEST_PROJECT_PATH);
 
     // 確認
     const parentResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: parentId });
@@ -374,60 +374,60 @@ describe("V2.1: migrateToV2 - マイグレーション", () => {
   it("completed状態の旧タスクはclosed/completedに変換される", async () => {
     const taskId = await createLegacyTask("完了タスク", { status: "completed" });
 
-    await migrateToV2(TEST_PROJECT_PATH);
+    await migrate(TEST_PROJECT_PATH);
 
     const result = await executeGetTask(TEST_PROJECT_PATH, { taskId });
     expect((result.task as Task)?.mainStatus).toBe("closed");
-    expect((result.task as Task)?.v2Substatus).toBe("completed");
+    expect((result.task as Task)?.subStatus).toBe("completed");
   });
 });
 
-describe("V2.1: convertToV2Status - ステータス変換", () => {
+describe("V2.1: convertStatus - ステータス変換", () => {
   it("pending → open/pending に変換", () => {
     const task = { status: "pending" } as Task;
-    const result = convertToV2Status(task);
+    const result = convertStatus(task);
     expect(result.mainStatus).toBe("open");
     expect(result.substatus).toBe("pending");
   });
 
   it("assigned → open/assigned に変換", () => {
     const task = { status: "assigned" } as Task;
-    const result = convertToV2Status(task);
+    const result = convertStatus(task);
     expect(result.mainStatus).toBe("open");
     expect(result.substatus).toBe("assigned");
   });
 
   it("working → open/working に変換", () => {
     const task = { status: "working" } as Task;
-    const result = convertToV2Status(task);
+    const result = convertStatus(task);
     expect(result.mainStatus).toBe("open");
     expect(result.substatus).toBe("working");
   });
 
   it("completed → closed/completed に変換", () => {
     const task = { status: "completed" } as Task;
-    const result = convertToV2Status(task);
+    const result = convertStatus(task);
     expect(result.mainStatus).toBe("closed");
     expect(result.substatus).toBe("completed");
   });
 
   it("blocked (blockedBy有り) → open/waiting に変換", () => {
     const task = { status: "blocked", blockedBy: ["001"] } as Task;
-    const result = convertToV2Status(task);
+    const result = convertStatus(task);
     expect(result.mainStatus).toBe("open");
     expect(result.substatus).toBe("waiting");
   });
 
   it("blocked (blockedBy無し) → open/checkpoint に変換", () => {
     const task = { status: "blocked", blockedBy: [] } as unknown as Task;
-    const result = convertToV2Status(task);
+    const result = convertStatus(task);
     expect(result.mainStatus).toBe("open");
     expect(result.substatus).toBe("checkpoint");
   });
 
   it("cancelled → cancelled/archived に変換", () => {
     const task = { status: "cancelled" } as Task;
-    const result = convertToV2Status(task);
+    const result = convertStatus(task);
     expect(result.mainStatus).toBe("cancelled");
     expect(result.substatus).toBe("archived");
   });
@@ -436,9 +436,9 @@ describe("V2.1: convertToV2Status - ステータス変換", () => {
     const task = {
       status: "pending",
       mainStatus: "open",
-      v2Substatus: "pending",
+      subStatus: "pending",
     } as Task;
-    const result = convertToV2Status(task);
+    const result = convertStatus(task);
     expect(result.mainStatus).toBe("open");
     expect(result.substatus).toBe("pending");
   });
@@ -485,7 +485,7 @@ describe("V2.1: executeUpdateTask - completed時に依存解消が呼ばれる",
     // タスクBが waiting であることを確認
     let taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     let taskBData = taskBResult.task as Task;
-    expect(taskBData?.v2Substatus).toBe("waiting");
+    expect(taskBData?.subStatus).toBe("waiting");
 
     // タスクAを完了
     const updateResult = await executeUpdateTask(TEST_PROJECT_PATH, {
@@ -500,10 +500,10 @@ describe("V2.1: executeUpdateTask - completed時に依存解消が呼ばれる",
     // タスクBが assigned になっている
     taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     taskBData = taskBResult.task as Task;
-    expect(taskBData?.v2Substatus).toBe("assigned");
+    expect(taskBData?.subStatus).toBe("assigned");
   });
 
-  it("v2Substatus=completed 時にも依存解消が呼ばれる", async () => {
+  it("subStatus=completed 時にも依存解消が呼ばれる", async () => {
     const taskA = await executeCreateTask(TEST_PROJECT_PATH, {
       title: "タスクA",
     });
@@ -516,80 +516,80 @@ describe("V2.1: executeUpdateTask - completed時に依存解消が呼ばれる",
     // V2.1 substatus で完了
     const updateResult = await executeUpdateTask(TEST_PROJECT_PATH, {
       taskId: taskA.taskId,
-      v2Substatus: "completed",
+      subStatus: "completed",
     });
 
     expect(updateResult.sideEffects?.dependencyResolved).toBe(true);
 
     const taskBResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: taskB.taskId });
     const taskBData = taskBResult.task as Task;
-    expect(taskBData?.v2Substatus).toBe("assigned");
+    expect(taskBData?.subStatus).toBe("assigned");
   });
 });
 
 // =============================================================================
-// Phase 7: 追加テスト - mapLegacyToV2Status, migrateTaskToV2, archived フラグ
+// Phase 7: 追加テスト - mapLegacyStatus, migrateTask, archived フラグ
 // =============================================================================
 
 import {
-  mapLegacyToV2Status,
-  migrateTaskToV2,
+  mapLegacyStatus,
+  migrateTask,
 } from "../src/services/task-manager";
 
-describe("V2.1: mapLegacyToV2Status - 旧ステータスマッピング", () => {
+describe("V2.1: mapLegacyStatus - 旧ステータスマッピング", () => {
   it("pending → open/pending に変換", () => {
-    const result = mapLegacyToV2Status("pending", null);
+    const result = mapLegacyStatus("pending", null);
     expect(result.mainStatus).toBe("open");
-    expect(result.v2Substatus).toBe("pending");
+    expect(result.subStatus).toBe("pending");
   });
 
   it("assigned → open/assigned に変換", () => {
-    const result = mapLegacyToV2Status("assigned", null);
+    const result = mapLegacyStatus("assigned", null);
     expect(result.mainStatus).toBe("open");
-    expect(result.v2Substatus).toBe("assigned");
+    expect(result.subStatus).toBe("assigned");
   });
 
   it("working → open/working に変換", () => {
-    const result = mapLegacyToV2Status("working", null);
+    const result = mapLegacyStatus("working", null);
     expect(result.mainStatus).toBe("open");
-    expect(result.v2Substatus).toBe("working");
+    expect(result.subStatus).toBe("working");
   });
 
   it("blocked + waiting → open/waiting に変換", () => {
-    const result = mapLegacyToV2Status("blocked", "waiting");
+    const result = mapLegacyStatus("blocked", "waiting");
     expect(result.mainStatus).toBe("open");
-    expect(result.v2Substatus).toBe("waiting");
+    expect(result.subStatus).toBe("waiting");
   });
 
   it("blocked + null → open/checkpoint に変換", () => {
-    const result = mapLegacyToV2Status("blocked", null);
+    const result = mapLegacyStatus("blocked", null);
     expect(result.mainStatus).toBe("open");
-    expect(result.v2Substatus).toBe("checkpoint");
+    expect(result.subStatus).toBe("checkpoint");
   });
 
   it("completed → closed/completed に変換", () => {
-    const result = mapLegacyToV2Status("completed", null);
+    const result = mapLegacyStatus("completed", null);
     expect(result.mainStatus).toBe("closed");
-    expect(result.v2Substatus).toBe("completed");
+    expect(result.subStatus).toBe("completed");
   });
 
   it("cancelled → cancelled/archived に変換", () => {
-    const result = mapLegacyToV2Status("cancelled", null);
+    const result = mapLegacyStatus("cancelled", null);
     expect(result.mainStatus).toBe("cancelled");
-    expect(result.v2Substatus).toBe("archived");
+    expect(result.subStatus).toBe("archived");
   });
 });
 
-describe("V2.1: migrateTaskToV2 - 単一タスクマイグレーション", () => {
+describe("V2.1: migrateTask - 単一タスクマイグレーション", () => {
   it("既にV2.1形式のタスクはそのまま返す", () => {
     const task = {
       id: "001",
       status: "working" as const,
       mainStatus: "open" as const,
-      v2Substatus: "working" as const,
+      subStatus: "working" as const,
     } as Task;
 
-    const result = migrateTaskToV2(task);
+    const result = migrateTask(task);
     expect(result).toBe(task); // 同じオブジェクト参照
   });
 
@@ -602,29 +602,13 @@ describe("V2.1: migrateTaskToV2 - 単一タスクマイグレーション", () =
       substatus: null,
     } as Task;
 
-    const result = migrateTaskToV2(task);
+    const result = migrateTask(task);
 
     expect(result.mainStatus).toBe("open");
-    expect(result.v2Substatus).toBe("working");
+    expect(result.subStatus).toBe("working");
     expect(result.type).toBe("task"); // parentId が null なので goal
     expect(result.archived).toBe(false);
     expect(result.archivedAt).toBeNull();
-  });
-
-  it("reviewed=true のタスクは archived=true になる", () => {
-    const task = {
-      id: "001",
-      parentId: null,
-      status: "completed" as const,
-      substatus: null,
-      reviewed: true,
-      reviewedAt: "2026-02-23T10:00:00.000Z",
-    } as Task;
-
-    const result = migrateTaskToV2(task);
-
-    expect(result.archived).toBe(true);
-    expect(result.archivedAt).toBe("2026-02-23T10:00:00.000Z");
   });
 
   it("substatus=archived のタスクは archived=true になる", () => {
@@ -636,7 +620,7 @@ describe("V2.1: migrateTaskToV2 - 単一タスクマイグレーション", () =
       completedAt: "2026-02-23T09:00:00.000Z",
     } as Task;
 
-    const result = migrateTaskToV2(task);
+    const result = migrateTask(task);
 
     expect(result.archived).toBe(true);
     expect(result.archivedAt).toBe("2026-02-23T09:00:00.000Z");
@@ -650,7 +634,7 @@ describe("V2.1: migrateTaskToV2 - 単一タスクマイグレーション", () =
       substatus: null,
     } as Task;
 
-    const result = migrateTaskToV2(task);
+    const result = migrateTask(task);
 
     expect(result.type).toBe("task");
     expect(result.size).toBe("standard");
@@ -665,46 +649,10 @@ describe("V2.1: migrateTaskToV2 - 単一タスクマイグレーション", () =
       substatus: null,
     } as Task;
 
-    const result = migrateTaskToV2(task);
+    const result = migrateTask(task);
 
     expect(result.artifacts).toEqual([]);
     expect(result.blockedBy).toEqual([]);
   });
 });
 
-describe("V2.1: migrateToV2 - archivedフラグのマイグレーション", () => {
-  beforeEach(async () => {
-    await setupTestProject();
-  });
-
-  afterAll(async () => {
-    await fs.rm(TEST_PROJECT_PATH, { recursive: true, force: true });
-  });
-
-  it("reviewed=true の旧タスクは archived=true でマイグレーションされる", async () => {
-    // 旧形式のレビュー済みタスク作成
-    const taskId = await createLegacyTask("レビュー済みタスク", { status: "completed" });
-
-    // reviewed フラグを直接設定
-    const { stringify } = await import("yaml");
-    const data = await readTasksYaml();
-    if (data) {
-      const task = data.tasks.find((t) => t.id === taskId);
-      if (task) {
-        task.reviewed = true;
-        task.reviewedAt = "2026-02-23T10:00:00.000Z";
-        const filePath = path.join(TEST_PROJECT_PATH, ".maid-agent", "system", "data", "tasks.yaml");
-        await fs.writeFile(filePath, stringify(data), "utf-8");
-      }
-    }
-
-    // マイグレーション実行
-    await migrateToV2(TEST_PROJECT_PATH);
-
-    // archived フラグの確認
-    const result = await executeGetTask(TEST_PROJECT_PATH, { taskId });
-    const taskData = result.task as Task;
-    expect(taskData?.archived).toBe(true);
-    expect(taskData?.archivedAt).toBe("2026-02-23T10:00:00.000Z");
-  });
-});

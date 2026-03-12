@@ -10,8 +10,14 @@ import { executeListTasks } from "../services/index.js";
 export function createTopPageRoutes(deps) {
     const { generateTopPageHtml } = deps;
     const router = Router();
-    // GET / — トップページHTML
+    // GET / — トップページHTML（SPA: 静的HTMLシェル + クライアントJSでAPI呼び出し）
     router.get("/", async (_req, res) => {
+        const html = generateTopPageHtml();
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.send(html);
+    });
+    // GET /api/projects — JSON API（stats付き）
+    router.get("/api/projects", async (_req, res) => {
         try {
             const projects = await listProjects();
             const today = new Date();
@@ -50,21 +56,7 @@ export function createTopPageRoutes(deps) {
                     return { ...project, stats: null, status: "unavailable" };
                 }
             }));
-            const html = generateTopPageHtml(projectsWithStats);
-            res.setHeader("Content-Type", "text/html; charset=utf-8");
-            res.send(html);
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : "Unknown error";
-            res.status(500).send(`<html><body><h1>Error</h1><p>${message}</p></body></html>`);
-        }
-    });
-    // GET /api/projects — JSON API
-    router.get("/api/projects", async (_req, res) => {
-        try {
-            const projects = await listProjects();
-            // 簡略化のため stats は省略（必要に応じて取得）
-            res.json({ projects });
+            res.json({ projects: projectsWithStats });
         }
         catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";

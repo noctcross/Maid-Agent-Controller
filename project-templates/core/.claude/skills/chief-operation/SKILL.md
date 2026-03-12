@@ -18,20 +18,20 @@ patterns: ["task-distribution", "report-collection", "escalation-handling", "ski
 
 ### 基本フロー
 
-**基本は Goal → Phase の2段階運用**。Phase をメイドに直接割り当てる。
+**基本は Task → Work の2段階運用**。Work をメイドに直接割り当てる。
 
 1. 執事から通知受領
-2. maidctl task list --status pending --summary で未着手 **Phase** 確認
-3. maidctl task assign TASK_ID --to AGENT で **Phase を直接メイドに配分**
+2. maidctl task list --status pending --summary で未着手 **Work** 確認
+3. maidctl task assign TASK_ID --to AGENT で **Work を直接メイドに配分**
 4. maidctl notify {メイド} で通知
 5. 停止（完了報告を待つ）
 6. メイド完了後、報告収集
 7. 【V2.1】レビューキュー確認・Investigation昇格判断
 8. maidctl task update TASK_ID --status completed で更新
 
-※ 複雑な Phase の場合のみ Action に分割して配分
+※ 複雑な Work の場合のみ Step に分割して配分
 
-**修正タスクの命名規則**: タイトルに元Phase番号を明記（`#XXX-Y 修正内容`）
+**修正タスクの命名規則**: タイトルに元Work番号を明記（`#XXX-Y 修正内容`）
 
 詳細は [task-distribution.md](resources/patterns/task-distribution.md) 参照。
 

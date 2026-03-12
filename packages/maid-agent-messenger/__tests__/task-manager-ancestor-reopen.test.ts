@@ -77,7 +77,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "task",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -89,7 +89,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "work",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -110,13 +110,13 @@ describe("createTask - 祖先タスク自動再オープン", () => {
     const workResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: "100-1" });
     const work = workResult.task as Task;
     expect(work.mainStatus).toBe("open");
-    expect(work.v2Substatus).toBe("working");
+    expect(work.subStatus).toBe("working");
 
     // 最上位の祖先（Task 100）もオープンされている
     const taskResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: "100" });
     const task = taskResult.task as Task;
     expect(task.mainStatus).toBe("open");
-    expect(task.v2Substatus).toBe("working");
+    expect(task.subStatus).toBe("working");
   });
 
   it("Work追加時に最上位のTask（親）がオープンされる", async () => {
@@ -131,7 +131,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "task",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -152,7 +152,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
     const taskResult = await executeGetTask(TEST_PROJECT_PATH, { taskId: "101" });
     const task = taskResult.task as Task;
     expect(task.mainStatus).toBe("open");
-    expect(task.v2Substatus).toBe("working");
+    expect(task.subStatus).toBe("working");
   });
 
   it("3階層（Task→Work→Step→新Step）でも最上位までオープン", async () => {
@@ -166,7 +166,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "task",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -177,7 +177,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "work",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -188,7 +188,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "step",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -224,7 +224,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "task",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           archived: true,
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
@@ -236,7 +236,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "work",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           archived: true,
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
@@ -271,7 +271,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "task",
           status: "working",
           mainStatus: "open",
-          v2Substatus: "working",
+          subStatus: "working",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -282,7 +282,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "work",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -300,12 +300,12 @@ describe("createTask - 祖先タスク自動再オープン", () => {
     // Task は元から open なので変わらない
     const task = (await executeGetTask(TEST_PROJECT_PATH, { taskId: "104" })).task as Task;
     expect(task.mainStatus).toBe("open");
-    expect(task.v2Substatus).toBe("working");
+    expect(task.subStatus).toBe("working");
 
     // Work は closed → open に変更
     const work = (await executeGetTask(TEST_PROJECT_PATH, { taskId: "104-1" })).task as Task;
     expect(work.mainStatus).toBe("open");
-    expect(work.v2Substatus).toBe("working");
+    expect(work.subStatus).toBe("working");
   });
 
   it("reopenedParent には全ての再オープンされた祖先が含まれる", async () => {
@@ -319,7 +319,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "task",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),
@@ -330,7 +330,7 @@ describe("createTask - 祖先タスク自動再オープン", () => {
           type: "work",
           status: "completed",
           mainStatus: "closed",
-          v2Substatus: "completed",
+          subStatus: "completed",
           createdAt: "2026-02-01T00:00:00Z",
           updatedAt: "2026-02-01T00:00:00Z",
         }),

@@ -3,7 +3,7 @@
  *
  * maid-agent-messenger（エージェント間メッセージングサーバー）を常時稼働させる
  *
- * PM2設定値は mcp-server.yaml の pm2 セクションから読み込み。
+ * PM2設定値は maid-agent-messenger.yaml の pm2 セクションから読み込み。
  * 設定ファイルが見つからない場合はデフォルト値を使用。
  *
  * 使用方法:
@@ -24,7 +24,7 @@
 const fs = require("fs");
 const path = require("path");
 
-// デフォルト値（mcp-server.yaml が見つからない場合に使用）
+// デフォルト値（maid-agent-messenger.yaml が見つからない場合に使用）
 const PM2_DEFAULTS = {
   max_memory_restart: "500M",
   instances: 1,
@@ -33,7 +33,7 @@ const PM2_DEFAULTS = {
 };
 
 /**
- * mcp-server.yaml から PM2 設定を読み込む
+ * maid-agent-messenger.yaml から PM2 設定を読み込む
  */
 function loadPm2Config() {
   // yaml パッケージを動的に読み込み（インストールされていない環境への対応）
@@ -50,7 +50,7 @@ function loadPm2Config() {
   // プロジェクトパスが環境変数で指定されている場合
   if (process.env.MAID_PROJECT_PATH) {
     configPaths.push(
-      path.join(process.env.MAID_PROJECT_PATH, ".maid-agent", "system", "config", "mcp-server.yaml")
+      path.join(process.env.MAID_PROJECT_PATH, ".maid-agent", "system", "config", "maid-agent-messenger.yaml")
     );
   }
 
@@ -58,7 +58,7 @@ function loadPm2Config() {
   const os = require('os');
   const homeDir = os.homedir();
   configPaths.push(
-    path.join(homeDir, ".maid-agent", "system", "config", "mcp-server.yaml")
+    path.join(homeDir, ".maid-agent", "system", "config", "maid-agent-messenger.yaml")
   );
 
   for (const configPath of configPaths) {
@@ -95,7 +95,7 @@ module.exports = {
         // 外部アクセス許可（Tailscale経由でのモバイルアクセス用）
         ALLOW_EXTERNAL_ACCESS: "true",
         // 設定ファイルのパス: 環境変数を削除し、config-loader.ts のデフォルト動作に任せる
-        // デフォルト: ~/.maid-agent/system/config/mcp-server.yaml
+        // デフォルト: ~/.maid-agent/system/config/maid-agent-messenger.yaml
         // Claude CLI へのパスを含める
         PATH: `${require('os').homedir()}/.local/bin:${process.env.PATH || '/usr/local/bin:/usr/bin:/bin'}`,
         // CLAUDECODEを無効化（ネストセッション検出を回避）

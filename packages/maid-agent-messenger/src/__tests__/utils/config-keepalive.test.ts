@@ -28,8 +28,8 @@ describe("loadConfig - keepalive settings", () => {
     const config = await loadConfig();
 
     expect(config.keepalive).toBeDefined();
-    expect(config.keepalive.session_idle_timeout).toBe(1800000);
-    expect(config.keepalive.gc_interval).toBe(60000);
+    expect(config.keepalive.http_keepalive_timeout).toBe(65000);
+    expect(config.keepalive.http_headers_timeout).toBe(66000);
   });
 
   it("keepalive の部分設定がデフォルト値とマージされる", async () => {
@@ -38,21 +38,21 @@ describe("loadConfig - keepalive settings", () => {
     const os = await import("os");
     const path = await import("path");
     const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `test-mcp-config-${Date.now()}.yaml`);
+    const tmpFile = path.join(tmpDir, `test-config-${Date.now()}.yaml`);
 
     await fs.writeFile(tmpFile, `
 server:
   port: 3100
 keepalive:
-  session_idle_timeout: 600000
+  http_keepalive_timeout: 70000
 `);
 
     process.env.MAID_MCP_CONFIG = tmpFile;
     clearConfigCache();
     const config = await loadConfig();
 
-    expect(config.keepalive.session_idle_timeout).toBe(600000);
-    expect(config.keepalive.gc_interval).toBe(60000); // デフォルト値が残る
+    expect(config.keepalive.http_keepalive_timeout).toBe(70000);
+    expect(config.keepalive.http_headers_timeout).toBe(66000); // デフォルト値が残る
 
     await fs.unlink(tmpFile);
   });

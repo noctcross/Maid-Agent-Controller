@@ -25,7 +25,7 @@ V2.1で導入された waiting 依存解消時の自動通知フロー。
 │      ├── 自動通知送信                                        │
 │      │    → メイドB に "依存タスク #100-3 完了"              │
 │      │                                                       │
-│      ├── v2Substatus 更新                                    │
+│      ├── subStatus 更新                                    │
 │      │    → #100-4: waiting → working                       │
 │      │                                                       │
 │      └── blockedBy 更新                                      │
@@ -118,7 +118,7 @@ maidctl task get WAITING_TASK_ID
   │                   │ 自動通知          │                │
   │                   ├──────────────────>│                │
   │                   │                   │                │
-  │                   │ v2Substatus更新   │                │
+  │                   │ subStatus更新   │                │
   │                   │ waiting→working  │                │
   │                   │                   │                │
   │                   │ 状態変更通知      │                │

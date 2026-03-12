@@ -127,40 +127,40 @@ maidctl CLI v2.1.0 の詳細リファレンス。コマンド一覧、オプシ�
 
 | 種別 | 説明 | 作成者 |
 |------|------|--------|
-| `goal` | ご主人様の指示単位。Phase/Actionの親 | 執事 |
-| `phase` | Goal内の成果物単位。2-4個目安 | 執事・メイド長 |
-| `action` | メイドが実行する作業単位 | メイド長 |
+| `task` | ご主人様の指示単位。Work/Stepの親 | 執事 |
+| `work` | Task内の成果物単位。2-4個目安 | 執事・メイド長 |
+| `step` | メイドが実行する作業単位 | メイド長 |
 | `investigation` | 調査・分析タスク（docs/昇格対象） | メイド長 |
 
 #### タスク作成例
 
 ```bash
-# Goal作成（新コマンド）
-maidctl create task --title "新機能実装" --type goal --size standard
+# Task作成（新コマンド）
+maidctl create task --title "新機能実装" --type task --size standard
 
-# 暫定Goal（調査後に再定義）
-maidctl create task --title "MCP調査" --type goal --tentative
+# 暫定Task（調査後に再定義）
+maidctl create task --title "MCP調査" --type task --tentative
 
-# Phase作成
-maidctl create task --title "設計" --type phase --parent 310
+# Work作成
+maidctl create task --title "設計" --type work --parent 310
 
-# Action作成
-maidctl create task --title "API実装" --type action --parent 310-1
+# Step作成
+maidctl create task --title "API実装" --type step --parent 310-1
 
 # Investigation作成
 maidctl create task --title "ライブラリ調査" --type investigation --parent 310
 
 # 依存関係付き
-maidctl create task --title "テスト作成" --type action --parent 310-1 --blocked-by 310-1-1,310-1-2
+maidctl create task --title "テスト作成" --type step --parent 310-1 --blocked-by 310-1-1,310-1-2
 ```
 
-#### Goalサイズ
+#### Taskサイズ
 
-| サイズ | Phase数 | 報告書 | ユースケース |
-|--------|---------|--------|-------------|
-| `simple` | 0-1 | Goal直下 | typo修正、設定変更、調査のみ |
-| `standard` | 2-4 | Phase単位 | 機能追加、バグ修正 |
-| `complex` | 5+ | Phase単位 | 大規模リファクタリング |
+| サイズ | Work数 | 報告書 | ユースケース |
+|--------|--------|--------|-------------|
+| `simple` | 0-1 | Task直下 | typo修正、設定変更、調査のみ |
+| `standard` | 2-4 | Work単位 | 機能追加、バグ修正 |
+| `complex` | 5+ | Work単位 | 大規模リファクタリング |
 
 ---
 

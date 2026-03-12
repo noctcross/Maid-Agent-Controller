@@ -11,8 +11,10 @@ const mockExecuteGetTask = jest.fn<any>();
 const mockExecuteUpdateTask = jest.fn<any>();
 const mockExecuteGetReport = jest.fn<any>();
 const mockArchiveReport = jest.fn<any>();
-const mockMigrateToV2 = jest.fn<any>();
+const mockMigrate = jest.fn<any>();
 const mockCheckMigrationStatus = jest.fn<any>();
+const mockExecuteGetTeamStatus = jest.fn<any>();
+const mockGenerateDashboardData = jest.fn<any>();
 
 jest.unstable_mockModule("../../services/index.js", () => ({
   executeListTasks: mockExecuteListTasks,
@@ -20,8 +22,10 @@ jest.unstable_mockModule("../../services/index.js", () => ({
   executeUpdateTask: mockExecuteUpdateTask,
   executeGetReport: mockExecuteGetReport,
   archiveReport: mockArchiveReport,
-  migrateToV2: mockMigrateToV2,
+  migrate: mockMigrate,
   checkMigrationStatus: mockCheckMigrationStatus,
+  executeGetTeamStatus: mockExecuteGetTeamStatus,
+  generateDashboardData: mockGenerateDashboardData,
 }));
 
 jest.unstable_mockModule("../../middleware/project-path.js", () => ({
@@ -30,6 +34,7 @@ jest.unstable_mockModule("../../middleware/project-path.js", () => ({
 
 jest.unstable_mockModule("../../utils/yaml-helper.js", () => ({
   getTimestamp: () => "2026-02-09T00:00:00+09:00",
+  getJstTimestamp: () => "2026-02-09 00:00:00",
   stringifyYaml: (data: unknown) => JSON.stringify(data),
 }));
 
@@ -246,17 +251,17 @@ describe("GET /api/tasks/:id/report", () => {
   it("レポートを返す", async () => {
     mockExecuteGetReport.mockResolvedValue({
       success: true,
-      entries: [{ content: "Report content", timestamp: "2026-02-09" }],
+      reports: [{ path: "reports/test.md", content: "Report content" }],
     });
 
     const res = await supertest(app).get("/api/tasks/095/report").expect(200);
 
     expect(res.body.success).toBe(true);
-    expect(res.body.entries).toHaveLength(1);
+    expect(res.body.reports).toHaveLength(1);
   });
 
   it("limit指定を正しくパースする", async () => {
-    mockExecuteGetReport.mockResolvedValue({ success: true, entries: [] });
+    mockExecuteGetReport.mockResolvedValue({ success: true, reports: [] });
 
     await supertest(app).get("/api/tasks/095/report?limit=5").expect(200);
 
@@ -284,118 +289,37 @@ describe("GET /api/tasks/:id/report", () => {
 });
 
 // ===========================================
-// PATCH /api/tasks/:id/review
-// ===========================================
-describe("PATCH /api/tasks/:id/review", () => {
-  it("レビュー済みをtrueに設定する", async () => {
-    mockExecuteUpdateTask.mockResolvedValue({
-      success: true,
-      task: { reviewed: true, reviewedAt: "2026-02-09T00:00:00+09:00" },
-    });
-
-    const res = await supertest(app)
-      .patch("/api/tasks/095/review")
-      .send({ reviewed: true })
-      .expect(200);
-
-    expect(res.body.success).toBe(true);
-    expect(res.body.reviewed).toBe(true);
-    expect(res.body.reviewedAt).toBeDefined();
-  });
-
-  it("reviewed未指定時はデフォルトtrueで呼ぶ", async () => {
-    mockExecuteUpdateTask.mockResolvedValue({
-      success: true,
-      task: { reviewed: true, reviewedAt: "2026-02-09T00:00:00+09:00" },
-    });
-
-    await supertest(app).patch("/api/tasks/095/review").send({}).expect(200);
-
-    expect(mockExecuteUpdateTask).toHaveBeenCalledWith(
-      TEST_PROJECT_PATH,
-      expect.objectContaining({ reviewed: true }),
-    );
-  });
-
-  it("存在しないIDに404を返す", async () => {
-    mockExecuteUpdateTask.mockResolvedValue({ success: false });
-
-    await supertest(app).patch("/api/tasks/999/review").send({}).expect(404);
-  });
-});
-
-// ===========================================
-// PATCH /api/tasks/:id/star
-// ===========================================
-describe("PATCH /api/tasks/:id/star", () => {
-  it("スターをtrueに設定する", async () => {
-    mockExecuteUpdateTask.mockResolvedValue({
-      success: true,
-      task: { starred: true, starredAt: "2026-02-09T00:00:00+09:00" },
-    });
-
-    const res = await supertest(app)
-      .patch("/api/tasks/095/star")
-      .send({ starred: true })
-      .expect(200);
-
-    expect(res.body.success).toBe(true);
-    expect(res.body.starred).toBe(true);
-    expect(res.body.starredAt).toBeDefined();
-  });
-
-  it("starred未指定時はデフォルトtrueで呼ぶ", async () => {
-    mockExecuteUpdateTask.mockResolvedValue({
-      success: true,
-      task: { starred: true, starredAt: "2026-02-09T00:00:00+09:00" },
-    });
-
-    await supertest(app).patch("/api/tasks/095/star").send({}).expect(200);
-
-    expect(mockExecuteUpdateTask).toHaveBeenCalledWith(
-      TEST_PROJECT_PATH,
-      expect.objectContaining({ starred: true }),
-    );
-  });
-
-  it("存在しないIDに404を返す", async () => {
-    mockExecuteUpdateTask.mockResolvedValue({ success: false });
-
-    await supertest(app).patch("/api/tasks/999/star").send({}).expect(404);
-  });
-});
-
-// ===========================================
 // GET /api/dashboard
 // ===========================================
 describe("GET /api/dashboard", () => {
-  it("ダッシュボードJSONを返す", async () => {
-    mockExecuteListTasks
-      .mockResolvedValueOnce(createMockListResponse([createMockTask()], 1))   // pending
-      .mockResolvedValueOnce(createMockListResponse([], 0))                     // working
-      .mockResolvedValueOnce(createMockListResponse([], 0));                    // completed
+  it("モバイル向けダッシュボードJSONを返す", async () => {
+    // V2.1形式のモック設定
+    mockGenerateDashboardData.mockResolvedValue({
+      v2Goals: [{ id: "001", title: "Test Task", type: "task", mainStatus: "open", subStatus: "working", works: [] }],
+      v2ReviewQueue: [],
+      v2Artifacts: [],
+      v2Stats: { taskCount: 1, workCount: 0, stepCount: 0, completedCount: 0, actionRequiredCount: 0, reviewPendingCount: 0, proposalCount: 0 },
+      totalGoals: 1,
+    });
+    mockExecuteListTasks.mockResolvedValue(createMockListResponse([], 0));
+    mockExecuteGetTeamStatus.mockResolvedValue({ agents: [] });
 
     const res = await supertest(app)
       .get("/api/dashboard")
       .expect(200)
       .expect("Content-Type", /json/);
 
+    expect(res.body.goals).toBeDefined();
+    expect(res.body.goals).toHaveLength(1);
+    expect(res.body.stats).toBeDefined();
     expect(res.body.timestamp).toBeDefined();
-    expect(res.body.summary).toEqual({
-      pendingCount: 1,
-      workingCount: 0,
-      completedCount: 0,
-    });
-    expect(res.body.pending).toHaveLength(1);
-    expect(res.body.working).toHaveLength(0);
-    expect(res.body.recentCompleted).toHaveLength(0);
   });
 
   it("サービスエラー時に500を返す", async () => {
-    mockExecuteListTasks.mockRejectedValue(new Error("Service error"));
+    mockGenerateDashboardData.mockRejectedValue(new Error("Service error"));
 
     const res = await supertest(app).get("/api/dashboard").expect(500);
 
-    expect(res.body.error).toBe("Dashboard retrieval failed");
+    expect(res.body.error).toBe("V2 Dashboard retrieval failed");
   });
 });

@@ -59,7 +59,8 @@ export declare class NotificationWebSocketServer {
      */
     private handleJsonlChange;
     /**
-     * 新しいjsonl行からassistantのtext応答を抽出
+     * 新しいjsonl行からassistantのtext応答とuser入力を抽出
+     * user入力のうち [From:master] で始まるものは maidctl notify 経由のため除外
      */
     private parseNewResponses;
     /**

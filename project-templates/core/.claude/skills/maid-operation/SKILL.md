@@ -13,9 +13,9 @@ patterns: ["task-workflow", "report-format", "blocked-handling", "checkpoint-vs-
 ブロック時の対応、スキル化候補の発見、改善提案の記載方法も含む。
 
 **V2.1 変更点**:
-- タスク種別: goal/phase/action/investigation
-- 状態: mainStatus(open/closed/cancelled) + v2Substatus(pending/assigned/working/waiting/checkpoint/completed)
-- archived: closed後の独立フラグ（v2Substatusではない）
+- タスク種別: task/work/step/investigation
+- 状態: mainStatus(open/closed/cancelled) + subStatus(pending/assigned/working/waiting/checkpoint/completed)
+- archived: closed後の独立フラグ（subStatusではない）
 - checkpoint vs waiting の使い分け
 - Investigation 昇格推奨（promotion）
 - 自律進行パターン（メイドが自己判断できる範囲の定義）
@@ -127,13 +127,13 @@ patterns: ["task-workflow", "report-format", "blocked-handling", "checkpoint-vs-
 
 ### タスク種別
 
-**基本は Phase を直接受領**。複雑な Phase の場合のみ Action に分割される。
+**基本は Work を直接受領**。複雑な Work の場合のみ Step に分割される。
 
 | 種別 | 説明 | 実行者 |
 |------|------|--------|
-| goal | ご主人様指示単位の目標 | - |
-| phase | Goal分解、成果物単位 | **メイド**（直接受領） |
-| action | 複雑なPhaseを分割した作業単位 | メイド |
+| task | ご主人様指示単位の目標 | - |
+| work | Task分解、成果物単位 | **メイド**（直接受領） |
+| step | 複雑なWorkを分割した作業単位 | メイド |
 | investigation | 調査タスク（docs/昇格対象） | メイド |
 
 ### Investigation 昇格推奨

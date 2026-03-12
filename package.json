@@ -2,7 +2,7 @@
   "name": "multi-agent-controller",
   "displayName": "Maid Agent Controller",
   "description": "VSCode extension for multi-agent Claude Code orchestration with hierarchical maid system",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "publisher": "noctcross",
   "keywords": [
     "multi-agent",
@@ -24,7 +24,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./out/extension.js",
+  "main": "./packages/vscode/out/extension.js",
   "contributes": {
     "commands": [
       {
@@ -43,23 +43,8 @@
         "category": "Maid Agent"
       },
       {
-        "command": "multiAgent.startButler",
-        "title": "Call Butler - 執事を呼ぶ",
-        "category": "Maid Agent"
-      },
-      {
-        "command": "multiAgent.startChiefMaid",
-        "title": "Call Chief - メイド長を呼ぶ",
-        "category": "Maid Agent"
-      },
-      {
-        "command": "multiAgent.startAgents",
-        "title": "Call Butler & Chief - 執事とメイド長を呼ぶ",
-        "category": "Maid Agent"
-      },
-      {
-        "command": "multiAgent.startSelectedMaids",
-        "title": "Call Maids Pick - メイドを選んで呼ぶ",
+        "command": "multiAgent.callAgent",
+        "title": "Call Agent - エージェントを呼ぶ",
         "category": "Maid Agent"
       },
       {
@@ -210,8 +195,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "compile": "tsc --build",
+    "watch": "tsc --build --watch"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -221,5 +206,8 @@
   },
   "dependencies": {
     "yaml": "^2.8.2"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

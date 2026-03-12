@@ -3,14 +3,22 @@ out/
 .vscode-test/
 *.vsix
 
+# Build artifacts
+packages/*/dist/
+packages/*/out/
+
 # MCP Server runtime logs
 global-templates/maid-agent-messenger/logs/
-
-# Development build artifacts (packages/ is source, global-templates/ is distribution)
-packages/maid-agent-messenger/dist/
 
 # Local deploy script (not for repository - each developer creates locally)
 packages/maid-agent-messenger/scripts/deploy-local.js
 
 # Test logs
 ts-jest.log
+
+# tsbuildinfo
+*.tsbuildinfo
+
+# Private apps (clone separately)
+apps/MobileSylvia/
+apps/MaidAgentDesktop/

@@ -34,14 +34,17 @@ MCP_RECONNECT_DELAY=1.5
 show_usage() {
     echo "使用法: maid-notify <target> \"<message>\""
     echo "        maid-notify --from <sender> <target> \"<message>\""
+    echo "        maid-notify --no-prefix <target> \"<message>\""
     echo "        maid-notify --mcp-reconnect <target> [server-name]"
     echo ""
     echo "  target: $VALID_TARGETS"
     echo "  --from: 送信者を明示的に指定（API等tmux外からの呼び出し用）"
+    echo "  --no-prefix: [From: sender] プレフィックスを付けない（/コマンド用）"
     echo ""
     echo "例:"
     echo "  maid-notify chief \"タスク完了しました\""
     echo "  maid-notify --from master luna \"メッセージです\""
+    echo "  maid-notify --no-prefix emma \"/skill maid-operation\""
     echo "  maid-notify --mcp-reconnect luna"
     echo "  maid-notify --mcp-reconnect alice other-mcp-server"
 }
@@ -204,16 +207,29 @@ fi
 # メイン処理：通常のメッセージ送信
 # =============================================================================
 
-# --from オプションのパース
+# オプションのパース
 EXPLICIT_SENDER=""
-if [ "$1" = "--from" ]; then
-    if [ $# -lt 4 ]; then
-        echo "使用法: maid-notify --from <sender> <target> \"<message>\""
-        exit 1
-    fi
-    EXPLICIT_SENDER="$2"
-    shift 2  # --from と sender を消費
-fi
+NO_PREFIX=false
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --from)
+            if [ $# -lt 4 ]; then
+                echo "使用法: maid-notify --from <sender> <target> \"<message>\""
+                exit 1
+            fi
+            EXPLICIT_SENDER="$2"
+            shift 2  # --from と sender を消費
+            ;;
+        --no-prefix)
+            NO_PREFIX=true
+            shift
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 if [ $# -lt 2 ]; then
     show_usage
@@ -264,7 +280,11 @@ if ! check_target_online "$TARGET"; then
 fi
 
 # 送信実行
-FULL_MESSAGE="[From: $SENDER] $MESSAGE"
+if [ "$NO_PREFIX" = true ]; then
+    FULL_MESSAGE="$MESSAGE"
+else
+    FULL_MESSAGE="[From: $SENDER] $MESSAGE"
+fi
 if send_message "$TARGET" "$FULL_MESSAGE"; then
     echo "通知を送信しました: $SENDER → $TARGET"
 else

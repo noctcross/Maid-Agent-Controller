@@ -40,7 +40,7 @@ interface ResponsePayload {
   timestamp: string;
   agent: string;
   text: string;
-  type: "response";
+  type: "response" | "user_input";
 }
 
 /** maid/{agent}.yaml の型 */
@@ -516,7 +516,8 @@ export class NotificationWebSocketServer {
   }
 
   /**
-   * 新しいjsonl行からassistantのtext応答を抽出
+   * 新しいjsonl行からassistantのtext応答とuser入力を抽出
+   * user入力のうち [From:master] で始まるものは maidctl notify 経由のため除外
    */
   private parseNewResponses(
     content: string,
@@ -528,6 +529,8 @@ export class NotificationWebSocketServer {
     for (const line of lines) {
       try {
         const data = JSON.parse(line);
+
+        // assistant 応答を抽出
         if (data.type === "assistant" && data.message?.content) {
           const textContents = data.message.content.filter(
             (c: { type: string; text?: string }) => c.type === "text" && c.text
@@ -541,6 +544,42 @@ export class NotificationWebSocketServer {
               text: tc.text,
               type: "response",
             });
+          }
+        }
+
+        // user 入力を抽出（ご主人様の直接入力）
+        if (data.type === "user" && data.message?.content) {
+          // message.content が文字列の場合（直接入力）
+          if (typeof data.message.content === "string") {
+            const text = data.message.content;
+            // [From: で始まるメッセージは maidctl notify 経由なので除外
+            if (!text.startsWith("[From:") && !text.startsWith("[From: ")) {
+              responses.push({
+                id: data.uuid || `${data.timestamp}-user-${responses.length}`,
+                timestamp: data.timestamp,
+                agent,
+                text,
+                type: "user_input",
+              });
+            }
+          }
+          // message.content が配列の場合（tool_result等は除外）
+          else if (Array.isArray(data.message.content)) {
+            for (const c of data.message.content) {
+              if (c.type === "text" && typeof c.text === "string") {
+                const text = c.text;
+                // [From: で始まるメッセージは除外
+                if (!text.startsWith("[From:") && !text.startsWith("[From: ")) {
+                  responses.push({
+                    id: data.uuid || `${data.timestamp}-user-${responses.length}`,
+                    timestamp: data.timestamp,
+                    agent,
+                    text,
+                    type: "user_input",
+                  });
+                }
+              }
+            }
           }
         }
       } catch {

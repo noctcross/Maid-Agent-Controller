@@ -1,4 +1,0 @@
-/**
- * normalizeTaskId テスト
- */
-export {};

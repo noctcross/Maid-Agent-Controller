@@ -6,9 +6,13 @@
 packages/types/
 packages/api-client/
 packages/server/
+packages/maid-agent-messenger/
 packages/vscode/src/
 packages/vscode/node_modules/
 packages/vscode/*.ts
+
+# Apps (private repos)
+apps/
 
 # Git
 .git/

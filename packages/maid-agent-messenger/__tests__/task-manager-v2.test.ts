@@ -277,7 +277,7 @@ describe("V2.1: checkGoalAutoClose - Goal自動クローズ判定", () => {
 
     const result = await checkGoalAutoClose(TEST_PROJECT_PATH, goal.taskId);
     expect(result.canAutoClose).toBe(false);
-    expect(result.reason).toContain("Not all phases completed");
+    expect(result.reason).toContain("Not all works completed");
   });
 
   it("除外カテゴリ（skill_candidate等）のGoalは自動クローズ不可", async () => {
@@ -611,22 +611,6 @@ describe("V2.1: migrateTask - 単一タスクマイグレーション", () => {
     expect(result.archivedAt).toBeNull();
   });
 
-  it("reviewed=true のタスクは archived=true になる", () => {
-    const task = {
-      id: "001",
-      parentId: null,
-      status: "completed" as const,
-      substatus: null,
-      reviewed: true,
-      reviewedAt: "2026-02-23T10:00:00.000Z",
-    } as Task;
-
-    const result = migrateTask(task);
-
-    expect(result.archived).toBe(true);
-    expect(result.archivedAt).toBe("2026-02-23T10:00:00.000Z");
-  });
-
   it("substatus=archived のタスクは archived=true になる", () => {
     const task = {
       id: "001",
@@ -672,39 +656,3 @@ describe("V2.1: migrateTask - 単一タスクマイグレーション", () => {
   });
 });
 
-describe("V2.1: migrate - archivedフラグのマイグレーション", () => {
-  beforeEach(async () => {
-    await setupTestProject();
-  });
-
-  afterAll(async () => {
-    await fs.rm(TEST_PROJECT_PATH, { recursive: true, force: true });
-  });
-
-  it("reviewed=true の旧タスクは archived=true でマイグレーションされる", async () => {
-    // 旧形式のレビュー済みタスク作成
-    const taskId = await createLegacyTask("レビュー済みタスク", { status: "completed" });
-
-    // reviewed フラグを直接設定
-    const { stringify } = await import("yaml");
-    const data = await readTasksYaml();
-    if (data) {
-      const task = data.tasks.find((t) => t.id === taskId);
-      if (task) {
-        task.reviewed = true;
-        task.reviewedAt = "2026-02-23T10:00:00.000Z";
-        const filePath = path.join(TEST_PROJECT_PATH, ".maid-agent", "system", "data", "tasks.yaml");
-        await fs.writeFile(filePath, stringify(data), "utf-8");
-      }
-    }
-
-    // マイグレーション実行
-    await migrate(TEST_PROJECT_PATH);
-
-    // archived フラグの確認
-    const result = await executeGetTask(TEST_PROJECT_PATH, { taskId });
-    const taskData = result.task as Task;
-    expect(taskData?.archived).toBe(true);
-    expect(taskData?.archivedAt).toBe("2026-02-23T10:00:00.000Z");
-  });
-});

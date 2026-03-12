@@ -165,6 +165,64 @@ function buildExecutionSteps(
 // =============================================================================
 
 /**
+ * 設定ファイルの移行
+ * mcp-server.yaml → maid-agent-messenger.yaml
+ */
+function migrateConfigFile(globalPath: string, ctx: SetupContext): void {
+    const configDir = path.join(globalPath, 'system', 'config');
+    const oldPath = path.join(configDir, 'mcp-server.yaml');
+    const newPath = path.join(configDir, 'maid-agent-messenger.yaml');
+
+    // 旧ファイルが存在し、新ファイルが存在しない場合のみ移行
+    if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+        try {
+            const oldContent = fs.readFileSync(oldPath, 'utf-8');
+
+            // YAML をパース（簡易的にキー・値を抽出）
+            const portMatch = oldContent.match(/^\s*port:\s*(\d+)/m);
+            const httpKeepaliveMatch = oldContent.match(/^\s*http_keepalive_timeout:\s*(\d+)/m);
+            const httpHeadersMatch = oldContent.match(/^\s*http_headers_timeout:\s*(\d+)/m);
+            const pingIntervalMatch = oldContent.match(/^\s*ping_interval:\s*(\d+)/m);
+
+            // 新しい形式で設定ファイルを生成
+            const newContent = `# Maid Agent Messenger グローバル設定ファイル
+# ~/.maid-agent/system/config/maid-agent-messenger.yaml
+#
+# mcp-server.yaml から自動移行されました
+
+server:
+  port: ${portMatch ? portMatch[1] : '3100'}
+  host: 127.0.0.1
+
+dashboard:
+  # エディタのURIスキーム: vscode | windsurf | cursor
+  editor: vscode
+
+keepalive:
+  # HTTP Keep-Alive タイムアウト（プロキシの60秒より長く設定）
+  http_keepalive_timeout: ${httpKeepaliveMatch ? httpKeepaliveMatch[1] : '65000'}  # 65秒
+  http_headers_timeout: ${httpHeadersMatch ? httpHeadersMatch[1] : '66000'}    # 66秒
+
+  # サーバー→クライアント Ping間隔（ミリ秒）
+  ping_interval: ${pingIntervalMatch ? pingIntervalMatch[1] : '30000'}  # 30秒間隔
+`;
+
+            // 新ファイルを作成
+            fs.writeFileSync(newPath, newContent, 'utf-8');
+            ctx.log(`[Migration] 設定ファイル移行: ${oldPath} → ${newPath}`);
+
+            // 旧ファイルを .bak にリネーム
+            const backupPath = oldPath + '.bak';
+            fs.renameSync(oldPath, backupPath);
+            ctx.log(`[Migration] 旧ファイルバックアップ: ${backupPath}`);
+        } catch (error) {
+            ctx.log(`[Migration] 設定ファイル移行失敗: ${error}`);
+            // 移行失敗してもコピー処理は続行（新ファイルがテンプレートからコピーされる）
+        }
+    }
+}
+
+/**
  * グローバルテンプレートをコピー
  */
 async function copyGlobalTemplates(ctx: SetupContext): Promise<void> {
@@ -175,6 +233,7 @@ async function copyGlobalTemplates(ctx: SetupContext): Promise<void> {
         globalPath,
         path.join(globalPath, 'bin'),
         path.join(globalPath, 'maid-agent-messenger'),
+        path.join(globalPath, 'system', 'config'),
     ];
 
     for (const dir of dirs) {
@@ -183,6 +242,10 @@ async function copyGlobalTemplates(ctx: SetupContext): Promise<void> {
             ctx.log(`[Global] ディレクトリ作成: ${dir}`);
         }
     }
+
+    // 設定ファイルの移行（テンプレートコピー前に実行）
+    // mcp-server.yaml → maid-agent-messenger.yaml
+    migrateConfigFile(globalPath, ctx);
 
     // global-templates からコピー
     const templatesPath = path.join(ctx.extensionPath, 'global-templates');

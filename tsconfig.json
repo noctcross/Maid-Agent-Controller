@@ -3,7 +3,7 @@
   "references": [
     { "path": "packages/types" },
     { "path": "packages/api-client" },
-    { "path": "packages/server" },
+    { "path": "packages/constants" },
     { "path": "packages/vscode" }
   ]
 }

@@ -74,8 +74,6 @@ export interface ListTasksParams {
   assignee?: string;
   parentId?: string | null;
   category?: TaskCategory[];
-  reviewed?: boolean;
-  starred?: boolean;
   actionRequired?: boolean;  // true: actionRequired=trueのタスクのみ
   search?: string;        // テキスト検索（id, title, description を部分一致検索）
   limit?: number;

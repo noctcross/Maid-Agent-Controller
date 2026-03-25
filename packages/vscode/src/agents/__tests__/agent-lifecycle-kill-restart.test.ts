@@ -34,6 +34,7 @@ function createMockCtx(agents: Map<string, Agent> = new Map()): AgentContext {
         statusBarItem: undefined,
         statusBarResetTimeout: undefined,
         settings: undefined,
+        multiplexerFactory: { create: vi.fn(), countMaidAgentSessions: vi.fn().mockReturnValue({ count: 0, sessions: [] }), getType: vi.fn().mockReturnValue('tmux') } as any,
         log: vi.fn(),
         updateController: vi.fn(),
         updateAgentPanel: vi.fn(),

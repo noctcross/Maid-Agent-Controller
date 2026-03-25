@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import { Agent } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
-import { TmuxManager } from '../tmux/tmux-manager';
+import { ITerminalMultiplexer } from '../multiplexer';
 import { AgentPanelProvider } from '../ui/agent-panel-provider';
 
 /**
@@ -16,7 +16,7 @@ import { AgentPanelProvider } from '../ui/agent-panel-provider';
  */
 export interface TmuxWatcherContext {
     agents: Map<string, Agent>;
-    tmuxManager: TmuxManager | undefined;
+    tmuxManager: ITerminalMultiplexer | undefined;
     tmuxSessionName: string;
     tmuxViewerTerminal: vscode.Terminal | undefined;
     agentPanelProvider: AgentPanelProvider | undefined;

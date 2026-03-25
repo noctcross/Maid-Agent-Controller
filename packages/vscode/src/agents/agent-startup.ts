@@ -11,7 +11,7 @@ import { Agent, AgentContext } from '../types';
 import { AGENTS_MAP, isValidAgentId } from '../constants';
 import { CURRENT_ENV, isTmuxAvailable, windowsToWslPath } from '../utils/environment';
 import { getSessionNameFromPath } from '../utils/helpers';
-import { TmuxManager } from '../tmux/tmux-manager';
+// MultiplexerFactory is accessed via ctx.multiplexerFactory
 import { getModelForAgent } from '../utils/settings-loader';
 import { generateSystemPromptFile } from '../utils/prompt-loader';
 
@@ -76,7 +76,7 @@ export function openTmuxViewer(ctx: AgentContext): void {
     // VSCodeターミナルでtmuxにアタッチ
     if (CURRENT_ENV === 'windows-native') {
         // Windows環境: WSLシェルを使用してtmuxにアタッチ
-        const wslPath = ctx.tmuxManager?.getWslWorkingDirectory() || '/home';
+        const wslPath = ctx.workspaceRoot ? windowsToWslPath(ctx.workspaceRoot) : '/home';
         ctx.tmuxViewerTerminal = vscode.window.createTerminal({
             name: '🎩 Maid Agent (tmux)',
             shellPath: 'wsl.exe',
@@ -262,7 +262,7 @@ export async function resumeSessions(ctx: AgentContext): Promise<void> {
 
         const workspacePath = workspaceFolder.uri.fsPath;
         const sessionName = getSessionNameFromPath(workspacePath);
-        ctx.tmuxManager = new TmuxManager(sessionName, workspacePath);
+        ctx.tmuxManager = ctx.multiplexerFactory.create(sessionName, workspacePath);
     }
 
     // セッションが存在するかチェック
@@ -461,7 +461,7 @@ export async function checkSessionCountWarning(ctx: AgentContext): Promise<void>
     const config = vscode.workspace.getConfiguration('maidAgent');
     const threshold = config.get<number>('sessionWarningThreshold', 10);
 
-    const { count, sessions } = TmuxManager.countMaidAgentSessions();
+    const { count, sessions } = ctx.multiplexerFactory.countMaidAgentSessions();
 
     if (count >= threshold) {
         const sessionList = sessions.slice(0, 5).join('\n  • ');

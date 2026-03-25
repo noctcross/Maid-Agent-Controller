@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { TmuxManager } from './tmux/tmux-manager';
+import type { ITerminalMultiplexer, IMultiplexerFactory } from './multiplexer';
 import type { AgentPanelProvider } from './ui/agent-panel-provider';
 import type { MaidAgentSettings } from './utils/settings-loader';
 
@@ -73,7 +73,8 @@ export interface AgentContext {
     maidAgentPath: string | undefined;
     outputChannel: vscode.OutputChannel;
     context: vscode.ExtensionContext | undefined;
-    tmuxManager: TmuxManager | undefined;
+    tmuxManager: ITerminalMultiplexer | undefined;
+    multiplexerFactory: IMultiplexerFactory;
     tmuxSessionName: string;
     tmuxViewerTerminal: vscode.Terminal | undefined;
     agentPanelProvider: AgentPanelProvider | undefined;

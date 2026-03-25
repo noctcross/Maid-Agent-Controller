@@ -1,0 +1,140 @@
+/**
+ * DesktopSylvia - グローバルスタイル & レイアウト
+ */
+
+/* CSS Variables */
+:root {
+  /* カラーパレット */
+  --primary-color: #008080;
+  --primary-hover: #006666;
+  --accent-color: #ff6b6b;
+  --success-color: #4caf50;
+
+  /* 背景色 */
+  --sidebar-bg: #1a1a2e;
+  --panel-bg: #242438;
+  --main-bg: #1e1e2e;
+  --card-bg: #2a2a40;
+  --input-bg: #2a2a40;
+  --item-bg: rgba(255, 255, 255, 0.05);
+  --sidebar-hover: rgba(255, 255, 255, 0.1);
+
+  /* テキスト色 */
+  --text-primary: #ffffff;
+  --text-secondary: #888888;
+
+  /* ボーダー */
+  --border-color: #333333;
+
+  /* その他 */
+  --scrollbar-color: rgba(255, 255, 255, 0.2);
+
+  /* フォント */
+  font-family:
+    "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP",
+    "Yu Gothic",
+    "Meiryo",
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* リセット */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--main-bg);
+  color: var(--text-primary);
+}
+
+/* アプリレイアウト */
+.app {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* 設定画面プレースホルダー */
+.settings-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-secondary);
+}
+
+.settings-placeholder h2 {
+  font-size: 24px;
+  color: var(--text-primary);
+}
+
+/* リンク */
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* フォーカスリング */
+:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+/* セレクション */
+::selection {
+  background-color: var(--primary-color);
+  color: #fff;
+}
+
+/* スクロールバー（グローバル） */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}

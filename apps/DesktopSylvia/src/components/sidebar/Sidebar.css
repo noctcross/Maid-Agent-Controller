@@ -1,0 +1,52 @@
+/**
+ * Sidebar スタイル
+ */
+
+.sidebar {
+  width: 56px;
+  min-width: 56px;
+  height: 100vh;
+  background-color: var(--sidebar-bg, #1a1a2e);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-right: 1px solid var(--border-color, #333);
+}
+
+.sidebar-top,
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar-btn {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.sidebar-btn:hover {
+  background-color: var(--sidebar-hover, rgba(255, 255, 255, 0.1));
+}
+
+.sidebar-btn.active {
+  background-color: var(--primary-color, #008080);
+}
+
+.sidebar-btn:active {
+  transform: scale(0.95);
+}
+
+.sidebar-icon {
+  font-size: 20px;
+}

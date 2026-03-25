@@ -5,7 +5,7 @@ import { Agent, SetupContext, AgentContext, ViewContext, CompletedViewState } fr
 import { MAID_AGENT_DIR, NOTIFICATIONS_SUBDIR } from './constants';
 import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion } from './utils/environment';
 import { getGlobalMaidAgentPath, getSessionNameFromPath } from './utils/helpers';
-import { TmuxManager } from './tmux/tmux-manager';
+import { MultiplexerFactory, ITerminalMultiplexer } from './multiplexer';
 import { AgentPanelProvider } from './ui/agent-panel-provider';
 import * as WorkspaceInit from './setup/workspace-initializer';
 import * as WslSetup from './setup/wsl-setup';
@@ -36,7 +36,8 @@ export class MultiAgentController {
     private workspaceRoot: string | undefined;
     private maidAgentPath: string | undefined;
     private agentPanelProvider: AgentPanelProvider | undefined;
-    private tmuxManager: TmuxManager | undefined;
+    private tmuxManager: ITerminalMultiplexer | undefined;
+    private multiplexerFactory: MultiplexerFactory;
     private tmuxViewerTerminal: vscode.Terminal | undefined;  // tmuxセッション表示用
     private tmuxSessionName: string = '';  // ワークスペース固有のセッション名
     private statusBarItem: vscode.StatusBarItem | undefined;  // ステータスバー通知用
@@ -55,6 +56,7 @@ export class MultiAgentController {
         this.outputChannel = vscode.window.createOutputChannel('Maid Agent');
         this.fileWatcherState = FileWatcher.createFileWatcherState();
         this.tmuxWatcherState = TmuxWatcher.createTmuxWatcherState();
+        this.multiplexerFactory = new MultiplexerFactory();
     }
 
     public setContext(context: vscode.ExtensionContext): void {
@@ -64,7 +66,7 @@ export class MultiAgentController {
             this.maidAgentPath = path.join(this.workspaceRoot, MAID_AGENT_DIR);
             // ワークスペースパスからセッション名を生成（ディレクトリ名 + 短いハッシュ）
             this.tmuxSessionName = getSessionNameFromPath(this.workspaceRoot);
-            this.tmuxManager = new TmuxManager(this.tmuxSessionName, this.workspaceRoot);
+            this.tmuxManager = this.multiplexerFactory.create(this.tmuxSessionName, this.workspaceRoot);
             // settings.yaml を読み込み
             this.settings = loadSettings(this.maidAgentPath);
         }
@@ -219,6 +221,7 @@ export class MultiAgentController {
             get statusBarResetTimeout() { return controller.statusBarResetTimeout; },
             set statusBarResetTimeout(v) { controller.statusBarResetTimeout = v; },
             get settings() { return controller.settings; },
+            multiplexerFactory: this.multiplexerFactory,
 
             // ─── Logger ───
             log: (msg: string) => this.log(msg),

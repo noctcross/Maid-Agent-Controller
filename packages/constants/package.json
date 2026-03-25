@@ -2,15 +2,8 @@
   "name": "@maid-agent/constants",
   "version": "1.0.0",
   "description": "Constants and agent definitions for Maid Agent System",
-  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
   "files": [
     "dist"
   ],

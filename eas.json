@@ -1,0 +1,17 @@
+{
+  "cli": {
+    "version": ">= 18.3.0"
+  },
+  "build": {
+    "base": {
+      "node": "22.14.0"
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal"
+    },
+    "production": {
+      "extends": "base"
+    }
+  }
+}

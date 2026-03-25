@@ -38,8 +38,53 @@ EXIT_INVALID_ARGS=5
 # マルチプレクサ環境検出
 # =============================================================================
 
+# settings.yaml から multiplexer.type を読み込む
+read_multiplexer_from_settings() {
+  local settings_file
+  # プロジェクトルートが分かっている場合はそこから読む
+  if [ -n "${PROJECT_ROOT:-}" ]; then
+    settings_file="${PROJECT_ROOT}/.maid-agent/system/config/settings.yaml"
+  elif [ -f ~/.maid-current-project ]; then
+    local saved_root
+    saved_root=$(cat ~/.maid-current-project 2>/dev/null)
+    if [ -n "$saved_root" ]; then
+      settings_file="${saved_root}/.maid-agent/system/config/settings.yaml"
+    fi
+  else
+    settings_file=".maid-agent/system/config/settings.yaml"
+  fi
+
+  if [ -f "$settings_file" ]; then
+    local mux_type
+    # コメント行を除外して type: の値を取得（CRLFも除去）
+    mux_type=$(grep -A10 "^multiplexer:" "$settings_file" 2>/dev/null | grep -v "^[[:space:]]*#" | grep "type:" | head -1 | awk '{print $2}' | tr -d '\r')
+    if [ -n "$mux_type" ] && [ "$mux_type" != "auto" ]; then
+      echo "$mux_type"
+      return 0
+    fi
+  fi
+  return 1
+}
+
 detect_multiplexer() {
-  # psmux を優先（PowerShell環境）
+  # 1. settings.yaml から読み込み
+  local from_settings
+  from_settings=$(read_multiplexer_from_settings)
+  if [ -n "$from_settings" ]; then
+    # 設定で指定されていても、実際にコマンドが使えるかチェック
+    if command -v "$from_settings" &> /dev/null; then
+      echo "$from_settings"
+      return 0
+    fi
+  fi
+
+  # 2. 環境変数
+  if [ "${MAID_MULTIPLEXER:-}" = "psmux" ] && command -v psmux &> /dev/null; then
+    echo "psmux"
+    return 0
+  fi
+
+  # 3. 自動検出（psmux を優先: PowerShell環境）
   if command -v psmux &> /dev/null && [ -n "${PSMUX_PANE:-}" ]; then
     echo "psmux"
     return 0

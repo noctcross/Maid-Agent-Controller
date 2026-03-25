@@ -1,5 +1,13 @@
 # Maid Agent Controller 設定ファイル
 
+# マルチプレクサ設定
+multiplexer:
+  # type: tmux / psmux / auto
+  # tmux: tmuxを使用（デフォルト、WSL環境等）
+  # psmux: psmuxを使用（PowerShell環境）
+  # auto: 環境変数・コマンド存在で自動検出
+  type: tmux
+
 # 言語設定
 # ja: メイド口調の日本語
 # en: 英語（メイド口調 + 英訳）

@@ -8,10 +8,39 @@ STDIN_JSON=$(cat)
 SESSION_ID=$(echo "$STDIN_JSON" | jq -r '.session_id // empty' 2>/dev/null)
 
 # 1. マルチプレクサ環境検出
+
+# settings.yaml から multiplexer.type を読み込む
+read_multiplexer_from_settings() {
+    local settings_file=".maid-agent/system/config/settings.yaml"
+    if [ -f "$settings_file" ]; then
+        local mux_type
+        # コメント行を除外して type: の値を取得（CRLFも除去）
+        mux_type=$(grep -A10 "^multiplexer:" "$settings_file" 2>/dev/null | grep -v "^[[:space:]]*#" | grep "type:" | head -1 | awk '{print $2}' | tr -d '\r')
+        if [ -n "$mux_type" ] && [ "$mux_type" != "auto" ]; then
+            echo "$mux_type"
+            return 0
+        fi
+    fi
+    return 1
+}
+
 get_multiplexer_command() {
-    if [ "$MAID_MULTIPLEXER" = "psmux" ]; then
+    # 1. settings.yaml から読み込み
+    local from_settings
+    from_settings=$(read_multiplexer_from_settings)
+    if [ -n "$from_settings" ]; then
+        echo "$from_settings"
+        return 0
+    fi
+
+    # 2. 環境変数
+    if [ "${MAID_MULTIPLEXER:-}" = "psmux" ]; then
         echo "psmux"
-    elif [ -n "$TMUX" ]; then
+        return 0
+    fi
+
+    # 3. 自動検出
+    if [ -n "$TMUX" ]; then
         echo "tmux"
     elif command -v psmux &> /dev/null; then
         echo "psmux"

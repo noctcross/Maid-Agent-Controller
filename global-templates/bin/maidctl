@@ -35,13 +35,41 @@ EXIT_CONNECTION_ERROR=4
 EXIT_INVALID_ARGS=5
 
 # =============================================================================
-# エージェントID自動取得（tmuxウィンドウ名から）
+# マルチプレクサ環境検出
 # =============================================================================
 
-get_agent_id_from_tmux() {
-  if [ -n "${TMUX_PANE:-}" ]; then
+detect_multiplexer() {
+  # psmux を優先（PowerShell環境）
+  if command -v psmux &> /dev/null && [ -n "${PSMUX_PANE:-}" ]; then
+    echo "psmux"
+    return 0
+  fi
+  # tmux（従来環境）
+  if command -v tmux &> /dev/null && [ -n "${TMUX_PANE:-}" ]; then
+    echo "tmux"
+    return 0
+  fi
+  return 1
+}
+
+# =============================================================================
+# エージェントID自動取得（マルチプレクサウィンドウ名から）
+# =============================================================================
+
+get_agent_id_from_multiplexer() {
+  local mux_cmd pane_var
+
+  mux_cmd=$(detect_multiplexer) || return 1
+
+  case "$mux_cmd" in
+    psmux) pane_var="${PSMUX_PANE:-}" ;;
+    tmux)  pane_var="${TMUX_PANE:-}" ;;
+    *)     return 1 ;;
+  esac
+
+  if [ -n "$pane_var" ]; then
     local window_name
-    window_name=$(tmux display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || echo "")
+    window_name=$($mux_cmd display-message -p -t "$pane_var" '#{window_name}' 2>/dev/null || echo "")
     if echo "$VALID_AGENTS" | grep -qw "$window_name"; then
       echo "$window_name"
       return 0
@@ -867,7 +895,7 @@ cmd_my_task() {
 
   # エージェントIDが未指定の場合、tmuxから自動取得
   if [ -z "$agent_id" ]; then
-    agent_id=$(get_agent_id_from_tmux) || {
+    agent_id=$(get_agent_id_from_multiplexer) || {
       echo "エラー: エージェントIDを指定してください" >&2
       echo "（tmuxウィンドウ名からの自動取得に失敗しました）" >&2
       exit $EXIT_INVALID_ARGS
@@ -1051,7 +1079,7 @@ cmd_my_status() {
 
   # エージェントIDが未指定の場合、tmuxから自動取得
   if [ -z "$agent_id" ]; then
-    agent_id=$(get_agent_id_from_tmux) || {
+    agent_id=$(get_agent_id_from_multiplexer) || {
       echo "エラー: エージェントIDを指定してください" >&2
       echo "（tmuxウィンドウ名からの自動取得に失敗しました）" >&2
       exit $EXIT_INVALID_ARGS

@@ -17,6 +17,26 @@ VALID_TARGETS="butler chief emma sophia lily rose alice may flora luna"
 MAX_RETRIES=3
 RETRY_DELAY=0.5
 
+# =============================================================================
+# 環境検出
+# =============================================================================
+
+# マルチプレクサコマンドを取得
+get_multiplexer_command() {
+    if [ "$MAID_MULTIPLEXER" = "psmux" ]; then
+        echo "psmux"
+    elif [ -n "$TMUX" ]; then
+        echo "tmux"
+    elif command -v psmux &> /dev/null; then
+        echo "psmux"
+    else
+        echo "tmux"
+    fi
+}
+
+# マルチプレクサコマンドを設定
+MUX_CMD=$(get_multiplexer_command)
+
 # 遅延設定（Claude Code がビジー状態でも確実に受け付けるため長めに設定）
 MESSAGE_TO_ENTER_DELAY=1.0
 ENTER_RETRY_COUNT=2
@@ -63,14 +83,14 @@ validate_target() {
 # ターゲットがオンラインかチェック
 check_target_online() {
     local target="$1"
-    tmux list-windows -t "$SESSION_NAME" -F '#{window_name}' 2>/dev/null | grep -qx "$target"
+    $MUX_CMD list-windows -t "$SESSION_NAME" -F '#{window_name}' 2>/dev/null | grep -qx "$target"
 }
 
 # スクロールモードを解除
 cancel_scroll_mode() {
     local target="$1"
-    tmux send-keys -t "${SESSION_NAME}:${target}" -X cancel 2>/dev/null || true
-    tmux send-keys -t "${SESSION_NAME}:${target}" Escape 2>/dev/null || true
+    $MUX_CMD send-keys -t "${SESSION_NAME}:${target}" -X cancel 2>/dev/null || true
+    $MUX_CMD send-keys -t "${SESSION_NAME}:${target}" Escape 2>/dev/null || true
     sleep 0.2
 }
 
@@ -78,9 +98,9 @@ cancel_scroll_mode() {
 send_text_with_enter() {
     local target="$1"
     local text="$2"
-    tmux send-keys -t "${SESSION_NAME}:${target}" -l "$text" 2>/dev/null
+    $MUX_CMD send-keys -t "${SESSION_NAME}:${target}" -l "$text" 2>/dev/null
     sleep $MESSAGE_TO_ENTER_DELAY
-    tmux send-keys -t "${SESSION_NAME}:${target}" C-m 2>/dev/null
+    $MUX_CMD send-keys -t "${SESSION_NAME}:${target}" C-m 2>/dev/null
 }
 
 # MCP再接続を実行
@@ -119,13 +139,13 @@ send_message() {
         cancel_scroll_mode "$target"
 
         # メッセージ送信を試行
-        if tmux send-keys -t "${SESSION_NAME}:${target}" -l "$message" 2>/dev/null; then
+        if $MUX_CMD send-keys -t "${SESSION_NAME}:${target}" -l "$message" 2>/dev/null; then
             sleep $MESSAGE_TO_ENTER_DELAY
 
             # Enter送信（複数回試行）
             local enter_attempt=1
             while [ $enter_attempt -le $ENTER_RETRY_COUNT ]; do
-                if tmux send-keys -t "${SESSION_NAME}:${target}" C-m 2>/dev/null; then
+                if $MUX_CMD send-keys -t "${SESSION_NAME}:${target}" C-m 2>/dev/null; then
                     if [ $enter_attempt -lt $ENTER_RETRY_COUNT ]; then
                         sleep $ENTER_RETRY_DELAY
                     fi
@@ -247,8 +267,8 @@ if [ -n "$EXPLICIT_SENDER" ]; then
     # --from で明示的に指定された場合
     SENDER="$EXPLICIT_SENDER"
 elif [ -n "$TMUX_PANE" ]; then
-    # tmux内から実行された場合
-    SENDER=$(tmux display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || echo "unknown")
+    # tmux/psmux内から実行された場合
+    SENDER=$($MUX_CMD display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || echo "unknown")
 else
     # それ以外は unknown
     SENDER="unknown"

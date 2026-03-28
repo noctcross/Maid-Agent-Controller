@@ -289,6 +289,7 @@ describe('requirements-analyzer', () => {
       const requirements: GlobalRequirements = {
         platform: 'windows-native',
         packageManager: 'npm',
+        runtimeMode: 'wsl',
         needs: {
           wslInstall: false,
           ubuntuInstall: false,
@@ -309,6 +310,7 @@ describe('requirements-analyzer', () => {
       const requirements: GlobalRequirements = {
         platform: 'windows-native',
         packageManager: 'npm',
+        runtimeMode: 'wsl',
         needs: {
           wslInstall: false,
           ubuntuInstall: false,
@@ -329,6 +331,7 @@ describe('requirements-analyzer', () => {
       const requirements: GlobalRequirements = {
         platform: 'windows-native',
         packageManager: 'npm',
+        runtimeMode: 'wsl',
         needs: {
           wslInstall: false,
           ubuntuInstall: false,
@@ -352,6 +355,7 @@ describe('requirements-analyzer', () => {
       const requirements: GlobalRequirements = {
         platform: 'windows-native',
         packageManager: 'npm',
+        runtimeMode: 'wsl',
         needs: {
           wslInstall: false,
           ubuntuInstall: false,
@@ -372,6 +376,7 @@ describe('requirements-analyzer', () => {
       const requirements: GlobalRequirements = {
         platform: 'windows-native',
         packageManager: 'npm',
+        runtimeMode: 'wsl',
         needs: {
           wslInstall: false,
           ubuntuInstall: false,
@@ -386,6 +391,121 @@ describe('requirements-analyzer', () => {
       };
 
       expect(isAllConfigured(requirements)).toBe(false);
+    });
+  });
+
+  // =============================================================================
+  // psmuxモード用チェック関数のテスト
+  // =============================================================================
+
+  describe('checkJqInstalledPsmux', () => {
+    it('jqがインストール済みの場合はtrueを返す（where jq成功）', async () => {
+      const { checkJqInstalledPsmux } = await import('../requirements-analyzer');
+      vi.mocked(execSync).mockReturnValue('C:\\Program Files\\jq\\jq.exe');
+
+      const result = checkJqInstalledPsmux();
+
+      expect(result).toBe(true);
+      expect(execSync).toHaveBeenCalledWith(
+        'where jq',
+        expect.objectContaining({ stdio: 'pipe', timeout: 5000 })
+      );
+    });
+
+    it('jqが未インストールの場合はfalseを返す', async () => {
+      const { checkJqInstalledPsmux } = await import('../requirements-analyzer');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('INFO: Could not find files for the given pattern(s).');
+      });
+
+      const result = checkJqInstalledPsmux();
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('checkYqInstalledPsmux', () => {
+    it('yqがインストール済みの場合はtrueを返す（where yq成功）', async () => {
+      const { checkYqInstalledPsmux } = await import('../requirements-analyzer');
+      vi.mocked(execSync).mockReturnValue('C:\\Program Files\\yq\\yq.exe');
+
+      const result = checkYqInstalledPsmux();
+
+      expect(result).toBe(true);
+      expect(execSync).toHaveBeenCalledWith(
+        'where yq',
+        expect.objectContaining({ stdio: 'pipe', timeout: 5000 })
+      );
+    });
+
+    it('yqが未インストールの場合はfalseを返す', async () => {
+      const { checkYqInstalledPsmux } = await import('../requirements-analyzer');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('INFO: Could not find files for the given pattern(s).');
+      });
+
+      const result = checkYqInstalledPsmux();
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('checkPm2InstalledPsmux', () => {
+    it('pm2がインストール済みの場合はtrueを返す', async () => {
+      const { checkPm2InstalledPsmux } = await import('../requirements-analyzer');
+      vi.mocked(execSync).mockReturnValue('C:\\Users\\user\\AppData\\Roaming\\npm\\pm2.cmd');
+
+      const result = checkPm2InstalledPsmux();
+
+      expect(result).toBe(true);
+      expect(execSync).toHaveBeenCalledWith(
+        'where pm2',
+        expect.objectContaining({ stdio: 'pipe', timeout: 5000 })
+      );
+    });
+
+    it('pm2が未インストールの場合はfalseを返す', async () => {
+      const { checkPm2InstalledPsmux } = await import('../requirements-analyzer');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('INFO: Could not find files for the given pattern(s).');
+      });
+
+      const result = checkPm2InstalledPsmux();
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('checkPathConfiguredPsmux', () => {
+    it('PATH設定済みの場合はtrueを返す（PowerShell $PROFILE）', async () => {
+      const { checkPathConfiguredPsmux } = await import('../requirements-analyzer');
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        '$env:PATH = "$env:USERPROFILE\\.maid-agent\\bin;$env:PATH"'
+      );
+
+      const result = checkPathConfiguredPsmux();
+
+      expect(result).toBe(true);
+    });
+
+    it('PATH未設定の場合はfalseを返す', async () => {
+      const { checkPathConfiguredPsmux } = await import('../requirements-analyzer');
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue('# Empty profile');
+
+      const result = checkPathConfiguredPsmux();
+
+      expect(result).toBe(false);
+    });
+
+    it('$PROFILEが存在しない場合はfalseを返す', async () => {
+      const { checkPathConfiguredPsmux } = await import('../requirements-analyzer');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      const result = checkPathConfiguredPsmux();
+
+      expect(result).toBe(false);
     });
   });
 });

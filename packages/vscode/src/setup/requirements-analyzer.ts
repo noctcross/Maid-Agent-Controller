@@ -4,11 +4,12 @@
  * フェーズ1: 事前調査（自動・ユーザー操作なし）
  * - 各種インストール状況を自動判定
  * - 必要な操作リストを生成
+ * - ランタイムモード対応
  */
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SetupContext, ExecutionEnvironment } from '../types';
+import { SetupContext, ExecutionEnvironment, RuntimeMode } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { detectPackageManager, PackageManager } from '../utils/package-manager';
 import { runShellCommand, getMessengerPath } from './pm2-setup';
@@ -21,11 +22,12 @@ export interface GlobalRequirements {
     // 環境情報
     platform: ExecutionEnvironment;
     packageManager: PackageManager;
+    runtimeMode: RuntimeMode;  // 選択されたランタイムモード
 
     // 必要な操作（trueなら実行が必要）
     needs: {
-        wslInstall: boolean;        // Windows only
-        ubuntuInstall: boolean;     // Windows only
+        wslInstall: boolean;        // Windows only (WSLモードのみ)
+        ubuntuInstall: boolean;     // Windows only (WSLモードのみ)
         passwordlessSudo: boolean;
         jqInstall: boolean;
         yqInstall: boolean;
@@ -182,20 +184,102 @@ export function checkPathConfigured(): boolean {
 }
 
 // =============================================================================
+// psmuxモード用チェック関数（Windows-native直接実行）
+// =============================================================================
+
+/**
+ * jqインストール済みか確認（psmuxモード用）
+ * winget経由でインストールされたjqをWindowsのPATHから検索
+ */
+export function checkJqInstalledPsmux(): boolean {
+    try {
+        execSync('where jq', { stdio: 'pipe', timeout: 5000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * yqインストール済みか確認（psmuxモード用）
+ * winget経由でインストールされたyqをWindowsのPATHから検索
+ */
+export function checkYqInstalledPsmux(): boolean {
+    try {
+        execSync('where yq', { stdio: 'pipe', timeout: 5000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * pm2インストール済みか確認（psmuxモード用）
+ * npm install -g pm2 でインストールされたpm2をWindowsのPATHから検索
+ */
+export function checkPm2InstalledPsmux(): boolean {
+    try {
+        execSync('where pm2', { stdio: 'pipe', timeout: 5000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * PATH設定済みか確認（psmuxモード用）
+ * PowerShell $PROFILE に maid-agent/bin パスが設定されているか確認
+ */
+export function checkPathConfiguredPsmux(): boolean {
+    const userProfile = process.env.USERPROFILE;
+    if (!userProfile) return false;
+
+    // PowerShell $PROFILE の場所
+    // Windows PowerShell: Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+    // PowerShell Core: Documents\PowerShell\Microsoft.PowerShell_profile.ps1
+    const profilePaths = [
+        path.join(userProfile, 'Documents', 'WindowsPowerShell', 'Microsoft.PowerShell_profile.ps1'),
+        path.join(userProfile, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'),
+    ];
+
+    const maidAgentPath = '.maid-agent\\bin';
+
+    for (const profilePath of profilePaths) {
+        if (fs.existsSync(profilePath)) {
+            try {
+                const content = fs.readFileSync(profilePath, 'utf-8');
+                if (content.includes(maidAgentPath)) {
+                    return true;
+                }
+            } catch {
+                // 読み取りエラーは無視
+            }
+        }
+    }
+
+    return false;
+}
+
+// =============================================================================
 // メイン分析関数
 // =============================================================================
 
 /**
  * グローバル設定の事前調査を実行
  * @param ctx SetupContext
+ * @param runtimeMode ランタイムモード（Windows環境でのみ使用）
  * @returns GlobalRequirements
  */
-export async function analyzeRequirements(ctx: SetupContext): Promise<GlobalRequirements> {
-    ctx.log('[Global] 事前調査開始');
+export async function analyzeRequirements(
+    ctx: SetupContext,
+    runtimeMode: RuntimeMode = 'wsl'
+): Promise<GlobalRequirements> {
+    ctx.log(`[Global] 事前調査開始 (モード: ${runtimeMode})`);
 
     const requirements: GlobalRequirements = {
         platform: CURRENT_ENV,
         packageManager: detectPackageManager(getMessengerPath()),
+        runtimeMode,
         needs: {
             wslInstall: false,
             ubuntuInstall: false,
@@ -209,15 +293,15 @@ export async function analyzeRequirements(ctx: SetupContext): Promise<GlobalRequ
         needsSudoPassword: false,
     };
 
-    // Windows環境のWSLチェック
-    if (CURRENT_ENV === 'windows-native') {
+    // Windows環境のWSLチェック（WSLモードのみ）
+    if (CURRENT_ENV === 'windows-native' && runtimeMode === 'wsl') {
         const wslInstalled = checkWslInstalled();
         const ubuntuInstalled = wslInstalled && checkUbuntuInstalled();
 
         requirements.needs.wslInstall = !wslInstalled;
         requirements.needs.ubuntuInstall = wslInstalled && !ubuntuInstalled;
 
-        // WSL/Ubuntu未インストールは致命的エラー
+        // WSL/Ubuntu未インストールは致命的エラー（WSLモードのみ）
         if (!wslInstalled) {
             requirements.fatalError = {
                 type: 'wsl_not_installed',
@@ -237,41 +321,74 @@ export async function analyzeRequirements(ctx: SetupContext): Promise<GlobalRequ
             ctx.log('[Global] 致命的エラー: Ubuntu未インストール');
             return requirements;
         }
+    } else if (CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native') {
+        // psmuxモード: WSLチェックをスキップ
+        ctx.log('[Global] psmuxモード: WSLチェックをスキップ');
     }
 
-    // 各項目のチェック
-    requirements.needs.passwordlessSudo = !checkPasswordlessSudoConfigured();
-    ctx.log(`[Global] パスワードレスsudo: ${requirements.needs.passwordlessSudo ? '未設定' : '設定済み'}`);
+    // 各項目のチェック（psmuxモードとWSLモードで分岐）
+    const isPsmuxMode = CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
 
-    requirements.needs.jqInstall = !checkJqInstalledSimple();
-    ctx.log(`[Global] jq: ${requirements.needs.jqInstall ? '未インストール' : 'インストール済み'}`);
+    if (isPsmuxMode) {
+        // psmuxモード: Windows-native環境で直接チェック
+        // passwordlessSudo: Windowsでは不要
+        requirements.needs.passwordlessSudo = false;
+        ctx.log('[Global] パスワードレスsudo: psmuxモードでは不要');
 
-    requirements.needs.yqInstall = !checkYqInstalledSimple();
-    ctx.log(`[Global] yq: ${requirements.needs.yqInstall ? '未インストール' : 'インストール済み'}`);
+        requirements.needs.jqInstall = !checkJqInstalledPsmux();
+        ctx.log(`[Global] jq (psmux): ${requirements.needs.jqInstall ? '未インストール' : 'インストール済み'}`);
 
-    requirements.needs.pm2Install = !checkPm2Installed();
-    ctx.log(`[Global] pm2: ${requirements.needs.pm2Install ? '未インストール' : 'インストール済み'}`);
+        requirements.needs.yqInstall = !checkYqInstalledPsmux();
+        ctx.log(`[Global] yq (psmux): ${requirements.needs.yqInstall ? '未インストール' : 'インストール済み'}`);
 
-    // pm2がインストール済みの場合のみstartup確認
-    if (!requirements.needs.pm2Install) {
-        requirements.needs.pm2Startup = !checkPm2StartupConfigured();
-        ctx.log(`[Global] pm2 startup: ${requirements.needs.pm2Startup ? '未設定' : '設定済み'}`);
+        requirements.needs.pm2Install = !checkPm2InstalledPsmux();
+        ctx.log(`[Global] pm2 (psmux): ${requirements.needs.pm2Install ? '未インストール' : 'インストール済み'}`);
+
+        // pm2 startup: psmuxモードでは Task Scheduler 設定（Phase 3）
+        // 現時点では手動設定を想定してスキップ
+        requirements.needs.pm2Startup = false;
+        ctx.log('[Global] pm2 startup (psmux): 手動設定を想定（スキップ）');
+
+        requirements.needs.pathSetup = !checkPathConfiguredPsmux();
+        ctx.log(`[Global] PATH (psmux): ${requirements.needs.pathSetup ? '未設定' : '設定済み'}`);
+
+        // psmuxモードではsudoパスワード不要
+        requirements.needsSudoPassword = false;
     } else {
-        requirements.needs.pm2Startup = true; // pm2がないならstartupも必要
+        // WSLモード: 従来通りのチェック
+        requirements.needs.passwordlessSudo = !checkPasswordlessSudoConfigured();
+        ctx.log(`[Global] パスワードレスsudo: ${requirements.needs.passwordlessSudo ? '未設定' : '設定済み'}`);
+
+        requirements.needs.jqInstall = !checkJqInstalledSimple();
+        ctx.log(`[Global] jq: ${requirements.needs.jqInstall ? '未インストール' : 'インストール済み'}`);
+
+        requirements.needs.yqInstall = !checkYqInstalledSimple();
+        ctx.log(`[Global] yq: ${requirements.needs.yqInstall ? '未インストール' : 'インストール済み'}`);
+
+        requirements.needs.pm2Install = !checkPm2Installed();
+        ctx.log(`[Global] pm2: ${requirements.needs.pm2Install ? '未インストール' : 'インストール済み'}`);
+
+        // pm2がインストール済みの場合のみstartup確認
+        if (!requirements.needs.pm2Install) {
+            requirements.needs.pm2Startup = !checkPm2StartupConfigured();
+            ctx.log(`[Global] pm2 startup: ${requirements.needs.pm2Startup ? '未設定' : '設定済み'}`);
+        } else {
+            requirements.needs.pm2Startup = true; // pm2がないならstartupも必要
+        }
+
+        requirements.needs.pathSetup = !checkPathConfigured();
+        ctx.log(`[Global] PATH: ${requirements.needs.pathSetup ? '未設定' : '設定済み'}`);
+
+        // sudo操作が必要かどうか
+        requirements.needsSudoPassword =
+            !checkPasswordlessSudoConfigured() && (
+                requirements.needs.passwordlessSudo ||
+                requirements.needs.jqInstall ||
+                requirements.needs.yqInstall ||
+                requirements.needs.pm2Install ||
+                requirements.needs.pm2Startup
+            );
     }
-
-    requirements.needs.pathSetup = !checkPathConfigured();
-    ctx.log(`[Global] PATH: ${requirements.needs.pathSetup ? '未設定' : '設定済み'}`);
-
-    // sudo操作が必要かどうか
-    requirements.needsSudoPassword =
-        !checkPasswordlessSudoConfigured() && (
-            requirements.needs.passwordlessSudo ||
-            requirements.needs.jqInstall ||
-            requirements.needs.yqInstall ||
-            requirements.needs.pm2Install ||
-            requirements.needs.pm2Startup
-        );
 
     ctx.log(`[Global] sudoパスワード必要: ${requirements.needsSudoPassword ? 'はい' : 'いいえ'}`);
     ctx.log('[Global] 事前調査完了');

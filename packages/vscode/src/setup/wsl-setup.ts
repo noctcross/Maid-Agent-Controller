@@ -1,17 +1,28 @@
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
-import { SetupContext } from '../types';
+import { SetupContext, RuntimeMode } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { generateSudoersContent } from '../utils/package-manager';
 
 /**
  * WSL2の状態をチェックし、必要に応じてセットアップを案内
+ * @param ctx SetupContext
+ * @param runtimeMode ランタイムモード（省略時は'wsl'）
  * @returns true: WSL準備完了、false: 再起動等が必要
  */
-export async function checkAndSetupWsl(ctx: SetupContext): Promise<boolean> {
+export async function checkAndSetupWsl(
+    ctx: SetupContext,
+    runtimeMode: RuntimeMode = 'wsl'
+): Promise<boolean> {
     // Mac/Linux環境では即座にtrue（WSLチェック不要）
     if (CURRENT_ENV !== 'windows-native') {
         ctx.log('[WSL] 非Windows環境のためスキップ');
+        return true;
+    }
+
+    // psmuxモード（windows-native）の場合はWSLチェックをスキップ
+    if (runtimeMode === 'windows-native') {
+        ctx.log('[WSL] psmuxモードのためWSLチェックをスキップ');
         return true;
     }
 

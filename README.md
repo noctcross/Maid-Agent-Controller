@@ -23,21 +23,45 @@ Claude Code の複数インスタンスを、英国メイド制度をモチー�
 
 ### 前提条件
 
+**WSLモード（推奨・安定）**
+
 | 必須ソフトウェア | バージョン | 備考 |
 |----------------|-----------|------|
-| Windows + WSL2 | - | v1 は Windows + WSL2 のみサポート |
+| Windows + WSL2 | - | Ubuntu推奨 |
 | VSCode | 1.85.0+ | Windsurf でも動作確認済み |
 | Node.js | 20.x+ | WSL 内にインストール |
 | tmux | 3.0+ | WSL 内にインストール |
 | Claude Code (CLI) | 最新版 | [公式ドキュメント](https://docs.anthropic.com/en/docs/claude-code) 参照 |
 
+**Windows-nativeモード（実験的・psmux使用）**
+
+| 必須ソフトウェア | バージョン | 備考 |
+|----------------|-----------|------|
+| Windows 10/11 | - | WSL不要 |
+| VSCode | 1.85.0+ | - |
+| Node.js | 20.x+ | Windows にインストール |
+| psmux | 最新版 | `winget install psmux` |
+| Git for Windows | - | Git Bash 使用（推奨） |
+| Claude Code (CLI) | 最新版 | [公式ドキュメント](https://docs.anthropic.com/en/docs/claude-code) 参照 |
+
+> **Note**: Windows-nativeモードは実験的機能です。安定性を重視する場合はWSLモードを選択してください。
+
 ### Step 1: Claude Code を準備
 
+**WSLモードの場合:**
 ```bash
 # WSL 内で実行
 npm install -g @anthropic-ai/claude-code
 claude                              # 初回認証
 claude --dangerously-skip-permissions  # → Yes を選択（エージェント自律動作に必要）
+```
+
+**Windows-nativeモードの場合:**
+```powershell
+# PowerShell または Git Bash で実行
+npm install -g @anthropic-ai/claude-code
+claude                              # 初回認証
+claude --dangerously-skip-permissions  # → Yes を選択
 ```
 
 ### Step 2: 拡張機能をインストール
@@ -63,9 +87,14 @@ npx @vscode/vsce package  # .vsix ファイルを生成
 Maid Agent: Init Global
 ```
 
+**Windows環境では実行モードを選択:**
+- **WSLを使用（従来通り）** - tmux で複数エージェントを管理（安定）
+- **Windows直接実行** - psmux でWSL不要（実験的）
+
 MCPサーバー（エージェント間通信基盤）と PM2（プロセス管理）が自動セットアップされます。
 
-> WSLのパスワード入力を求められます。
+> WSLモード: WSLのパスワード入力を求められます。
+> Windows-nativeモード: jq/yq が winget 経由でインストールされます。
 
 ### Step 4: プロジェクト初期化
 
@@ -204,6 +233,7 @@ Activity Bar の ♥ アイコンで表示。ターミナルタブの切り替�
 |---------|--------------|------|
 | `Init` | init | ワークスペース初期化 |
 | `Init Global` | init global | グローバル設定初期化 |
+| `Set Runtime Mode` | runtime mode | 実行モード変更（WSL/psmux） |
 | `Watch Start` | watch start | YAMLファイル監視開始 |
 | `Watch Stop` | watch stop | YAMLファイル監視停止 |
 | `Promote Rule` | promote rule | ルールをグローバルに昇格 |

@@ -233,6 +233,14 @@ export function activate(context: vscode.ExtensionContext) {
                 console.error('[Maid Agent] cleanup:', error);
             }
         }),
+        vscode.commands.registerCommand('multiAgent.setRuntimeMode', async () => {
+            try {
+                await controller.setRuntimeMode();
+            } catch (error) {
+                vscode.window.showErrorMessage(`ランタイムモード変更に失敗しました: ${error}`);
+                console.error('[Maid Agent] setRuntimeMode:', error);
+            }
+        }),
     ];
 
     context.subscriptions.push(...commands);

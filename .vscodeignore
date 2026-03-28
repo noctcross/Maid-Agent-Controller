@@ -1,44 +1,46 @@
-# Development only
-.claude/
-.vscode/
+# Source files (bundled by esbuild)
+packages/*/src/
+packages/*/*.ts
+**/*.ts
+!packages/vscode/out/**
 
-# Packages - exclude source and other packages, keep vscode/out
+# All packages except vscode/out
 packages/types/
 packages/api-client/
 packages/server/
+packages/constants/
 packages/maid-agent-messenger/
-packages/vscode/src/
 packages/vscode/node_modules/
-packages/vscode/*.ts
 
-# Apps (private repos)
+# Development
+.claude/
+.vscode/
 apps/
+node_modules/
+esbuild.mjs
+tsconfig*.json
+vitest.config.ts
 
 # Git
 .git/
 .gitignore
 .gitattributes
 
-# Dependencies (installed on demand)
-node_modules/
-global-templates/maid-agent-messenger/node_modules/
-
-# Build artifacts
+# Build artifacts (keep extension.js, exclude maps/tests)
 **/*.map
-
-# Test files
-.vscode-test/
 **/*.test.ts
 **/*.spec.ts
-out/**/__tests__/
-packages/vscode/out/**/__tests__/
-global-templates/maid-agent-messenger/dist/__tests__/
+**/out/__tests__/
 
-# Type definitions (not needed at runtime)
-global-templates/maid-agent-messenger/dist/**/*.d.ts
-packages/vscode/out/**/*.d.ts
+# Type definitions (bundled)
+**/*.d.ts
+**/*.d.ts.map
+**/*.tsbuildinfo
 
-# Logs
+# Test/dev files
+.vscode-test/
+
+# Logs & temp
 *.log
 **/logs/
 

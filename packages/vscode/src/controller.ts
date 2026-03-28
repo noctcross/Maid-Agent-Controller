@@ -64,11 +64,16 @@ export class MultiAgentController {
         this.workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (this.workspaceRoot) {
             this.maidAgentPath = path.join(this.workspaceRoot, MAID_AGENT_DIR);
+            // settings.yaml を読み込み（multiplexer設定をFactory生成前に取得する必要がある）
+            this.settings = loadSettings(this.maidAgentPath);
+            // settings.yaml の multiplexer.type を反映してFactory再生成
+            const muxType = this.settings.multiplexer?.type;
+            if (muxType && muxType !== 'auto') {
+                this.multiplexerFactory = new MultiplexerFactory({ type: muxType });
+            }
             // ワークスペースパスからセッション名を生成（ディレクトリ名 + 短いハッシュ）
             this.tmuxSessionName = getSessionNameFromPath(this.workspaceRoot);
             this.tmuxManager = this.multiplexerFactory.create(this.tmuxSessionName, this.workspaceRoot);
-            // settings.yaml を読み込み
-            this.settings = loadSettings(this.maidAgentPath);
         }
     }
 
@@ -713,6 +718,66 @@ ${agentList || '  (なし)'}
             this.workspaceRoot,
             (msg: string) => this.log(msg)
         );
+    }
+
+    /**
+     * ランタイムモードを変更（Windows環境のみ）
+     * コマンドパレットからWSL/psmuxモードを切り替える
+     */
+    public async setRuntimeMode(): Promise<void> {
+        // Windows環境チェック
+        if (CURRENT_ENV !== 'windows-native') {
+            vscode.window.showInformationMessage('ランタイムモード変更はWindows環境でのみ利用可能です');
+            return;
+        }
+
+        // setup-ui.ts の showRuntimeModeSelection を使用
+        const { showRuntimeModeSelection } = await import('./setup/setup-ui');
+        const selection = await showRuntimeModeSelection();
+
+        if (!selection) {
+            this.log('[RuntimeMode] ユーザーがキャンセル');
+            return;
+        }
+
+        // 設定を保存
+        const ctx = this.createSetupContext();
+        if (!ctx) {
+            vscode.window.showErrorMessage('設定の保存に失敗しました。ワークスペースを開いてください。');
+            return;
+        }
+
+        const { saveRuntimeMode, getSavedRuntimeMode } = await import('./setup/global-init');
+        const previousMode = getSavedRuntimeMode();
+
+        // 同じモードが選択された場合
+        if (previousMode === selection.mode) {
+            vscode.window.showInformationMessage(`現在既に ${selection.mode === 'wsl' ? 'WSL' : 'Windows直接実行'} モードです`);
+            return;
+        }
+
+        // 設定を保存
+        saveRuntimeMode(selection.mode, ctx);
+        this.log(`[RuntimeMode] モード変更: ${previousMode || '未設定'} → ${selection.mode}`);
+
+        // サーバー再起動
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: '🔄 サーバーを再起動中...',
+            cancellable: false
+        }, async () => {
+            try {
+                const { runShellCommand } = await import('./setup/pm2-setup');
+                runShellCommand('pm2 restart maid-agent-messenger', { stdio: 'pipe' });
+                this.log('[RuntimeMode] サーバー再起動完了');
+            } catch (error) {
+                this.log(`[RuntimeMode] サーバー再起動失敗: ${error}`);
+                throw error;
+            }
+        });
+
+        const modeLabel = selection.mode === 'wsl' ? 'WSL (tmux)' : 'Windows直接実行 (psmux)';
+        vscode.window.showInformationMessage(`✅ ランタイムモードを ${modeLabel} に変更しました`);
     }
 
     /**

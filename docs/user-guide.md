@@ -43,6 +43,8 @@
 
 ### 1-1. 前提条件
 
+**WSLモード（推奨）**
+
 | 項目 | 要件 |
 |------|------|
 | OS | WSL2 (Ubuntu) / macOS / Linux |
@@ -51,6 +53,20 @@
 | VSCode | 最新版 |
 | Claude Code | CLI インストール済み |
 | PM2 | グローバルインストール済み (`npm install -g pm2`) |
+
+**Windows-nativeモード（実験的）**
+
+| 項目 | 要件 |
+|------|------|
+| OS | Windows 10/11（WSL不要） |
+| Node.js | v18 以上（Windows上） |
+| psmux | `winget install psmux` |
+| Git for Windows | Git Bash 使用（推奨） |
+| VSCode | 最新版 |
+| Claude Code | CLI インストール済み |
+| PM2 | グローバルインストール済み |
+
+> **Windows-nativeモード**: psmux を使用してWSLなしで動作します。実験的機能のため、安定性を重視する場合はWSLモードを選択してください。
 
 ### 1-2. インストール手順
 
@@ -66,11 +82,19 @@
 
 VSCode コマンドパレット（`Ctrl+Shift+P`）から `Maid Agent: Init Global` を実行。
 
+**Windows環境ではモード選択ダイアログが表示されます:**
+
+| 選択肢 | 説明 |
+|-------|------|
+| **WSLを使用（従来通り）** | tmux で複数エージェントを管理。安定性重視。 |
+| **Windows直接実行** | psmux でWSL不要。実験的機能。 |
+
 このコマンドで以下が設定される:
 
 - **MCPサーバーのデプロイ**: `~/.maid-agent/maid-agent-messenger/` に配置
 - **PM2への登録**: MCPサーバーを常駐プロセスとして起動
 - **グローバル設定の初期化**: `~/.maid-agent/` 配下の共通設定
+- **ランタイムモード設定**: WSL / Windows-native の選択（Windows環境のみ）
 
 ```
 ~/.maid-agent/
@@ -78,11 +102,13 @@ VSCode コマンドパレット（`Ctrl+Shift+P`）から `Maid Agent: Init Glob
 │   └── dist/
 ├── system/
 │   └── config/
-│       └── maid-agent-messenger.yaml  # サーバー設定
+│       └── maid-agent-messenger.yaml  # サーバー設定（runtime.mode含む）
 └── rules/                   # グローバルルール（任意）
 ```
 
 > **Note**: Init Global は VSCode 拡張インストール後、最初に1回だけ実行すれば十分です。
+
+> **モード変更**: 後から `Maid Agent: Set Runtime Mode` コマンドでモードを変更できます。
 
 #### Step 3: プロジェクト初期化（Init Project）
 
@@ -861,6 +887,61 @@ pm2 restart maid-agent-messenger
 2. `.maid-agent/agents/instructions/QUICK_REFERENCE.md`（通信方法）
 
 指示書にはコンパクション後の再読み込み手順が記載されている。
+
+### 7-9. Windows-nativeモード（psmux）関連
+
+#### psmux が見つからない
+
+**症状**: Init Global で「psmux が見つかりません」エラー。
+
+**対処法**:
+```powershell
+# psmux をインストール
+winget install psmux
+
+# インストール確認
+psmux --version
+```
+
+#### jq/yq のインストールに失敗
+
+**症状**: Init Global で jq/yq インストールエラー。
+
+**対処法**:
+```powershell
+# 手動でインストール
+winget install stedolan.jq
+winget install mikefarah.yq
+
+# パスが通っているか確認
+jq --version
+yq --version
+```
+
+#### モードを変更したい
+
+**症状**: Init Global 後に WSL/psmux モードを変更したい。
+
+**対処法**:
+1. コマンドパレットで `Maid Agent: Set Runtime Mode` を実行
+2. 希望のモードを選択
+3. サーバーが自動的に再起動される
+
+#### サーバーが起動しない（Windows-native）
+
+**症状**: Windows-nativeモードでサーバーが起動しない。
+
+**確認ポイント**:
+```powershell
+# pm2 の状態確認
+pm2 status
+
+# Node.js がWindowsにインストールされているか
+node --version
+
+# npm グローバルパスの確認
+npm config get prefix
+```
 
 ---
 

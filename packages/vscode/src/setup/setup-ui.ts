@@ -3,8 +3,10 @@
  * - 事前確認（QuickPick）
  * - 進捗表示（withProgress）
  * - 結果表示（showInformationMessage）
+ * - ランタイムモード選択（Windows環境）
  */
 import * as vscode from 'vscode';
+import { RuntimeMode } from '../types';
 
 export interface SetupRequirement {
     id: string;
@@ -452,4 +454,66 @@ export async function showGlobalSetupResult(
             { modal: false }
         );
     }
+}
+
+// =============================================================================
+// ランタイムモード選択UI
+// =============================================================================
+
+/**
+ * ランタイムモード選択結果
+ */
+export interface RuntimeModeSelection {
+    mode: RuntimeMode;
+    cancelled: boolean;
+}
+
+/**
+ * ランタイムモード選択ダイアログを表示（Windows環境のみ）
+ * @returns 選択されたモード、またはキャンセル時はundefined
+ */
+export async function showRuntimeModeSelection(): Promise<RuntimeModeSelection | undefined> {
+    const items: vscode.QuickPickItem[] = [
+        {
+            label: '$(terminal) WSLで使用する',
+            description: '推奨',
+            detail: 'WSL2 + tmux で複数エージェントを管理します。安定性重視。',
+            picked: true,
+        },
+        {
+            label: '$(window) Windowsで使用する',
+            description: '実験的',
+            detail: 'psmux でWindows上で直接実行します。WSL不要ですが、psmuxのインストールが必要です。',
+        },
+        {
+            label: '$(combine) 両方で使用する',
+            description: 'WSL + Windows',
+            detail: 'WSLとWindows両方の環境をセットアップします。状況に応じて切り替えて使用できます。',
+        },
+    ];
+
+    const selected = await vscode.window.showQuickPick(items, {
+        title: '🔧 使用する環境を選択',
+        placeHolder: 'エージェントをどの環境で実行しますか？',
+        ignoreFocusOut: true,
+    });
+
+    if (!selected) {
+        return undefined;
+    }
+
+    // 選択結果をRuntimeModeに変換
+    let mode: RuntimeMode;
+    if (selected.label.includes('両方')) {
+        mode = 'both';
+    } else if (selected.label.includes('WSL')) {
+        mode = 'wsl';
+    } else {
+        mode = 'windows-native';
+    }
+
+    return {
+        mode,
+        cancelled: false,
+    };
 }

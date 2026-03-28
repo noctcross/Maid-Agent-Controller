@@ -13,6 +13,9 @@ import { parse as parseYaml } from 'yaml';
 
 export interface MaidAgentSettings {
     language: string;
+    multiplexer?: {
+        type?: 'tmux' | 'psmux' | 'auto';
+    };
     model?: {
         default?: string;
         roles?: {
@@ -64,6 +67,7 @@ export function loadSettings(maidAgentPath: string): MaidAgentSettings {
 
         return {
             language: parsed.language || DEFAULT_SETTINGS.language,
+            multiplexer: parsed.multiplexer,
             model: parsed.model,
         };
     } catch {

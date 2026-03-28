@@ -12,6 +12,14 @@ import type { MaidAgentSettings } from './utils/settings-loader';
  */
 export type ExecutionEnvironment = 'wsl' | 'windows-native' | 'linux' | 'macos';
 
+/**
+ * ランタイムモード（Windows環境でのみ選択可能）
+ * - 'wsl': WSL + tmux を使用
+ * - 'windows-native': Windows直接実行（psmux）
+ * - 'both': 両方の環境をセットアップ
+ */
+export type RuntimeMode = 'wsl' | 'windows-native' | 'both';
+
 export interface Agent {
     name: string;
     id: string;

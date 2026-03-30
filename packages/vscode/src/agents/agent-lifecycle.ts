@@ -4,11 +4,79 @@ import { MAIDS, MAIDS_MAP } from '../constants';
 import { getOrderedMaids } from '../utils/helpers';
 import { ensureServerRunning, MultiplexerType } from '../utils/server-manager';
 
+// =============================================================================
+// 共通パイプライン
+// =============================================================================
+
+/**
+ * エージェント起動仕様
+ */
+export interface AgentStartSpec {
+    name: string;
+    id: string;
+    role: Agent['role'];
+    emoji: string;
+    maidName?: string;
+}
+
 /**
  * AgentContext から multiplexer.type を取得
  */
 function getMultiplexerType(ctx: AgentContext): MultiplexerType {
     return ctx.settings?.multiplexer?.type || 'auto';
+}
+
+/**
+ * サーバー起動を確認（共通前処理）
+ * ensureServerRunning の重複呼び出しを防ぐため、起動系の共通前処理として使用
+ */
+async function ensureServerReady(ctx: AgentContext): Promise<boolean> {
+    if (!await ctx.ensureInitialized()) return false;
+
+    if (!await ensureServerRunning(getMultiplexerType(ctx))) {
+        vscode.window.showErrorMessage('サーバーが起動していないため、エージェントを起動できません');
+        return false;
+    }
+    return true;
+}
+
+/**
+ * 共通エージェント起動パイプライン
+ *
+ * startButler / startChiefMaid / startSelectedMaids の共通パターンを統合。
+ * 1. 既存セッション確認
+ * 2. エージェント作成（tmuxウィンドウ）
+ * 3. tmuxビューア表示
+ * 4. Claude Code起動（新規の場合）/ 復帰
+ *
+ * 注: ensureInitialized / ensureServerRunning は呼び出し元の責務
+ */
+async function startAgentPipeline(ctx: AgentContext, spec: AgentStartSpec): Promise<boolean> {
+    // 既に起動中のチェック
+    if (ctx.agents.has(spec.id)) {
+        return false;  // 呼び出し元でメッセージを出す
+    }
+
+    // 既存セッションのチェック（P-3: startSelectedMaidsでもチェックするよう統一）
+    const action = await ctx.checkExistingSessionAndPrompt(spec.id, `${spec.emoji} ${spec.name}`);
+    if (action === 'cancel') return false;
+
+    // エージェント作成
+    ctx.createAgent(spec.name, spec.id, spec.role, spec.emoji);
+
+    // tmuxビューアを開く
+    ctx.openTmuxViewer();
+
+    if (action === 'new') {
+        // 新規起動: Claude Code を起動し、役割を認識させる
+        await ctx.launchClaudeWithRole(spec.id, spec.role, spec.maidName);
+    } else {
+        // 復帰: Claudeコマンドは送信しない
+        const agent = ctx.agents.get(spec.id);
+        if (agent) agent.status = 'idle';
+    }
+
+    return true;
 }
 
 // =============================================================================
@@ -65,93 +133,49 @@ export function killAgent(ctx: AgentContext, agentId: string): void {
  * 執事を起動
  */
 export async function startButler(ctx: AgentContext): Promise<void> {
-    if (!await ctx.ensureInitialized()) return;
-
-    // サーバーが起動していることを確認（オンデマンド起動）
-    if (!await ensureServerRunning(getMultiplexerType(ctx))) {
-        vscode.window.showErrorMessage('サーバーが起動していないため、執事を起動できません');
-        return;
-    }
+    if (!await ensureServerReady(ctx)) return;
 
     if (ctx.agents.has('butler')) {
         vscode.window.showWarningMessage('執事は既にお仕えしております');
         return;
     }
 
-    // 既存セッションのチェック
-    const action = await ctx.checkExistingSessionAndPrompt('butler', 'シルヴィア（執事）');
-    if (action === 'cancel') return;
+    const started = await startAgentPipeline(ctx, {
+        name: 'シルヴィア', id: 'butler', role: 'butler', emoji: '🎩',
+    });
 
-    ctx.createAgent('シルヴィア', 'butler', 'butler', '🎩');
-
-    // tmuxビューアを開く
-    ctx.openTmuxViewer();
-
-    if (action === 'new') {
-        // 新規起動: Claude Code を起動し、役割を認識させる
-        await ctx.launchClaudeWithRole('butler', 'butler');
+    if (started) {
         vscode.window.showInformationMessage('🎩 シルヴィアがお仕えする準備ができました！');
-    } else {
-        // 復帰: Claudeコマンドは送信しない
-        const agent = ctx.agents.get('butler');
-        if (agent) agent.status = 'idle';
-        vscode.window.showInformationMessage('🎩 シルヴィアが復帰しました！');
+        ctx.updateController();
     }
-
-    ctx.updateController();
 }
 
 /**
  * メイド長を起動
  */
 export async function startChiefMaid(ctx: AgentContext): Promise<void> {
-    if (!await ctx.ensureInitialized()) return;
-
-    // サーバーが起動していることを確認（オンデマンド起動）
-    if (!await ensureServerRunning(getMultiplexerType(ctx))) {
-        vscode.window.showErrorMessage('サーバーが起動していないため、メイド長を起動できません');
-        return;
-    }
+    if (!await ensureServerReady(ctx)) return;
 
     if (ctx.agents.has('chief')) {
         vscode.window.showWarningMessage('メイド長は既にお仕えしております');
         return;
     }
 
-    // 既存セッションのチェック
-    const action = await ctx.checkExistingSessionAndPrompt('chief', 'ビオラ（メイド長）');
-    if (action === 'cancel') return;
+    const started = await startAgentPipeline(ctx, {
+        name: 'ビオラ', id: 'chief', role: 'chiefMaid', emoji: '👑',
+    });
 
-    ctx.createAgent('ビオラ', 'chief', 'chiefMaid', '👑');
-
-    // tmuxビューアを開く（まだ開いていなければ）
-    ctx.openTmuxViewer();
-
-    if (action === 'new') {
-        // 新規起動: Claude Code を起動し、役割を認識させる
-        await ctx.launchClaudeWithRole('chief', 'chiefMaid');
+    if (started) {
         vscode.window.showInformationMessage('👑 ビオラがお仕えする準備ができました！');
-    } else {
-        // 復帰: Claudeコマンドは送信しない
-        const agent = ctx.agents.get('chief');
-        if (agent) agent.status = 'idle';
-        vscode.window.showInformationMessage('👑 ビオラが復帰しました！');
+        ctx.updateController();
     }
-
-    ctx.updateController();
 }
 
 /**
  * メイドを選択して起動
  */
 export async function startSelectedMaids(ctx: AgentContext): Promise<void> {
-    if (!await ctx.ensureInitialized()) return;
-
-    // サーバーが起動していることを確認（オンデマンド起動）
-    if (!await ensureServerRunning(getMultiplexerType(ctx))) {
-        vscode.window.showErrorMessage('サーバーが起動していないため、メイドを起動できません');
-        return;
-    }
+    if (!await ensureServerReady(ctx)) return;
 
     // 未起動のメイドのみ選択肢に（設定順）
     const orderedMaids = getOrderedMaids();
@@ -177,17 +201,22 @@ export async function startSelectedMaids(ctx: AgentContext): Promise<void> {
         return;
     }
 
+    let startedCount = 0;
     for (const item of selected) {
         const maid = MAIDS.find(m => m.id === item.id);
         if (maid) {
-            ctx.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-            // Claude Code を起動し、役割を認識させる
-            await ctx.launchClaudeWithRole(maid.id, 'maid', maid.name);
+            // 共通パイプライン使用（P-3: 既存セッションチェックも統一）
+            const started = await startAgentPipeline(ctx, {
+                name: maid.name, id: maid.id, role: 'maid', emoji: maid.emoji, maidName: maid.name,
+            });
+            if (started) startedCount++;
         }
     }
 
-    vscode.window.showInformationMessage(`🎀 メイド${selected.length}人がお仕えする準備ができました！`);
-    ctx.updateController();
+    if (startedCount > 0) {
+        vscode.window.showInformationMessage(`🎀 メイド${startedCount}人がお仕えする準備ができました！`);
+        ctx.updateController();
+    }
 }
 
 /**
@@ -301,23 +330,23 @@ export async function restartPick(ctx: AgentContext): Promise<void> {
 
 /**
  * 全エージェントを起動
+ * ensureServerReady を1回だけ呼び出し、各start関数に委譲
  */
 export async function startAllAgents(ctx: AgentContext): Promise<void> {
-    // サーバーが起動していることを確認（オンデマンド起動）
-    const serverOk = await ensureServerRunning(getMultiplexerType(ctx));
-    if (!serverOk) {
-        vscode.window.showErrorMessage('サーバーが起動していないため、エージェントを起動できません');
-        return;
-    }
+    if (!await ensureServerReady(ctx)) return;
 
+    // 執事・メイド長は既存のstart関数経由（内部でensureServerReadyを再呼び出しするが
+    // ensureServerRunning は冪等なので問題なし）
     await startButler(ctx);
     await startChiefMaid(ctx);
-    // 全メイドを設定順に起動
+
+    // 全メイドを設定順に起動（共通パイプライン使用）
     const orderedMaids = getOrderedMaids();
     for (const maid of orderedMaids) {
         if (!ctx.agents.has(maid.id)) {
-            ctx.createAgent(maid.name, maid.id, 'maid', maid.emoji);
-            await ctx.launchClaudeWithRole(maid.id, 'maid', maid.name);
+            await startAgentPipeline(ctx, {
+                name: maid.name, id: maid.id, role: 'maid', emoji: maid.emoji, maidName: maid.name,
+            });
         }
     }
     ctx.updateController();

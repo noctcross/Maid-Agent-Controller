@@ -73,6 +73,7 @@ export class PsmuxAdapter extends AbstractMultiplexerAdapter {
     /**
      * psmux用のsendKeys（PowerShellからPowerShellウィンドウへ送信）
      * base-adapterはbash向けエスケープを使うため、psmux用にオーバーライド
+     * PowerShell起動遅延に対応するリトライ機構付き（P-1対応）
      */
     override sendKeys(windowName: string, keys: string, pressEnter: boolean = true): void {
         // 改行を空白に置換
@@ -81,6 +82,25 @@ export class PsmuxAdapter extends AbstractMultiplexerAdapter {
         // $, `, " をPowerShell向けにエスケープ
         const escapedKeys = escapeForDoubleQuote(noNewlines, 'powershell');
         const enterSuffix = pressEnter ? ' Enter' : '';
-        this.exec(`send-keys -t ${this.sessionName}:${windowName} "${escapedKeys}"${enterSuffix}`);
+        const command = `send-keys -t ${this.sessionName}:${windowName} "${escapedKeys}"${enterSuffix}`;
+
+        // PowerShell起動遅延でウィンドウが準備できていない場合のリトライ
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY_MS = 500;
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                this.exec(command);
+                return;
+            } catch (error) {
+                if (attempt === MAX_RETRIES) {
+                    throw error;
+                }
+                // PowerShellウィンドウの準備待ち
+                const { execSync } = require('child_process');
+                execSync(`powershell -NoProfile -Command "Start-Sleep -Milliseconds ${RETRY_DELAY_MS}"`, {
+                    windowsHide: true,
+                });
+            }
+        }
     }
 }

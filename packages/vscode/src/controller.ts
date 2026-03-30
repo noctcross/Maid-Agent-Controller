@@ -22,6 +22,16 @@ import { loadSettings, MaidAgentSettings } from './utils/settings-loader';
 import * as FileWatcher from './events/file-watcher';
 import * as TmuxWatcher from './events/tmux-watcher';
 import * as UserCommands from './commands/user-commands';
+// Context Factory
+import {
+    ControllerState,
+    createSetupContext,
+    createAgentContext,
+    createViewContext,
+    createTmuxWatcherContext,
+    createFileWatcherContext,
+    createUserCommandContext,
+} from './context-factory';
 
 // =============================================================================
 // メインコントローラー
@@ -184,83 +194,48 @@ export class MultiAgentController {
     }
 
     // =========================================================================
-    // tmuxウィンドウ監視（events/tmux-watcher.ts への委譲）
+    // Context Factory（context-factory.ts への委譲）
     // =========================================================================
 
-    private createTmuxWatcherContext(): TmuxWatcher.TmuxWatcherContext {
-        return {
-            agents: this.agents,
-            tmuxManager: this.tmuxManager,
-            tmuxSessionName: this.tmuxSessionName,
-            tmuxViewerTerminal: this.tmuxViewerTerminal,
-            agentPanelProvider: this.agentPanelProvider,
-            log: (msg: string) => this.log(msg),
-        };
-    }
-
-    // 現在のエージェントを設定（パネル更新用）
-    public setCurrentAgentFromTerminal(terminal: vscode.Terminal | undefined): void {
-        TmuxWatcher.setCurrentAgentFromTerminal(
-            this.createTmuxWatcherContext(),
-            this.tmuxWatcherState,
-            terminal,
-            (t: vscode.Terminal) => this.getAgentIdFromTerminal(t)
-        );
-    }
-
-    private stopTmuxWindowPolling(): void {
-        TmuxWatcher.stopTmuxWindowPolling(
-            this.createTmuxWatcherContext(),
-            this.tmuxWatcherState
-        );
-    }
-
-    // =========================================================================
-    // 初期化（setup/ モジュールへの委譲）
-    // =========================================================================
-
-    private createSetupContext(): SetupContext | undefined {
-        if (!this.workspaceRoot || !this.maidAgentPath || !this.context) {
-            this.log('[setup] SetupContext生成不可: 必要なプロパティが未初期化');
-            return undefined;
-        }
-        return {
-            workspaceRoot: this.workspaceRoot,
-            maidAgentPath: this.maidAgentPath,
-            globalMaidAgentPath: getGlobalMaidAgentPath(),
-            extensionPath: this.context.extensionPath,
-            outputChannel: this.outputChannel,
-            log: (msg: string) => this.log(msg),
-            context: this.context,
-        };
-    }
-
-    private createAgentContext(): AgentContext {
+    /**
+     * ControllerState を構築（context-factory に渡すためのアダプター）
+     */
+    private asState(): ControllerState {
         const controller = this;
         return {
-            // ─── State (getter/setter proxies for mutable properties) ───
             agents: this.agents,
+            outputChannel: this.outputChannel,
+            logs: this.logs,
+            context: this.context,
             get workspaceRoot() { return controller.workspaceRoot; },
             get maidAgentPath() { return controller.maidAgentPath; },
             set maidAgentPath(v) { controller.maidAgentPath = v; },
-            outputChannel: this.outputChannel,
-            get context() { return controller.context; },
+            get agentPanelProvider() { return controller.agentPanelProvider; },
             get tmuxManager() { return controller.tmuxManager; },
             set tmuxManager(v) { controller.tmuxManager = v; },
-            tmuxSessionName: this.tmuxSessionName,
+            multiplexerFactory: this.multiplexerFactory,
             get tmuxViewerTerminal() { return controller.tmuxViewerTerminal; },
             set tmuxViewerTerminal(v) { controller.tmuxViewerTerminal = v; },
-            get agentPanelProvider() { return controller.agentPanelProvider; },
+            tmuxSessionName: this.tmuxSessionName,
             get statusBarItem() { return controller.statusBarItem; },
             get statusBarResetTimeout() { return controller.statusBarResetTimeout; },
             set statusBarResetTimeout(v) { controller.statusBarResetTimeout = v; },
+            get controllerPanel() { return controller.controllerPanel; },
+            set controllerPanel(v) { controller.controllerPanel = v; },
+            get dashboardPanel() { return controller.dashboardPanel; },
+            set dashboardPanel(v) { controller.dashboardPanel = v; },
+            get dashboardInitialized() { return controller.dashboardInitialized; },
+            set dashboardInitialized(v) { controller.dashboardInitialized = v; },
+            get dashboardConsecutiveFailures() { return controller.dashboardConsecutiveFailures; },
+            set dashboardConsecutiveFailures(v) { controller.dashboardConsecutiveFailures = v; },
+            get completedViewState() { return controller.completedViewState; },
+            set completedViewState(v) { controller.completedViewState = v; },
+            get reportViewerPanel() { return controller.reportViewerPanel; },
+            set reportViewerPanel(v) { controller.reportViewerPanel = v; },
             get settings() { return controller.settings; },
-            multiplexerFactory: this.multiplexerFactory,
 
-            // ─── Logger ───
+            // Methods
             log: (msg: string) => this.log(msg),
-
-            // ─── Controller methods (NOT in E4, stay in controller) ───
             updateController: () => this.updateController(),
             updateAgentPanel: () => this.updateAgentPanel(),
             delay: (ms: number) => this.delay(ms),
@@ -268,10 +243,7 @@ export class MultiAgentController {
             initializeWorkspace: () => this.initializeWorkspace(),
             installTmux: () => this.installTmux(),
             showTmuxInstallInstructions: () => this.showTmuxInstallInstructions(),
-            createSetupContext: () => this.createSetupContext(),
             ensureWslAvailable: () => this.ensureWslAvailable(),
-
-            // ─── Cross-module E4 methods (delegated through controller) ───
             createAgent: (name, id, role, emoji) => this.createAgent(name, id, role, emoji),
             sendToAgent: (agentId, command) => this.sendToAgent(agentId, command),
             sendMessageToAgent: (agentId, message) => this.sendMessageToAgent(agentId, message),
@@ -288,52 +260,54 @@ export class MultiAgentController {
             ensureTmuxAvailable: () => this.ensureTmuxAvailable(),
             captureAgentOutput: (agentId, lines?) => this.captureAgentOutput(agentId, lines),
             resumeSessions: () => this.resumeSessions(),
+            showController: () => this.showController(),
+            showDashboard: () => this.showDashboard(),
+            updateDashboard: () => this.updateDashboard(),
+            openMaidAgentFile: (filename) => this.openMaidAgentFile(filename),
+            openFileWithPreview: (filePath) => this.openFileWithPreview(filePath),
+            openDashboardInBrowser: () => this.openDashboardInBrowser(),
+            showStatusBarNotification: (icon, message) => this.showStatusBarNotification(icon, message),
+            promptAndSendToButler: () => this.promptAndSendToButler(),
+            sendTaskToButler: (taskDescription) => this.sendTaskToButler(taskDescription),
+            getAgentIdFromTerminal: (terminal) => this.getAgentIdFromTerminal(terminal),
         };
     }
 
+    // =========================================================================
+    // tmuxウィンドウ監視（events/tmux-watcher.ts への委譲）
+    // =========================================================================
+
+    // 現在のエージェントを設定（パネル更新用）
+    public setCurrentAgentFromTerminal(terminal: vscode.Terminal | undefined): void {
+        TmuxWatcher.setCurrentAgentFromTerminal(
+            createTmuxWatcherContext(this.asState()),
+            this.tmuxWatcherState,
+            terminal,
+            (t: vscode.Terminal) => this.getAgentIdFromTerminal(t)
+        );
+    }
+
+    private stopTmuxWindowPolling(): void {
+        TmuxWatcher.stopTmuxWindowPolling(
+            createTmuxWatcherContext(this.asState()),
+            this.tmuxWatcherState
+        );
+    }
+
+    // =========================================================================
+    // 初期化（setup/ モジュールへの委譲）
+    // =========================================================================
+
+    private createSetupContext(): SetupContext | undefined {
+        return createSetupContext(this.asState());
+    }
+
+    private createAgentContext(): AgentContext {
+        return createAgentContext(this.asState());
+    }
+
     private createViewContext(): ViewContext {
-        const controller = this;
-        return {
-            // ─── State ───
-            agents: this.agents,
-            get workspaceRoot() { return controller.workspaceRoot; },
-            get maidAgentPath() { return controller.maidAgentPath; },
-            logs: this.logs,
-            get context() { return controller.context; },
-
-            // ─── Panel State (mutable via getter/setter) ───
-            get controllerPanel() { return controller.controllerPanel; },
-            set controllerPanel(v) { controller.controllerPanel = v; },
-            get dashboardPanel() { return controller.dashboardPanel; },
-            set dashboardPanel(v) { controller.dashboardPanel = v; },
-            get dashboardInitialized() { return controller.dashboardInitialized; },
-            set dashboardInitialized(v) { controller.dashboardInitialized = v; },
-            get dashboardConsecutiveFailures() { return controller.dashboardConsecutiveFailures; },
-            set dashboardConsecutiveFailures(v) { controller.dashboardConsecutiveFailures = v; },
-            get completedViewState() { return controller.completedViewState; },
-            set completedViewState(v) { controller.completedViewState = v; },
-            get reportViewerPanel() { return controller.reportViewerPanel; },
-            set reportViewerPanel(v) { controller.reportViewerPanel = v; },
-            get statusBarItem() { return controller.statusBarItem; },
-            get statusBarResetTimeout() { return controller.statusBarResetTimeout; },
-            set statusBarResetTimeout(v) { controller.statusBarResetTimeout = v; },
-
-            // ─── Logger ───
-            log: (msg: string) => this.log(msg),
-
-            // ─── Controller methods (NOT in E5) ───
-            promptAndSendToButler: () => this.promptAndSendToButler(),
-
-            // ─── Cross-module E5 methods ───
-            showController: () => this.showController(),
-            showDashboard: () => this.showDashboard(),
-            updateController: () => this.updateController(),
-            updateDashboard: () => this.updateDashboard(),
-            openMaidAgentFile: (filename: string) => this.openMaidAgentFile(filename),
-            openFileWithPreview: (filePath: string) => this.openFileWithPreview(filePath),
-            openDashboardInBrowser: () => this.openDashboardInBrowser(),
-            showStatusBarNotification: (icon: string, message: string) => this.showStatusBarNotification(icon, message),
-        };
+        return createViewContext(this.asState());
     }
 
     public async initializeWorkspace(): Promise<boolean> {
@@ -593,20 +567,9 @@ export class MultiAgentController {
     // ファイル監視（events/file-watcher.ts への委譲）
     // =========================================================================
 
-    private createFileWatcherContext(): FileWatcher.FileWatcherContext {
-        return {
-            maidAgentPath: this.maidAgentPath,
-            agents: this.agents,
-            context: this.context,
-            log: (msg: string) => this.log(msg),
-            updateController: () => this.updateController(),
-            sendMessageToAgent: (agentId: string, message: string) => this.sendMessageToAgent(agentId, message),
-        };
-    }
-
     public startWatchingFiles(silent: boolean = false): void {
         FileWatcher.startWatchingFiles(
-            this.createFileWatcherContext(),
+            createFileWatcherContext(this.asState()),
             this.fileWatcherState,
             silent
         );
@@ -614,7 +577,7 @@ export class MultiAgentController {
 
     public stopWatchingFiles(): void {
         FileWatcher.stopWatchingFiles(
-            this.createFileWatcherContext(),
+            createFileWatcherContext(this.asState()),
             this.fileWatcherState
         );
     }
@@ -726,20 +689,12 @@ ${agentList || '  (なし)'}
     // ユーザー入力（commands/user-commands.ts への委譲）
     // =========================================================================
 
-    private createUserCommandContext(): UserCommands.UserCommandContext {
-        return {
-            agents: this.agents,
-            sendTaskToButler: (taskDescription: string) => this.sendTaskToButler(taskDescription),
-            sendMessageToAgent: (agentId: string, message: string) => this.sendMessageToAgent(agentId, message),
-        };
-    }
-
     public async promptAndSendToButler(): Promise<void> {
-        return UserCommands.promptAndSendToButler(this.createUserCommandContext());
+        return UserCommands.promptAndSendToButler(createUserCommandContext(this.asState()));
     }
 
     public async promptAndSendToMaid(): Promise<void> {
-        return UserCommands.promptAndSendToMaid(this.createUserCommandContext());
+        return UserCommands.promptAndSendToMaid(createUserCommandContext(this.asState()));
     }
 
     // =========================================================================

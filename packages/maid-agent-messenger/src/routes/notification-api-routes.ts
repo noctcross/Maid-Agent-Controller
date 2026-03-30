@@ -186,7 +186,11 @@ async function sendToAgent(
   message: string,
   historyPath: string
 ): Promise<boolean> {
-  const escapedMessage = message.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+  const escapedMessage = message
+    .replace(/\\/g, '\\\\')    // \ → \\ （最初に処理）
+    .replace(/"/g, '\\"')      // " → \"
+    .replace(/\$/g, '\\$')     // $ → \$
+    .replace(/`/g, '\\`');     // ` → \`
   const isSlashCommand = message.startsWith('/');
   const command = isSlashCommand
     ? `maidctl notify --from master --no-prefix ${target} "${escapedMessage}"`

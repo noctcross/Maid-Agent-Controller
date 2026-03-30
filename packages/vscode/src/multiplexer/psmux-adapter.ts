@@ -1,5 +1,6 @@
 import { AbstractMultiplexerAdapter } from './base-adapter';
 import { MultiplexerType } from './interfaces';
+import { escapeForDoubleQuote } from '../utils/shell-escape';
 
 /**
  * psmux 用アダプター（Windows ネイティブ環境）
@@ -58,8 +59,9 @@ export class PsmuxAdapter extends AbstractMultiplexerAdapter {
      */
     override createWindow(windowName: string): void {
         const dir = this.getCommandWorkingDirectory();
+        const escapedDir = escapeForDoubleQuote(dir, 'powershell');
         // PowerShellを指定してウィンドウを作成
-        this.exec(`new-window -t ${this.sessionName} -n ${windowName} -c "${dir}" powershell.exe`);
+        this.exec(`new-window -t ${this.sessionName} -n ${windowName} -c "${escapedDir}" powershell.exe`);
         // ウィンドウ名の自動更新を無効化（claudeプロセス名で上書きされるのを防ぐ）
         try {
             this.exec(`set-window-option -t ${this.sessionName}:${windowName} automatic-rename off`);
@@ -76,8 +78,8 @@ export class PsmuxAdapter extends AbstractMultiplexerAdapter {
         // 改行を空白に置換
         const noNewlines = keys.replace(/\r?\n/g, ' ');
         // PowerShellでpsmux send-keysを実行する際、ダブルクォートを使用
-        // ダブルクォート内のダブルクォートはバッククォートでエスケープ
-        const escapedKeys = noNewlines.replace(/"/g, '`"');
+        // $, `, " をPowerShell向けにエスケープ
+        const escapedKeys = escapeForDoubleQuote(noNewlines, 'powershell');
         const enterSuffix = pressEnter ? ' Enter' : '';
         this.exec(`send-keys -t ${this.sessionName}:${windowName} "${escapedKeys}"${enterSuffix}`);
     }

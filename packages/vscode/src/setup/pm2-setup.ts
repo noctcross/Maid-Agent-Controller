@@ -8,6 +8,7 @@ import { CURRENT_ENV } from '../utils/environment';
 import { windowsToWslPath } from '../utils/environment';
 import { checkPasswordlessSudo, setupPasswordlessSudo, promptWslPassword, showPasswordHelp } from './wsl-setup';
 import { detectPackageManager, PM_CONFIG, PackageManager } from '../utils/package-manager';
+import { assertNoShellMeta, escapeForDoubleQuote } from '../utils/shell-escape';
 
 /**
  * WSLパスワードキャッシュ（モジュールスコープ）
@@ -39,7 +40,7 @@ export function runShellCommand(command: string, options?: { encoding?: BufferEn
     if (CURRENT_ENV === 'windows-native') {
         // Windows: WSL経由でログインシェルとして実行
         // -l: ログインシェル（.bash_profile/.profile を読み込む）
-        return execSync(`wsl bash -lc "${command.replace(/"/g, '\\"')}"`, execOptions);
+        return execSync(`wsl bash -lc "${escapeForDoubleQuote(command, 'bash')}"`, execOptions);
     } else {
         // Mac/Linux: ユーザーシェルをログインシェルとして実行
         // macOS 2019〜 のデフォルトは zsh なので対応必須
@@ -48,10 +49,10 @@ export function runShellCommand(command: string, options?: { encoding?: BufferEn
 
         if (shellName === 'zsh' || shellName === 'bash') {
             // zsh/bash: ユーザーシェルを使用
-            return execSync(`${userShell} -lc "${command.replace(/"/g, '\\"')}"`, execOptions);
+            return execSync(`${userShell} -lc "${escapeForDoubleQuote(command, 'bash')}"`, execOptions);
         } else {
             // その他: bashにフォールバック
-            return execSync(`bash -lc "${command.replace(/"/g, '\\"')}"`, execOptions);
+            return execSync(`bash -lc "${escapeForDoubleQuote(command, 'bash')}"`, execOptions);
         }
     }
 }
@@ -524,6 +525,15 @@ async function setupPm2StartupNative(ctx: SetupContext): Promise<void> {
     }
 
     const startupCmd = match[0];
+
+    // メタ文字チェック（pm2出力を信頼してそのまま実行するリスクを防止）
+    try {
+        assertNoShellMeta(startupCmd, 'pm2 startup command');
+    } catch (error) {
+        ctx.log(`[PM2] startup コマンドに危険なメタ文字が含まれています: ${error}`);
+        vscode.window.showWarningMessage('自動起動設定のコマンドに不正な文字が含まれています');
+        return;
+    }
 
     // ユーザーに確認
     const choice = await vscode.window.showInformationMessage(

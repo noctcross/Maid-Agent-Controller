@@ -1,5 +1,6 @@
 import { execSync, exec } from 'child_process';
 import { ITerminalMultiplexer, MultiplexerType } from './interfaces';
+import { escapeForDoubleQuote, type ShellType } from '../utils/shell-escape';
 
 /**
  * マルチプレクサの共通実装
@@ -18,6 +19,13 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
      * マルチプレクサの種類を取得
      */
     abstract getMultiplexerType(): MultiplexerType;
+
+    /**
+     * シェル種別を取得（エスケープ処理で使用）
+     */
+    protected getShellType(): ShellType {
+        return this.getMultiplexerType() === 'psmux' ? 'powershell' : 'bash';
+    }
 
     /**
      * コマンドプレフィックスを取得（tmux or psmux or wsl tmux）
@@ -80,7 +88,8 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
     createSession(): void {
         if (!this.sessionExists()) {
             const dir = this.getCommandWorkingDirectory();
-            this.exec(`new-session -d -s ${this.sessionName} -c "${dir}"`);
+            const escapedDir = escapeForDoubleQuote(dir, this.getShellType());
+            this.exec(`new-session -d -s ${this.sessionName} -c "${escapedDir}"`);
             // copy-mode-timeout を設定（スクロール中の通知配信改善）
             this.setCopyModeTimeout();
         }
@@ -125,7 +134,8 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
 
     createWindow(windowName: string): void {
         const dir = this.getCommandWorkingDirectory();
-        this.exec(`new-window -t ${this.sessionName} -n ${windowName} -c "${dir}"`);
+        const escapedDir = escapeForDoubleQuote(dir, this.getShellType());
+        this.exec(`new-window -t ${this.sessionName} -n ${windowName} -c "${escapedDir}"`);
         // ウィンドウ名の自動更新を無効化（claudeプロセス名で上書きされるのを防ぐ）
         try {
             this.exec(`set-window-option -t ${this.sessionName}:${windowName} automatic-rename off`);

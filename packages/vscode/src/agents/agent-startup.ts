@@ -12,6 +12,7 @@ import { AGENTS_MAP, isValidAgentId } from '../constants';
 import { CURRENT_ENV, isTmuxAvailable, windowsToWslPath, getMultiplexerCommand } from '../utils/environment';
 import { getSavedRuntimeMode } from '../setup/global-init';
 import { getSessionNameFromPath } from '../utils/helpers';
+import { escapeForSingleQuote } from '../utils/shell-escape';
 // MultiplexerFactory is accessed via ctx.multiplexerFactory
 import { getModelForAgent } from '../utils/settings-loader';
 import { generateSystemPromptFile } from '../utils/prompt-loader';
@@ -60,13 +61,14 @@ function buildClaudeCommand(
 
     if (isPsmux) {
         // PowerShell形式: $env:VAR = 'value'; & 'path\to\claude.exe' args
-        // プロンプトはシングルクォートで囲む（PowerShellでは文字列リテラル）
+        // PowerShellのシングルクォートはリテラル文字列（' → '' でエスケープ）
         const claudeCmd = getClaudeCommandForPsmux();
-        const promptPart = initialPrompt ? ` -- '${initialPrompt}'` : '';
+        const promptPart = initialPrompt ? ` -- '${initialPrompt.replace(/'/g, "''")}'` : '';
         return `$env:CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD = '1'; ${claudeCmd} --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
     } else {
         // Unix bash形式: VAR=value command
-        const promptPart = initialPrompt ? ` -- '${initialPrompt}'` : '';
+        // bash のシングルクォート内ではメタ文字が解釈されないため最も安全
+        const promptPart = initialPrompt ? ` -- '${escapeForSingleQuote(initialPrompt)}'` : '';
         return `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 claude --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
     }
 }
@@ -283,9 +285,6 @@ export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, r
             break;
     }
 
-    // シェルエスケープ（シングルクォートをエスケープ）
-    const escapedInstruction = instruction.replace(/'/g, "'\\''");
-
     // tmuxウィンドウが準備できるまで待つ
     await ctx.delay(500);
 
@@ -297,7 +296,8 @@ export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, r
     const modelFlag = model ? ` --model ${model}` : '';
 
     // 環境変数とコマンドを構築（psmux/tmuxで構文が異なる）
-    const command = buildClaudeCommand(ctx, agentId, modelFlag, escapedInstruction);
+    // エスケープは buildClaudeCommand 内でシェル種別に応じて適用
+    const command = buildClaudeCommand(ctx, agentId, modelFlag, instruction);
     ctx.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
 
     const roleLabel = agent.role === 'butler' ? '執事' :

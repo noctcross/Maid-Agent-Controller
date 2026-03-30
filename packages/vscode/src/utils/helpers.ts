@@ -157,3 +157,21 @@ export function getOrderedMaids(): MaidConfig[] {
 
     return orderedMaids;
 }
+
+// =============================================================================
+// エラーフォーマット
+// =============================================================================
+
+/**
+ * エラーオブジェクトからユーザー向けメッセージを抽出
+ * unknown 型の catch 変数を安全に文字列化する
+ */
+export function formatError(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    if (typeof error === 'string') {
+        return error;
+    }
+    return String(error);
+}

@@ -438,16 +438,28 @@ export function showPathGuidance(ctx: SetupContext, globalPath: string): void {
 
     ctx.log(guidance);
 
-    // VSCode通知でも表示
+    // 専用の出力チャンネルに永続表示（通知が消えても参照可能）
+    const outputChannel = vscode.window.createOutputChannel('Maid Agent - PATH設定ガイド');
+    outputChannel.appendLine('=== maidctl CLI の PATH 設定ガイド ===');
+    outputChannel.appendLine('');
+    outputChannel.appendLine('以下のコマンドをターミナルで実行してください:');
+    outputChannel.appendLine('');
+    outputChannel.appendLine(`  ${pathCommand}`);
+    outputChannel.appendLine(`  source ${rcFile}`);
+    outputChannel.appendLine('');
+    outputChannel.appendLine('設定後、新しいターミナルを開くと maidctl コマンドが使用可能になります。');
+
+    // VSCode通知でも表示（出力チャンネルへの誘導付き）
     vscode.window.showInformationMessage(
-        '🛠️ maidctl CLI を使用するには PATH を設定してください。詳細は出力パネルを確認してください。',
-        'PATHの設定方法を表示'
+        '🛠️ maidctl CLI を使用するには PATH を設定してください。',
+        'ガイドを表示',
+        'コマンドをコピー'
     ).then(selection => {
-        if (selection === 'PATHの設定方法を表示') {
-            vscode.window.showInformationMessage(
-                `以下のコマンドを実行してください:\n\n${pathCommand}\nsource ${rcFile}`,
-                { modal: true }
-            );
+        if (selection === 'ガイドを表示') {
+            outputChannel.show();
+        } else if (selection === 'コマンドをコピー') {
+            vscode.env.clipboard.writeText(`${pathCommand}\nsource ${rcFile}`);
+            vscode.window.showInformationMessage('コマンドをクリップボードにコピーしました');
         }
     });
 }

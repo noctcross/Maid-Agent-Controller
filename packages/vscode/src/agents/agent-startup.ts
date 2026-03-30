@@ -42,6 +42,29 @@ function getClaudeCommandForPsmux(): string {
         }
     }
 
+    // claude.exe が見つからない場合、ユーザーに案内を表示
+    const searchedPaths = possiblePaths.map(p => `  - ${p}`).join('\n');
+    vscode.window.showWarningMessage(
+        'Claude Code（claude.exe）が検出されませんでした。' +
+        'エージェント起動に失敗する可能性があります。',
+        'インストール方法を確認',
+        '閉じる'
+    ).then(choice => {
+        if (choice === 'インストール方法を確認') {
+            const panel = vscode.window.createOutputChannel('Maid Agent - Claude Code Setup');
+            panel.appendLine('=== Claude Code インストール方法 ===');
+            panel.appendLine('');
+            panel.appendLine('以下のコマンドでインストールできます:');
+            panel.appendLine('  npm install -g @anthropic-ai/claude-code');
+            panel.appendLine('');
+            panel.appendLine('検索したパス:');
+            panel.appendLine(searchedPaths);
+            panel.appendLine('');
+            panel.appendLine('インストール後、Init Global を再実行してください。');
+            panel.show();
+        }
+    });
+
     return 'claude';  // フォールバック（PATHに存在することを期待）
 }
 

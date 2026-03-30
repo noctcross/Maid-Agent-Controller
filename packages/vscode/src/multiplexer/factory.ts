@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import * as vscode from 'vscode';
 import { ITerminalMultiplexer, IMultiplexerFactory, MultiplexerType, MultiplexerConfig } from './interfaces';
 import { TmuxAdapter } from './tmux-adapter';
 import { PsmuxAdapter } from './psmux-adapter';
@@ -42,6 +43,17 @@ export class MultiplexerFactory implements IMultiplexerFactory {
                 if (this.isPsmuxAvailable()) {
                     return { type: 'psmux' };
                 }
+                // psmuxが利用できない場合、tmuxにフォールバックし警告を表示
+                vscode.window.showWarningMessage(
+                    'psmux が検出されませんでした。tmux（WSL経由）にフォールバックします。' +
+                    '\n\npsmux を使用するには Init Global でセットアップしてください。',
+                    'Init Global を実行',
+                    '閉じる'
+                ).then(choice => {
+                    if (choice === 'Init Global を実行') {
+                        vscode.commands.executeCommand('multiAgent.initializeGlobal');
+                    }
+                });
             }
             // WSLモードまたはpsmuxが利用できない場合はtmux（WSL経由）
             return { type: 'tmux' };

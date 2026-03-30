@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import { MultiAgentController } from './controller';
 import { AgentPanelProvider } from './ui/agent-panel-provider';
 import { ENV } from './utils/environment';
-import { getGlobalMaidAgentPath, getSessionNameFromPath } from './utils/helpers';
+import { getGlobalMaidAgentPath, getSessionNameFromPath, formatError } from './utils/helpers';
 import { getSavedRuntimeMode, getPendingSetupState, clearPendingSetupState, continueGlobalSetup } from './setup/global-init';
 
 // =============================================================================
@@ -81,7 +81,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.initializeWorkspace();
             } catch (error) {
-                vscode.window.showErrorMessage(`初期化に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`初期化に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] initializeWorkspace:', error);
             }
         }),
@@ -95,7 +95,7 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.commands.executeCommand('revealFileInOS', uri);
                 }
             } catch (error) {
-                vscode.window.showErrorMessage(`グローバル初期化に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`グローバル初期化に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] initializeGlobalSettings:', error);
             }
         }),
@@ -103,7 +103,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.resumeSessions();
             } catch (error) {
-                vscode.window.showErrorMessage(`セッション復帰に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`セッション復帰に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] resumeSessions:', error);
             }
         }),
@@ -139,7 +139,7 @@ export function activate(context: vscode.ExtensionContext) {
                         break;
                 }
             } catch (error) {
-                vscode.window.showErrorMessage(`エージェント呼び出しに失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`エージェント呼び出しに失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] callAgent:', error);
             }
         }),
@@ -147,7 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.startAllAgents();
             } catch (error) {
-                vscode.window.showErrorMessage(`全エージェント起動に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`全エージェント起動に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] startAllAgents:', error);
             }
         }),
@@ -155,7 +155,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.promptAndSendToButler();
             } catch (error) {
-                vscode.window.showErrorMessage(`執事への送信に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`執事への送信に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] promptAndSendToButler:', error);
             }
         }),
@@ -163,7 +163,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.promptAndSendToMaid();
             } catch (error) {
-                vscode.window.showErrorMessage(`メイドへの送信に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`メイドへの送信に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] promptAndSendToMaid:', error);
             }
         }),
@@ -171,7 +171,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.startClaudeOnAllAgents();
             } catch (error) {
-                vscode.window.showErrorMessage(`Claude起動に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`Claude起動に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] startClaudeOnAllAgents:', error);
             }
         }),
@@ -188,7 +188,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.startWatchingFiles();
             } catch (error) {
-                vscode.window.showErrorMessage(`ファイル監視の開始に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`ファイル監視の開始に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] startWatchingFiles:', error);
             }
         }),
@@ -205,7 +205,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.killPick();
             } catch (error) {
-                vscode.window.showErrorMessage(`エージェント終了に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`エージェント終了に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] killPick:', error);
             }
         }),
@@ -213,7 +213,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.restartPick();
             } catch (error) {
-                vscode.window.showErrorMessage(`エージェント再起動に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`エージェント再起動に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] restartPick:', error);
             }
         }),
@@ -221,7 +221,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.manualProcessNotifications();
             } catch (error) {
-                vscode.window.showErrorMessage(`通知処理に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`通知処理に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] manualProcessNotifications:', error);
             }
         }),
@@ -232,7 +232,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.promoteRuleToGlobal();
             } catch (error) {
-                vscode.window.showErrorMessage(`ルール昇格に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`ルール昇格に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] promoteRuleToGlobal:', error);
             }
         }),
@@ -240,7 +240,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.showCleanup();
             } catch (error) {
-                vscode.window.showErrorMessage(`クリーンアップに失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`クリーンアップに失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] cleanup:', error);
             }
         }),
@@ -248,7 +248,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.setRuntimeMode();
             } catch (error) {
-                vscode.window.showErrorMessage(`ランタイムモード変更に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`ランタイムモード変更に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] setRuntimeMode:', error);
             }
         }),
@@ -256,7 +256,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await controller.switchMultiplexer();
             } catch (error) {
-                vscode.window.showErrorMessage(`マルチプレクサ切替に失敗しました: ${error}`);
+                vscode.window.showErrorMessage(`マルチプレクサ切替に失敗しました: ${formatError(error)}`);
                 console.error('[Maid Agent] switchMultiplexer:', error);
             }
         }),

@@ -381,10 +381,15 @@ export async function showGlobalConfirmation(
     const missingRequired = requiredItems.filter(i => !selectedIds.includes(i.id));
 
     if (missingRequired.length > 0) {
-        vscode.window.showWarningMessage(
-            `必須項目「${missingRequired.map(i => i.label).join('、')}」は解除できません`,
-            { modal: false }
+        const missingLabels = missingRequired.map(i => i.label).join('、');
+        const retry = await vscode.window.showWarningMessage(
+            `必須項目「${missingLabels}」は解除できません。必須項目を含めて再選択しますか？`,
+            '再選択する',
+            'キャンセル'
         );
+        if (retry === '再選択する') {
+            return showGlobalConfirmation(requirements);
+        }
         return undefined;
     }
 
@@ -535,26 +540,26 @@ export interface RuntimeModeSelection {
 export async function showRuntimeModeSelection(): Promise<RuntimeModeSelection | undefined> {
     const items: vscode.QuickPickItem[] = [
         {
-            label: '$(terminal) WSLで使用する',
-            description: '推奨',
-            detail: 'WSL2 + tmux で複数エージェントを管理します。安定性重視。',
+            label: '$(terminal) WSLで使用する（推奨）',
+            description: '安定性重視・初心者向け',
+            detail: 'Windows上のLinux環境（WSL2）と tmux を使います。最も安定した動作で、初めての方におすすめです。WSL2が未導入の場合は自動でセットアップします。',
             picked: true,
         },
         {
-            label: '$(window) Windowsで使用する',
-            description: '実験的',
-            detail: 'psmux でWindows上で直接実行します。WSL不要ですが、psmuxのインストールが必要です。',
+            label: '$(window) Windowsネイティブで使用する',
+            description: '実験的・上級者向け',
+            detail: 'WSLを使わず、Windows上で直接実行します（psmux使用）。動作が軽量ですが、psmuxのインストールが別途必要です。WSLをインストールしたくない場合に選択してください。',
         },
         {
             label: '$(combine) 両方で使用する',
-            description: 'WSL + Windows',
-            detail: 'WSLとWindows両方の環境をセットアップします。状況に応じて切り替えて使用できます。',
+            description: 'WSL + Windows 両対応',
+            detail: 'WSLとWindowsネイティブ両方の環境をセットアップします。状況に応じて切り替えられますが、セットアップに時間がかかります。',
         },
     ];
 
     const selected = await vscode.window.showQuickPick(items, {
-        title: '🔧 使用する環境を選択',
-        placeHolder: 'エージェントをどの環境で実行しますか？',
+        title: '🔧 エージェントの実行環境を選択してください',
+        placeHolder: 'どの環境でエージェントを動かしますか？（迷ったら「WSLで使用する」がおすすめです）',
         ignoreFocusOut: true,
     });
 

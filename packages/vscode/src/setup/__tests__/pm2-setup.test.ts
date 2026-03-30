@@ -24,6 +24,16 @@ vi.mock('vscode', () => ({
 vi.mock('../../utils/environment', () => ({
   CURRENT_ENV: 'windows-native',
   windowsToWslPath: vi.fn((p: string) => p.replace(/\\/g, '/').replace(/^([A-Z]):/, (_, d) => `/mnt/${d.toLowerCase()}`)),
+  ENV: {
+      platform: 'windows-native',
+      isWindowsNative: () => true,
+      isWsl: () => false,
+      isMacOS: () => false,
+      isPsmux: (mode?: string) => mode === 'windows-native',
+      getMultiplexerCommand: (mode?: string) => mode === 'windows-native' ? 'psmux' : 'wsl tmux',
+      windowsToWslPath: (p: string) => p,
+      needsWslPrefix: (mode?: string) => mode !== 'windows-native',
+  },
 }));
 
 // constants モック

@@ -7,7 +7,7 @@
 import * as vscode from 'vscode';
 import { ENDPOINTS, type DashboardDataOptions, type V2GoalsOptions } from '@maid-agent/api-client';
 import { DASHBOARD_SERVER_URL, DASHBOARD_MAX_CONSECUTIVE_FAILURES } from '../../constants';
-import { CURRENT_ENV, windowsToWslPath } from '../../utils/environment';
+import { ENV } from '../../utils/environment';
 import { escapeHtml } from '../../utils/html-escape';
 
 /**
@@ -77,8 +77,8 @@ export async function refreshDashboardData(
         return;
     }
 
-    const normalizedPath = CURRENT_ENV === 'windows-native'
-        ? windowsToWslPath(projectPath)
+    const normalizedPath = ENV.isWindowsNative()
+        ? ENV.windowsToWslPath(projectPath)
         : projectPath;
 
     try {
@@ -170,8 +170,8 @@ export async function updateDashboard(ctx: DataFetcherContext): Promise<DataFetc
     }
 
     const serverUrl = DASHBOARD_SERVER_URL;
-    const normalizedPath = CURRENT_ENV === 'windows-native'
-        ? windowsToWslPath(projectPath)
+    const normalizedPath = ENV.isWindowsNative()
+        ? ENV.windowsToWslPath(projectPath)
         : projectPath;
 
     try {

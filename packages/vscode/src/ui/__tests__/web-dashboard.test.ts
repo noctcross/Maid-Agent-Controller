@@ -67,6 +67,16 @@ global.fetch = mockFetch;
 vi.mock('../../utils/environment', () => ({
     CURRENT_ENV: 'wsl',
     windowsToWslPath: vi.fn((path: string) => path),
+    ENV: {
+        platform: 'wsl',
+        isWindowsNative: () => false,
+        isWsl: () => true,
+        isMacOS: () => false,
+        isPsmux: () => false,
+        getMultiplexerCommand: () => 'tmux',
+        windowsToWslPath: (p: string) => p,
+        needsWslPrefix: () => false,
+    },
 }));
 
 // path-validator モック

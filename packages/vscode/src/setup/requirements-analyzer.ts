@@ -10,7 +10,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SetupContext, ExecutionEnvironment, RuntimeMode } from '../types';
-import { CURRENT_ENV } from '../utils/environment';
+import { ENV } from '../utils/environment';
 import { detectPackageManager, PackageManager } from '../utils/package-manager';
 import { runShellCommand } from './pm2-setup';
 import { getMessengerPath } from '../utils/helpers';
@@ -56,7 +56,7 @@ export interface GlobalRequirements {
  * WSLインストール済みか確認（Windows only）
  */
 export function checkWslInstalled(): boolean {
-    if (CURRENT_ENV !== 'windows-native') return true;
+    if (!ENV.isWindowsNative()) return true;
 
     try {
         execSync('wsl.exe --version', { stdio: 'pipe', timeout: 5000 });
@@ -71,7 +71,7 @@ export function checkWslInstalled(): boolean {
  * Ubuntuディストロインストール済みか確認（Windows only）
  */
 export function checkUbuntuInstalled(): boolean {
-    if (CURRENT_ENV !== 'windows-native') return true;
+    if (!ENV.isWindowsNative()) return true;
 
     try {
         const result = execSync('wsl.exe -l -q', { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 });
@@ -87,7 +87,7 @@ export function checkUbuntuInstalled(): boolean {
  * WSL/Ubuntuがインストール済みでも、初期設定が完了していないと動作しない
  */
 export function checkWslOperational(): boolean {
-    if (CURRENT_ENV !== 'windows-native') return true;
+    if (!ENV.isWindowsNative()) return true;
 
     try {
         execSync('wsl bash -c "echo ok"', { encoding: 'utf-8', stdio: 'pipe', timeout: 10000 });
@@ -103,7 +103,7 @@ export function checkWslOperational(): boolean {
  */
 export function checkPasswordlessSudoConfigured(): boolean {
     try {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             // WSL経由
             execSync('wsl bash -lc "sudo -n true 2>/dev/null"', { stdio: 'pipe', timeout: 5000 });
         } else {
@@ -122,7 +122,7 @@ export function checkPasswordlessSudoConfigured(): boolean {
  */
 export function checkJqInstalledSimple(): boolean {
     try {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             execSync('wsl bash -lc "which jq"', { stdio: 'pipe', timeout: 5000 });
         } else {
             execSync('which jq', { stdio: 'pipe', timeout: 5000 });
@@ -139,7 +139,7 @@ export function checkJqInstalledSimple(): boolean {
  */
 export function checkYqInstalledSimple(): boolean {
     try {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             execSync('wsl bash -lc "which yq"', { stdio: 'pipe', timeout: 5000 });
         } else {
             execSync('which yq', { stdio: 'pipe', timeout: 5000 });
@@ -185,7 +185,7 @@ export function checkPm2StartupConfigured(): boolean {
 export function checkPathConfigured(): boolean {
     const maidAgentPath = '.maid-agent/bin';
 
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         // Windows: WSL内の .bashrc/.zshrc を確認
         try {
             const result = execSync(
@@ -400,7 +400,7 @@ export function getClaudeCodePathPsmux(): string | null {
  */
 export function checkClaudeCodeInstalledUnix(): boolean {
     try {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             // WSL経由で確認
             execSync('wsl bash -lc "which claude"', { stdio: 'pipe', timeout: 10000 });
         } else {
@@ -430,7 +430,7 @@ export async function analyzeRequirements(
     ctx.log(`[Global] 事前調査開始 (モード: ${runtimeMode})`);
 
     const requirements: GlobalRequirements = {
-        platform: CURRENT_ENV,
+        platform: ENV.platform,
         packageManager: detectPackageManager(getMessengerPath(runtimeMode)),
         runtimeMode,
         needs: {
@@ -456,7 +456,7 @@ export async function analyzeRequirements(
 
     // WSLが必要なモードの場合のチェック
     let wslAvailable = true;
-    if (CURRENT_ENV === 'windows-native' && needsWslMode) {
+    if (ENV.isWindowsNative() && needsWslMode) {
         const wslInstalled = checkWslInstalled();
         const ubuntuInstalled = wslInstalled && checkUbuntuInstalled();
 
@@ -474,13 +474,13 @@ export async function analyzeRequirements(
         }
     }
 
-    if (CURRENT_ENV === 'windows-native' && needsPsmuxMode && !needsWslMode) {
+    if (ENV.isWindowsNative() && needsPsmuxMode && !needsWslMode) {
         // psmuxのみモード: WSLチェックをスキップ
         ctx.log('[Global] psmuxモード: WSLチェックをスキップ');
     }
 
     // 各項目のチェック（モードに応じて分岐）
-    const isPsmuxOnly = CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
+    const isPsmuxOnly = ENV.isWindowsNative() && runtimeMode === 'windows-native';
 
     if (isPsmuxOnly) {
         // psmuxのみモード: Windows-native環境で直接チェック

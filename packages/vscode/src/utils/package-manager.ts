@@ -4,7 +4,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { CURRENT_ENV } from './environment';
+import { ENV } from './environment';
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn';
 
@@ -67,7 +67,7 @@ function detectByLockFile(dir: string): PackageManager | undefined {
  */
 function checkCommand(cmd: string): boolean {
     try {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             execSync(`wsl bash -lc "which ${cmd}"`, { stdio: 'pipe' });
         } else {
             // Mac/Linux: ユーザーシェルでログインシェルとして実行

@@ -7,7 +7,7 @@ import * as YAML from 'yaml';
 import { SetupContext } from '../types';
 import { MAID_AGENT_DIR, MAIDS } from '../constants';
 import { getGlobalMaidAgentPath } from '../utils/helpers';
-import { CURRENT_ENV } from '../utils/environment';
+import { ENV } from '../utils/environment';
 import { setupClaudeSettings } from './claude-settings-setup';
 import { parseRuleModules, parseGlobalSkills, showRuleSelectionUI, showSkillSelectionUI, copySelectedRules, copySelectedSkills } from './rules-skills';
 import { getSavedRuntimeMode } from './global-init';
@@ -97,7 +97,7 @@ function adjustSettingsForRuntimeMode(ctx: SetupContext, maidAgentPath: string):
         ctx.log(`[初期化] ランタイムモード: ${runtimeMode || '未設定'}`);
 
         // Windows-native モードの場合のみ psmux に変更
-        if (CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native') {
+        if (ENV.isWindowsNative() && runtimeMode === 'windows-native') {
             const content = fs.readFileSync(settingsPath, 'utf-8');
             const settings = YAML.parse(content) || {};
 
@@ -111,7 +111,7 @@ function adjustSettingsForRuntimeMode(ctx: SetupContext, maidAgentPath: string):
                 fs.writeFileSync(settingsPath, YAML.stringify(settings), 'utf-8');
                 ctx.log('[初期化] settings.yaml: multiplexer.type を psmux に設定');
             }
-        } else if (CURRENT_ENV === 'windows-native' && runtimeMode === 'both') {
+        } else if (ENV.isWindowsNative() && runtimeMode === 'both') {
             // both モードの場合は auto に設定
             const content = fs.readFileSync(settingsPath, 'utf-8');
             const settings = YAML.parse(content) || {};
@@ -286,7 +286,7 @@ export async function deployMaidctl(ctx: SetupContext, globalPath: string): Prom
     }
 
     // 実行権限の確認・付与
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         // Windows: WSL経由でchmod
         try {
             await execAsync('wsl chmod +x ~/.maid-agent/bin/maidctl');
@@ -329,7 +329,7 @@ export async function setupPathWithConfirmation(ctx: SetupContext, globalPath: s
     let rcFullPath = '';
 
     try {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             // Windows: wslpathでWindowsパスを取得
             const wslPathResult = await execAsync(`wsl wslpath -w ~/${rcFileName}`);
             rcFullPath = wslPathResult.stdout.trim();
@@ -420,7 +420,7 @@ export function showPathGuidance(ctx: SetupContext, globalPath: string): void {
 
     // Windows環境ではWSL内のパスを表示
     let pathCommand: string;
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         // WSL内のパス（~/.maid-agent/bin）
         pathCommand = `echo 'export PATH="$HOME/.maid-agent/bin:$PATH"' >> ${rcFile}`;
     } else {
@@ -576,7 +576,7 @@ export function copyDirectorySync(ctx: SetupContext, src: string, dest: string, 
             fs.copyFileSync(srcPath, destPath);
 
             // Mac/Linux環境でbin/ディレクトリ内のファイルに実行権限を付与
-            if (CURRENT_ENV !== 'windows-native' && srcPath.includes('/bin/')) {
+            if (!ENV.isWindowsNative() && srcPath.includes('/bin/')) {
                 try {
                     fs.chmodSync(destPath, 0o755);
                     ctx.log(`[初期化] 実行権限付与: ${entry.name}`);

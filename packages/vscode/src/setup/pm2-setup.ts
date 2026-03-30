@@ -4,8 +4,7 @@ import * as path from 'path';
 import * as nodePath from 'path';
 import { execSync } from 'child_process';
 import { SetupContext } from '../types';
-import { CURRENT_ENV } from '../utils/environment';
-import { windowsToWslPath } from '../utils/environment';
+import { ENV } from '../utils/environment';
 import { checkPasswordlessSudo, setupPasswordlessSudo, promptWslPassword, showPasswordHelp } from './wsl-setup';
 import { detectPackageManager, PM_CONFIG, PackageManager } from '../utils/package-manager';
 import { assertNoShellMeta, escapeForDoubleQuote } from '../utils/shell-escape';
@@ -37,7 +36,7 @@ export function runShellCommand(command: string, options?: { encoding?: BufferEn
         cwd: options?.cwd
     };
 
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         // Windows: WSL経由でログインシェルとして実行
         // -l: ログインシェル（.bash_profile/.profile を読み込む）
         return execSync(`wsl bash -lc "${escapeForDoubleQuote(command, 'bash')}"`, execOptions);
@@ -104,7 +103,7 @@ async function promptNativePassword(
  * RuntimeMode を考慮したパス取得には helpers.ts の getMessengerPath(runtimeMode) を使用
  */
 export function getMessengerShellPath(): string {
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         // Windows (WSLモード): WSL内で使えるパス形式
         return '~/.maid-agent/maid-agent-messenger';
     } else {
@@ -123,14 +122,14 @@ export function getMessengerShellPath(): string {
  */
 export async function setupMessengerServer(ctx: SetupContext): Promise<void> {
     const messengerPath = getMessengerShellPath();
-    const messengerPathForShell = CURRENT_ENV === 'windows-native'
+    const messengerPathForShell = ENV.isWindowsNative()
         ? '~/.maid-agent/maid-agent-messenger'  // WSL内では~が使える
         : messengerPath;
     cachedWslPassword = undefined; // 初期化
 
     try {
         // 0. パスワードレスsudo設定を確認・セットアップ（Windows WSLのみ）
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             const hasPasswordlessSudo = checkPasswordlessSudo();
             if (!hasPasswordlessSudo) {
                 await setupPasswordlessSudo(ctx);
@@ -221,7 +220,7 @@ export async function setupMessengerServer(ctx: SetupContext): Promise<void> {
  */
 export async function installPm2(ctx: SetupContext): Promise<boolean> {
     // Mac/Linux環境の場合
-    if (CURRENT_ENV !== 'windows-native') {
+    if (!ENV.isWindowsNative()) {
         return await installPm2Native(ctx);
     }
 
@@ -370,7 +369,7 @@ async function installPm2Native(ctx: SetupContext): Promise<boolean> {
  */
 export async function setupPm2Startup(ctx: SetupContext, cachedPassword?: string): Promise<void> {
     // Mac/Linux環境の場合
-    if (CURRENT_ENV !== 'windows-native') {
+    if (!ENV.isWindowsNative()) {
         await setupPm2StartupNative(ctx);
         return;
     }

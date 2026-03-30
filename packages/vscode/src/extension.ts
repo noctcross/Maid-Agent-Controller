@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { execSync } from 'child_process';
 import { MultiAgentController } from './controller';
 import { AgentPanelProvider } from './ui/agent-panel-provider';
-import { CURRENT_ENV, getMultiplexerCommand } from './utils/environment';
+import { ENV } from './utils/environment';
 import { getGlobalMaidAgentPath, getSessionNameFromPath } from './utils/helpers';
 import { getSavedRuntimeMode, getPendingSetupState, clearPendingSetupState, continueGlobalSetup } from './setup/global-init';
 
@@ -299,7 +299,7 @@ export function activate(context: vscode.ExtensionContext) {
                     let sessionExists = false;
                     try {
                         const runtimeMode = getSavedRuntimeMode();
-                        const muxCmd = getMultiplexerCommand(runtimeMode);
+                        const muxCmd = ENV.getMultiplexerCommand(runtimeMode);
 
                         if (muxCmd === 'psmux') {
                             // psmux: PowerShell経由でチェック（Windows環境）

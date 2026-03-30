@@ -17,7 +17,7 @@
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
 import { SetupContext, RuntimeMode } from '../types';
-import { CURRENT_ENV } from '../utils/environment';
+import { ENV } from '../utils/environment';
 import {
     analyzeRequirements,
     isAllConfigured,
@@ -58,7 +58,7 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
     // ========================================
     let runtimeMode: RuntimeMode = 'wsl';
 
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         // 既存の設定を確認
         const savedMode = getSavedRuntimeMode();
         if (savedMode) {

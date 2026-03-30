@@ -9,7 +9,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { Agent, AgentContext } from '../types';
 import { AGENTS_MAP, isValidAgentId } from '../constants';
-import { CURRENT_ENV, isTmuxAvailable, windowsToWslPath, getMultiplexerCommand } from '../utils/environment';
+import { ENV, isTmuxAvailable } from '../utils/environment';
 import { getSavedRuntimeMode } from '../setup/global-init';
 import { getSessionNameFromPath } from '../utils/helpers';
 import { escapeForSingleQuote } from '../utils/shell-escape';
@@ -139,7 +139,7 @@ export function openTmuxViewer(ctx: AgentContext): void {
     const isPsmux = multiplexerType === 'psmux';
 
     // VSCodeターミナルでtmux/psmuxにアタッチ
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         if (isPsmux) {
             // psmuxモード: PowerShellでpsmuxにアタッチ
             ctx.tmuxViewerTerminal = vscode.window.createTerminal({
@@ -149,7 +149,7 @@ export function openTmuxViewer(ctx: AgentContext): void {
             ctx.tmuxViewerTerminal.sendText(`psmux attach-session -t ${ctx.tmuxSessionName}`);
         } else {
             // tmuxモード: WSLシェルを使用してtmuxにアタッチ
-            const wslPath = ctx.workspaceRoot ? windowsToWslPath(ctx.workspaceRoot) : '/home';
+            const wslPath = ctx.workspaceRoot ? ENV.windowsToWslPath(ctx.workspaceRoot) : '/home';
             ctx.tmuxViewerTerminal = vscode.window.createTerminal({
                 name: '🎩 Maid Agent (tmux)',
                 shellPath: 'wsl.exe',
@@ -192,8 +192,8 @@ export function getSystemPromptFilePath(
         );
         // Windows環境: 一時ファイルはWindowsパスで生成されるが、
         // Claude CodeはWSL内で起動するためWSLパスに変換が必要
-        if (CURRENT_ENV === 'windows-native') {
-            return windowsToWslPath(filePath);
+        if (ENV.isWindowsNative()) {
+            return ENV.windowsToWslPath(filePath);
         }
         return filePath;
     } catch (error) {
@@ -513,7 +513,7 @@ export async function ensureTmuxAvailable(ctx: AgentContext): Promise<boolean> {
     }
 
     // tmux モード: Windows環境ではまずWSLをチェック
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         if (!await ctx.ensureWslAvailable()) {
             return false;
         }
@@ -523,9 +523,9 @@ export async function ensureTmuxAvailable(ctx: AgentContext): Promise<boolean> {
         return true;
     }
 
-    const envInfo = CURRENT_ENV === 'windows-native'
+    const envInfo = ENV.isWindowsNative()
         ? 'Windows環境でWSL経由でtmuxを使用します。'
-        : `現在の環境: ${CURRENT_ENV}`;
+        : `現在の環境: ${ENV.platform}`;
 
     const choice = await vscode.window.showErrorMessage(
         `tmuxがインストールされていません。\n${envInfo}\n\ntmuxをインストールしますか？`,
@@ -597,7 +597,7 @@ export async function checkSessionCountWarning(ctx: AgentContext): Promise<void>
                 if (confirm === '終了する') {
                     let killedCount = 0;
                     const runtimeMode = getSavedRuntimeMode();
-                    const muxCmd = getMultiplexerCommand(runtimeMode);
+                    const muxCmd = ENV.getMultiplexerCommand(runtimeMode);
                     for (const item of selected) {
                         try {
                             execSync(`${muxCmd} kill-session -t ${item.sessionName}`, { stdio: 'pipe' });
@@ -619,7 +619,7 @@ export async function checkSessionCountWarning(ctx: AgentContext): Promise<void>
             );
             if (confirm === '全て終了') {
                 const runtimeMode = getSavedRuntimeMode();
-                const muxCmd = getMultiplexerCommand(runtimeMode);
+                const muxCmd = ENV.getMultiplexerCommand(runtimeMode);
                 sessions.forEach(sessionName => {
                     try {
                         execSync(`${muxCmd} kill-session -t ${sessionName}`, { stdio: 'pipe' });

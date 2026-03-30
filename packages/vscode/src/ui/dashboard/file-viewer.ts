@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ENDPOINTS } from '@maid-agent/api-client';
 import { DASHBOARD_SERVER_URL } from '../../constants';
-import { CURRENT_ENV, windowsToWslPath } from '../../utils/environment';
+import { ENV } from '../../utils/environment';
 import { simpleMarkdownToHtml } from '../../utils/markdown';
 import { isPathWithinRoot, isPathWithinRootCrossEnv, normalizePathForValidation } from '../../utils/path-validator';
 import { escapeHtml } from '../../utils/html-escape';
@@ -43,8 +43,8 @@ export interface FileViewerState {
 export function openDashboardInBrowser(ctx: FileViewerContext): void {
     if (!ctx.workspaceRoot) return;
     const serverUrl = DASHBOARD_SERVER_URL;
-    const normalizedPath = CURRENT_ENV === 'windows-native'
-        ? windowsToWslPath(ctx.workspaceRoot)
+    const normalizedPath = ENV.isWindowsNative()
+        ? ENV.windowsToWslPath(ctx.workspaceRoot)
         : ctx.workspaceRoot;
     const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(normalizedPath)}`;
     vscode.env.openExternal(vscode.Uri.parse(dashboardUrl));
@@ -87,13 +87,13 @@ export async function openFileWithPreview(
 
     try {
         ctx.log(`[openFileWithPreview] 入力パス: ${filePath}`);
-        ctx.log(`[openFileWithPreview] CURRENT_ENV: ${CURRENT_ENV}`);
+        ctx.log(`[openFileWithPreview] platform: ${ENV.platform}`);
         ctx.log(`[openFileWithPreview] workspaceRoot: ${ctx.workspaceRoot}`);
 
-        filePath = normalizePathForValidation(filePath, CURRENT_ENV);
+        filePath = normalizePathForValidation(filePath, ENV.platform);
         ctx.log(`[openFileWithPreview] 正規化後パス: ${filePath}`);
 
-        if (ctx.workspaceRoot && !isPathWithinRootCrossEnv(filePath, ctx.workspaceRoot, CURRENT_ENV)) {
+        if (ctx.workspaceRoot && !isPathWithinRootCrossEnv(filePath, ctx.workspaceRoot, ENV.platform)) {
             ctx.log(`[openFileWithPreview] isPathWithinRootCrossEnv=false → ブロック`);
             vscode.window.showErrorMessage('許可されたディレクトリ外のファイルは開けません');
             return state;
@@ -131,7 +131,7 @@ export async function openFileWithPreview(
  */
 async function fetchRenderedFileHtml(ctx: FileViewerContext, filePath: string): Promise<string | null> {
     try {
-        if (ctx.workspaceRoot && !isPathWithinRootCrossEnv(filePath, ctx.workspaceRoot, CURRENT_ENV)) {
+        if (ctx.workspaceRoot && !isPathWithinRootCrossEnv(filePath, ctx.workspaceRoot, ENV.platform)) {
             return null;
         }
 
@@ -140,8 +140,8 @@ async function fetchRenderedFileHtml(ctx: FileViewerContext, filePath: string): 
         if (!projectPath) {
             projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         }
-        const normalizedProjectPath = projectPath && CURRENT_ENV === 'windows-native'
-            ? windowsToWslPath(projectPath)
+        const normalizedProjectPath = projectPath && ENV.isWindowsNative()
+            ? ENV.windowsToWslPath(projectPath)
             : projectPath;
 
         const fileUrl = `${serverUrl}${ENDPOINTS.files.view(filePath, normalizedProjectPath || '')}`;
@@ -186,11 +186,11 @@ async function fetchRenderedFileHtml(ctx: FileViewerContext, filePath: string): 
  * ローカルファイルを読み込みHTMLに変換（フォールバック用）
  */
 function renderFileLocally(filePath: string, fileName: string, workspaceRoot?: string): string | null {
-    const normalizedPath = CURRENT_ENV === 'wsl'
-        ? windowsToWslPath(filePath)
+    const normalizedPath = ENV.isWsl()
+        ? ENV.windowsToWslPath(filePath)
         : filePath;
 
-    if (workspaceRoot && !isPathWithinRootCrossEnv(normalizedPath, workspaceRoot, CURRENT_ENV)) {
+    if (workspaceRoot && !isPathWithinRootCrossEnv(normalizedPath, workspaceRoot, ENV.platform)) {
         vscode.window.showErrorMessage('許可されたディレクトリ外のファイルは開けません');
         return null;
     }

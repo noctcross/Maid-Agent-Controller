@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
 import { SetupContext, RuntimeMode } from '../types';
-import { CURRENT_ENV } from '../utils/environment';
+import { ENV } from '../utils/environment';
 import { generateSudoersContent } from '../utils/package-manager';
 
 /**
@@ -15,7 +15,7 @@ export async function checkAndSetupWsl(
     runtimeMode: RuntimeMode = 'wsl'
 ): Promise<boolean> {
     // Mac/Linux環境では即座にtrue（WSLチェック不要）
-    if (CURRENT_ENV !== 'windows-native') {
+    if (!ENV.isWindowsNative()) {
         ctx.log('[WSL] 非Windows環境のためスキップ');
         return true;
     }
@@ -494,7 +494,7 @@ export async function checkAndInstallJq(ctx: SetupContext): Promise<boolean> {
  */
 export function checkJqInstalled(ctx: SetupContext): boolean {
     try {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             // Windows: WSL経由でログインシェルとしてチェック
             execSync('wsl bash -lc "which jq"', { encoding: 'utf-8', stdio: 'pipe' });
         } else {
@@ -514,10 +514,10 @@ async function installJq(ctx: SetupContext): Promise<boolean> {
     ctx.log('[jq] インストール開始');
 
     try {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             // Windows: WSL経由でインストール
             return await installJqViaWsl(ctx);
-        } else if (CURRENT_ENV === 'macos') {
+        } else if (ENV.isMacOS()) {
             // macOS: Homebrew経由
             return await installJqViaBrew(ctx);
         } else {

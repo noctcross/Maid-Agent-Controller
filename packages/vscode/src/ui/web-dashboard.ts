@@ -202,7 +202,7 @@ export async function openFileWithPreview(ctx: ViewContext, filePath: string): P
  */
 export async function openReport(ctx: ViewContext, taskId: string, project: string): Promise<void> {
     const { DASHBOARD_SERVER_URL } = await import('../constants');
-    const { CURRENT_ENV, windowsToWslPath } = await import('../utils/environment');
+    const { ENV } = await import('../utils/environment');
 
     const projectPath = project || ctx.workspaceRoot;
     if (!projectPath) {
@@ -210,8 +210,8 @@ export async function openReport(ctx: ViewContext, taskId: string, project: stri
         return;
     }
 
-    const normalizedPath = CURRENT_ENV === 'windows-native'
-        ? windowsToWslPath(projectPath)
+    const normalizedPath = ENV.isWindowsNative()
+        ? ENV.windowsToWslPath(projectPath)
         : projectPath;
 
     try {

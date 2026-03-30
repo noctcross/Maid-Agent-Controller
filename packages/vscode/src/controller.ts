@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Agent, SetupContext, AgentContext, ViewContext, CompletedViewState } from './types';
 import { MAID_AGENT_DIR, NOTIFICATIONS_SUBDIR } from './constants';
-import { CURRENT_ENV, isTmuxAvailable, getTmuxVersion } from './utils/environment';
+import { ENV, isTmuxAvailable, getTmuxVersion } from './utils/environment';
 import { getGlobalMaidAgentPath, getSessionNameFromPath } from './utils/helpers';
 import { MultiplexerFactory, ITerminalMultiplexer } from './multiplexer';
 import { AgentPanelProvider } from './ui/agent-panel-provider';
@@ -455,16 +455,16 @@ export class MultiAgentController {
     private async installTmux(): Promise<boolean> {
         const terminal = vscode.window.createTerminal({
             name: '📦 tmux インストール',
-            shellPath: CURRENT_ENV === 'windows-native' ? 'wsl.exe' : undefined
+            shellPath: ENV.isWindowsNative() ? 'wsl.exe' : undefined
         });
         terminal.show();
 
         // OS別のインストールコマンドを決定
         let installCmd: string;
-        if (CURRENT_ENV === 'macos') {
+        if (ENV.isMacOS()) {
             // macOS: Homebrew使用
             installCmd = 'brew install tmux';
-        } else if (CURRENT_ENV === 'linux') {
+        } else if (ENV.platform === 'linux') {
             // Linux: パッケージマネージャを自動検出
             installCmd = 'if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y tmux; ' +
                 'elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y tmux; ' +
@@ -503,7 +503,7 @@ export class MultiAgentController {
         this.log('=== tmux インストール方法 ===');
         this.log('');
 
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             this.log('【Windows + WSL環境】');
             this.log('1. WSLターミナルを開く');
             this.log('2. 以下のコマンドを実行:');
@@ -513,7 +513,7 @@ export class MultiAgentController {
             this.log('※ WSLがインストールされていない場合:');
             this.log('   PowerShellを管理者権限で開き、以下を実行:');
             this.log('   wsl --install');
-        } else if (CURRENT_ENV === 'macos') {
+        } else if (ENV.isMacOS()) {
             this.log('【macOS環境】');
             this.log('Homebrewを使用:');
             this.log('   brew install tmux');
@@ -717,7 +717,7 @@ ${agentList || '  (なし)'}
      */
     public async setRuntimeMode(): Promise<void> {
         // Windows環境チェック
-        if (CURRENT_ENV !== 'windows-native') {
+        if (!ENV.isWindowsNative()) {
             vscode.window.showInformationMessage('ランタイムモード変更はWindows環境でのみ利用可能です');
             return;
         }

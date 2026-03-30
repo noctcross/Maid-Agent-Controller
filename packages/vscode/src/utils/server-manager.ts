@@ -10,7 +10,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SetupContext } from '../types';
-import { CURRENT_ENV } from './environment';
+import { ENV } from './environment';
 import {
     getEnvironmentStatus,
     isEnvironmentReady,
@@ -60,10 +60,10 @@ function getServerLog(): (msg: string) => void {
  */
 export function resolveServerEnvironment(multiplexerType: MultiplexerType): ServerEnvironment | null {
     const log = getServerLog();
-    log(`[Server] resolveServerEnvironment: multiplexerType=${multiplexerType}, CURRENT_ENV=${CURRENT_ENV}`);
+    log(`[Server] resolveServerEnvironment: multiplexerType=${multiplexerType}, platform=${ENV.platform}`);
 
     // Mac/Linux の場合は常に local
-    if (CURRENT_ENV !== 'windows-native') {
+    if (!ENV.isWindowsNative()) {
         log('[Server] Non-Windows environment, using local');
         return 'local';
     }
@@ -322,7 +322,7 @@ export async function stopServer(ctx?: SetupContext): Promise<boolean> {
     const log = ctx?.log ?? getServerLog();
     log('[Server] stopServer: stopping all environments');
 
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         await stopServerIn('wsl', ctx);
         await stopServerIn('windows', ctx);
     } else {

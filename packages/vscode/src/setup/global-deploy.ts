@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { SetupContext, RuntimeMode } from '../types';
-import { CURRENT_ENV } from '../utils/environment';
+import { ENV } from '../utils/environment';
 import { getGlobalMaidAgentPath, getWslMaidAgentPath } from '../utils/helpers';
 import { getGlobalConfigPath } from './global-config';
 
@@ -92,7 +92,7 @@ export async function copyGlobalTemplates(ctx: SetupContext, runtimeMode: Runtim
     // 実行用パス（モードに応じて決定）
     const executionPaths: string[] = [];
 
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         if (runtimeMode === 'wsl' || runtimeMode === 'both') {
             executionPaths.push(getWslMaidAgentPath());
         }
@@ -149,7 +149,7 @@ export async function copyGlobalTemplates(ctx: SetupContext, runtimeMode: Runtim
     }
 
     // 設定ファイルのみ設定パスにコピー（実行パスと異なる場合）
-    if (CURRENT_ENV === 'windows-native' && runtimeMode !== 'windows-native') {
+    if (ENV.isWindowsNative() && runtimeMode !== 'windows-native') {
         const systemConfigSrc = path.join(templatesPath, 'system', 'config');
         const systemConfigDest = path.join(configPath, 'system', 'config');
         const preserveFiles = ['maid-agent-messenger.yaml'];
@@ -214,7 +214,7 @@ export async function deployMaidctl(ctx: SetupContext, runtimeMode: RuntimeMode 
     // デプロイ先パスを決定
     const deployPaths: string[] = [];
 
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         if (runtimeMode === 'wsl' || runtimeMode === 'both') {
             deployPaths.push(path.join(getWslMaidAgentPath(), 'bin'));
         }
@@ -317,7 +317,7 @@ export async function installClaudeCodeUnix(ctx: SetupContext): Promise<void> {
     ctx.log('[Global] Claude Code をインストール中（Unix/WSL）...');
 
     try {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             // WSL経由でインストール
             execSync('wsl bash -lc "curl -fsSL https://claude.ai/install.sh | bash"', {
                 encoding: 'utf-8',

@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import { ITerminalMultiplexer, IMultiplexerFactory, MultiplexerType, MultiplexerConfig } from './interfaces';
 import { TmuxAdapter } from './tmux-adapter';
 import { PsmuxAdapter } from './psmux-adapter';
-import { CURRENT_ENV } from '../utils/environment';
+import { ENV } from '../utils/environment';
 import { TMUX_SESSION_PREFIX } from '../constants';
 import { getSavedRuntimeMode } from '../setup/global-init';
 
@@ -35,7 +35,7 @@ export class MultiplexerFactory implements IMultiplexerFactory {
         }
 
         // Windows環境: 保存されたランタイムモードに基づいて判定
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             const runtimeMode = getSavedRuntimeMode();
             if (runtimeMode === 'windows-native') {
                 // Psmuxモード: psmuxが利用可能なら使用
@@ -76,7 +76,7 @@ export class MultiplexerFactory implements IMultiplexerFactory {
         }
 
         // tmux の場合
-        const isWindowsHost = CURRENT_ENV === 'windows-native';
+        const isWindowsHost = ENV.isWindowsNative();
         return new TmuxAdapter(sessionName, workingDirectory, isWindowsHost);
     }
 
@@ -121,7 +121,7 @@ export class MultiplexerFactory implements IMultiplexerFactory {
         }
 
         // tmux の場合
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             return 'wsl tmux list-sessions -F "#{session_name}"';
         }
         return 'tmux list-sessions -F "#{session_name}"';

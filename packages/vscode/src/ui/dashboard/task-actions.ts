@@ -7,7 +7,7 @@
 import * as vscode from 'vscode';
 import { ENDPOINTS, type CompletedTasksOptions } from '@maid-agent/api-client';
 import { DASHBOARD_SERVER_URL } from '../../constants';
-import { CURRENT_ENV, windowsToWslPath } from '../../utils/environment';
+import { ENV } from '../../utils/environment';
 
 /**
  * タスク操作のコンテキスト（依存性注入用）
@@ -34,8 +34,8 @@ export async function fetchCompletedPage(
     const projectPath = ctx.workspaceRoot;
     if (!projectPath || !ctx.dashboardPanel) return;
 
-    const normalizedPath = CURRENT_ENV === 'windows-native'
-        ? windowsToWslPath(projectPath)
+    const normalizedPath = ENV.isWindowsNative()
+        ? ENV.windowsToWslPath(projectPath)
         : projectPath;
 
     try {

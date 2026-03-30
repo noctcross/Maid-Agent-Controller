@@ -22,6 +22,16 @@ vi.mock('vscode', () => ({
 // environment モック
 vi.mock('../../utils/environment', () => ({
   CURRENT_ENV: 'windows-native',
+  ENV: {
+      platform: 'windows-native',
+      isWindowsNative: () => true,
+      isWsl: () => false,
+      isMacOS: () => false,
+      isPsmux: (mode?: string) => mode === 'windows-native',
+      getMultiplexerCommand: (mode?: string) => mode === 'windows-native' ? 'psmux' : 'wsl tmux',
+      windowsToWslPath: (p: string) => p,
+      needsWslPrefix: (mode?: string) => mode !== 'windows-native',
+  },
 }));
 
 import * as vscode from 'vscode';

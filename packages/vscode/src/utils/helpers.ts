@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { MaidConfig, RuntimeMode } from '../types';
-import { CURRENT_ENV } from './environment';
+import { ENV } from './environment';
 import { GLOBAL_MAID_AGENT_DIR, TMUX_SESSION_PREFIX, MAIDS_MAP, DEFAULT_MAID_ORDER } from '../constants';
 
 // =============================================================================
@@ -17,7 +17,7 @@ import { GLOBAL_MAID_AGENT_DIR, TMUX_SESSION_PREFIX, MAIDS_MAP, DEFAULT_MAID_ORD
  * Mac/Linux では ~/.maid-agent を返す
  */
 export function getGlobalMaidAgentPath(): string {
-    if (CURRENT_ENV === 'windows-native') {
+    if (ENV.isWindowsNative()) {
         // Windows環境: 常にWindowsのホームディレクトリを使用（設定保存用）
         return path.join(process.env.USERPROFILE || os.homedir(), GLOBAL_MAID_AGENT_DIR);
     }
@@ -29,7 +29,7 @@ export function getGlobalMaidAgentPath(): string {
  * @returns UNCパス形式（\\wsl.localhost\Ubuntu\home\user\.maid-agent）
  */
 export function getWslMaidAgentPath(): string {
-    if (CURRENT_ENV !== 'windows-native') {
+    if (!ENV.isWindowsNative()) {
         // Mac/Linux では通常のパスを返す
         return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
     }
@@ -65,7 +65,7 @@ export function getWslMaidAgentPath(): string {
  * @returns 実行環境に応じたパス
  */
 export function getExecutionMaidAgentPath(runtimeMode: RuntimeMode): string {
-    if (CURRENT_ENV !== 'windows-native') {
+    if (!ENV.isWindowsNative()) {
         // Mac/Linux: 常にローカルパス
         return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
     }

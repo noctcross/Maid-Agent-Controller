@@ -56,6 +56,23 @@ vi.mock('../utils/environment', () => ({
     CURRENT_ENV: 'linux',
     isTmuxAvailable: vi.fn(() => true),
     getTmuxVersion: vi.fn(() => '3.3a'),
+    ENV: {
+        platform: 'linux',
+        isWindowsNative: () => false,
+        isWsl: () => false,
+        isMacOS: () => false,
+        isPsmux: () => false,
+        isMultiplexerAvailable: () => true,
+        isTmuxAvailable: () => true,
+        isWslAvailable: () => true,
+        getMultiplexerCommand: () => 'tmux',
+        getMultiplexerVersion: () => 'tmux 3.3',
+        windowsToWslPath: (p: string) => p,
+        needsWslPrefix: () => false,
+        getShellType: () => 'bash',
+        escapeSendKeys: (v: string) => `'${v}'`,
+        quoteCommandArg: (v: string) => `'${v}'`,
+    },
 }));
 
 vi.mock('../utils/helpers', () => ({

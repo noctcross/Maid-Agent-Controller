@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SetupContext } from '../../types';
 import { UnixSetupStrategy } from './types';
-import { CURRENT_ENV } from '../../utils/environment';
+import { ENV } from '../../utils/environment';
 import { runShellCommand, getMessengerShellPath } from '../pm2-setup';
 import { detectPackageManager, PM_CONFIG } from '../../utils/package-manager';
 
@@ -25,7 +25,7 @@ export class UnixStrategy implements UnixSetupStrategy {
     async installJq(ctx: SetupContext, password?: string): Promise<void> {
         ctx.log('[Unix] jq をインストール中...');
 
-        if (CURRENT_ENV === 'macos') {
+        if (ENV.isMacOS()) {
             // macOS: brew install（sudo不要）
             try {
                 runShellCommand('brew install jq', { stdio: 'pipe' });
@@ -58,7 +58,7 @@ export class UnixStrategy implements UnixSetupStrategy {
     async installYq(ctx: SetupContext, password?: string): Promise<void> {
         ctx.log('[Unix] yq をインストール中...');
 
-        if (CURRENT_ENV === 'macos') {
+        if (ENV.isMacOS()) {
             // macOS: brew install（sudo不要）
             try {
                 runShellCommand('brew install yq', { stdio: 'pipe' });
@@ -201,7 +201,7 @@ export class UnixStrategy implements UnixSetupStrategy {
      * PATH 設定（.bashrc / .zshrc）
      */
     async setupPath(ctx: SetupContext): Promise<void> {
-        const homeDir = CURRENT_ENV === 'windows-native'
+        const homeDir = ENV.isWindowsNative()
             ? this.getWslHomeDir()
             : (process.env.HOME || process.env.USERPROFILE);
 
@@ -233,7 +233,7 @@ export class UnixStrategy implements UnixSetupStrategy {
      * sudo付きコマンドを実行（環境に応じてWSL経由または直接）
      */
     private execWithSudo(cmd: string, password: string): void {
-        if (CURRENT_ENV === 'windows-native') {
+        if (ENV.isWindowsNative()) {
             // WSL経由
             execSync(`wsl bash -lc "${cmd.replace(/"/g, '\\"')}"`, {
                 encoding: 'utf-8',

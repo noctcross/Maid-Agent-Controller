@@ -3,6 +3,14 @@
 #
 # init Global で既存の設定は保持されます（config は preserveDirs 対象）
 
+# 環境セットアップ状態（InitGlobal完了時に自動設定）
+# status: none | target | ready
+environments:
+  wsl:
+    status: none
+  windows:
+    status: none
+
 server:
   port: 3100
   host: 127.0.0.1

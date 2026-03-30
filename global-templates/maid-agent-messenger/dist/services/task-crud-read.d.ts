@@ -24,8 +24,6 @@ export interface ListTasksParams {
     assignee?: string;
     parentId?: string | null;
     category?: TaskCategory[];
-    reviewed?: boolean;
-    starred?: boolean;
     actionRequired?: boolean;
     search?: string;
     limit?: number;

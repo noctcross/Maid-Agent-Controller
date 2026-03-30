@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { parse as parseYaml } from 'yaml';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
 // =============================================================================
 // 型定義
@@ -107,4 +107,42 @@ export function getModelForAgent(
     }
 
     return undefined;
+}
+
+/**
+ * マルチプレクサの種類を設定に保存する
+ */
+export function saveMultiplexerType(
+    maidAgentPath: string,
+    type: 'tmux' | 'psmux' | 'auto'
+): boolean {
+    const settingsPath = path.join(maidAgentPath, 'system', 'config', 'settings.yaml');
+    const configDir = path.dirname(settingsPath);
+
+    try {
+        // ディレクトリがなければ作成
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+
+        // 既存の設定を読み込み
+        let settings: Record<string, unknown> = {};
+        if (fs.existsSync(settingsPath)) {
+            const content = fs.readFileSync(settingsPath, 'utf-8');
+            settings = parseYaml(content) || {};
+        }
+
+        // multiplexer.type を更新
+        if (!settings.multiplexer) {
+            settings.multiplexer = {};
+        }
+        (settings.multiplexer as Record<string, unknown>).type = type;
+
+        // 保存
+        fs.writeFileSync(settingsPath, stringifyYaml(settings), 'utf-8');
+        return true;
+    } catch (error) {
+        console.error('[Settings] マルチプレクサ設定の保存に失敗:', error);
+        return false;
+    }
 }

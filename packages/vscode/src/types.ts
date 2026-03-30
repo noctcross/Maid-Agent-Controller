@@ -13,12 +13,33 @@ import type { MaidAgentSettings } from './utils/settings-loader';
 export type ExecutionEnvironment = 'wsl' | 'windows-native' | 'linux' | 'macos';
 
 /**
- * ランタイムモード（Windows環境でのみ選択可能）
- * - 'wsl': WSL + tmux を使用
- * - 'windows-native': Windows直接実行（psmux）
- * - 'both': 両方の環境をセットアップ
+ * ランタイムモード（後方互換性のため残す、新規は EnvironmentsConfig を使用）
+ * @deprecated Use EnvironmentsConfig instead
  */
 export type RuntimeMode = 'wsl' | 'windows-native' | 'both';
+
+/**
+ * 環境のセットアップ状態
+ * - 'none': セットアップ対象外
+ * - 'target': セットアップ中（Init Global実行中）
+ * - 'ready': セットアップ完了、使用可能
+ */
+export type EnvironmentStatus = 'none' | 'target' | 'ready';
+
+/**
+ * 個別環境の設定
+ */
+export interface EnvironmentConfig {
+    status: EnvironmentStatus;
+}
+
+/**
+ * 全環境の設定
+ */
+export interface EnvironmentsConfig {
+    wsl?: EnvironmentConfig;
+    windows?: EnvironmentConfig;
+}
 
 export interface Agent {
     name: string;
@@ -67,6 +88,7 @@ export interface SetupContext {
     extensionPath: string;
     outputChannel: vscode.OutputChannel;
     log: (message: string) => void;
+    context?: vscode.ExtensionContext;  // Reload Window 後の継続処理用
 }
 
 /**
@@ -140,7 +162,7 @@ export interface CompletedViewState {
 /**
  * グローバル設定で実行可能なセットアップ項目
  */
-export type SetupItem = 'passwordlessSudo' | 'pm2Install' | 'pm2Startup';
+export type SetupItem = 'passwordlessSudo' | 'pm2Install';
 
 /**
  * 事前調査結果（Phase 1）

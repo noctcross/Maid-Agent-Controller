@@ -62,4 +62,34 @@ export class PsmuxAdapter extends AbstractMultiplexerAdapter {
     isUsingTmuxAlias(): boolean {
         return this.useTmuxAlias;
     }
+
+    /**
+     * psmux用のcreateWindow - PowerShellで開く
+     * デフォルトのcmd.exeではClaude CodeのPATHが通っていないため
+     */
+    override createWindow(windowName: string): void {
+        const dir = this.getCommandWorkingDirectory();
+        // PowerShellを指定してウィンドウを作成
+        this.exec(`new-window -t ${this.sessionName} -n ${windowName} -c "${dir}" powershell.exe`);
+        // ウィンドウ名の自動更新を無効化（claudeプロセス名で上書きされるのを防ぐ）
+        try {
+            this.exec(`set-window-option -t ${this.sessionName}:${windowName} automatic-rename off`);
+        } catch {
+            // オプションがサポートされていない場合は無視
+        }
+    }
+
+    /**
+     * psmux用のsendKeys（PowerShellからPowerShellウィンドウへ送信）
+     * base-adapterはbash向けエスケープを使うため、psmux用にオーバーライド
+     */
+    override sendKeys(windowName: string, keys: string, pressEnter: boolean = true): void {
+        // 改行を空白に置換
+        const noNewlines = keys.replace(/\r?\n/g, ' ');
+        // PowerShellでpsmux send-keysを実行する際、ダブルクォートを使用
+        // ダブルクォート内のダブルクォートはバッククォートでエスケープ
+        const escapedKeys = noNewlines.replace(/"/g, '`"');
+        const enterSuffix = pressEnter ? ' Enter' : '';
+        this.exec(`send-keys -t ${this.sessionName}:${windowName} "${escapedKeys}"${enterSuffix}`);
+    }
 }

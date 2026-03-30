@@ -61,14 +61,21 @@ export function windowsToWslPath(windowsPath: string): string {
 export const CURRENT_ENV = detectEnvironment();
 
 /**
- * tmuxが利用可能な環境かチェック
+ * マルチプレクサが利用可能な環境かチェック
+ * @param runtimeMode ランタイムモード（Windows環境でのみ使用）
  */
-export function isTmuxAvailable(): boolean {
+export function isMultiplexerAvailable(runtimeMode?: RuntimeModeType): boolean {
     try {
-        if (CURRENT_ENV === 'windows-native') {
-            execSync('wsl tmux -V', { encoding: 'utf-8', stdio: 'pipe' });
+        const muxCmd = getMultiplexerCommand(runtimeMode);
+        if (muxCmd === 'psmux') {
+            // psmux: PowerShell経由でチェック
+            execSync('powershell.exe -NoProfile -Command "psmux -V"', {
+                encoding: 'utf-8',
+                stdio: 'pipe',
+                windowsHide: true,
+            });
         } else {
-            execSync('tmux -V', { encoding: 'utf-8', stdio: 'pipe' });
+            execSync(`${muxCmd} -V`, { encoding: 'utf-8', stdio: 'pipe' });
         }
         return true;
     } catch {
@@ -77,18 +84,40 @@ export function isTmuxAvailable(): boolean {
 }
 
 /**
- * tmuxのバージョンを取得
+ * マルチプレクサのバージョンを取得
+ * @param runtimeMode ランタイムモード（Windows環境でのみ使用）
  */
-export function getTmuxVersion(): string | null {
+export function getMultiplexerVersion(runtimeMode?: RuntimeModeType): string | null {
     try {
-        if (CURRENT_ENV === 'windows-native') {
-            return execSync('wsl tmux -V', { encoding: 'utf-8', stdio: 'pipe' }).trim();
-        } else {
-            return execSync('tmux -V', { encoding: 'utf-8', stdio: 'pipe' }).trim();
+        const muxCmd = getMultiplexerCommand(runtimeMode);
+        if (muxCmd === 'psmux') {
+            // psmux: PowerShell経由で取得
+            return execSync('powershell.exe -NoProfile -Command "psmux -V"', {
+                encoding: 'utf-8',
+                stdio: 'pipe',
+                windowsHide: true,
+            }).trim();
         }
+        return execSync(`${muxCmd} -V`, { encoding: 'utf-8', stdio: 'pipe' }).trim();
     } catch {
         return null;
     }
+}
+
+/**
+ * tmuxが利用可能な環境かチェック（後方互換）
+ * @deprecated isMultiplexerAvailable を使用してください
+ */
+export function isTmuxAvailable(): boolean {
+    return isMultiplexerAvailable();
+}
+
+/**
+ * tmuxのバージョンを取得（後方互換）
+ * @deprecated getMultiplexerVersion を使用してください
+ */
+export function getTmuxVersion(): string | null {
+    return getMultiplexerVersion();
 }
 
 /**
@@ -112,4 +141,40 @@ export function isWslAvailable(): boolean {
             return false;
         }
     }
+}
+
+// =============================================================================
+// マルチプレクサコマンド
+// =============================================================================
+
+/**
+ * RuntimeMode 型（循環参照回避のため再定義）
+ */
+type RuntimeModeType = 'wsl' | 'windows-native' | 'both';
+
+/**
+ * 現在の環境とランタイムモードに基づいてマルチプレクサコマンドを取得
+ * @param runtimeMode ランタイムモード（Windows環境でのみ使用）
+ * @returns 'tmux' | 'psmux' | 'wsl tmux'
+ */
+export function getMultiplexerCommand(runtimeMode?: RuntimeModeType): string {
+    if (CURRENT_ENV === 'windows-native') {
+        // Windows環境: ランタイムモードに応じて切り替え
+        if (runtimeMode === 'windows-native') {
+            return 'psmux';
+        }
+        // WSL モードまたは未指定の場合は wsl tmux
+        return 'wsl tmux';
+    }
+    // Mac/Linux: ネイティブ tmux
+    return 'tmux';
+}
+
+/**
+ * Psmux モードかどうかを判定
+ * @param runtimeMode ランタイムモード
+ * @returns Psmux モードの場合 true
+ */
+export function isPsmuxMode(runtimeMode?: RuntimeModeType): boolean {
+    return CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
 }

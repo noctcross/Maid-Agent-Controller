@@ -70,7 +70,7 @@ vi.mock('../../utils/package-manager', () => ({
 import {
   runShellCommand,
   checkPasswordlessSudoNative,
-  getMessengerPath,
+  getMessengerShellPath,
 } from '../pm2-setup';
 import * as environment from '../../utils/environment';
 
@@ -161,10 +161,10 @@ describe('pm2-setup', () => {
     });
   });
 
-  describe('getMessengerPath', () => {
+  describe('getMessengerShellPath', () => {
     it('Windows環境ではWSL内のパスを返す', () => {
       // CURRENT_ENV は 'windows-native' にモックされている
-      const result = getMessengerPath();
+      const result = getMessengerShellPath();
 
       expect(result).toBe('~/.maid-agent/maid-agent-messenger');
     });

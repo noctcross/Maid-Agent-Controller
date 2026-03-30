@@ -4,6 +4,7 @@ import { TmuxAdapter } from './tmux-adapter';
 import { PsmuxAdapter } from './psmux-adapter';
 import { CURRENT_ENV } from '../utils/environment';
 import { TMUX_SESSION_PREFIX } from '../constants';
+import { getSavedRuntimeMode } from '../setup/global-init';
 
 /**
  * マルチプレクサファクトリー
@@ -33,11 +34,20 @@ export class MultiplexerFactory implements IMultiplexerFactory {
             return { type: 'tmux' };
         }
 
-        // 環境から自動判定
-        if (CURRENT_ENV === 'windows-native' && this.isPsmuxAvailable()) {
-            return { type: 'psmux' };
+        // Windows環境: 保存されたランタイムモードに基づいて判定
+        if (CURRENT_ENV === 'windows-native') {
+            const runtimeMode = getSavedRuntimeMode();
+            if (runtimeMode === 'windows-native') {
+                // Psmuxモード: psmuxが利用可能なら使用
+                if (this.isPsmuxAvailable()) {
+                    return { type: 'psmux' };
+                }
+            }
+            // WSLモードまたはpsmuxが利用できない場合はtmux（WSL経由）
+            return { type: 'tmux' };
         }
 
+        // Mac/Linux: tmux
         return { type: 'tmux' };
     }
 

@@ -124,6 +124,12 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
     createWindow(windowName: string): void {
         const dir = this.getCommandWorkingDirectory();
         this.exec(`new-window -t ${this.sessionName} -n ${windowName} -c "${dir}"`);
+        // ウィンドウ名の自動更新を無効化（claudeプロセス名で上書きされるのを防ぐ）
+        try {
+            this.exec(`set-window-option -t ${this.sessionName}:${windowName} automatic-rename off`);
+        } catch {
+            // オプションがサポートされていない場合は無視
+        }
     }
 
     killWindow(windowName: string): void {

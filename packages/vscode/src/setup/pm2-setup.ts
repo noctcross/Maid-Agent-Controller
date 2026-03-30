@@ -93,11 +93,18 @@ async function promptNativePassword(
 }
 
 /**
- * サーバーのパスを取得（OS環境に応じた形式）
+ * サーバーのパスを取得（シェルコマンド用・Unix/WSLモード専用）
+ * runShellCommand で使用するため、Unix形式のパスを返す
+ *
+ * 注意: この関数は Unix/WSL モード専用です
+ * - Windows環境では WSL 内で使えるパス形式（~/...）を返す
+ * - Psmux モードでは使用しないでください
+ *
+ * RuntimeMode を考慮したパス取得には helpers.ts の getMessengerPath(runtimeMode) を使用
  */
-export function getMessengerPath(): string {
+export function getMessengerShellPath(): string {
     if (CURRENT_ENV === 'windows-native') {
-        // Windows: WSL内のパス
+        // Windows (WSLモード): WSL内で使えるパス形式
         return '~/.maid-agent/maid-agent-messenger';
     } else {
         // Mac/Linux: ホームディレクトリを展開
@@ -114,7 +121,7 @@ export function getMessengerPath(): string {
  * - pm2 startup（自動起動設定）
  */
 export async function setupMessengerServer(ctx: SetupContext): Promise<void> {
-    const messengerPath = getMessengerPath();
+    const messengerPath = getMessengerShellPath();
     const messengerPathForShell = CURRENT_ENV === 'windows-native'
         ? '~/.maid-agent/maid-agent-messenger'  // WSL内では~が使える
         : messengerPath;
@@ -218,7 +225,7 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
     }
 
     // Windows (WSL) 環境の場合
-    const pm = detectPackageManager(getMessengerPath());
+    const pm = detectPackageManager(getMessengerShellPath());
 
     // パスワードレスsudoが設定されている場合
     if (checkPasswordlessSudo()) {
@@ -286,7 +293,7 @@ export async function installPm2(ctx: SetupContext): Promise<boolean> {
  * pm2をMac/Linux環境でインストール
  */
 async function installPm2Native(ctx: SetupContext): Promise<boolean> {
-    const pm = detectPackageManager(getMessengerPath());
+    const pm = detectPackageManager(getMessengerShellPath());
     const installCmd = PM_CONFIG[pm].globalInstall('pm2');
 
     // 1. パスワードレスsudoが利用可能か確認

@@ -7,9 +7,10 @@
 
 import * as vscode from 'vscode';
 import { Agent } from '../types';
-import { CURRENT_ENV } from '../utils/environment';
+import { getMultiplexerCommand } from '../utils/environment';
 import { ITerminalMultiplexer } from '../multiplexer';
 import { AgentPanelProvider } from '../ui/agent-panel-provider';
+import { getSavedRuntimeMode } from '../setup/global-init';
 
 /**
  * tmux監視に必要なコンテキスト
@@ -50,10 +51,11 @@ export function getCurrentTmuxWindowAgent(ctx: TmuxWatcherContext): string | nul
     }
 
     try {
-        // Windows環境では wsl tmux を使用
-        const tmuxCmd = CURRENT_ENV === 'windows-native' ? 'wsl tmux' : 'tmux';
+        // ランタイムモードに応じてマルチプレクサコマンドを取得
+        const runtimeMode = getSavedRuntimeMode();
+        const muxCmd = getMultiplexerCommand(runtimeMode);
         const result = require('child_process').execSync(
-            `${tmuxCmd} display-message -t "${ctx.tmuxSessionName}" -p "#{window_name}"`,
+            `${muxCmd} display-message -t "${ctx.tmuxSessionName}" -p "#{window_name}"`,
             { encoding: 'utf-8', timeout: 1000 }
         ).trim();
 

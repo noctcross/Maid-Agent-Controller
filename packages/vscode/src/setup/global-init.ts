@@ -19,6 +19,7 @@ import {
     GlobalRequirements,
     isAllConfigured,
     countRequiredSteps,
+    checkWslOperational,
 } from './requirements-analyzer';
 import {
     showGlobalConfirmation,
@@ -26,7 +27,9 @@ import {
     showRuntimeModeSelection,
     GlobalUserInput,
 } from './setup-ui';
-import { getGlobalMaidAgentPath } from '../utils/helpers';
+import { getGlobalMaidAgentPath, getExecutionMaidAgentPath, getWslMaidAgentPath } from '../utils/helpers';
+import { installWsl, installUbuntu } from './wsl-setup';
+import { getStrategy, isPsmuxStrategy, isUnixStrategy } from './strategies';
 
 // =============================================================================
 // 型定義
@@ -46,8 +49,14 @@ interface GlobalConfig {
         port?: number;
         host?: string;
     };
+    /** @deprecated Use environments instead */
     runtime?: {
         mode?: RuntimeMode;
+    };
+    /** 各環境のセットアップ状態 */
+    environments?: {
+        wsl?: { status: 'none' | 'target' | 'ready' };
+        windows?: { status: 'none' | 'target' | 'ready' };
     };
     dashboard?: {
         editor?: string;
@@ -76,10 +85,14 @@ function getGlobalConfigPath(): string {
  */
 function loadGlobalConfig(): GlobalConfig {
     const configPath = getGlobalConfigPath();
+    console.log(`[Global] loadGlobalConfig: path=${configPath}`);
     try {
         if (fs.existsSync(configPath)) {
             const content = fs.readFileSync(configPath, 'utf-8');
+            console.log(`[Global] loadGlobalConfig: content=${content}`);
             return YAML.parse(content) as GlobalConfig || {};
+        } else {
+            console.log(`[Global] loadGlobalConfig: file does not exist`);
         }
     } catch (error) {
         console.error('[Global] 設定ファイル読み込みエラー:', error);
@@ -94,13 +107,18 @@ function saveGlobalConfig(config: GlobalConfig): void {
     const configPath = getGlobalConfigPath();
     const configDir = path.dirname(configPath);
 
+    console.log(`[Global] saveGlobalConfig: path=${configPath}`);
+    console.log(`[Global] saveGlobalConfig: content=${JSON.stringify(config)}`);
+
     // ディレクトリがなければ作成
     if (!fs.existsSync(configDir)) {
+        console.log(`[Global] Creating directory: ${configDir}`);
         fs.mkdirSync(configDir, { recursive: true });
     }
 
     const content = YAML.stringify(config);
     fs.writeFileSync(configPath, content, 'utf-8');
+    console.log(`[Global] Config saved successfully`);
 }
 
 /**
@@ -118,17 +136,141 @@ export function saveRuntimeMode(mode: RuntimeMode, ctx: SetupContext): void {
 
 /**
  * 保存されているランタイムモードを取得
+ * @deprecated Use getEnvironmentStatus instead
  */
 export function getSavedRuntimeMode(): RuntimeMode | undefined {
     const config = loadGlobalConfig();
     return config.runtime?.mode;
 }
 
+// =============================================================================
+// 環境状態管理（新方式）
+// =============================================================================
+
+export type EnvironmentType = 'wsl' | 'windows';
+export type EnvironmentStatus = 'none' | 'target' | 'ready';
+
+/**
+ * 環境のセットアップ状態を取得
+ */
+export function getEnvironmentStatus(env: EnvironmentType): EnvironmentStatus {
+    const configPath = getGlobalConfigPath();
+    const config = loadGlobalConfig();
+
+    console.log(`[Global] getEnvironmentStatus: env=${env}, configPath=${configPath}`);
+    console.log(`[Global] config.environments=${JSON.stringify(config.environments)}`);
+    console.log(`[Global] config.runtime=${JSON.stringify(config.runtime)}`);
+
+    // 新方式の environments があればそれを使う
+    if (config.environments?.[env]?.status) {
+        console.log(`[Global] Using new environments style: ${config.environments[env]!.status}`);
+        return config.environments[env]!.status;
+    }
+
+    // 旧方式 runtime.mode からマイグレーション
+    if (config.runtime?.mode) {
+        const mode = config.runtime.mode;
+        let status: EnvironmentStatus;
+        if (env === 'wsl') {
+            status = (mode === 'wsl' || mode === 'both') ? 'ready' : 'none';
+        } else {
+            status = (mode === 'windows-native' || mode === 'both') ? 'ready' : 'none';
+        }
+        console.log(`[Global] Migrating from runtime.mode=${mode}: ${env}=${status}`);
+        return status;
+    }
+
+    console.log(`[Global] No config found, returning 'none'`);
+    return 'none';
+}
+
+/**
+ * 環境のセットアップ状態を設定
+ */
+export function setEnvironmentStatus(
+    env: EnvironmentType,
+    status: EnvironmentStatus,
+    ctx?: SetupContext
+): void {
+    const config = loadGlobalConfig();
+
+    if (!config.environments) {
+        config.environments = {};
+    }
+    if (!config.environments[env]) {
+        config.environments[env] = { status: 'none' };
+    }
+    config.environments[env]!.status = status;
+
+    saveGlobalConfig(config);
+    ctx?.log(`[Global] 環境状態更新: ${env} = ${status}`);
+}
+
+/**
+ * ready 状態の環境一覧を取得
+ */
+export function getReadyEnvironments(): EnvironmentType[] {
+    const result: EnvironmentType[] = [];
+    if (getEnvironmentStatus('wsl') === 'ready') result.push('wsl');
+    if (getEnvironmentStatus('windows') === 'ready') result.push('windows');
+    return result;
+}
+
+/**
+ * 指定した環境が使用可能かチェック
+ */
+export function isEnvironmentReady(env: EnvironmentType): boolean {
+    return getEnvironmentStatus(env) === 'ready';
+}
+
 interface ExecutionStep {
     id: string;
     progressMessage: string;
     critical: boolean;  // trueなら失敗時に中断
+    requiresReboot?: boolean;  // trueなら実行後にPC再起動が必要
+    requiresReload?: boolean;  // trueなら実行後にVSCode Reload Windowが必要
+    requiresManualStep?: boolean;  // trueなら実行後にユーザーの手動操作が必要
     execute: (ctx: SetupContext, password?: string) => Promise<void>;
+}
+
+/**
+ * 保留中のセットアップ状態（Reload Window後の継続用）
+ */
+interface PendingSetupState {
+    runtimeMode: RuntimeMode;
+    completedSteps: string[];
+    skipItems: string[];
+    timestamp: number;
+}
+
+const PENDING_SETUP_KEY = 'maidAgent.pendingGlobalSetup';
+
+/**
+ * 保留中のセットアップ状態を保存
+ */
+export function savePendingSetupState(
+    context: vscode.ExtensionContext,
+    state: PendingSetupState
+): void {
+    context.globalState.update(PENDING_SETUP_KEY, state);
+}
+
+/**
+ * 保留中のセットアップ状態を取得
+ */
+export function getPendingSetupState(
+    context: vscode.ExtensionContext
+): PendingSetupState | undefined {
+    return context.globalState.get<PendingSetupState>(PENDING_SETUP_KEY);
+}
+
+/**
+ * 保留中のセットアップ状態をクリア
+ */
+export function clearPendingSetupState(
+    context: vscode.ExtensionContext
+): void {
+    context.globalState.update(PENDING_SETUP_KEY, undefined);
 }
 
 // =============================================================================
@@ -143,64 +285,148 @@ function buildExecutionSteps(
     skipItems: string[]
 ): ExecutionStep[] {
     const steps: ExecutionStep[] = [];
+    const strategy = getStrategy(requirements.runtimeMode);
+    const isPsmux = isPsmuxStrategy(strategy);
+    const isUnix = isUnixStrategy(strategy);
 
-    // グローバルテンプレートのコピー（常に実行、最優先）
-    steps.push({
-        id: 'copyGlobalTemplates',
-        progressMessage: 'テンプレートをコピー中...',
-        critical: true,
-        execute: async (ctx) => {
-            await copyGlobalTemplates(ctx);
-        },
-    });
+    // WSL2インストール（必須・最優先・再起動必要）
+    if (requirements.needs.wslInstall && !skipItems.includes('wslInstall')) {
+        steps.push({
+            id: 'wslInstall',
+            progressMessage: 'WSL2 をインストール中...',
+            critical: true,
+            requiresReboot: true,
+            execute: async (ctx) => {
+                await installWsl(ctx);
+            },
+        });
+    }
 
-    // パスワードレスsudo設定
-    if (requirements.needs.passwordlessSudo && !skipItems.includes('passwordlessSudo')) {
+    // Ubuntuインストール（手動で初期設定が必要）
+    if (requirements.needs.ubuntuInstall && !skipItems.includes('ubuntuInstall')) {
+        steps.push({
+            id: 'ubuntuInstall',
+            progressMessage: 'Ubuntu をインストール中...',
+            critical: true,
+            requiresManualStep: true,
+            execute: async (ctx) => {
+                await installUbuntu(ctx);
+            },
+        });
+    }
+
+    // グローバルテンプレートのコピー（常に実行）
+    // WSL/Ubuntuインストールが含まれる場合はスキップ（再起動後に実行）
+    if (!requirements.needs.wslInstall && !requirements.needs.ubuntuInstall) {
+        const templateRuntimeMode = requirements.runtimeMode;
+        steps.push({
+            id: 'copyGlobalTemplates',
+            progressMessage: 'テンプレートをコピー中...',
+            critical: true,
+            execute: async (ctx) => {
+                await copyGlobalTemplates(ctx, templateRuntimeMode);
+            },
+        });
+    }
+
+    // パスワードレスsudo設定（Unix専用）
+    if (isUnix && requirements.needs.passwordlessSudo && !skipItems.includes('passwordlessSudo')) {
         steps.push({
             id: 'passwordlessSudo',
             progressMessage: 'パスワードレスsudoを設定中...',
             critical: false,
             execute: async (ctx, password) => {
-                await setupPasswordlessSudo(ctx, password);
+                await strategy.setupPasswordlessSudo(ctx, password);
             },
         });
     }
 
-    // jqインストール（psmuxモードではwinget経由）
+    // jqインストール
     if (requirements.needs.jqInstall && !skipItems.includes('jqInstall')) {
-        const runtimeMode = requirements.runtimeMode;
         steps.push({
             id: 'jqInstall',
-            progressMessage: runtimeMode === 'windows-native' ? 'jq をwinget経由でインストール中...' : 'jq をインストール中...',
+            progressMessage: isPsmux ? 'jq をwinget経由でインストール中...' : 'jq をインストール中...',
             critical: false,
             execute: async (ctx, password) => {
-                await installJq(ctx, password, runtimeMode);
+                await strategy.installJq(ctx, password);
             },
         });
     }
 
-    // yqインストール（psmuxモードではwinget経由）
+    // yqインストール
     if (requirements.needs.yqInstall && !skipItems.includes('yqInstall')) {
-        const runtimeMode = requirements.runtimeMode;
         steps.push({
             id: 'yqInstall',
-            progressMessage: runtimeMode === 'windows-native' ? 'yq をwinget経由でインストール中...' : 'yq をインストール中...',
+            progressMessage: isPsmux ? 'yq をwinget経由でインストール中...' : 'yq をインストール中...',
             critical: false,
             execute: async (ctx, password) => {
-                await installYq(ctx, password, runtimeMode);
+                await strategy.installYq(ctx, password);
             },
         });
     }
 
-    // pm2インストール（psmuxモードではsudo不要）
+    // psmuxインストール（Psmux専用）
+    if (isPsmux && requirements.needs.psmuxInstall && !skipItems.includes('psmuxInstall')) {
+        steps.push({
+            id: 'psmuxInstall',
+            progressMessage: 'psmux をwinget経由でインストール中...',
+            critical: true,
+            execute: async (ctx) => {
+                await strategy.installPsmux(ctx);
+            },
+        });
+    }
+
+    // Node.jsインストール（Psmux専用）
+    if (isPsmux && requirements.needs.nodeInstall && !skipItems.includes('nodeInstall')) {
+        steps.push({
+            id: 'nodeInstall',
+            progressMessage: 'Node.js をwinget経由でインストール中...',
+            critical: true,
+            requiresReload: true,  // PATH反映のためReload Windowが必要
+            execute: async (ctx) => {
+                await strategy.installNodeJs(ctx);
+            },
+        });
+    }
+
+    // Git for Windowsインストール（Psmux専用・Claude Codeの前提条件）
+    if (isPsmux && requirements.needs.gitInstall && !skipItems.includes('gitInstall')) {
+        steps.push({
+            id: 'gitInstall',
+            progressMessage: 'Git for Windows をwinget経由でインストール中...',
+            critical: true,
+            requiresReload: true,  // PATH反映のためReload Windowが必要
+            execute: async (ctx) => {
+                await installGitForWindows(ctx);
+            },
+        });
+    }
+
+    // Claude Codeインストール
+    if (requirements.needs.claudeCodeInstall && !skipItems.includes('claudeCodeInstall')) {
+        steps.push({
+            id: 'claudeCodeInstall',
+            progressMessage: isPsmux ? 'Claude Code をインストール中...' : 'Claude Code をインストール中...',
+            critical: true,
+            execute: async (ctx) => {
+                if (isPsmux) {
+                    await installClaudeCodeWindows(ctx);
+                } else {
+                    await installClaudeCodeUnix(ctx);
+                }
+            },
+        });
+    }
+
+    // pm2インストール
     if (requirements.needs.pm2Install && !skipItems.includes('pm2Install')) {
-        const runtimeMode = requirements.runtimeMode;
         steps.push({
             id: 'pm2Install',
-            progressMessage: runtimeMode === 'windows-native' ? 'pm2 をnpm経由でインストール中...' : 'pm2 をインストール中...',
+            progressMessage: isPsmux ? 'pm2 をnpm経由でインストール中...' : 'pm2 をインストール中...',
             critical: true,
             execute: async (ctx, password) => {
-                await installPm2(ctx, password, runtimeMode);
+                await strategy.installPm2(ctx, password);
             },
         });
     }
@@ -211,41 +437,29 @@ function buildExecutionSteps(
         progressMessage: 'サーバーをセットアップ中...',
         critical: true,
         execute: async (ctx) => {
-            await setupMessengerServer(ctx);
+            await strategy.setupMessengerServer(ctx);
         },
     });
 
-    // pm2 startup設定
-    if (requirements.needs.pm2Startup && !skipItems.includes('pm2Startup')) {
-        steps.push({
-            id: 'pm2Startup',
-            progressMessage: '自動起動を設定中...',
-            critical: false,
-            execute: async (ctx, password) => {
-                await setupPm2Startup(ctx, password);
-            },
-        });
-    }
-
     // maidctlデプロイ
+    const deployRuntimeMode = requirements.runtimeMode;
     steps.push({
         id: 'deployMaidctl',
         progressMessage: 'maidctl をデプロイ中...',
         critical: false,
         execute: async (ctx) => {
-            await deployMaidctl(ctx);
+            await deployMaidctl(ctx, deployRuntimeMode);
         },
     });
 
-    // PATH設定（psmuxモードではPowerShell $PROFILEに追加）
+    // PATH設定
     if (requirements.needs.pathSetup && !skipItems.includes('pathSetup')) {
-        const runtimeMode = requirements.runtimeMode;
         steps.push({
             id: 'pathSetup',
-            progressMessage: runtimeMode === 'windows-native' ? 'PATH をPowerShellプロファイルに設定中...' : 'PATH を設定中...',
+            progressMessage: isPsmux ? 'PATH をPowerShellプロファイルに設定中...' : 'PATH を設定中...',
             critical: false,
             execute: async (ctx) => {
-                await setupPath(ctx, runtimeMode);
+                await strategy.setupPath(ctx);
             },
         });
     }
@@ -317,41 +531,95 @@ keepalive:
 
 /**
  * グローバルテンプレートをコピー
+ * @param ctx SetupContext
+ * @param runtimeMode ランタイムモード（Windows環境でのコピー先決定に使用）
  */
-async function copyGlobalTemplates(ctx: SetupContext): Promise<void> {
-    const globalPath = getGlobalMaidAgentPath();
+async function copyGlobalTemplates(ctx: SetupContext, runtimeMode: RuntimeMode = 'wsl'): Promise<void> {
+    // 設定用パス（常にWindows側 or ローカル）
+    const configPath = getGlobalMaidAgentPath();
 
-    // ディレクトリ作成
-    const dirs = [
-        globalPath,
-        path.join(globalPath, 'bin'),
-        path.join(globalPath, 'maid-agent-messenger'),
-        path.join(globalPath, 'system', 'config'),
+    // 実行用パス（モードに応じて決定）
+    const executionPaths: string[] = [];
+
+    if (CURRENT_ENV === 'windows-native') {
+        if (runtimeMode === 'wsl' || runtimeMode === 'both') {
+            executionPaths.push(getWslMaidAgentPath());
+        }
+        if (runtimeMode === 'windows-native' || runtimeMode === 'both') {
+            executionPaths.push(getGlobalMaidAgentPath()); // Windowsパス
+        }
+    } else {
+        // Mac/Linux: 設定と実行は同じパス
+        executionPaths.push(configPath);
+    }
+
+    // 設定用ディレクトリ作成（常に作成）
+    const configDirs = [
+        configPath,
+        path.join(configPath, 'system', 'config'),
     ];
 
-    for (const dir of dirs) {
+    for (const dir of configDirs) {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
-            ctx.log(`[Global] ディレクトリ作成: ${dir}`);
+            ctx.log(`[Global] 設定ディレクトリ作成: ${dir}`);
         }
     }
 
-    // 設定ファイルの移行（テンプレートコピー前に実行）
-    // mcp-server.yaml → maid-agent-messenger.yaml
-    migrateConfigFile(globalPath, ctx);
+    // 設定ファイルの移行
+    migrateConfigFile(configPath, ctx);
 
-    // global-templates からコピー
+    // 実行用ディレクトリとファイルをコピー
     const templatesPath = path.join(ctx.extensionPath, 'global-templates');
-    if (fs.existsSync(templatesPath)) {
-        copyDirRecursive(templatesPath, globalPath, ctx);
-        ctx.log('[Global] テンプレートコピー完了');
+
+    for (const execPath of executionPaths) {
+        ctx.log(`[Global] テンプレートコピー先: ${execPath}`);
+
+        // 実行用ディレクトリ作成
+        const execDirs = [
+            execPath,
+            path.join(execPath, 'bin'),
+            path.join(execPath, 'maid-agent-messenger'),
+        ];
+
+        for (const dir of execDirs) {
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+                ctx.log(`[Global] 実行ディレクトリ作成: ${dir}`);
+            }
+        }
+
+        // テンプレートをコピー（設定ファイルは保持）
+        // maid-agent-messenger.yaml は runtime/environments 設定を含むため上書き禁止
+        const preserveFiles = ['maid-agent-messenger.yaml'];
+        if (fs.existsSync(templatesPath)) {
+            copyDirRecursive(templatesPath, execPath, ctx, preserveFiles);
+        }
     }
+
+    // 設定ファイルのみ設定パスにコピー（実行パスと異なる場合）
+    if (CURRENT_ENV === 'windows-native' && runtimeMode !== 'windows-native') {
+        const systemConfigSrc = path.join(templatesPath, 'system', 'config');
+        const systemConfigDest = path.join(configPath, 'system', 'config');
+        const preserveFiles = ['maid-agent-messenger.yaml'];
+        if (fs.existsSync(systemConfigSrc)) {
+            copyDirRecursive(systemConfigSrc, systemConfigDest, ctx, preserveFiles);
+        }
+    }
+
+    ctx.log('[Global] テンプレートコピー完了');
 }
 
 /**
  * ディレクトリを再帰的にコピー
+ * @param preserveFiles 保持するファイル名のリスト（存在する場合は上書きしない）
  */
-function copyDirRecursive(src: string, dest: string, ctx: SetupContext): void {
+function copyDirRecursive(
+    src: string,
+    dest: string,
+    ctx: SetupContext,
+    preserveFiles: string[] = []
+): void {
     if (!fs.existsSync(dest)) {
         fs.mkdirSync(dest, { recursive: true });
     }
@@ -363,388 +631,166 @@ function copyDirRecursive(src: string, dest: string, ctx: SetupContext): void {
         const destPath = path.join(dest, entry.name);
 
         if (entry.isDirectory()) {
-            copyDirRecursive(srcPath, destPath, ctx);
+            copyDirRecursive(srcPath, destPath, ctx, preserveFiles);
         } else {
+            // 保持対象ファイルかつ既に存在する場合はスキップ
+            if (preserveFiles.includes(entry.name) && fs.existsSync(destPath)) {
+                ctx.log(`[Global] 既存ファイルを保持: ${destPath}`);
+                continue;
+            }
             fs.copyFileSync(srcPath, destPath);
         }
     }
 }
 
 /**
- * パスワードレスsudo設定
- */
-async function setupPasswordlessSudo(ctx: SetupContext, password?: string): Promise<void> {
-    if (!password) {
-        throw new Error('パスワードが必要です');
-    }
-
-    const sudoersLine = '%sudo ALL=(ALL) NOPASSWD: ALL';
-    const sudoersFile = '/etc/sudoers.d/maid-agent';
-
-    const cmd = CURRENT_ENV === 'windows-native'
-        ? `wsl bash -lc "echo '${password}' | sudo -S sh -c 'echo \\"${sudoersLine}\\" > ${sudoersFile} && chmod 440 ${sudoersFile}'"`
-        : `echo '${password}' | sudo -S sh -c 'echo "${sudoersLine}" > ${sudoersFile} && chmod 440 ${sudoersFile}'`;
-
-    try {
-        execSync(cmd, { stdio: 'pipe', timeout: 30000 });
-        ctx.log('[Global] パスワードレスsudo設定完了');
-    } catch (error) {
-        ctx.log(`[Global] パスワードレスsudo設定失敗: ${error}`);
-        throw new Error('パスワードレスsudo設定に失敗しました');
-    }
-}
-
-/**
- * jqインストール
- * @param runtimeMode psmuxモード時は winget 経由でインストール
- */
-async function installJq(ctx: SetupContext, password?: string, runtimeMode: RuntimeMode = 'wsl'): Promise<void> {
-    const isPsmuxMode = CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
-
-    if (isPsmuxMode) {
-        // psmuxモード: winget経由でインストール
-        ctx.log('[Global] jq をwinget経由でインストール中...');
-        try {
-            execSync('winget install jqlang.jq --accept-source-agreements --accept-package-agreements', {
-                stdio: 'pipe',
-                timeout: 120000,
-            });
-            ctx.log('[Global] jqインストール完了（winget）');
-        } catch (error) {
-            ctx.log(`[Global] jqインストール失敗（winget）: ${error}`);
-            throw new Error('jqインストールに失敗しました（winget install jqlang.jq を手動実行してください）');
-        }
-        return;
-    }
-
-    // WSLモード: 従来通り
-    if (!password && CURRENT_ENV !== 'macos') {
-        throw new Error('パスワードが必要です');
-    }
-
-    const installCmd = CURRENT_ENV === 'windows-native'
-        ? `wsl bash -lc "echo '${password}' | sudo -S apt-get update && echo '${password}' | sudo -S apt-get install -y jq"`
-        : CURRENT_ENV === 'macos'
-            ? 'brew install jq'
-            : `echo '${password}' | sudo -S apt-get update && echo '${password}' | sudo -S apt-get install -y jq`;
-
-    try {
-        execSync(installCmd, { stdio: 'pipe', timeout: 120000 });
-        ctx.log('[Global] jqインストール完了');
-    } catch (error) {
-        ctx.log(`[Global] jqインストール失敗: ${error}`);
-        throw new Error('jqインストールに失敗しました');
-    }
-}
-
-/**
- * yqインストール
- * yq はYAML処理ツール（Mike Farah版を使用）
- * @param runtimeMode psmuxモード時は winget 経由でインストール
- */
-async function installYq(ctx: SetupContext, password?: string, runtimeMode: RuntimeMode = 'wsl'): Promise<void> {
-    const isPsmuxMode = CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
-
-    if (isPsmuxMode) {
-        // psmuxモード: winget経由でインストール
-        ctx.log('[Global] yq をwinget経由でインストール中...');
-        try {
-            execSync('winget install MikeFarah.yq --accept-source-agreements --accept-package-agreements', {
-                stdio: 'pipe',
-                timeout: 120000,
-            });
-            ctx.log('[Global] yqインストール完了（winget）');
-        } catch (error) {
-            ctx.log(`[Global] yqインストール失敗（winget）: ${error}`);
-            throw new Error('yqインストールに失敗しました（winget install MikeFarah.yq を手動実行してください）');
-        }
-        return;
-    }
-
-    // WSLモード: 従来通り
-    if (!password && CURRENT_ENV !== 'macos') {
-        throw new Error('パスワードが必要です');
-    }
-
-    // yq v4のインストール方法
-    // - macOS: brew install yq
-    // - Linux: バイナリダウンロード（apt-getにはない）
-    // - WSL: バイナリダウンロード
-    let installCmd: string;
-
-    if (CURRENT_ENV === 'macos') {
-        installCmd = 'brew install yq';
-    } else if (CURRENT_ENV === 'windows-native') {
-        // WSL経由でバイナリをダウンロード
-        installCmd = `wsl bash -lc "echo '${password}' | sudo -S wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && echo '${password}' | sudo -S chmod +x /usr/local/bin/yq"`;
-    } else {
-        // Linux: バイナリダウンロード
-        installCmd = `echo '${password}' | sudo -S wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 && echo '${password}' | sudo -S chmod +x /usr/local/bin/yq`;
-    }
-
-    try {
-        execSync(installCmd, { stdio: 'pipe', timeout: 120000 });
-        ctx.log('[Global] yqインストール完了');
-    } catch (error) {
-        ctx.log(`[Global] yqインストール失敗: ${error}`);
-        throw new Error('yqインストールに失敗しました');
-    }
-}
-
-/**
- * pm2インストール
- * @param runtimeMode psmuxモード時は sudo 不要で直接インストール
- */
-async function installPm2(ctx: SetupContext, password?: string, runtimeMode: RuntimeMode = 'wsl'): Promise<void> {
-    const isPsmuxMode = CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
-
-    if (isPsmuxMode) {
-        // psmuxモード: Windows環境で直接 npm install -g（sudo不要）
-        ctx.log('[Global] pm2 をnpm経由でインストール中...');
-        try {
-            execSync('npm install -g pm2', {
-                stdio: 'pipe',
-                timeout: 120000,
-            });
-            ctx.log('[Global] pm2インストール完了（npm global）');
-        } catch (error) {
-            ctx.log(`[Global] pm2インストール失敗（npm）: ${error}`);
-            throw new Error('pm2インストールに失敗しました（npm install -g pm2 を手動実行してください）');
-        }
-        return;
-    }
-
-    // WSLモード: 従来通り（sudo必要）
-    // pm2-setup.ts の installPm2 を呼び出すのではなく、ここで直接実行
-    // パスワードは事前に取得済み
-    const { runShellCommand } = await import('./pm2-setup');
-    const { detectPackageManager, PM_CONFIG } = await import('../utils/package-manager');
-    const { getMessengerPath } = await import('./pm2-setup');
-
-    const pm = detectPackageManager(getMessengerPath());
-    const installCmd = PM_CONFIG[pm].globalInstall('pm2');
-
-    try {
-        if (password) {
-            if (CURRENT_ENV === 'windows-native') {
-                execSync(
-                    `wsl bash -lc "sudo -S ${installCmd} 2>&1"`,
-                    { encoding: 'utf-8', timeout: 120000, input: password + '\n' }
-                );
-            } else {
-                execSync(
-                    `sudo -S ${installCmd} 2>&1`,
-                    { encoding: 'utf-8', timeout: 120000, input: password + '\n' }
-                );
-            }
-        } else {
-            // パスワードレスの場合
-            runShellCommand(`sudo -n ${installCmd}`, { stdio: 'pipe' });
-        }
-        ctx.log('[Global] pm2インストール完了');
-    } catch (error) {
-        ctx.log(`[Global] pm2インストール失敗: ${error}`);
-        throw new Error('pm2インストールに失敗しました');
-    }
-}
-
-/**
- * サーバーセットアップ（npm install, pm2 start, pm2 save）
- */
-async function setupMessengerServer(ctx: SetupContext): Promise<void> {
-    const { runShellCommand } = await import('./pm2-setup');
-    const { detectPackageManager, PM_CONFIG } = await import('../utils/package-manager');
-    const { getMessengerPath } = await import('./pm2-setup');
-
-    const messengerPath = getMessengerPath();
-    const pm = detectPackageManager(messengerPath);
-
-    // npm/pnpm/yarn install
-    ctx.log('[Global] サーバー依存関係インストール中...');
-    const installCmd = PM_CONFIG[pm].install;
-    runShellCommand(`cd "${messengerPath}" && ${installCmd}`, { stdio: 'pipe' });
-
-    // pm2でプロセス起動
-    ctx.log('[Global] サーバー起動中...');
-    try {
-        // 既存プロセスを停止（エラーは無視）
-        try {
-            runShellCommand('pm2 delete maid-agent-messenger', { stdio: 'pipe' });
-        } catch {
-            // 存在しない場合のエラーは無視
-        }
-
-        // 新規起動
-        runShellCommand(
-            `pm2 start "${path.join(messengerPath, 'dist', 'index.js')}" --name maid-agent-messenger`,
-            { stdio: 'pipe' }
-        );
-
-        // 設定を保存
-        runShellCommand('pm2 save', { stdio: 'pipe' });
-        ctx.log('[Global] サーバーセットアップ完了');
-    } catch (error) {
-        ctx.log(`[Global] サーバーセットアップ失敗: ${error}`);
-        throw new Error('サーバーセットアップに失敗しました');
-    }
-}
-
-/**
- * pm2 startup設定
- */
-async function setupPm2Startup(ctx: SetupContext, password?: string): Promise<void> {
-    const { runShellCommand } = await import('./pm2-setup');
-
-    try {
-        // pm2 startup コマンドを取得
-        const output = runShellCommand('pm2 startup 2>&1');
-
-        // 既に設定済みか確認
-        if (output.includes('already')) {
-            ctx.log('[Global] pm2 startup 既に設定済み');
-            return;
-        }
-
-        // sudoコマンドを抽出
-        const match = output.match(/sudo .+$/m);
-        if (!match) {
-            ctx.log('[Global] pm2 startup コマンドが見つかりません');
-            return;
-        }
-
-        const startupCmd = match[0];
-
-        if (password) {
-            // パスワード付きで実行
-            const cmdWithS = startupCmd.replace(/^sudo\s+/, 'sudo -S ');
-            if (CURRENT_ENV === 'windows-native') {
-                execSync(
-                    `wsl bash -lc "${cmdWithS}"`,
-                    { encoding: 'utf-8', timeout: 30000, input: password + '\n' }
-                );
-            } else {
-                execSync(cmdWithS, { encoding: 'utf-8', timeout: 30000, input: password + '\n' });
-            }
-        } else {
-            // パスワードレス
-            const cmdWithN = startupCmd.replace(/^sudo\s+/, 'sudo -n ');
-            runShellCommand(cmdWithN, { stdio: 'pipe' });
-        }
-
-        ctx.log('[Global] pm2 startup 設定完了');
-    } catch (error) {
-        ctx.log(`[Global] pm2 startup 設定失敗: ${error}`);
-        throw new Error('pm2 startup 設定に失敗しました');
-    }
-}
-
-/**
  * maidctlをグローバルbinにデプロイ
+ * @param ctx SetupContext
+ * @param runtimeMode ランタイムモード（デプロイ先決定に使用）
  */
-async function deployMaidctl(ctx: SetupContext): Promise<void> {
-    const globalBinPath = path.join(getGlobalMaidAgentPath(), 'bin');
+async function deployMaidctl(ctx: SetupContext, runtimeMode: RuntimeMode = 'wsl'): Promise<void> {
     const maidctlSrc = path.join(ctx.extensionPath, 'global-templates', 'bin', 'maidctl');
-    const maidctlDest = path.join(globalBinPath, 'maidctl');
 
-    if (!fs.existsSync(globalBinPath)) {
-        fs.mkdirSync(globalBinPath, { recursive: true });
+    if (!fs.existsSync(maidctlSrc)) {
+        ctx.log('[Global] maidctlソースが見つかりません');
+        return;
     }
 
-    if (fs.existsSync(maidctlSrc)) {
+    // デプロイ先パスを決定
+    const deployPaths: string[] = [];
+
+    if (CURRENT_ENV === 'windows-native') {
+        if (runtimeMode === 'wsl' || runtimeMode === 'both') {
+            deployPaths.push(path.join(getWslMaidAgentPath(), 'bin'));
+        }
+        if (runtimeMode === 'windows-native' || runtimeMode === 'both') {
+            deployPaths.push(path.join(getGlobalMaidAgentPath(), 'bin'));
+        }
+    } else {
+        // Mac/Linux: ローカルパス
+        deployPaths.push(path.join(getGlobalMaidAgentPath(), 'bin'));
+    }
+
+    for (const binPath of deployPaths) {
+        if (!fs.existsSync(binPath)) {
+            fs.mkdirSync(binPath, { recursive: true });
+        }
+
+        const maidctlDest = path.join(binPath, 'maidctl');
         fs.copyFileSync(maidctlSrc, maidctlDest);
         // 実行権限を付与
         fs.chmodSync(maidctlDest, 0o755);
-        ctx.log('[Global] maidctlデプロイ完了');
+        ctx.log(`[Global] maidctlデプロイ完了: ${binPath}`);
     }
 }
 
 /**
- * PATH設定を追加
- * @param runtimeMode psmuxモード時は PowerShell $PROFILE にパスを追加
+ * Git for Windows をインストール（winget経由）
  */
-async function setupPath(ctx: SetupContext, runtimeMode: RuntimeMode = 'wsl'): Promise<void> {
-    const isPsmuxMode = CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
+async function installGitForWindows(ctx: SetupContext): Promise<void> {
+    ctx.log('[Global] Git for Windows をインストール中...');
 
-    if (isPsmuxMode) {
-        // psmuxモード: PowerShell $PROFILE にパスを追加
-        const userProfile = process.env.USERPROFILE;
-        if (!userProfile) {
-            throw new Error('USERPROFILEが見つかりません');
+    try {
+        // winget で Git.Git をインストール
+        execSync('winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements', {
+            encoding: 'utf-8',
+            timeout: 300000,  // 5分タイムアウト
+            windowsHide: true,
+        });
+        ctx.log('[Global] Git for Windows インストール完了');
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        ctx.log(`[Global] Git for Windows インストールエラー: ${errorMsg}`);
+
+        // 手動インストールを案内
+        const choice = await vscode.window.showWarningMessage(
+            'Git for Windows の自動インストールに失敗しました。\n手動でインストールしますか？',
+            'ダウンロードページを開く',
+            'スキップ'
+        );
+
+        if (choice === 'ダウンロードページを開く') {
+            vscode.env.openExternal(vscode.Uri.parse('https://git-scm.com/downloads/win'));
         }
 
-        // PowerShell $PROFILE のパス
-        const profilePaths = [
-            path.join(userProfile, 'Documents', 'WindowsPowerShell', 'Microsoft.PowerShell_profile.ps1'),
-            path.join(userProfile, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'),
-        ];
+        throw new Error('Git for Windows のインストールに失敗しました');
+    }
+}
 
-        const pathLine = '$env:PATH = "$env:USERPROFILE\\.maid-agent\\bin;$env:PATH"';
-        const comment = '# Maid Agent CLI (maidctl)';
+/**
+ * Claude Code をインストール（Windows - PowerShellスクリプト経由）
+ */
+async function installClaudeCodeWindows(ctx: SetupContext): Promise<void> {
+    ctx.log('[Global] Claude Code をインストール中（Windows）...');
 
-        for (const profilePath of profilePaths) {
-            const profileDir = path.dirname(profilePath);
-            // ディレクトリがなければ作成
-            if (!fs.existsSync(profileDir)) {
-                fs.mkdirSync(profileDir, { recursive: true });
-            }
+    try {
+        // PowerShell でネイティブインストーラを実行
+        execSync('powershell -Command "irm https://claude.ai/install.ps1 | iex"', {
+            encoding: 'utf-8',
+            timeout: 300000,  // 5分タイムアウト
+            windowsHide: true,
+        });
+        ctx.log('[Global] Claude Code インストール完了（Windows）');
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        ctx.log(`[Global] Claude Code インストールエラー: ${errorMsg}`);
 
-            // ファイルが存在しなければ作成
-            if (!fs.existsSync(profilePath)) {
-                fs.writeFileSync(profilePath, `${comment}\n${pathLine}\n`, 'utf-8');
-                ctx.log(`[Global] PATH設定追加（新規作成）: ${profilePath}`);
-            } else {
-                const content = fs.readFileSync(profilePath, 'utf-8');
-                if (!content.includes('.maid-agent\\bin')) {
-                    fs.appendFileSync(profilePath, `\n${comment}\n${pathLine}\n`);
-                    ctx.log(`[Global] PATH設定追加: ${profilePath}`);
-                }
-            }
+        // 手動インストールを案内
+        const choice = await vscode.window.showWarningMessage(
+            'Claude Code の自動インストールに失敗しました。\n手動でインストールしますか？',
+            'インストールコマンドをコピー',
+            'スキップ'
+        );
+
+        if (choice === 'インストールコマンドをコピー') {
+            await vscode.env.clipboard.writeText('irm https://claude.ai/install.ps1 | iex');
+            vscode.window.showInformationMessage('PowerShell で実行するコマンドをクリップボードにコピーしました');
         }
 
-        // Git Bash の .bashrc にも追加（maidctl は bash スクリプトのため）
-        const gitBashRc = path.join(userProfile, '.bashrc');
-        const bashPathLine = 'export PATH="$HOME/.maid-agent/bin:$PATH"';
-        const bashComment = '# Maid Agent CLI (maidctl)';
+        throw new Error('Claude Code のインストールに失敗しました');
+    }
+}
 
-        if (!fs.existsSync(gitBashRc)) {
-            fs.writeFileSync(gitBashRc, `${bashComment}\n${bashPathLine}\n`, 'utf-8');
-            ctx.log(`[Global] PATH設定追加（Git Bash）: ${gitBashRc}`);
+/**
+ * Claude Code をインストール（WSL/Unix - curlスクリプト経由）
+ */
+async function installClaudeCodeUnix(ctx: SetupContext): Promise<void> {
+    ctx.log('[Global] Claude Code をインストール中（Unix/WSL）...');
+
+    try {
+        if (CURRENT_ENV === 'windows-native') {
+            // WSL経由でインストール
+            execSync('wsl bash -lc "curl -fsSL https://claude.ai/install.sh | bash"', {
+                encoding: 'utf-8',
+                timeout: 300000,  // 5分タイムアウト
+            });
         } else {
-            const content = fs.readFileSync(gitBashRc, 'utf-8');
-            if (!content.includes('.maid-agent/bin')) {
-                fs.appendFileSync(gitBashRc, `\n${bashComment}\n${bashPathLine}\n`);
-                ctx.log(`[Global] PATH設定追加（Git Bash）: ${gitBashRc}`);
-            }
+            // 直接インストール
+            execSync('curl -fsSL https://claude.ai/install.sh | bash', {
+                encoding: 'utf-8',
+                timeout: 300000,
+                shell: '/bin/bash',
+            });
+        }
+        ctx.log('[Global] Claude Code インストール完了（Unix/WSL）');
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        ctx.log(`[Global] Claude Code インストールエラー: ${errorMsg}`);
+
+        // 手動インストールを案内
+        const choice = await vscode.window.showWarningMessage(
+            'Claude Code の自動インストールに失敗しました。\n手動でインストールしますか？',
+            'インストールコマンドをコピー',
+            'スキップ'
+        );
+
+        if (choice === 'インストールコマンドをコピー') {
+            await vscode.env.clipboard.writeText('curl -fsSL https://claude.ai/install.sh | bash');
+            vscode.window.showInformationMessage('ターミナルで実行するコマンドをクリップボードにコピーしました');
         }
 
-        ctx.log('[Global] PATH設定完了（psmuxモード）');
-        return;
+        throw new Error('Claude Code のインストールに失敗しました');
     }
-
-    // WSLモード: 従来通り
-    const homeDir = process.env.HOME || process.env.USERPROFILE;
-    if (!homeDir) {
-        throw new Error('ホームディレクトリが見つかりません');
-    }
-
-    const pathLine = 'export PATH="$HOME/.maid-agent/bin:$PATH"';
-    const comment = '# Maid Agent CLI (maidctl)';
-
-    // .zshrc または .bashrc に追加
-    const shellConfigs = ['.zshrc', '.bashrc'];
-
-    for (const config of shellConfigs) {
-        const configPath = path.join(homeDir, config);
-        if (fs.existsSync(configPath)) {
-            const content = fs.readFileSync(configPath, 'utf-8');
-            if (!content.includes('.maid-agent/bin')) {
-                fs.appendFileSync(configPath, `\n${comment}\n${pathLine}\n`);
-                ctx.log(`[Global] PATH設定追加: ${config}`);
-            }
-        }
-    }
-
-    ctx.log('[Global] PATH設定完了');
 }
 
 // =============================================================================
@@ -821,24 +867,55 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
     // ========================================
     const requirements = await analyzeRequirements(ctx, primaryMode);
 
-    // 致命的エラーがある場合は中断
-    if (requirements.fatalError) {
-        await vscode.window.showErrorMessage(
-            `❌ ${requirements.fatalError.message}\n\n${requirements.fatalError.guidance}`,
-            { modal: true }
-        );
-        return false;
-    }
-
     // すべて設定済みの場合はスキップ
     if (isAllConfigured(requirements)) {
         ctx.log('[Global] すべて設定済み - スキップ');
+        // 環境ステータスを ready に設定（早期リターンでも設定が必要）
+        if (primaryMode === 'wsl') {
+            setEnvironmentStatus('wsl', 'ready', ctx);
+        } else if (primaryMode === 'windows-native') {
+            setEnvironmentStatus('windows', 'ready', ctx);
+        }
         vscode.window.showInformationMessage('✅ グローバル設定は既に完了しています');
         return true;
     }
 
     const requiredCount = countRequiredSteps(requirements);
     ctx.log(`[Global] 必要な設定: ${requiredCount}項目`);
+
+    // ========================================
+    // WSL動作チェック（WSLモードでWSL/Ubuntuインストール済みの場合）
+    // ========================================
+    if (primaryMode !== 'windows-native' &&
+        !requirements.needs.wslInstall &&
+        !requirements.needs.ubuntuInstall) {
+        // WSL/Ubuntuはインストール済みだが、初期設定が完了していない可能性がある
+        if (!checkWslOperational()) {
+            ctx.log('[Global] WSLが動作不可 - Ubuntu初期設定が必要');
+            const choice = await vscode.window.showWarningMessage(
+                '📋 WSL/Ubuntuはインストール済みですが、初期設定が完了していません。\n\n' +
+                '以下の手順で初期設定を完了してください：\n' +
+                '1. Ubuntuを起動\n' +
+                '2. ユーザー名とパスワードを設定\n' +
+                '3. 設定完了後、再度「Init Global」を実行\n\n' +
+                '※ このパスワードはWSL内でのsudo操作に使用します',
+                { modal: true },
+                'Ubuntuを開く',
+                '後で手動で行う'
+            );
+            if (choice === 'Ubuntuを開く') {
+                try {
+                    execSync('start ubuntu', { stdio: 'ignore' });
+                    ctx.log('[Global] Ubuntuを起動しました');
+                } catch (error) {
+                    ctx.log(`[Global] Ubuntu起動失敗: ${error}`);
+                    vscode.window.showErrorMessage('Ubuntuの起動に失敗しました。スタートメニューから手動で起動してください。');
+                }
+            }
+            return false;
+        }
+        ctx.log('[Global] WSL動作確認OK');
+    }
 
     // ========================================
     // フェーズ2: 入力一括取得
@@ -857,6 +934,11 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
     // ========================================
     const steps = buildExecutionSteps(requirements, userInput.skipItems);
     const results: StepResult[] = [];
+    let needsReboot = false;
+    let needsReload = false;
+    let needsManualStep = false;
+    let manualStepId: string | undefined;  // どのステップが手動操作を要求したか
+    const completedSteps: string[] = [];
 
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
@@ -865,7 +947,6 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
     }, async (progress) => {
         for (let i = 0; i < steps.length; i++) {
             const step = steps[i];
-            const percentage = Math.round(((i + 1) / steps.length) * 100);
 
             progress.report({
                 message: `ステップ ${i + 1}/${steps.length}: ${step.progressMessage}`,
@@ -875,7 +956,30 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
             try {
                 await step.execute(ctx, userInput.password);
                 results.push({ stepId: step.id, success: true });
+                completedSteps.push(step.id);
                 ctx.log(`[Global] ステップ完了: ${step.id}`);
+
+                // PC再起動が必要なステップが成功した場合、以降のステップは実行しない
+                if (step.requiresReboot) {
+                    needsReboot = true;
+                    ctx.log('[Global] PC再起動が必要なため、残りのステップは再起動後に実行');
+                    break;
+                }
+
+                // VS Code Reload が必要なステップが成功した場合
+                if (step.requiresReload) {
+                    needsReload = true;
+                    ctx.log('[Global] Reload Window が必要なため、残りのステップはリロード後に実行');
+                    break;
+                }
+
+                // 手動操作が必要なステップが成功した場合、以降のステップは実行しない
+                if (step.requiresManualStep) {
+                    needsManualStep = true;
+                    manualStepId = step.id;
+                    ctx.log(`[Global] 手動操作が必要なため（${step.id}）、残りのステップは手動操作完了後に実行`);
+                    break;
+                }
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 results.push({ stepId: step.id, success: false, error: errorMsg });
@@ -889,6 +993,116 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
             }
         }
     });
+
+    // 再起動が必要な場合は特別なメッセージを表示
+    if (needsReboot) {
+        const choice = await vscode.window.showWarningMessage(
+            '🔄 WSLのインストールが完了しました。\n\n' +
+            'PCを再起動してください。\n' +
+            '再起動後、再度「Init Global」を実行して残りのセットアップを完了してください。',
+            { modal: true },
+            'PCを再起動する',
+            '後で手動で行う'
+        );
+
+        if (choice === 'PCを再起動する') {
+            const confirmRestart = await vscode.window.showWarningMessage(
+                '本当にPCを再起動しますか?\n作業中のファイルを保存してください。',
+                '再起動',
+                'キャンセル'
+            );
+            if (confirmRestart === '再起動') {
+                execSync('shutdown /r /t 30 /c "WSLインストール完了のため再起動します"');
+                vscode.window.showInformationMessage('30秒後にPCが再起動します。');
+            }
+        }
+
+        return true; // 一部完了として成功を返す
+    }
+
+    // VS Code 再起動が必要な場合（Reload Window では環境変数が更新されない）
+    if (needsReload && ctx.context) {
+        // 状態を保存（再起動後に継続用）
+        const pendingState: PendingSetupState = {
+            runtimeMode,
+            completedSteps,
+            skipItems: userInput.skipItems,
+            timestamp: Date.now(),
+        };
+        savePendingSetupState(ctx.context, pendingState);
+        ctx.log('[Global] 保留状態を保存しました');
+
+        const choice = await vscode.window.showWarningMessage(
+            '🔄 Node.js のインストールが完了しました。\n\n' +
+            '**重要**: PATH を反映するため VS Code を**完全に終了して再起動**してください。\n' +
+            '（Reload Window では環境変数が更新されません）\n\n' +
+            '再起動後、自動的に残りのセットアップが継続されます。',
+            { modal: true },
+            'VS Code を終了',
+            '後で手動で再起動'
+        );
+
+        if (choice === 'VS Code を終了') {
+            // VS Code を完全に終了
+            await vscode.commands.executeCommand('workbench.action.quit');
+        } else {
+            vscode.window.showInformationMessage(
+                'VS Code を完全に終了して再起動後、Init Global が自動継続されます。'
+            );
+        }
+
+        return true; // 一部完了として成功を返す
+    }
+
+    // 手動操作が必要な場合は案内を表示
+    if (needsManualStep) {
+        if (manualStepId === 'ubuntuInstall') {
+            // Ubuntu初期設定の案内
+            const choice = await vscode.window.showWarningMessage(
+                '📋 Ubuntuのインストールが完了しました。\n\n' +
+                '以下の手順で初期設定を完了してください：\n' +
+                '1. Ubuntuを起動\n' +
+                '2. ユーザー名とパスワードを設定\n' +
+                '3. 設定完了後、再度「Init Global」を実行\n\n' +
+                '※ このパスワードはWSL内でのsudo操作に使用します',
+                { modal: true },
+                'Ubuntuを開く',
+                '後で手動で行う'
+            );
+
+            if (choice === 'Ubuntuを開く') {
+                try {
+                    execSync('start ubuntu', { stdio: 'ignore' });
+                    ctx.log('[Global] Ubuntuを起動しました');
+                } catch (error) {
+                    ctx.log(`[Global] Ubuntu起動失敗: ${error}`);
+                    vscode.window.showErrorMessage('Ubuntuの起動に失敗しました。スタートメニューから手動で起動してください。');
+                }
+            }
+        } else if (manualStepId === 'nodeInstall') {
+            // Node.jsインストール後の案内
+            await vscode.window.showWarningMessage(
+                '📋 Node.jsのインストールが完了しました。\n\n' +
+                'PATHを反映するため、以下の手順を実行してください：\n' +
+                '1. VS Codeを再起動（または新しいターミナルを開く）\n' +
+                '2. 再度「Init Global」を実行\n\n' +
+                '※ Node.jsはpm2実行に必要です',
+                { modal: true },
+                'OK'
+            );
+        } else {
+            // その他の手動操作ステップ（汎用）
+            await vscode.window.showWarningMessage(
+                `📋 ${manualStepId} が完了しました。\n\n` +
+                '手動での追加設定が必要です。\n' +
+                '設定完了後、再度「Init Global」を実行してください。',
+                { modal: true },
+                'OK'
+            );
+        }
+
+        return true; // 一部完了として成功を返す
+    }
 
     // ========================================
     // フェーズ4: 結果表示
@@ -909,6 +1123,16 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
 
     ctx.log(`[Global] === グローバル設定完了: ${successCount}/${totalCount} 成功 ===`);
 
+    // セットアップ完了した環境のステータスを更新
+    if (!hasCriticalFailure) {
+        if (primaryMode === 'wsl' || primaryMode === 'both') {
+            setEnvironmentStatus('wsl', 'ready', ctx);
+        }
+        if (primaryMode === 'windows-native') {
+            setEnvironmentStatus('windows', 'ready', ctx);
+        }
+    }
+
     // ========================================
     // 両方モード: psmuxセットアップも実行
     // ========================================
@@ -926,7 +1150,7 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
             // psmuxモードで再度実行
             const psmuxRequirements = await analyzeRequirements(ctx, 'windows-native');
 
-            if (!psmuxRequirements.fatalError && !isAllConfigured(psmuxRequirements)) {
+            if (!isAllConfigured(psmuxRequirements)) {
                 const psmuxInput = await showGlobalConfirmation(psmuxRequirements);
 
                 if (psmuxInput && psmuxInput.approved) {
@@ -954,9 +1178,12 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
                         }
                     });
 
+                    // Windows 環境のステータスを更新
+                    setEnvironmentStatus('windows', 'ready', ctx);
                     vscode.window.showInformationMessage('✅ 両方の環境のセットアップが完了しました！');
                 }
             } else if (isAllConfigured(psmuxRequirements)) {
+                setEnvironmentStatus('windows', 'ready', ctx);
                 vscode.window.showInformationMessage('✅ Windows環境は既にセットアップ済みです');
             }
         } else {
@@ -965,4 +1192,159 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
     }
 
     return !hasCriticalFailure;
+}
+
+/**
+ * 保留中のセットアップを継続（Reload Window後に呼び出される）
+ */
+export async function continueGlobalSetup(ctx: SetupContext): Promise<boolean> {
+    if (!ctx.context) {
+        ctx.log('[Global] ExtensionContext がないため継続できません');
+        return false;
+    }
+
+    const pendingState = getPendingSetupState(ctx.context);
+    if (!pendingState) {
+        ctx.log('[Global] 保留中のセットアップ状態がありません');
+        return false;
+    }
+
+    // 古い状態（30分以上前）は無視
+    const MAX_AGE = 30 * 60 * 1000; // 30分
+    if (Date.now() - pendingState.timestamp > MAX_AGE) {
+        ctx.log('[Global] 保留状態が古いため無視します');
+        clearPendingSetupState(ctx.context);
+        return false;
+    }
+
+    ctx.log(`[Global] === セットアップを継続 (モード: ${pendingState.runtimeMode}) ===`);
+    ctx.log(`[Global] 完了済みステップ: ${pendingState.completedSteps.join(', ')}`);
+
+    // リロード前に確認済みなので、自動的に継続（通知のみ表示）
+    vscode.window.showInformationMessage('🔄 Init Global の続きを自動実行します...');
+
+    // 現在の要件を再分析
+    const requirements = await analyzeRequirements(ctx, pendingState.runtimeMode);
+
+    // すべて設定済みの場合
+    if (isAllConfigured(requirements)) {
+        ctx.log('[Global] すべて設定済み');
+        // 環境ステータスを ready に設定
+        if (pendingState.runtimeMode === 'wsl' || pendingState.runtimeMode === 'both') {
+            setEnvironmentStatus('wsl', 'ready', ctx);
+        }
+        if (pendingState.runtimeMode === 'windows-native' || pendingState.runtimeMode === 'both') {
+            setEnvironmentStatus('windows', 'ready', ctx);
+        }
+        clearPendingSetupState(ctx.context);
+        vscode.window.showInformationMessage('✅ グローバル設定は既に完了しています');
+        return true;
+    }
+
+    // 残りのステップを構築（完了済みステップをスキップリストに追加）
+    const allSkipItems = [...new Set([...pendingState.skipItems, ...pendingState.completedSteps])];
+    const steps = buildExecutionSteps(requirements, allSkipItems);
+
+    if (steps.length === 0) {
+        ctx.log('[Global] 実行するステップがありません');
+        // 環境ステータスを ready に設定
+        if (pendingState.runtimeMode === 'wsl' || pendingState.runtimeMode === 'both') {
+            setEnvironmentStatus('wsl', 'ready', ctx);
+        }
+        if (pendingState.runtimeMode === 'windows-native' || pendingState.runtimeMode === 'both') {
+            setEnvironmentStatus('windows', 'ready', ctx);
+        }
+        clearPendingSetupState(ctx.context);
+        vscode.window.showInformationMessage('✅ グローバル設定は既に完了しています');
+        return true;
+    }
+
+    ctx.log(`[Global] 残りステップ: ${steps.map(s => s.id).join(', ')}`);
+
+    // 残りのステップを実行
+    const results: StepResult[] = [];
+    const completedSteps = [...pendingState.completedSteps];
+    let needsReboot = false;
+    let needsReload = false;
+
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: '🔄 グローバル設定継続中...',
+        cancellable: false
+    }, async (progress) => {
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+
+            progress.report({
+                message: `ステップ ${i + 1}/${steps.length}: ${step.progressMessage}`,
+                increment: i === 0 ? 0 : (100 / steps.length)
+            });
+
+            try {
+                await step.execute(ctx, undefined); // パスワードは再度要求しない
+                results.push({ stepId: step.id, success: true });
+                completedSteps.push(step.id);
+                ctx.log(`[Global] ステップ完了: ${step.id}`);
+
+                if (step.requiresReboot) {
+                    needsReboot = true;
+                    break;
+                }
+
+                if (step.requiresReload) {
+                    needsReload = true;
+                    break;
+                }
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                results.push({ stepId: step.id, success: false, error: errorMsg });
+                ctx.log(`[Global] ステップ失敗: ${step.id} - ${errorMsg}`);
+
+                if (step.critical) {
+                    break;
+                }
+            }
+        }
+    });
+
+    // 再度 Reload が必要な場合
+    if (needsReload) {
+        const pendingStateNew: PendingSetupState = {
+            runtimeMode: pendingState.runtimeMode,
+            completedSteps,
+            skipItems: pendingState.skipItems,
+            timestamp: Date.now(),
+        };
+        savePendingSetupState(ctx.context, pendingStateNew);
+        await vscode.commands.executeCommand('workbench.action.reloadWindow');
+        return true;
+    }
+
+    // 完了
+    clearPendingSetupState(ctx.context);
+
+    const successCount = results.filter(r => r.success).length;
+    const totalCount = results.length;
+    const errors = results.filter(r => !r.success).map(r => `${r.stepId}: ${r.error}`);
+
+    await showGlobalSetupResult(
+        successCount + pendingState.completedSteps.length,
+        totalCount + pendingState.completedSteps.length,
+        pendingState.skipItems,
+        errors
+    );
+
+    ctx.log(`[Global] === セットアップ継続完了: ${successCount}/${totalCount} 成功 ===`);
+
+    // 環境ステータスを ready に設定
+    if (errors.length === 0) {
+        if (pendingState.runtimeMode === 'wsl' || pendingState.runtimeMode === 'both') {
+            setEnvironmentStatus('wsl', 'ready', ctx);
+        }
+        if (pendingState.runtimeMode === 'windows-native' || pendingState.runtimeMode === 'both') {
+            setEnvironmentStatus('windows', 'ready', ctx);
+        }
+    }
+
+    return errors.length === 0;
 }

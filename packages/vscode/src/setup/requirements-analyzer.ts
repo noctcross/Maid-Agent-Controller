@@ -12,7 +12,8 @@ import * as path from 'path';
 import { SetupContext, ExecutionEnvironment, RuntimeMode } from '../types';
 import { CURRENT_ENV } from '../utils/environment';
 import { detectPackageManager, PackageManager } from '../utils/package-manager';
-import { runShellCommand, getMessengerPath } from './pm2-setup';
+import { runShellCommand } from './pm2-setup';
+import { getMessengerPath } from '../utils/helpers';
 
 // =============================================================================
 // 型定義
@@ -28,23 +29,23 @@ export interface GlobalRequirements {
     needs: {
         wslInstall: boolean;        // Windows only (WSLモードのみ)
         ubuntuInstall: boolean;     // Windows only (WSLモードのみ)
+        psmuxInstall: boolean;      // Windows only (psmuxモードのみ) - psmux
+        nodeInstall: boolean;       // Windows only (psmuxモードのみ) - Node.js
+        gitInstall: boolean;        // Windows only (psmuxモードのみ) - Git for Windows
+        claudeCodeInstall: boolean; // Claude Code CLI
         passwordlessSudo: boolean;
         jqInstall: boolean;
         yqInstall: boolean;
         pm2Install: boolean;
-        pm2Startup: boolean;
         pathSetup: boolean;
+        // pm2Startup は廃止（オンデマンド起動に変更）
     };
 
     // sudo操作が必要か（パスワード入力要否の判定）
     needsSudoPassword: boolean;
 
-    // 致命的エラー（続行不可）
-    fatalError?: {
-        type: 'wsl_not_installed' | 'ubuntu_not_installed' | 'node_not_found';
-        message: string;
-        guidance: string;
-    };
+    // 再起動が必要か（WSLインストール時など）
+    requiresReboot: boolean;
 }
 
 // =============================================================================
@@ -74,6 +75,21 @@ export function checkUbuntuInstalled(): boolean {
     try {
         const result = execSync('wsl.exe -l -q', { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 });
         return result.toLowerCase().includes('ubuntu');
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * WSLが動作可能か確認（Ubuntu初期設定完了含む）
+ * WSL/Ubuntuがインストール済みでも、初期設定が完了していないと動作しない
+ */
+export function checkWslOperational(): boolean {
+    if (CURRENT_ENV !== 'windows-native') return true;
+
+    try {
+        execSync('wsl bash -c "echo ok"', { encoding: 'utf-8', stdio: 'pipe', timeout: 10000 });
+        return true;
     } catch {
         return false;
     }
@@ -156,15 +172,30 @@ export function checkPm2StartupConfigured(): boolean {
 }
 
 /**
- * PATH設定済みか確認
+ * PATH設定済みか確認（WSL/Mac/Linux用）
+ * Windows環境ではWSL内の設定を確認
  */
 export function checkPathConfigured(): boolean {
+    const maidAgentPath = '.maid-agent/bin';
+
+    if (CURRENT_ENV === 'windows-native') {
+        // Windows: WSL内の .bashrc/.zshrc を確認
+        try {
+            const result = execSync(
+                'wsl bash -lc "grep -l \'.maid-agent/bin\' ~/.bashrc ~/.zshrc 2>/dev/null || true"',
+                { encoding: 'utf-8', timeout: 5000 }
+            ).trim();
+            return result.length > 0;
+        } catch {
+            return false;
+        }
+    }
+
+    // Mac/Linux: ローカルの設定ファイルを確認
     const homeDir = process.env.HOME || process.env.USERPROFILE;
     if (!homeDir) return false;
 
-    // .zshrc または .bashrc に PATH 設定があるか確認
     const shellConfigs = ['.zshrc', '.bashrc'];
-    const maidAgentPath = '.maid-agent/bin';
 
     for (const config of shellConfigs) {
         const configPath = path.join(homeDir, config);
@@ -227,6 +258,34 @@ export function checkPm2InstalledPsmux(): boolean {
 }
 
 /**
+ * psmuxインストール済みか確認（psmuxモード用）
+ * Windows native マルチプレクサ
+ */
+export function checkPsmuxInstalled(): boolean {
+    try {
+        // psmux は tmux エイリアスも提供するため、psmux コマンドで確認
+        execSync('where psmux', { stdio: 'pipe', timeout: 5000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Node.js/npmインストール済みか確認（psmuxモード用）
+ * pm2インストールの前提条件
+ */
+export function checkNodeInstalledPsmux(): boolean {
+    try {
+        execSync('where node', { stdio: 'pipe', timeout: 5000 });
+        execSync('where npm', { stdio: 'pipe', timeout: 5000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * PATH設定済みか確認（psmuxモード用）
  * PowerShell $PROFILE に maid-agent/bin パスが設定されているか確認
  */
@@ -260,6 +319,83 @@ export function checkPathConfiguredPsmux(): boolean {
     return false;
 }
 
+/**
+ * Git for Windows インストール済みか確認（psmuxモード用）
+ * Claude Code の前提条件
+ */
+export function checkGitInstalledPsmux(): boolean {
+    try {
+        execSync('where git', { stdio: 'pipe', timeout: 5000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Claude Code インストール済みか確認（psmuxモード用）
+ * ネイティブインストーラでインストールされた claude コマンドを確認
+ *
+ * Note: `where claude` はcmd.exeのPATHしか見ないため、
+ * PowerShellプロファイルで設定されたPATHは検出できない。
+ * そのため、インストール先ディレクトリを直接確認する。
+ */
+export function checkClaudeCodeInstalledPsmux(): boolean {
+    try {
+        const userProfile = process.env.USERPROFILE || process.env.HOME || '';
+        if (!userProfile) return false;
+
+        // Claude Codeのインストール先（複数の可能性をチェック）
+        const possiblePaths = [
+            path.join(userProfile, '.local', 'bin', 'claude.exe'),  // 新しいインストール先
+            path.join(userProfile, '.claude', 'local', 'claude.exe'),  // 古いインストール先
+        ];
+
+        return possiblePaths.some(p => fs.existsSync(p));
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Claude Code の実行パスを取得（psmuxモード用）
+ */
+export function getClaudeCodePathPsmux(): string | null {
+    try {
+        const userProfile = process.env.USERPROFILE || process.env.HOME || '';
+        if (!userProfile) return null;
+
+        const possiblePaths = [
+            path.join(userProfile, '.local', 'bin', 'claude.exe'),
+            path.join(userProfile, '.claude', 'local', 'claude.exe'),
+        ];
+
+        for (const p of possiblePaths) {
+            if (fs.existsSync(p)) return p;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Claude Code インストール済みか確認（WSL/Unix用）
+ */
+export function checkClaudeCodeInstalledUnix(): boolean {
+    try {
+        if (CURRENT_ENV === 'windows-native') {
+            // WSL経由で確認
+            execSync('wsl bash -lc "which claude"', { stdio: 'pipe', timeout: 10000 });
+        } else {
+            execSync('which claude', { stdio: 'pipe', timeout: 5000 });
+        }
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 // =============================================================================
 // メイン分析関数
 // =============================================================================
@@ -278,62 +414,69 @@ export async function analyzeRequirements(
 
     const requirements: GlobalRequirements = {
         platform: CURRENT_ENV,
-        packageManager: detectPackageManager(getMessengerPath()),
+        packageManager: detectPackageManager(getMessengerPath(runtimeMode)),
         runtimeMode,
         needs: {
             wslInstall: false,
             ubuntuInstall: false,
+            psmuxInstall: false,
+            nodeInstall: false,
+            gitInstall: false,
+            claudeCodeInstall: false,
             passwordlessSudo: false,
             jqInstall: false,
             yqInstall: false,
             pm2Install: false,
-            pm2Startup: false,
             pathSetup: false,
         },
         needsSudoPassword: false,
+        requiresReboot: false,
     };
 
-    // Windows環境のWSLチェック（WSLモードのみ）
-    if (CURRENT_ENV === 'windows-native' && runtimeMode === 'wsl') {
+    // モードに応じたWSLチェック
+    const needsWslMode = runtimeMode === 'wsl' || runtimeMode === 'both';
+    const needsPsmuxMode = runtimeMode === 'windows-native' || runtimeMode === 'both';
+
+    // WSLが必要なモードの場合のチェック
+    let wslAvailable = true;
+    if (CURRENT_ENV === 'windows-native' && needsWslMode) {
         const wslInstalled = checkWslInstalled();
         const ubuntuInstalled = wslInstalled && checkUbuntuInstalled();
 
         requirements.needs.wslInstall = !wslInstalled;
         requirements.needs.ubuntuInstall = wslInstalled && !ubuntuInstalled;
 
-        // WSL/Ubuntu未インストールは致命的エラー（WSLモードのみ）
+        // WSL未インストールの場合は再起動が必要
         if (!wslInstalled) {
-            requirements.fatalError = {
-                type: 'wsl_not_installed',
-                message: 'WSL2がインストールされていません',
-                guidance: '以下を管理者権限のPowerShellで実行後、再起動してください:\nwsl --install',
-            };
-            ctx.log('[Global] 致命的エラー: WSL未インストール');
-            return requirements;
+            requirements.requiresReboot = true;
+            wslAvailable = false;
+            ctx.log('[Global] WSL未インストール: 再起動が必要');
+        } else if (!ubuntuInstalled) {
+            wslAvailable = false;
+            ctx.log('[Global] Ubuntu未インストール');
         }
+    }
 
-        if (!ubuntuInstalled) {
-            requirements.fatalError = {
-                type: 'ubuntu_not_installed',
-                message: 'Ubuntuがインストールされていません',
-                guidance: 'Microsoft Storeから「Ubuntu」をインストールしてください',
-            };
-            ctx.log('[Global] 致命的エラー: Ubuntu未インストール');
-            return requirements;
-        }
-    } else if (CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native') {
-        // psmuxモード: WSLチェックをスキップ
+    if (CURRENT_ENV === 'windows-native' && needsPsmuxMode && !needsWslMode) {
+        // psmuxのみモード: WSLチェックをスキップ
         ctx.log('[Global] psmuxモード: WSLチェックをスキップ');
     }
 
-    // 各項目のチェック（psmuxモードとWSLモードで分岐）
-    const isPsmuxMode = CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
+    // 各項目のチェック（モードに応じて分岐）
+    const isPsmuxOnly = CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
 
-    if (isPsmuxMode) {
-        // psmuxモード: Windows-native環境で直接チェック
-        // passwordlessSudo: Windowsでは不要
+    if (isPsmuxOnly) {
+        // psmuxのみモード: Windows-native環境で直接チェック
         requirements.needs.passwordlessSudo = false;
         ctx.log('[Global] パスワードレスsudo: psmuxモードでは不要');
+
+        // psmux チェック（Windows用マルチプレクサ）
+        requirements.needs.psmuxInstall = !checkPsmuxInstalled();
+        ctx.log(`[Global] psmux: ${requirements.needs.psmuxInstall ? '未インストール' : 'インストール済み'}`);
+
+        // Node.js/npm チェック（pm2インストールの前提条件）
+        requirements.needs.nodeInstall = !checkNodeInstalledPsmux();
+        ctx.log(`[Global] Node.js (psmux): ${requirements.needs.nodeInstall ? '未インストール' : 'インストール済み'}`);
 
         requirements.needs.jqInstall = !checkJqInstalledPsmux();
         ctx.log(`[Global] jq (psmux): ${requirements.needs.jqInstall ? '未インストール' : 'インストール済み'}`);
@@ -344,18 +487,31 @@ export async function analyzeRequirements(
         requirements.needs.pm2Install = !checkPm2InstalledPsmux();
         ctx.log(`[Global] pm2 (psmux): ${requirements.needs.pm2Install ? '未インストール' : 'インストール済み'}`);
 
-        // pm2 startup: psmuxモードでは Task Scheduler 設定（Phase 3）
-        // 現時点では手動設定を想定してスキップ
-        requirements.needs.pm2Startup = false;
-        ctx.log('[Global] pm2 startup (psmux): 手動設定を想定（スキップ）');
-
         requirements.needs.pathSetup = !checkPathConfiguredPsmux();
         ctx.log(`[Global] PATH (psmux): ${requirements.needs.pathSetup ? '未設定' : '設定済み'}`);
 
-        // psmuxモードではsudoパスワード不要
+        // Git for Windows チェック（Claude Code の前提条件）
+        requirements.needs.gitInstall = !checkGitInstalledPsmux();
+        ctx.log(`[Global] Git (psmux): ${requirements.needs.gitInstall ? '未インストール' : 'インストール済み'}`);
+
+        // Claude Code チェック
+        requirements.needs.claudeCodeInstall = !checkClaudeCodeInstalledPsmux();
+        ctx.log(`[Global] Claude Code (psmux): ${requirements.needs.claudeCodeInstall ? '未インストール' : 'インストール済み'}`);
+
         requirements.needsSudoPassword = false;
+    } else if (needsWslMode && !wslAvailable) {
+        // WSLモードだがWSL未インストール: すべてインストール必要と仮定
+        ctx.log('[Global] WSL未利用可能: WSL内ツールはすべてインストール必要と仮定');
+        requirements.needs.passwordlessSudo = true;
+        requirements.needs.jqInstall = true;
+        requirements.needs.yqInstall = true;
+        requirements.needs.pm2Install = true;
+        requirements.needs.pathSetup = true;
+        requirements.needs.claudeCodeInstall = true;
+        // WSLインストール後に再度チェックするため、パスワードは後で確認
+        requirements.needsSudoPassword = true;
     } else {
-        // WSLモード: 従来通りのチェック
+        // WSLモード（WSL利用可能）: 従来通りのチェック
         requirements.needs.passwordlessSudo = !checkPasswordlessSudoConfigured();
         ctx.log(`[Global] パスワードレスsudo: ${requirements.needs.passwordlessSudo ? '未設定' : '設定済み'}`);
 
@@ -368,25 +524,19 @@ export async function analyzeRequirements(
         requirements.needs.pm2Install = !checkPm2Installed();
         ctx.log(`[Global] pm2: ${requirements.needs.pm2Install ? '未インストール' : 'インストール済み'}`);
 
-        // pm2がインストール済みの場合のみstartup確認
-        if (!requirements.needs.pm2Install) {
-            requirements.needs.pm2Startup = !checkPm2StartupConfigured();
-            ctx.log(`[Global] pm2 startup: ${requirements.needs.pm2Startup ? '未設定' : '設定済み'}`);
-        } else {
-            requirements.needs.pm2Startup = true; // pm2がないならstartupも必要
-        }
-
         requirements.needs.pathSetup = !checkPathConfigured();
         ctx.log(`[Global] PATH: ${requirements.needs.pathSetup ? '未設定' : '設定済み'}`);
 
-        // sudo操作が必要かどうか
+        // Claude Code チェック（WSL/Unix用）
+        requirements.needs.claudeCodeInstall = !checkClaudeCodeInstalledUnix();
+        ctx.log(`[Global] Claude Code: ${requirements.needs.claudeCodeInstall ? '未インストール' : 'インストール済み'}`);
+
         requirements.needsSudoPassword =
             !checkPasswordlessSudoConfigured() && (
                 requirements.needs.passwordlessSudo ||
                 requirements.needs.jqInstall ||
                 requirements.needs.yqInstall ||
-                requirements.needs.pm2Install ||
-                requirements.needs.pm2Startup
+                requirements.needs.pm2Install
             );
     }
 
@@ -401,11 +551,16 @@ export async function analyzeRequirements(
  */
 export function countRequiredSteps(requirements: GlobalRequirements): number {
     let count = 0;
+    if (requirements.needs.wslInstall) count++;
+    if (requirements.needs.ubuntuInstall) count++;
+    if (requirements.needs.psmuxInstall) count++;
+    if (requirements.needs.nodeInstall) count++;
+    if (requirements.needs.gitInstall) count++;
+    if (requirements.needs.claudeCodeInstall) count++;
     if (requirements.needs.passwordlessSudo) count++;
     if (requirements.needs.jqInstall) count++;
     if (requirements.needs.yqInstall) count++;
     if (requirements.needs.pm2Install) count++;
-    if (requirements.needs.pm2Startup) count++;
     if (requirements.needs.pathSetup) count++;
     return count;
 }

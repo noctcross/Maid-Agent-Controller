@@ -3,52 +3,95 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
-import { MaidConfig } from '../types';
+import { MaidConfig, RuntimeMode } from '../types';
 import { CURRENT_ENV } from './environment';
 import { GLOBAL_MAID_AGENT_DIR, TMUX_SESSION_PREFIX, MAIDS_MAP, DEFAULT_MAID_ORDER } from '../constants';
 
 // =============================================================================
-// ヘルパー関数
+// パス関連ヘルパー関数
 // =============================================================================
 
 /**
- * グローバルフォルダのパスを取得
- * Windows環境ではWSLのホームディレクトリを使用
+ * グローバル設定用フォルダのパスを取得
+ * Windows環境では常に %USERPROFILE%\.maid-agent を返す（設定の保存場所として）
+ * Mac/Linux では ~/.maid-agent を返す
  */
 export function getGlobalMaidAgentPath(): string {
     if (CURRENT_ENV === 'windows-native') {
-        // Windows環境: WSLのホームディレクトリを使用
-        try {
-            // シングルクォートで囲んでWindowsシェルでの$HOME展開を防ぐ
-            const wslHome = execSync("wsl bash -c 'echo $HOME'", { encoding: 'utf-8' }).trim();
-            // WSLディストリビューション名を取得（UTF-16のヌルバイトと空白を除去）
-            const distroRaw = execSync('wsl -l -q', { encoding: 'utf-8' });
-            const distro = distroRaw.replace(/\0/g, '').split('\n')[0].trim();
-            // スラッシュをバックスラッシュに変換してパスを構築
-            const windowsHome = wslHome.replace(/\//g, '\\');
-
-            // Windows 11 (Build 22000+) では \\wsl.localhost\ を優先、フォールバックで \\wsl$\
-            const win11Path = `\\\\wsl.localhost\\${distro}${windowsHome}\\${GLOBAL_MAID_AGENT_DIR}`;
-            const win10Path = `\\\\wsl$\\${distro}${windowsHome}\\${GLOBAL_MAID_AGENT_DIR}`;
-
-            // フォールバック方式: wsl.localhost を先に試行、存在しなければ wsl$ を使用
-            try {
-                // 親ディレクトリの存在で UNC プレフィックスの有効性を確認
-                const win11Parent = `\\\\wsl.localhost\\${distro}${windowsHome}`;
-                if (fs.existsSync(win11Parent)) {
-                    return win11Path;
-                }
-            } catch {
-                // win11 パスへのアクセス失敗時は win10 にフォールバック
-            }
-            return win10Path;
-        } catch {
-            // フォールバック: Windowsのホームディレクトリ
-            return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
-        }
+        // Windows環境: 常にWindowsのホームディレクトリを使用（設定保存用）
+        return path.join(process.env.USERPROFILE || os.homedir(), GLOBAL_MAID_AGENT_DIR);
     }
     return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
 }
+
+/**
+ * WSL内の .maid-agent パスを取得（Windows環境からWSLにアクセスする場合）
+ * @returns UNCパス形式（\\wsl.localhost\Ubuntu\home\user\.maid-agent）
+ */
+export function getWslMaidAgentPath(): string {
+    if (CURRENT_ENV !== 'windows-native') {
+        // Mac/Linux では通常のパスを返す
+        return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
+    }
+
+    try {
+        const wslHome = execSync("wsl bash -c 'echo $HOME'", { encoding: 'utf-8' }).trim();
+        const distroRaw = execSync('wsl -l -q', { encoding: 'utf-8' });
+        const distro = distroRaw.replace(/\0/g, '').split('\n')[0].trim();
+        const windowsHome = wslHome.replace(/\//g, '\\');
+
+        // Windows 11 (Build 22000+) では \\wsl.localhost\ を優先
+        const win11Path = `\\\\wsl.localhost\\${distro}${windowsHome}\\${GLOBAL_MAID_AGENT_DIR}`;
+        const win10Path = `\\\\wsl$\\${distro}${windowsHome}\\${GLOBAL_MAID_AGENT_DIR}`;
+
+        try {
+            const win11Parent = `\\\\wsl.localhost\\${distro}${windowsHome}`;
+            if (fs.existsSync(win11Parent)) {
+                return win11Path;
+            }
+        } catch {
+            // win11 パスへのアクセス失敗時は win10 にフォールバック
+        }
+        return win10Path;
+    } catch {
+        // WSLが使えない場合はWindowsパスにフォールバック
+        return path.join(process.env.USERPROFILE || os.homedir(), GLOBAL_MAID_AGENT_DIR);
+    }
+}
+
+/**
+ * 実行環境用の .maid-agent パスを取得（サーバー・ツール用）
+ * @param runtimeMode ランタイムモード
+ * @returns 実行環境に応じたパス
+ */
+export function getExecutionMaidAgentPath(runtimeMode: RuntimeMode): string {
+    if (CURRENT_ENV !== 'windows-native') {
+        // Mac/Linux: 常にローカルパス
+        return path.join(os.homedir(), GLOBAL_MAID_AGENT_DIR);
+    }
+
+    // Windows環境
+    if (runtimeMode === 'windows-native') {
+        // Psmuxモード: Windowsパス
+        return path.join(process.env.USERPROFILE || os.homedir(), GLOBAL_MAID_AGENT_DIR);
+    } else {
+        // WSLモード: WSL内のパス（UNC形式）
+        return getWslMaidAgentPath();
+    }
+}
+
+/**
+ * 実行環境用の messenger サーバーパスを取得
+ * @param runtimeMode ランタイムモード
+ * @returns messenger サーバーのパス
+ */
+export function getMessengerPath(runtimeMode: RuntimeMode): string {
+    return path.join(getExecutionMaidAgentPath(runtimeMode), 'maid-agent-messenger');
+}
+
+// =============================================================================
+// その他のヘルパー関数
+// =============================================================================
 
 /**
  * 文字列から短いハッシュを生成

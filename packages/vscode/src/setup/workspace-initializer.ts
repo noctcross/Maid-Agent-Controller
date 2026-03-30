@@ -3,12 +3,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as YAML from 'yaml';
 import { SetupContext } from '../types';
 import { MAID_AGENT_DIR, MAIDS } from '../constants';
 import { getGlobalMaidAgentPath } from '../utils/helpers';
 import { CURRENT_ENV } from '../utils/environment';
 import { setupClaudeSettings } from './claude-settings-setup';
 import { parseRuleModules, parseGlobalSkills, showRuleSelectionUI, showSkillSelectionUI, copySelectedRules, copySelectedSkills } from './rules-skills';
+import { getSavedRuntimeMode } from './global-init';
 
 const execAsync = promisify(exec);
 
@@ -80,6 +82,57 @@ export function updateInstructionsWithBackup(
 }
 
 /**
+ * settings.yaml のマルチプレクサ設定をランタイムモードに合わせて調整
+ */
+function adjustSettingsForRuntimeMode(ctx: SetupContext, maidAgentPath: string): void {
+    const settingsPath = path.join(maidAgentPath, 'system', 'config', 'settings.yaml');
+
+    if (!fs.existsSync(settingsPath)) {
+        ctx.log('[初期化] settings.yaml が見つかりません');
+        return;
+    }
+
+    try {
+        const runtimeMode = getSavedRuntimeMode();
+        ctx.log(`[初期化] ランタイムモード: ${runtimeMode || '未設定'}`);
+
+        // Windows-native モードの場合のみ psmux に変更
+        if (CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native') {
+            const content = fs.readFileSync(settingsPath, 'utf-8');
+            const settings = YAML.parse(content) || {};
+
+            // multiplexer.type を psmux に設定
+            if (!settings.multiplexer) {
+                settings.multiplexer = {};
+            }
+
+            if (settings.multiplexer.type !== 'psmux') {
+                settings.multiplexer.type = 'psmux';
+                fs.writeFileSync(settingsPath, YAML.stringify(settings), 'utf-8');
+                ctx.log('[初期化] settings.yaml: multiplexer.type を psmux に設定');
+            }
+        } else if (CURRENT_ENV === 'windows-native' && runtimeMode === 'both') {
+            // both モードの場合は auto に設定
+            const content = fs.readFileSync(settingsPath, 'utf-8');
+            const settings = YAML.parse(content) || {};
+
+            if (!settings.multiplexer) {
+                settings.multiplexer = {};
+            }
+
+            if (settings.multiplexer.type !== 'auto') {
+                settings.multiplexer.type = 'auto';
+                fs.writeFileSync(settingsPath, YAML.stringify(settings), 'utf-8');
+                ctx.log('[初期化] settings.yaml: multiplexer.type を auto に設定');
+            }
+        }
+        // wsl モードまたは Mac/Linux の場合はデフォルトの tmux のまま
+    } catch (error) {
+        ctx.log(`[初期化] settings.yaml 調整エラー: ${error}`);
+    }
+}
+
+/**
  * ワークスペースを初期化（.maid-agentディレクトリ作成）
  */
 export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
@@ -137,6 +190,9 @@ export async function initializeWorkspace(ctx: SetupContext): Promise<boolean> {
 
         // ディレクトリ構造を作成（instructionsは一旦スキップ）
         copyDirectorySync(ctx, templatesPath, maidAgentPath, true, { preserveInstructions: isReInit });
+
+        // settings.yaml をランタイムモードに合わせて調整
+        adjustSettingsForRuntimeMode(ctx, maidAgentPath);
 
         // instructions の差分更新（再初期化時のみ）
         const templateInstructionsPath = path.join(templatesPath, '.claude', 'instructions');

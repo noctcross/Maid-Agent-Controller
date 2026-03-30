@@ -2,8 +2,9 @@ import * as vscode from 'vscode';
 import { execSync } from 'child_process';
 import { MultiAgentController } from './controller';
 import { AgentPanelProvider } from './ui/agent-panel-provider';
-import { CURRENT_ENV } from './utils/environment';
+import { CURRENT_ENV, getMultiplexerCommand } from './utils/environment';
 import { getGlobalMaidAgentPath, getSessionNameFromPath } from './utils/helpers';
+import { getSavedRuntimeMode, getPendingSetupState, clearPendingSetupState, continueGlobalSetup } from './setup/global-init';
 
 // =============================================================================
 // 拡張機能のエントリーポイント
@@ -241,6 +242,14 @@ export function activate(context: vscode.ExtensionContext) {
                 console.error('[Maid Agent] setRuntimeMode:', error);
             }
         }),
+        vscode.commands.registerCommand('multiAgent.switchMultiplexer', async () => {
+            try {
+                await controller.switchMultiplexer();
+            } catch (error) {
+                vscode.window.showErrorMessage(`マルチプレクサ切替に失敗しました: ${error}`);
+                console.error('[Maid Agent] switchMultiplexer:', error);
+            }
+        }),
     ];
 
     context.subscriptions.push(...commands);
@@ -279,10 +288,22 @@ export function activate(context: vscode.ExtensionContext) {
                     // セッションが存在するかチェック
                     let sessionExists = false;
                     try {
-                        if (CURRENT_ENV === 'windows-native') {
-                            execSync(`wsl tmux has-session -t "${sessionName}" 2>/dev/null`, { encoding: 'utf-8', stdio: 'pipe' });
+                        const runtimeMode = getSavedRuntimeMode();
+                        const muxCmd = getMultiplexerCommand(runtimeMode);
+
+                        if (muxCmd === 'psmux') {
+                            // psmux: PowerShell経由でチェック（Windows環境）
+                            execSync(`powershell.exe -NoProfile -Command "psmux has-session -t '${sessionName}'"`, {
+                                encoding: 'utf-8',
+                                stdio: 'pipe',
+                                windowsHide: true,
+                            });
                         } else {
-                            execSync(`tmux has-session -t "${sessionName}" 2>/dev/null`, { encoding: 'utf-8', stdio: 'pipe' });
+                            // tmux: 直接チェック（Unix/WSL環境）
+                            execSync(`${muxCmd} has-session -t "${sessionName}" 2>/dev/null`, {
+                                encoding: 'utf-8',
+                                stdio: 'pipe',
+                            });
                         }
                         sessionExists = true;
                     } catch {
@@ -299,6 +320,39 @@ export function activate(context: vscode.ExtensionContext) {
                 console.error('[Maid Agent] 自動復帰に失敗:', error);
             }
         }, 2000); // 2秒後に実行
+    }
+
+    // Init Global 継続チェック（VS Code 再起動後の自動継続）
+    const pendingSetup = getPendingSetupState(context);
+    console.log('[Maid Agent] 起動時の保留状態:', pendingSetup ? JSON.stringify(pendingSetup) : 'なし');
+
+    if (pendingSetup) {
+        // 少し遅延させて VS Code の初期化完了を待つ
+        setTimeout(async () => {
+            console.log('[Maid Agent] Init Global 継続処理を開始...');
+            try {
+                const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+                const globalPath = getGlobalMaidAgentPath();
+                const outputChannel = controller.getOutputChannel();
+                outputChannel.show(); // デバッグ用に表示
+                const ctx = {
+                    context,
+                    workspaceRoot,
+                    maidAgentPath: workspaceRoot ? `${workspaceRoot}/.maid-agent` : '',
+                    globalMaidAgentPath: globalPath,
+                    extensionPath: context.extensionPath,
+                    outputChannel,
+                    log: (message: string) => {
+                        console.log(message);
+                        outputChannel.appendLine(message);
+                    },
+                };
+                await continueGlobalSetup(ctx);
+            } catch (error) {
+                console.error('[Maid Agent] Init Global 継続に失敗:', error);
+                clearPendingSetupState(context);
+            }
+        }, 3000); // 3秒後に実行（自動復帰より後）
     }
 }
 

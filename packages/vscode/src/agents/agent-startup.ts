@@ -9,11 +9,67 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { Agent, AgentContext } from '../types';
 import { AGENTS_MAP, isValidAgentId } from '../constants';
-import { CURRENT_ENV, isTmuxAvailable, windowsToWslPath } from '../utils/environment';
+import { CURRENT_ENV, isTmuxAvailable, windowsToWslPath, getMultiplexerCommand } from '../utils/environment';
+import { getSavedRuntimeMode } from '../setup/global-init';
 import { getSessionNameFromPath } from '../utils/helpers';
 // MultiplexerFactory is accessed via ctx.multiplexerFactory
 import { getModelForAgent } from '../utils/settings-loader';
 import { generateSystemPromptFile } from '../utils/prompt-loader';
+
+// =========================================================================
+// Claude Code コマンド構築
+// =========================================================================
+
+/**
+ * Claude Code の実行パスを取得（psmuxモード用）
+ * PATHに追加されていない場合があるため、フルパスを返す
+ */
+function getClaudeCommandForPsmux(): string {
+    const userProfile = process.env.USERPROFILE || '';
+    if (!userProfile) return 'claude';  // フォールバック
+
+    // 可能なインストール先をチェック
+    const possiblePaths = [
+        path.join(userProfile, '.local', 'bin', 'claude.exe'),
+        path.join(userProfile, '.claude', 'local', 'claude.exe'),
+    ];
+
+    for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+            // PowerShellではパスにスペースが含まれる可能性があるため、& で実行
+            return `& '${p}'`;
+        }
+    }
+
+    return 'claude';  // フォールバック（PATHに存在することを期待）
+}
+
+/**
+ * Claude Code 起動コマンドを構築（環境に応じた構文で）
+ * - tmux (Unix bash): VAR=value command
+ * - psmux (Windows PowerShell): $env:VAR = 'value'; & 'path\to\claude.exe'
+ */
+function buildClaudeCommand(
+    ctx: AgentContext,
+    agentId: string,
+    modelFlag: string,
+    initialPrompt?: string
+): string {
+    const isPsmux = ctx.multiplexerFactory?.getType() === 'psmux';
+    const addDirs = `--add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
+
+    if (isPsmux) {
+        // PowerShell形式: $env:VAR = 'value'; & 'path\to\claude.exe' args
+        // プロンプトはシングルクォートで囲む（PowerShellでは文字列リテラル）
+        const claudeCmd = getClaudeCommandForPsmux();
+        const promptPart = initialPrompt ? ` -- '${initialPrompt}'` : '';
+        return `$env:CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD = '1'; ${claudeCmd} --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
+    } else {
+        // Unix bash形式: VAR=value command
+        const promptPart = initialPrompt ? ` -- '${initialPrompt}'` : '';
+        return `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 claude --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
+    }
+}
 
 // =========================================================================
 // エージェント管理
@@ -73,15 +129,31 @@ export function openTmuxViewer(ctx: AgentContext): void {
     // tmuxセッションがなければ作成
     ctx.initializeTmuxSession();
 
-    // VSCodeターミナルでtmuxにアタッチ
+    // マルチプレクサタイプを取得（設定 > ファクトリ > auto の優先順）
+    let multiplexerType = ctx.settings?.multiplexer?.type;
+    if (!multiplexerType || multiplexerType === 'auto') {
+        multiplexerType = ctx.multiplexerFactory?.getType() || 'auto';
+    }
+    const isPsmux = multiplexerType === 'psmux';
+
+    // VSCodeターミナルでtmux/psmuxにアタッチ
     if (CURRENT_ENV === 'windows-native') {
-        // Windows環境: WSLシェルを使用してtmuxにアタッチ
-        const wslPath = ctx.workspaceRoot ? windowsToWslPath(ctx.workspaceRoot) : '/home';
-        ctx.tmuxViewerTerminal = vscode.window.createTerminal({
-            name: '🎩 Maid Agent (tmux)',
-            shellPath: 'wsl.exe',
-            shellArgs: ['-e', 'bash', '-c', `cd "${wslPath}" && tmux attach-session -t ${ctx.tmuxSessionName}`]
-        });
+        if (isPsmux) {
+            // psmuxモード: PowerShellでpsmuxにアタッチ
+            ctx.tmuxViewerTerminal = vscode.window.createTerminal({
+                name: '🎩 Maid Agent (psmux)',
+                cwd: ctx.workspaceRoot
+            });
+            ctx.tmuxViewerTerminal.sendText(`psmux attach-session -t ${ctx.tmuxSessionName}`);
+        } else {
+            // tmuxモード: WSLシェルを使用してtmuxにアタッチ
+            const wslPath = ctx.workspaceRoot ? windowsToWslPath(ctx.workspaceRoot) : '/home';
+            ctx.tmuxViewerTerminal = vscode.window.createTerminal({
+                name: '🎩 Maid Agent (tmux)',
+                shellPath: 'wsl.exe',
+                shellArgs: ['-e', 'bash', '-c', `cd "${wslPath}" && tmux attach-session -t ${ctx.tmuxSessionName}`]
+            });
+        }
     } else {
         // WSL/Linux/macOS環境: 直接tmuxにアタッチ
         ctx.tmuxViewerTerminal = vscode.window.createTerminal({
@@ -92,7 +164,7 @@ export function openTmuxViewer(ctx: AgentContext): void {
     }
     ctx.tmuxViewerTerminal.show();
 
-    ctx.log('[tmux] ビューアターミナルを開きました');
+    ctx.log(`[${isPsmux ? 'psmux' : 'tmux'}] ビューアターミナルを開きました`);
 }
 
 /**
@@ -224,9 +296,8 @@ export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, r
     const model = getModelForAgent(ctx.settings, agentId, role);
     const modelFlag = model ? ` --model ${model}` : '';
 
-    // 環境変数とコマンドを構築
-    const envVar = 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1';
-    const command = `${envVar} claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId} -- '${escapedInstruction}'`;
+    // 環境変数とコマンドを構築（psmux/tmuxで構文が異なる）
+    const command = buildClaudeCommand(ctx, agentId, modelFlag, escapedInstruction);
     ctx.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
 
     const roleLabel = agent.role === 'butler' ? '執事' :
@@ -366,9 +437,8 @@ export function startClaudeOnAgent(ctx: AgentContext, agentId: string): void {
     const model = getModelForAgent(ctx.settings, agentId, agent.role);
     const modelFlag = model ? ` --model ${model}` : '';
 
-    // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${agentId}を追加
-    const envVar = 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1';
-    const command = `${envVar} claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
+    // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${agentId}を追加（psmux/tmuxで構文が異なる）
+    const command = buildClaudeCommand(ctx, agentId, modelFlag);
     ctx.sendToAgent(agentId, command);
 }
 
@@ -378,9 +448,8 @@ export async function startClaudeOnAllAgents(ctx: AgentContext): Promise<void> {
         const model = getModelForAgent(ctx.settings, id, agent.role);
         const modelFlag = model ? ` --model ${model}` : '';
 
-        // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${id}を追加
-        const envVar = 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1';
-        const command = `${envVar} claude --dangerously-skip-permissions${modelFlag} --add-dir .maid-agent/core --add-dir .maid-agent/roles/${id}`;
+        // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${id}を追加（psmux/tmuxで構文が異なる）
+        const command = buildClaudeCommand(ctx, id, modelFlag);
         ctx.sendToAgent(id, command);
         await ctx.delay(500); // 各エージェント間で少し待つ
         count++;
@@ -419,10 +488,31 @@ export async function ensureInitialized(ctx: AgentContext): Promise<boolean> {
 }
 
 /**
- * tmuxが利用可能かチェックし、なければインストールを提案
+ * マルチプレクサが利用可能かチェックし、なければインストールを提案
+ * psmux モードの場合は psmux をチェック、tmux モードの場合は tmux/WSL をチェック
  */
 export async function ensureTmuxAvailable(ctx: AgentContext): Promise<boolean> {
-    // Windows環境ではまずWSLをチェック
+    // マルチプレクサタイプを取得（設定 > ファクトリ > auto の優先順）
+    let multiplexerType = ctx.settings?.multiplexer?.type;
+    if (!multiplexerType || multiplexerType === 'auto') {
+        // 設定がない場合は、ファクトリの実際のタイプを使用
+        multiplexerType = ctx.multiplexerFactory?.getType() || 'auto';
+    }
+
+    // psmux モードの場合は WSL チェック不要
+    if (multiplexerType === 'psmux') {
+        // psmux の存在チェック（tmuxManager が psmux インスタンスであれば OK）
+        if (ctx.tmuxManager) {
+            return true;
+        }
+        // psmux が利用できない場合のエラー
+        vscode.window.showErrorMessage(
+            'psmux が利用できません。Init Global で psmux のセットアップを行ってください。'
+        );
+        return false;
+    }
+
+    // tmux モード: Windows環境ではまずWSLをチェック
     if (CURRENT_ENV === 'windows-native') {
         if (!await ctx.ensureWslAvailable()) {
             return false;
@@ -506,12 +596,11 @@ export async function checkSessionCountWarning(ctx: AgentContext): Promise<void>
 
                 if (confirm === '終了する') {
                     let killedCount = 0;
+                    const runtimeMode = getSavedRuntimeMode();
+                    const muxCmd = getMultiplexerCommand(runtimeMode);
                     for (const item of selected) {
                         try {
-                            const cmd = CURRENT_ENV === 'windows-native'
-                                ? `wsl tmux kill-session -t ${item.sessionName}`
-                                : `tmux kill-session -t ${item.sessionName}`;
-                            execSync(cmd, { stdio: 'pipe' });
+                            execSync(`${muxCmd} kill-session -t ${item.sessionName}`, { stdio: 'pipe' });
                             killedCount++;
                             ctx.log(`[クリーンアップ] セッション終了: ${item.sessionName}`);
                         } catch {
@@ -529,12 +618,11 @@ export async function checkSessionCountWarning(ctx: AgentContext): Promise<void>
                 'キャンセル'
             );
             if (confirm === '全て終了') {
+                const runtimeMode = getSavedRuntimeMode();
+                const muxCmd = getMultiplexerCommand(runtimeMode);
                 sessions.forEach(sessionName => {
                     try {
-                        const cmd = CURRENT_ENV === 'windows-native'
-                            ? `wsl tmux kill-session -t ${sessionName}`
-                            : `tmux kill-session -t ${sessionName}`;
-                        execSync(cmd, { stdio: 'pipe' });
+                        execSync(`${muxCmd} kill-session -t ${sessionName}`, { stdio: 'pipe' });
                     } catch {
                         // 既に終了している場合は無視
                     }

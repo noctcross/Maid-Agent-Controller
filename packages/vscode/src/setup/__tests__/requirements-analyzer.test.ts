@@ -30,7 +30,15 @@ vi.mock('../../utils/environment', () => ({
 // pm2-setup モック
 vi.mock('../pm2-setup', () => ({
   runShellCommand: vi.fn(),
-  getMessengerPath: vi.fn(() => '~/.maid-agent/maid-agent-messenger'),
+  getMessengerShellPath: vi.fn(() => '~/.maid-agent/maid-agent-messenger'),
+}));
+
+// helpers モック
+vi.mock('../../utils/helpers', () => ({
+  getMessengerPath: vi.fn(() => '/mock/path/.maid-agent/maid-agent-messenger'),
+  getGlobalMaidAgentPath: vi.fn(() => '/mock/path/.maid-agent'),
+  getWslMaidAgentPath: vi.fn(() => '\\\\wsl.localhost\\Ubuntu\\home\\user\\.maid-agent'),
+  getExecutionMaidAgentPath: vi.fn(() => '/mock/path/.maid-agent'),
 }));
 
 // package-manager モック
@@ -293,14 +301,16 @@ describe('requirements-analyzer', () => {
         needs: {
           wslInstall: false,
           ubuntuInstall: false,
+          psmuxInstall: false,
+          nodeInstall: false,
           passwordlessSudo: false,
           jqInstall: false,
           yqInstall: false,
           pm2Install: false,
-          pm2Startup: false,
           pathSetup: false,
         },
         needsSudoPassword: false,
+        requiresReboot: false,
       };
 
       expect(countRequiredSteps(requirements)).toBe(0);
@@ -314,39 +324,42 @@ describe('requirements-analyzer', () => {
         needs: {
           wslInstall: false,
           ubuntuInstall: false,
+          psmuxInstall: false,
+          nodeInstall: false,
           passwordlessSudo: true,  // +1
           jqInstall: true,         // +1
           yqInstall: false,
           pm2Install: false,
-          pm2Startup: true,        // +1
           pathSetup: false,
         },
         needsSudoPassword: true,
+        requiresReboot: false,
       };
 
-      expect(countRequiredSteps(requirements)).toBe(3);
+      expect(countRequiredSteps(requirements)).toBe(2);
     });
 
-    it('すべて未設定の場合は6を返す', () => {
+    it('WSL含む全項目未設定の場合は9を返す', () => {
       const requirements: GlobalRequirements = {
         platform: 'windows-native',
         packageManager: 'npm',
         runtimeMode: 'wsl',
         needs: {
-          wslInstall: false,
-          ubuntuInstall: false,
-          passwordlessSudo: true,
-          jqInstall: true,
-          yqInstall: true,
-          pm2Install: true,
-          pm2Startup: true,
-          pathSetup: true,
+          wslInstall: true,        // +1
+          ubuntuInstall: true,     // +1
+          psmuxInstall: true,      // +1
+          nodeInstall: true,       // +1
+          passwordlessSudo: true,  // +1
+          jqInstall: true,         // +1
+          yqInstall: true,         // +1
+          pm2Install: true,        // +1
+          pathSetup: true,         // +1
         },
         needsSudoPassword: true,
+        requiresReboot: true,
       };
 
-      // wslInstall と ubuntuInstall はカウント対象外
-      expect(countRequiredSteps(requirements)).toBe(6);
+      expect(countRequiredSteps(requirements)).toBe(9);
     });
   });
 
@@ -359,14 +372,16 @@ describe('requirements-analyzer', () => {
         needs: {
           wslInstall: false,
           ubuntuInstall: false,
+          psmuxInstall: false,
+          nodeInstall: false,
           passwordlessSudo: false,
           jqInstall: false,
           yqInstall: false,
           pm2Install: false,
-          pm2Startup: false,
           pathSetup: false,
         },
         needsSudoPassword: false,
+        requiresReboot: false,
       };
 
       expect(isAllConfigured(requirements)).toBe(true);
@@ -380,14 +395,16 @@ describe('requirements-analyzer', () => {
         needs: {
           wslInstall: false,
           ubuntuInstall: false,
+          psmuxInstall: false,
+          nodeInstall: false,
           passwordlessSudo: false,
           jqInstall: false,
           yqInstall: false,
           pm2Install: false,
-          pm2Startup: true,  // 未設定
-          pathSetup: false,
+          pathSetup: true,  // 未設定
         },
         needsSudoPassword: false,
+        requiresReboot: false,
       };
 
       expect(isAllConfigured(requirements)).toBe(false);

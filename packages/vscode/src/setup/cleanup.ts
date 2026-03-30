@@ -8,8 +8,9 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { CURRENT_ENV } from '../utils/environment';
+import { getMultiplexerCommand } from '../utils/environment';
 import { getGlobalMaidAgentPath, getSessionNameFromPath } from '../utils/helpers';
+import { getSavedRuntimeMode } from './global-init';
 
 // =============================================================================
 // 型定義
@@ -99,10 +100,11 @@ function safeDelete(targetPath: string): boolean {
  * Maid Agent関連のtmuxセッション一覧を取得
  */
 function listMaidAgentSessions(): string[] {
-    const tmuxCmd = CURRENT_ENV === 'windows-native' ? 'wsl tmux' : 'tmux';
+    const runtimeMode = getSavedRuntimeMode();
+    const muxCmd = getMultiplexerCommand(runtimeMode);
 
     try {
-        const result = execSync(`${tmuxCmd} list-sessions -F '#{session_name}' 2>/dev/null`, {
+        const result = execSync(`${muxCmd} list-sessions -F '#{session_name}' 2>/dev/null`, {
             encoding: 'utf-8',
             timeout: 5000,
         });
@@ -120,10 +122,11 @@ function listMaidAgentSessions(): string[] {
  * tmuxセッションを終了
  */
 function killTmuxSession(sessionName: string): boolean {
-    const tmuxCmd = CURRENT_ENV === 'windows-native' ? 'wsl tmux' : 'tmux';
+    const runtimeMode = getSavedRuntimeMode();
+    const muxCmd = getMultiplexerCommand(runtimeMode);
 
     try {
-        execSync(`${tmuxCmd} kill-session -t "${sessionName}" 2>/dev/null`, {
+        execSync(`${muxCmd} kill-session -t "${sessionName}" 2>/dev/null`, {
             encoding: 'utf-8',
             timeout: 5000,
         });

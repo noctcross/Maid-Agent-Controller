@@ -415,6 +415,41 @@ export async function installWsl(ctx: SetupContext): Promise<boolean> {
 }
 
 /**
+ * Ubuntuディストリビューションをインストール
+ */
+export async function installUbuntu(ctx: SetupContext): Promise<boolean> {
+    ctx.log('[Ubuntu] インストール開始');
+
+    try {
+        // 管理者権限でUbuntuをインストール
+        execSync('powershell -Command "Start-Process wsl -ArgumentList \'--install -d Ubuntu --no-launch\' -Verb RunAs -Wait"', {
+            encoding: 'utf-8',
+            stdio: 'pipe'
+        });
+
+        ctx.log('[Ubuntu] インストールコマンド実行完了');
+
+        await vscode.window.showInformationMessage(
+            '✅ Ubuntuのインストールを開始しました。\n\n' +
+            '初回起動時にユーザー名とパスワードの設定が必要です。\n' +
+            'スタートメニューから「Ubuntu」を起動して初期設定を完了してください。\n\n' +
+            '初期設定完了後、再度InitGlobalを実行してください。',
+            { modal: true }
+        );
+
+        return true;
+    } catch (error) {
+        ctx.log(`[Ubuntu] インストール失敗: ${error}`);
+        vscode.window.showErrorMessage(
+            'Ubuntuのインストールに失敗しました。\n' +
+            'PowerShell(管理者)で以下を実行してください:\n' +
+            'wsl --install -d Ubuntu'
+        );
+        return false;
+    }
+}
+
+/**
  * jqがインストールされているかチェックし、必要に応じてインストール
  * @returns true: jq準備完了、false: インストール失敗/スキップ
  */

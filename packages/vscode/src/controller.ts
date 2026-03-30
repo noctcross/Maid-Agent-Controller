@@ -84,6 +84,13 @@ export class MultiAgentController {
         return this.tmuxSessionName;
     }
 
+    /**
+     * OutputChannelを取得（外部モジュールでのログ出力用）
+     */
+    public getOutputChannel(): vscode.OutputChannel {
+        return this.outputChannel;
+    }
+
     public setAgentPanelProvider(provider: AgentPanelProvider): void {
         this.agentPanelProvider = provider;
         // ログ出力用に outputChannel を共有
@@ -92,6 +99,27 @@ export class MultiAgentController {
 
     public setStatusBarItem(item: vscode.StatusBarItem): void {
         this.statusBarItem = item;
+    }
+
+    /**
+     * MultiplexerFactory を再作成（InitGlobal後のランタイムモード反映用）
+     */
+    public refreshMultiplexerFactory(): void {
+        // ワークスペース設定を優先
+        const muxType = this.settings?.multiplexer?.type;
+        if (muxType && muxType !== 'auto') {
+            this.multiplexerFactory = new MultiplexerFactory({ type: muxType });
+            this.log(`[Controller] MultiplexerFactory を再作成しました (workspace設定: ${muxType})`);
+        } else {
+            this.multiplexerFactory = new MultiplexerFactory();
+            this.log('[Controller] MultiplexerFactory を再作成しました (自動検出)');
+        }
+
+        // workspaceRootが設定されていれば tmuxManager も再作成
+        if (this.workspaceRoot) {
+            this.tmuxManager = this.multiplexerFactory.create(this.tmuxSessionName, this.workspaceRoot);
+            this.log(`[Controller] tmuxManager を再作成しました (type: ${this.multiplexerFactory.getType()})`);
+        }
     }
 
     // =========================================================================
@@ -203,6 +231,7 @@ export class MultiAgentController {
             extensionPath: this.context.extensionPath,
             outputChannel: this.outputChannel,
             log: (msg: string) => this.log(msg),
+            context: this.context,
         };
     }
 
@@ -322,7 +351,14 @@ export class MultiAgentController {
             vscode.window.showErrorMessage('ワークスペースが初期化されていません。フォルダを開いてください。');
             return false;
         }
-        return WorkspaceInit.initializeGlobalSettings(ctx);
+        const result = await WorkspaceInit.initializeGlobalSettings(ctx);
+
+        // InitGlobal完了後、ランタイムモードの変更を反映するためFactoryを再作成
+        if (result) {
+            this.refreshMultiplexerFactory();
+        }
+
+        return result;
     }
 
     public async promoteRuleToGlobal(): Promise<void> {
@@ -760,24 +796,109 @@ ${agentList || '  (なし)'}
         saveRuntimeMode(selection.mode, ctx);
         this.log(`[RuntimeMode] モード変更: ${previousMode || '未設定'} → ${selection.mode}`);
 
-        // サーバー再起動
+        // サーバー切替（旧サーバー停止 → 新サーバー起動）
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: '🔄 サーバーを再起動中...',
+            title: '🔄 サーバーを切り替え中...',
             cancellable: false
         }, async () => {
             try {
-                const { runShellCommand } = await import('./setup/pm2-setup');
-                runShellCommand('pm2 restart maid-agent-messenger', { stdio: 'pipe' });
-                this.log('[RuntimeMode] サーバー再起動完了');
+                const { switchServerForMultiplexer } = await import('./utils/server-manager');
+                // runtime.mode から multiplexer.type を推定
+                const multiplexerType = selection.mode === 'wsl' ? 'tmux' : 'psmux';
+                const switched = await switchServerForMultiplexer(multiplexerType, ctx);
+                if (switched) {
+                    this.log('[RuntimeMode] サーバー切替完了');
+                } else {
+                    this.log('[RuntimeMode] サーバー起動に失敗（手動起動が必要かもしれません）');
+                }
             } catch (error) {
-                this.log(`[RuntimeMode] サーバー再起動失敗: ${error}`);
+                this.log(`[RuntimeMode] サーバー切替失敗: ${error}`);
                 throw error;
             }
         });
 
         const modeLabel = selection.mode === 'wsl' ? 'WSL (tmux)' : 'Windows直接実行 (psmux)';
+
+        // MultiplexerFactory をリフレッシュ
+        this.refreshMultiplexerFactory();
+
+        // 新しいモードに必要なツールがインストールされているか確認
+        if (selection.mode === 'windows-native') {
+            const { checkPsmuxInstalled } = await import('./setup/requirements-analyzer');
+            if (!checkPsmuxInstalled()) {
+                const choice = await vscode.window.showWarningMessage(
+                    `⚠️ psmux がインストールされていません。\n\nWindows直接実行モードには psmux が必要です。`,
+                    'Init Global を実行',
+                    '後で手動でインストール'
+                );
+                if (choice === 'Init Global を実行') {
+                    await this.initializeGlobalSettings();
+                    return;
+                }
+            }
+        }
+
         vscode.window.showInformationMessage(`✅ ランタイムモードを ${modeLabel} に変更しました`);
+    }
+
+    /**
+     * ワークスペースのマルチプレクサタイプを切り替える
+     * settings.yaml の multiplexer.type を変更
+     */
+    public async switchMultiplexer(): Promise<void> {
+        if (!this.maidAgentPath) {
+            vscode.window.showErrorMessage('ワークスペースが初期化されていません。Init を実行してください。');
+            return;
+        }
+
+        // 現在の設定を取得
+        const currentType = this.settings?.multiplexer?.type || 'auto';
+        const currentLabel = currentType === 'psmux' ? 'Windows (psmux)'
+            : currentType === 'tmux' ? 'WSL/Unix (tmux)'
+            : '自動検出';
+
+        // 選択肢を表示
+        const selection = await vscode.window.showQuickPick([
+            { label: '$(terminal) WSL/Unix (tmux)', value: 'tmux' as const, description: 'WSL または Unix 環境で tmux を使用' },
+            { label: '$(window) Windows (psmux)', value: 'psmux' as const, description: 'Windows 直接実行で psmux を使用' },
+            { label: '$(gear) 自動検出', value: 'auto' as const, description: 'グローバル設定に従う' },
+        ], {
+            title: `マルチプレクサ切替（現在: ${currentLabel}）`,
+            placeHolder: 'このワークスペースで使用するマルチプレクサを選択',
+        });
+
+        if (!selection) {
+            return;
+        }
+
+        // 同じ設定の場合
+        if (selection.value === currentType) {
+            vscode.window.showInformationMessage(`既に ${currentLabel} に設定されています`);
+            return;
+        }
+
+        // settings.yaml に保存
+        const { saveMultiplexerType } = await import('./utils/settings-loader');
+        const saved = saveMultiplexerType(this.maidAgentPath, selection.value);
+
+        if (!saved) {
+            vscode.window.showErrorMessage('設定の保存に失敗しました');
+            return;
+        }
+
+        // 設定を再読み込み
+        this.settings = loadSettings(this.maidAgentPath);
+
+        // MultiplexerFactory を再作成
+        this.refreshMultiplexerFactory();
+
+        const newLabel = selection.value === 'psmux' ? 'Windows (psmux)'
+            : selection.value === 'tmux' ? 'WSL/Unix (tmux)'
+            : '自動検出';
+
+        vscode.window.showInformationMessage(`✅ マルチプレクサを ${newLabel} に切り替えました`);
+        this.log(`[Multiplexer] 切替: ${currentType} → ${selection.value}`);
     }
 
     /**

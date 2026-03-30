@@ -2,6 +2,14 @@ import * as vscode from 'vscode';
 import { Agent, AgentContext } from '../types';
 import { MAIDS, MAIDS_MAP } from '../constants';
 import { getOrderedMaids } from '../utils/helpers';
+import { ensureServerRunning, MultiplexerType } from '../utils/server-manager';
+
+/**
+ * AgentContext から multiplexer.type を取得
+ */
+function getMultiplexerType(ctx: AgentContext): MultiplexerType {
+    return ctx.settings?.multiplexer?.type || 'auto';
+}
 
 // =============================================================================
 // エージェントライフサイクル管理
@@ -59,6 +67,12 @@ export function killAgent(ctx: AgentContext, agentId: string): void {
 export async function startButler(ctx: AgentContext): Promise<void> {
     if (!await ctx.ensureInitialized()) return;
 
+    // サーバーが起動していることを確認（オンデマンド起動）
+    if (!await ensureServerRunning(getMultiplexerType(ctx))) {
+        vscode.window.showErrorMessage('サーバーが起動していないため、執事を起動できません');
+        return;
+    }
+
     if (ctx.agents.has('butler')) {
         vscode.window.showWarningMessage('執事は既にお仕えしております');
         return;
@@ -93,6 +107,12 @@ export async function startButler(ctx: AgentContext): Promise<void> {
 export async function startChiefMaid(ctx: AgentContext): Promise<void> {
     if (!await ctx.ensureInitialized()) return;
 
+    // サーバーが起動していることを確認（オンデマンド起動）
+    if (!await ensureServerRunning(getMultiplexerType(ctx))) {
+        vscode.window.showErrorMessage('サーバーが起動していないため、メイド長を起動できません');
+        return;
+    }
+
     if (ctx.agents.has('chief')) {
         vscode.window.showWarningMessage('メイド長は既にお仕えしております');
         return;
@@ -126,6 +146,12 @@ export async function startChiefMaid(ctx: AgentContext): Promise<void> {
  */
 export async function startSelectedMaids(ctx: AgentContext): Promise<void> {
     if (!await ctx.ensureInitialized()) return;
+
+    // サーバーが起動していることを確認（オンデマンド起動）
+    if (!await ensureServerRunning(getMultiplexerType(ctx))) {
+        vscode.window.showErrorMessage('サーバーが起動していないため、メイドを起動できません');
+        return;
+    }
 
     // 未起動のメイドのみ選択肢に（設定順）
     const orderedMaids = getOrderedMaids();
@@ -277,6 +303,13 @@ export async function restartPick(ctx: AgentContext): Promise<void> {
  * 全エージェントを起動
  */
 export async function startAllAgents(ctx: AgentContext): Promise<void> {
+    // サーバーが起動していることを確認（オンデマンド起動）
+    const serverOk = await ensureServerRunning(getMultiplexerType(ctx));
+    if (!serverOk) {
+        vscode.window.showErrorMessage('サーバーが起動していないため、エージェントを起動できません');
+        return;
+    }
+
     await startButler(ctx);
     await startChiefMaid(ctx);
     // 全メイドを設定順に起動

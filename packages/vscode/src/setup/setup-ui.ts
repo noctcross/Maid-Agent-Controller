@@ -168,6 +168,22 @@ export interface GlobalConfirmItem {
  * スキップ時のアナウンスメッセージ定義
  */
 const SKIP_ANNOUNCEMENTS: Record<string, { message: string; severity: 'low' | 'medium' | 'high' }> = {
+    wslInstall: {
+        message: '⚠️ WSL2がインストールされていないため、WSLモードは使用できません',
+        severity: 'high',
+    },
+    ubuntuInstall: {
+        message: '⚠️ Ubuntuがインストールされていないため、WSLモードは使用できません',
+        severity: 'high',
+    },
+    gitInstall: {
+        message: '⚠️ Git for Windowsがインストールされていません（Claude Codeの前提条件）',
+        severity: 'high',
+    },
+    claudeCodeInstall: {
+        message: '⚠️ Claude Codeがインストールされていません（エージェント実行に必須）',
+        severity: 'high',
+    },
     passwordlessSudo: {
         message: 'sudoパスワードを毎回入力する必要があります',
         severity: 'low',
@@ -180,10 +196,6 @@ const SKIP_ANNOUNCEMENTS: Record<string, { message: string; severity: 'low' | 'm
         message: 'maidctlの一部機能（YAML処理）が利用できません',
         severity: 'medium',
     },
-    pm2Startup: {
-        message: '⚠️ PC起動時にMCPサーバーの手動起動が必要です\n   コマンド: pm2 start maid-agent-messenger',
-        severity: 'high',
-    },
     pathSetup: {
         message: '⚠️ maidctlを使用するにはPATH設定が必要です\n   追加: export PATH="$HOME/.maid-agent/bin:$PATH"',
         severity: 'high',
@@ -195,6 +207,66 @@ const SKIP_ANNOUNCEMENTS: Record<string, { message: string; severity: 'low' | 'm
  */
 export function buildGlobalConfirmItems(requirements: GlobalRequirements): GlobalConfirmItem[] {
     const items: GlobalConfirmItem[] = [];
+
+    // WSL2インストール（必須・再起動必要）
+    if (requirements.needs.wslInstall) {
+        items.push({
+            id: 'wslInstall',
+            label: 'WSL2 インストール（必須）',
+            description: '⚠️ 再起動が必要です。再起動後に再度InitGlobalを実行してください',
+            required: true,
+            needsPassword: false,  // 管理者権限プロンプトで対応
+            defaultSelected: true,
+        });
+    }
+
+    // Ubuntuインストール（必須）
+    if (requirements.needs.ubuntuInstall) {
+        items.push({
+            id: 'ubuntuInstall',
+            label: 'Ubuntu インストール（必須）',
+            description: 'WSL用Linuxディストリビューション',
+            required: true,
+            needsPassword: false,  // 管理者権限プロンプトで対応
+            defaultSelected: true,
+        });
+    }
+
+    // Node.jsインストール（psmuxモード用・必須）
+    if (requirements.needs.nodeInstall) {
+        items.push({
+            id: 'nodeInstall',
+            label: 'Node.js インストール（必須）',
+            description: 'pm2実行に必要（winget経由）',
+            required: true,
+            needsPassword: false,
+            defaultSelected: true,
+        });
+    }
+
+    // Git for Windowsインストール（psmuxモード用・Claude Codeの前提条件）
+    if (requirements.needs.gitInstall) {
+        items.push({
+            id: 'gitInstall',
+            label: 'Git for Windows インストール（必須）',
+            description: 'Claude Codeの前提条件（winget経由）',
+            required: true,
+            needsPassword: false,
+            defaultSelected: true,
+        });
+    }
+
+    // Claude Codeインストール（必須）
+    if (requirements.needs.claudeCodeInstall) {
+        items.push({
+            id: 'claudeCodeInstall',
+            label: 'Claude Code インストール（必須）',
+            description: 'エージェント実行に必要',
+            required: true,
+            needsPassword: false,
+            defaultSelected: true,
+        });
+    }
 
     // パスワードレスsudo（推奨）
     if (requirements.needs.passwordlessSudo) {
@@ -239,18 +311,6 @@ export function buildGlobalConfirmItems(requirements: GlobalRequirements): Globa
             label: 'pm2 インストール（必須）',
             description: 'MCPサーバープロセスマネージャー',
             required: true,
-            needsPassword: true,
-            defaultSelected: true,
-        });
-    }
-
-    // pm2 startup
-    if (requirements.needs.pm2Startup) {
-        items.push({
-            id: 'pm2Startup',
-            label: 'pm2 自動起動設定',
-            description: 'PC起動時にMCPサーバーを自動起動',
-            required: false,
             needsPassword: true,
             defaultSelected: true,
         });

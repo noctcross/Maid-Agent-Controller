@@ -41,18 +41,7 @@ export class PsmuxAdapter extends AbstractMultiplexerAdapter {
         };
     }
 
-    /**
-     * copy-mode-timeout を設定
-     * psmux での対応状況に応じてオーバーライド
-     */
-    protected override setCopyModeTimeout(): void {
-        try {
-            // psmux が copy-mode-timeout をサポートしているか確認
-            this.exec(`set-option -t ${this.sessionName} -g copy-mode-timeout 5`);
-        } catch {
-            // サポートされていない場合は無視
-        }
-    }
+    // setCopyModeTimeout は base-adapter の実装をそのまま使用（冗長オーバーライド削除）
 
     // ========== PsmuxAdapter 固有のメソッド ==========
 

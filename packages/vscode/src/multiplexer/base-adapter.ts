@@ -72,6 +72,7 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
             this.exec(`has-session -t ${this.sessionName}`);
             return true;
         } catch {
+            // セッションが存在しない場合 has-session はエラーを返す（正常動作）
             return false;
         }
     }
@@ -92,7 +93,7 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
         try {
             this.exec(`set-option -t ${this.sessionName} -g copy-mode-timeout 5`);
         } catch {
-            // tmux 3.2 未満では copy-mode-timeout がサポートされていない
+            // tmux 3.2 未満では copy-mode-timeout がサポートされていないため無視
         }
     }
 
@@ -101,7 +102,7 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
             try {
                 this.exec(`kill-session -t ${this.sessionName}`);
             } catch {
-                // セッションが既に終了している場合は無視
+                // sessionExists()とkill-sessionの間にセッションが終了する場合があるため無視
             }
         }
     }
@@ -117,6 +118,7 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
             const windows = this.exec(`list-windows -t ${this.sessionName} -F "#{window_name}"`);
             return windows.split('\n').includes(windowName);
         } catch {
+            // セッションが存在しない場合 list-windows はエラーを返す（正常動作）
             return false;
         }
     }
@@ -128,7 +130,7 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
         try {
             this.exec(`set-window-option -t ${this.sessionName}:${windowName} automatic-rename off`);
         } catch {
-            // オプションがサポートされていない場合は無視
+            // automatic-rename オプションがサポートされていない環境では無視
         }
     }
 
@@ -137,7 +139,7 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
             try {
                 this.exec(`kill-window -t ${this.sessionName}:${windowName}`);
             } catch {
-                // ウィンドウが既に終了している場合は無視
+                // windowExists()とkill-windowの間にウィンドウが終了する場合があるため無視
             }
         }
     }
@@ -147,6 +149,7 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
             const result = this.exec(`list-windows -t ${this.sessionName} -F "#{window_name}"`);
             return result.split('\n').filter(name => name.length > 0);
         } catch {
+            // セッションが存在しない場合 list-windows はエラーを返す（正常動作）
             return [];
         }
     }
@@ -171,13 +174,13 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
             // -X cancel でcopy modeをキャンセル
             this.exec(`send-keys -t ${this.sessionName}:${windowName} -X cancel`);
         } catch {
-            // copy modeでない場合はエラーになるが無視
+            // copy modeでない場合は -X cancel がエラーになるため無視
         }
         try {
             // 念のためEscapeも送信
             this.exec(`send-keys -t ${this.sessionName}:${windowName} Escape`);
         } catch {
-            // 無視
+            // Escape送信失敗はウィンドウ不在等の非致命的エラーのため無視
         }
     }
 
@@ -187,6 +190,7 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
         try {
             return this.exec(`capture-pane -t ${this.sessionName}:${windowName} -p -S -${lines}`);
         } catch {
+            // ウィンドウ不在やキャプチャ不可能な状態では空文字を返す（正常動作）
             return '';
         }
     }

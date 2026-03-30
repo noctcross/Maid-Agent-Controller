@@ -2,7 +2,7 @@
  * セットアップ戦略の選択とエクスポート
  */
 import { RuntimeMode } from '../../types';
-import { CURRENT_ENV } from '../../utils/environment';
+import { isPsmuxMode } from '../../utils/environment';
 import { SetupStrategy, PsmuxSetupStrategy, UnixSetupStrategy, isPsmuxStrategy, isUnixStrategy } from './types';
 import { psmuxStrategy } from './psmux-strategy';
 import { unixStrategy } from './unix-strategy';
@@ -28,7 +28,7 @@ export { unixStrategy } from './unix-strategy';
  */
 export function getStrategy(runtimeMode: RuntimeMode): SetupStrategy {
     // Psmuxモード: Windows環境 + windows-native 選択
-    if (CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native') {
+    if (isPsmuxMode(runtimeMode)) {
         return psmuxStrategy;
     }
 
@@ -39,15 +39,8 @@ export function getStrategy(runtimeMode: RuntimeMode): SetupStrategy {
     return unixStrategy;
 }
 
-/**
- * 現在の環境がPsmuxモードかどうか判定
- *
- * @param runtimeMode ユーザーが選択したランタイムモード
- * @returns Psmuxモードの場合true
- */
-export function isPsmuxMode(runtimeMode: RuntimeMode): boolean {
-    return CURRENT_ENV === 'windows-native' && runtimeMode === 'windows-native';
-}
+// isPsmuxMode は environment.ts から re-export
+export { isPsmuxMode } from '../../utils/environment';
 
 /**
  * 現在の環境がUnixモード（WSL含む）かどうか判定

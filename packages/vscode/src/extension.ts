@@ -7,6 +7,16 @@ import { getGlobalMaidAgentPath, getSessionNameFromPath } from './utils/helpers'
 import { getSavedRuntimeMode, getPendingSetupState, clearPendingSetupState, continueGlobalSetup } from './setup/global-init';
 
 // =============================================================================
+// 定数
+// =============================================================================
+
+/** VSCode初期化完了待機時間: 自動復帰用（ms） */
+const AUTO_RESUME_DELAY_MS = 2000;
+
+/** VSCode初期化完了待機時間: Init Global継続用（自動復帰より後に実行） */
+const INIT_GLOBAL_CONTINUE_DELAY_MS = 3000;
+
+// =============================================================================
 // 拡張機能のエントリーポイント
 // =============================================================================
 
@@ -307,6 +317,7 @@ export function activate(context: vscode.ExtensionContext) {
                         }
                         sessionExists = true;
                     } catch {
+                        // has-session はセッション不在時にエラーを返す（正常動作）
                         sessionExists = false;
                     }
 
@@ -319,7 +330,7 @@ export function activate(context: vscode.ExtensionContext) {
                 // 自動復帰に失敗しても致命的ではないのでログのみ
                 console.error('[Maid Agent] 自動復帰に失敗:', error);
             }
-        }, 2000); // 2秒後に実行
+        }, AUTO_RESUME_DELAY_MS);
     }
 
     // Init Global 継続チェック（VS Code 再起動後の自動継続）
@@ -352,7 +363,7 @@ export function activate(context: vscode.ExtensionContext) {
                 console.error('[Maid Agent] Init Global 継続に失敗:', error);
                 clearPendingSetupState(context);
             }
-        }, 3000); // 3秒後に実行（自動復帰より後）
+        }, INIT_GLOBAL_CONTINUE_DELAY_MS);
     }
 }
 

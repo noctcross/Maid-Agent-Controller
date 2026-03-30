@@ -64,17 +64,6 @@ vi.mock('../utils/helpers', () => ({
     getOrderedMaids: vi.fn(() => []),
 }));
 
-vi.mock('../tmux/tmux-manager', () => {
-    return {
-        TmuxManager: class MockTmuxManager {
-            killSession = vi.fn();
-            createWindow = vi.fn();
-            sendKeys = vi.fn();
-            constructor(_sessionName: string, _workspaceRoot: string) {}
-        },
-    };
-});
-
 vi.mock('../ui/agent-panel-provider', () => ({
     AgentPanelProvider: vi.fn().mockImplementation(() => ({
         setAgents: vi.fn(),

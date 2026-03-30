@@ -303,6 +303,8 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: false,
           psmuxInstall: false,
           nodeInstall: false,
+          gitInstall: false,
+          claudeCodeInstall: false,
           passwordlessSudo: false,
           jqInstall: false,
           yqInstall: false,
@@ -326,6 +328,8 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: false,
           psmuxInstall: false,
           nodeInstall: false,
+          gitInstall: false,
+          claudeCodeInstall: false,
           passwordlessSudo: true,  // +1
           jqInstall: true,         // +1
           yqInstall: false,
@@ -339,7 +343,7 @@ describe('requirements-analyzer', () => {
       expect(countRequiredSteps(requirements)).toBe(2);
     });
 
-    it('WSL含む全項目未設定の場合は9を返す', () => {
+    it('WSL含む全項目未設定の場合は11を返す', () => {
       const requirements: GlobalRequirements = {
         platform: 'windows-native',
         packageManager: 'npm',
@@ -349,6 +353,8 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: true,     // +1
           psmuxInstall: true,      // +1
           nodeInstall: true,       // +1
+          gitInstall: true,        // +1
+          claudeCodeInstall: true, // +1
           passwordlessSudo: true,  // +1
           jqInstall: true,         // +1
           yqInstall: true,         // +1
@@ -359,7 +365,7 @@ describe('requirements-analyzer', () => {
         requiresReboot: true,
       };
 
-      expect(countRequiredSteps(requirements)).toBe(9);
+      expect(countRequiredSteps(requirements)).toBe(11);
     });
   });
 
@@ -374,6 +380,8 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: false,
           psmuxInstall: false,
           nodeInstall: false,
+          gitInstall: false,
+          claudeCodeInstall: false,
           passwordlessSudo: false,
           jqInstall: false,
           yqInstall: false,
@@ -397,6 +405,8 @@ describe('requirements-analyzer', () => {
           ubuntuInstall: false,
           psmuxInstall: false,
           nodeInstall: false,
+          gitInstall: false,
+          claudeCodeInstall: false,
           passwordlessSudo: false,
           jqInstall: false,
           yqInstall: false,

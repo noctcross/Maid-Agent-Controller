@@ -62,6 +62,7 @@ export function checkWslInstalled(): boolean {
         execSync('wsl.exe --version', { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch {
+        // wsl.exe が存在しない場合は未インストールと判定
         return false;
     }
 }
@@ -76,6 +77,7 @@ export function checkUbuntuInstalled(): boolean {
         const result = execSync('wsl.exe -l -q', { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 });
         return result.toLowerCase().includes('ubuntu');
     } catch {
+        // wsl.exe -l 実行失敗は未インストールと判定
         return false;
     }
 }
@@ -91,6 +93,7 @@ export function checkWslOperational(): boolean {
         execSync('wsl bash -c "echo ok"', { encoding: 'utf-8', stdio: 'pipe', timeout: 10000 });
         return true;
     } catch {
+        // WSLコマンド実行失敗は動作不可と判定
         return false;
     }
 }
@@ -109,6 +112,7 @@ export function checkPasswordlessSudoConfigured(): boolean {
         }
         return true;
     } catch {
+        // sudo -n 失敗はパスワードレスsudo未設定と判定
         return false;
     }
 }
@@ -125,6 +129,7 @@ export function checkJqInstalledSimple(): boolean {
         }
         return true;
     } catch {
+        // which jq 失敗は未インストールと判定
         return false;
     }
 }
@@ -141,6 +146,7 @@ export function checkYqInstalledSimple(): boolean {
         }
         return true;
     } catch {
+        // which yq 失敗は未インストールと判定
         return false;
     }
 }
@@ -153,6 +159,7 @@ export function checkPm2Installed(): boolean {
         runShellCommand('which pm2', { stdio: 'pipe' });
         return true;
     } catch {
+        // which pm2 失敗は未インストールと判定
         return false;
     }
 }
@@ -187,6 +194,7 @@ export function checkPathConfigured(): boolean {
             ).trim();
             return result.length > 0;
         } catch {
+            // WSLでのgrep実行失敗はPATH未設定と判定
             return false;
         }
     }
@@ -206,7 +214,7 @@ export function checkPathConfigured(): boolean {
                     return true;
                 }
             } catch {
-                // 読み取りエラーは無視
+                // 設定ファイルの読み取り権限がない場合は無視して次の設定ファイルを確認
             }
         }
     }
@@ -227,6 +235,7 @@ export function checkJqInstalledPsmux(): boolean {
         execSync('where jq', { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch {
+        // where jq 失敗は未インストールと判定
         return false;
     }
 }
@@ -240,6 +249,7 @@ export function checkYqInstalledPsmux(): boolean {
         execSync('where yq', { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch {
+        // where yq 失敗は未インストールと判定
         return false;
     }
 }
@@ -253,6 +263,7 @@ export function checkPm2InstalledPsmux(): boolean {
         execSync('where pm2', { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch {
+        // where pm2 失敗は未インストールと判定
         return false;
     }
 }
@@ -267,6 +278,7 @@ export function checkPsmuxInstalled(): boolean {
         execSync('where psmux', { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch {
+        // where psmux 失敗は未インストールと判定
         return false;
     }
 }
@@ -281,6 +293,7 @@ export function checkNodeInstalledPsmux(): boolean {
         execSync('where npm', { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch {
+        // where node/npm 失敗は未インストールと判定
         return false;
     }
 }
@@ -311,7 +324,7 @@ export function checkPathConfiguredPsmux(): boolean {
                     return true;
                 }
             } catch {
-                // 読み取りエラーは無視
+                // プロファイルの読み取り権限がない場合は無視して次のプロファイルを確認
             }
         }
     }
@@ -328,6 +341,7 @@ export function checkGitInstalledPsmux(): boolean {
         execSync('where git', { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch {
+        // where git 失敗は未インストールと判定
         return false;
     }
 }
@@ -353,6 +367,7 @@ export function checkClaudeCodeInstalledPsmux(): boolean {
 
         return possiblePaths.some(p => fs.existsSync(p));
     } catch {
+        // パス確認中のエラーは未インストールと判定
         return false;
     }
 }
@@ -375,6 +390,7 @@ export function getClaudeCodePathPsmux(): string | null {
         }
         return null;
     } catch {
+        // パス確認中のエラーはパス不明と判定
         return null;
     }
 }
@@ -392,6 +408,7 @@ export function checkClaudeCodeInstalledUnix(): boolean {
         }
         return true;
     } catch {
+        // which claude 失敗は未インストールと判定
         return false;
     }
 }

@@ -280,7 +280,13 @@ router.post("/api/notifications", async (req: Request, res: Response) => {
     }
 
     // 個別エージェントへの送信
-    await sendToAgent(projectPath, to, message, historyPath);
+    const sendResult = await sendToAgent(projectPath, to, message, historyPath);
+
+    if (sendResult === false) {
+      logger.error(`Failed to send message to agent: ${to}`);
+      res.status(500).json({ success: false, error: `Failed to send message to agent: ${to}` });
+      return;
+    }
 
     // レスポンス生成（タイムスタンプは現在時刻で）
     const now = new Date();

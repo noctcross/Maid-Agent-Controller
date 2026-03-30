@@ -140,6 +140,11 @@ async function main(): Promise<void> {
     logger.info(`Note: Requires X-Maid-Project-Path header for project identification`);
     logger.info(`WebSocket endpoint: ws://${host}:${port}/dashboard/ws`);
     logger.info(`Notification WS: ws://${host}:${port}/ws/notifications`);
+
+    // PM2 ready signal（wait_ready: true 対応）
+    if (process.send) {
+      process.send('ready');
+    }
   });
 
   // HTTP Keep-Alive タイムアウト設定

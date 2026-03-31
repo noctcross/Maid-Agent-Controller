@@ -33,6 +33,28 @@ const PM2_DEFAULTS = {
 };
 
 /**
+ * OS に応じた PATH を構築
+ * - Unix: ~/.maid-agent/bin:~/.local/bin:$PATH
+ * - Windows: %USERPROFILE%\.maid-agent\bin;$PATH
+ */
+function buildPath() {
+    const os = require('os');
+    const homeDir = os.homedir();
+    const isWindows = os.platform() === 'win32';
+
+    if (isWindows) {
+        const sep = ';';
+        const maidBin = path.join(homeDir, '.maid-agent', 'bin');
+        return `${maidBin}${sep}${process.env.PATH || ''}`;
+    } else {
+        const sep = ':';
+        const maidBin = `${homeDir}/.maid-agent/bin`;
+        const localBin = `${homeDir}/.local/bin`;
+        return `${maidBin}${sep}${localBin}${sep}${process.env.PATH || '/usr/local/bin:/usr/bin:/bin'}`;
+    }
+}
+
+/**
  * maid-agent-messenger.yaml から PM2 設定を読み込む
  */
 function loadPm2Config() {
@@ -96,8 +118,8 @@ module.exports = {
         ALLOW_EXTERNAL_ACCESS: "true",
         // 設定ファイルのパス: 環境変数を削除し、config-loader.ts のデフォルト動作に任せる
         // デフォルト: ~/.maid-agent/system/config/maid-agent-messenger.yaml
-        // Claude CLI へのパスを含める
-        PATH: `${require('os').homedir()}/.local/bin:${process.env.PATH || '/usr/local/bin:/usr/bin:/bin'}`,
+        // Claude CLI / maidctl へのパスを含める
+        PATH: buildPath(),
         // CLAUDECODEを無効化（ネストセッション検出を回避）
         CLAUDECODE: "",
       },

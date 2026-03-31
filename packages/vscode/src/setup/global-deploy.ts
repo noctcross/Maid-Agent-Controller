@@ -226,6 +226,9 @@ export async function deployMaidctl(ctx: SetupContext, runtimeMode: RuntimeMode 
         deployPaths.push(path.join(getGlobalMaidAgentPath(), 'bin'));
     }
 
+    // Windows用 .cmd ラッパーのソースパス
+    const maidctlCmdSrc = path.join(ctx.extensionPath, 'global-templates', 'bin', 'maidctl.cmd');
+
     for (const binPath of deployPaths) {
         if (!fs.existsSync(binPath)) {
             fs.mkdirSync(binPath, { recursive: true });
@@ -236,6 +239,13 @@ export async function deployMaidctl(ctx: SetupContext, runtimeMode: RuntimeMode 
         // 実行権限を付与
         fs.chmodSync(maidctlDest, 0o755);
         ctx.log(`[Global] maidctlデプロイ完了: ${binPath}`);
+
+        // Windows環境: .cmd ラッパーもコピー（PowerShell/cmd.exeから実行可能にする）
+        if (ENV.isWindowsNative() && fs.existsSync(maidctlCmdSrc)) {
+            const maidctlCmdDest = path.join(binPath, 'maidctl.cmd');
+            fs.copyFileSync(maidctlCmdSrc, maidctlCmdDest);
+            ctx.log(`[Global] maidctl.cmdデプロイ完了: ${binPath}`);
+        }
     }
 }
 

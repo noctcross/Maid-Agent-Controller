@@ -22,3 +22,6 @@ ts-jest.log
 # Private apps (clone separately)
 apps/MobileSylvia/
 apps/MaidAgentDesktop/
+
+# CoDD (regeneratable)
+.codd/

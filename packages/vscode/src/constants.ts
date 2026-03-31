@@ -15,6 +15,7 @@ export const NOTIFICATIONS_SUBDIR = 'system/data/notifications';
 export const MAID_DATA_SUBDIR = 'system/data/maid';
 export const INSTRUCTIONS_SUBDIR = 'agents/instructions';
 export const CONFIG_SUBDIR = 'system/config';
+export const TMUX_CONFIG_FILE = 'system/config/.tmux.conf';  // tmux/psmux共通設定ファイル
 
 // =============================================================================
 // エージェント関連定数（utils/agents.ts から re-export）

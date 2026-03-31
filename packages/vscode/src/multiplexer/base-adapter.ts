@@ -1,6 +1,7 @@
 import { execSync, exec } from 'child_process';
 import { ITerminalMultiplexer, MultiplexerType } from './interfaces';
 import { escapeForDoubleQuote, type ShellType } from '../utils/shell-escape';
+import { GLOBAL_MAID_AGENT_DIR, TMUX_CONFIG_FILE } from '../constants';
 
 /**
  * マルチプレクサの共通実装
@@ -90,6 +91,8 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
             const dir = this.getCommandWorkingDirectory();
             const escapedDir = escapeForDoubleQuote(dir, this.getShellType());
             this.exec(`new-session -d -s ${this.sessionName} -c "${escapedDir}"`);
+            // セッション設定ファイルを読み込み（ステータスバー2行、ウィンドウ名固定等）
+            this.sourceConfigFile();
             // copy-mode-timeout を設定（スクロール中の通知配信改善）
             this.setCopyModeTimeout();
         }
@@ -103,6 +106,20 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
             this.exec(`set-option -t ${this.sessionName} -g copy-mode-timeout 5`);
         } catch {
             // tmux 3.2 未満では copy-mode-timeout がサポートされていないため無視
+        }
+    }
+
+    /**
+     * セッション設定ファイルを読み込み（サブクラスでオーバーライド可能）
+     * ~/.maid-agent/system/config/.tmux.conf が存在する場合に適用
+     */
+    protected sourceConfigFile(): void {
+        // tmux/psmux の source-file は ~ をホームディレクトリに展開する
+        const configPath = `~/${GLOBAL_MAID_AGENT_DIR}/${TMUX_CONFIG_FILE}`;
+        try {
+            this.exec(`source-file ${configPath}`);
+        } catch {
+            // 設定ファイルが存在しない場合は無視（InitGlobal未実行時）
         }
     }
 

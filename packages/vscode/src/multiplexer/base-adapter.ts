@@ -1,7 +1,12 @@
 import { execSync, exec } from 'child_process';
 import { ITerminalMultiplexer, MultiplexerType } from './interfaces';
 import { escapeForDoubleQuote, type ShellType } from '../utils/shell-escape';
-import { GLOBAL_MAID_AGENT_DIR, TMUX_CONFIG_FILE } from '../constants';
+
+// ステータスバー2行表示のフォーマット
+// 1行目: ウィンドウリスト（クリック可能）
+const STATUS_FORMAT_LINE1 = '#[list=on align=left]#[list=left-marker]<#[list=right-marker]>#[list=on]#{W:#[range=window|#{window_index}]#{T:window-status-format}#[norange],#[range=window|#{window_index} list=focus]#{T:window-status-current-format}#[norange]}';
+// 2行目: セッション名、パス、日時
+const STATUS_FORMAT_LINE2 = '#[align=left][#{session_name}] #{pane_current_path} #[align=right]%Y-%m-%d %H:%M';
 
 /**
  * マルチプレクサの共通実装
@@ -110,16 +115,40 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
     }
 
     /**
-     * セッション設定ファイルを読み込み（サブクラスでオーバーライド可能）
-     * ~/.maid-agent/system/config/.tmux.conf が存在する場合に適用
+     * セッション設定を適用（サブクラスでオーバーライド可能）
+     * セッションスコープ（-t SESSION）で設定し、ユーザーの既存tmux設定に影響しない
      */
     protected sourceConfigFile(): void {
-        // tmux/psmux の source-file は ~ をホームディレクトリに展開する
-        const configPath = `~/${GLOBAL_MAID_AGENT_DIR}/${TMUX_CONFIG_FILE}`;
-        try {
-            this.exec(`source-file ${configPath}`);
-        } catch {
-            // 設定ファイルが存在しない場合は無視（InitGlobal未実行時）
+        const s = this.sessionName;
+
+        // セッションオプション
+        const sessionOptions: [string, string][] = [
+            ['mouse', 'on'],
+            ['status', '2'],
+            ['status-format[0]', STATUS_FORMAT_LINE1],
+            ['status-format[1]', STATUS_FORMAT_LINE2],
+        ];
+
+        // ウィンドウオプション（セッション内の新規ウィンドウのデフォルト）
+        const windowOptions: [string, string][] = [
+            ['automatic-rename', 'off'],
+            ['allow-rename', 'off'],
+        ];
+
+        for (const [key, value] of sessionOptions) {
+            try {
+                this.exec(`set-option -t ${s} '${key}' '${value}'`);
+            } catch (error) {
+                console.error(`[sourceConfigFile] set-option ${key} failed:`, error);
+            }
+        }
+
+        for (const [key, value] of windowOptions) {
+            try {
+                this.exec(`set-window-option -t ${s} ${key} ${value}`);
+            } catch (error) {
+                console.error(`[sourceConfigFile] set-window-option ${key} failed:`, error);
+            }
         }
     }
 

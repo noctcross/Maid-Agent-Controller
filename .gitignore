@@ -25,3 +25,4 @@ apps/MaidAgentDesktop/
 
 # CoDD (regeneratable)
 .codd/
+.codd_version

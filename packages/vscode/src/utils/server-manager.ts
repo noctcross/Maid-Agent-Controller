@@ -6,16 +6,13 @@
  * - environments.xxx.status が 'ready' でなければエラー
  */
 import * as vscode from 'vscode';
-import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SetupContext } from '../types';
-import { ENV } from './environment';
+import { ENV, type ServerEnvironment } from './environment-context';
 import {
-    getEnvironmentStatus,
     isEnvironmentReady,
     getReadyEnvironments,
-    EnvironmentType,
 } from './environment-status';
 
 // =============================================================================
@@ -23,14 +20,6 @@ import {
 // =============================================================================
 
 export type MultiplexerType = 'tmux' | 'psmux' | 'auto';
-
-/**
- * サーバー実行環境
- * - 'wsl': WSL内でpm2実行
- * - 'windows': Windowsネイティブでpm2実行
- * - 'local': Mac/Linuxで直接pm2実行
- */
-export type ServerEnvironment = 'wsl' | 'windows' | 'local';
 
 const PM2_PROCESS_NAME = 'maid-agent-messenger';
 
@@ -119,25 +108,7 @@ export function isServerRunningIn(env: ServerEnvironment): boolean {
     log(`[Server] isServerRunningIn: env=${env}`);
 
     try {
-        let output: string;
-
-        if (env === 'wsl') {
-            output = execSync('wsl bash -lc "pm2 jlist 2>/dev/null"', {
-                encoding: 'utf-8',
-                timeout: 5000
-            });
-        } else if (env === 'windows') {
-            output = execSync('cmd.exe /c "pm2 jlist 2>nul"', {
-                encoding: 'utf-8',
-                timeout: 5000,
-                windowsHide: true,
-            });
-        } else {
-            output = execSync('pm2 jlist 2>/dev/null', {
-                encoding: 'utf-8',
-                timeout: 5000
-            });
-        }
+        const output = ENV.execInServerEnvironment('pm2 jlist', env, { timeout: 5000 });
 
         const processes = JSON.parse(output);
         const running = processes.some((p: { name: string; pm2_env?: { status?: string } }) =>
@@ -167,41 +138,17 @@ export function isServerRunning(multiplexerType: MultiplexerType = 'auto'): bool
 // サーバー起動・停止
 // =============================================================================
 
-interface Pm2Commands {
-    start: string;
-    deleteAndStart: string;
-    cwd?: string;
-}
-
 /**
- * 環境ごとの pm2 start コマンドを生成
+ * 環境ごとの maid-agent-messenger パスを取得
  */
-function buildPm2StartCommand(env: ServerEnvironment): Pm2Commands {
+function getMessengerPath(env: ServerEnvironment): string {
     if (env === 'wsl') {
-        const wslPath = '~/.maid-agent/maid-agent-messenger';
-        return {
-            start: `wsl bash -lc "cd ${wslPath} && pm2 start ecosystem.config.cjs 2>&1"`,
-            deleteAndStart: `wsl bash -lc "pm2 delete ${PM2_PROCESS_NAME} 2>/dev/null; cd ${wslPath} && pm2 start ecosystem.config.cjs 2>&1"`,
-        };
+        return '~/.maid-agent/maid-agent-messenger';
     }
-
     if (env === 'windows') {
-        const homeDir = process.env.USERPROFILE || '';
-        const messengerPath = path.join(homeDir, '.maid-agent', 'maid-agent-messenger');
-        return {
-            start: 'cmd.exe /c "pm2 start ecosystem.config.cjs"',
-            deleteAndStart: `cmd.exe /c "pm2 delete ${PM2_PROCESS_NAME} 2>nul & pm2 start ecosystem.config.cjs"`,
-            cwd: messengerPath,
-        };
+        return path.join(process.env.USERPROFILE || '', '.maid-agent', 'maid-agent-messenger');
     }
-
-    // local (Mac/Linux)
-    const homeDir = process.env.HOME || '';
-    const messengerPath = path.join(homeDir, '.maid-agent', 'maid-agent-messenger');
-    return {
-        start: `cd "${messengerPath}" && pm2 start ecosystem.config.cjs 2>&1`,
-        deleteAndStart: `pm2 delete ${PM2_PROCESS_NAME} 2>/dev/null; cd "${messengerPath}" && pm2 start ecosystem.config.cjs 2>&1`,
-    };
+    return path.join(process.env.HOME || '', '.maid-agent', 'maid-agent-messenger');
 }
 
 /**
@@ -211,29 +158,28 @@ export async function startServerIn(env: ServerEnvironment, ctx?: SetupContext):
     const log = ctx?.log ?? getServerLog();
     log(`[Server] startServerIn: env=${env}`);
 
+    const messengerPath = getMessengerPath(env);
+
     // Windows環境の場合、パスの存在チェック
-    if (env === 'windows') {
-        const homeDir = process.env.USERPROFILE || '';
-        const messengerPath = path.join(homeDir, '.maid-agent', 'maid-agent-messenger');
-        if (!fs.existsSync(messengerPath)) {
-            log(`[Server] ERROR: Path does not exist: ${messengerPath}`);
-            log(`[Server] maid-agent-messenger ディレクトリが存在しません。Init Global を実行してください。`);
-            return false;
-        }
+    if (env === 'windows' && !fs.existsSync(messengerPath)) {
+        log(`[Server] ERROR: Path does not exist: ${messengerPath}`);
+        log(`[Server] maid-agent-messenger ディレクトリが存在しません。Init Global を実行してください。`);
+        return false;
     }
 
-    const commands = buildPm2StartCommand(env);
-    const execOpts = {
-        encoding: 'utf-8' as const,
-        timeout: 30000,
-        ...(env === 'windows' ? { windowsHide: true } : {}),
-        ...(commands.cwd ? { cwd: commands.cwd } : {}),
-    };
+    // Windows環境ではcwdオプションで作業ディレクトリを指定、それ以外はcdコマンドを使用
+    const startCmd = env === 'windows'
+        ? 'pm2 start ecosystem.config.cjs'
+        : `cd "${messengerPath}" && pm2 start ecosystem.config.cjs`;
+    const deleteAndStartCmd = env === 'windows'
+        ? `pm2 delete ${PM2_PROCESS_NAME} & pm2 start ecosystem.config.cjs`
+        : `pm2 delete ${PM2_PROCESS_NAME}; cd "${messengerPath}" && pm2 start ecosystem.config.cjs`;
+    const execOpts = env === 'windows' ? { timeout: 30000, cwd: messengerPath } : { timeout: 30000 };
 
     // 1回目: 通常の pm2 start
     try {
         log(`[Server] Starting server in ${env}...`);
-        const output = execSync(commands.start, execOpts);
+        const output = ENV.execInServerEnvironment(startCmd, env, execOpts);
         log(`[Server] pm2 start output: ${output}`);
         log(`[Server] ${env}でサーバーを起動しました`);
         return true;
@@ -245,7 +191,7 @@ export async function startServerIn(env: ServerEnvironment, ctx?: SetupContext):
     // 2回目: pm2 delete → pm2 start（stale プロセス登録をクリア）
     try {
         log(`[Server] pm2 delete → pm2 start でリトライ...`);
-        const output = execSync(commands.deleteAndStart, execOpts);
+        const output = ENV.execInServerEnvironment(deleteAndStartCmd, env, execOpts);
         log(`[Server] pm2 retry output: ${output}`);
         log(`[Server] ${env}でサーバーを起動しました（リトライ成功）`);
         return true;
@@ -288,26 +234,8 @@ export async function stopServerIn(env: ServerEnvironment, ctx?: SetupContext): 
     log(`[Server] stopServerIn: env=${env}`);
 
     try {
-        if (env === 'wsl') {
-            execSync(`wsl bash -lc "pm2 stop ${PM2_PROCESS_NAME} 2>&1"`, {
-                encoding: 'utf-8',
-                timeout: 10000
-            });
-            log('[Server] WSL内のサーバーを停止しました');
-        } else if (env === 'windows') {
-            execSync(`cmd.exe /c "pm2 stop ${PM2_PROCESS_NAME} 2>nul"`, {
-                encoding: 'utf-8',
-                timeout: 10000,
-                windowsHide: true,
-            });
-            log('[Server] Windowsのサーバーを停止しました');
-        } else {
-            execSync(`pm2 stop ${PM2_PROCESS_NAME} 2>&1`, {
-                encoding: 'utf-8',
-                timeout: 10000
-            });
-            log('[Server] サーバーを停止しました');
-        }
+        ENV.execInServerEnvironment(`pm2 stop ${PM2_PROCESS_NAME}`, env, { timeout: 10000 });
+        log(`[Server] ${env}のサーバーを停止しました`);
         return true;
     } catch {
         // 停止済みの場合はエラーになるが無視

@@ -250,19 +250,20 @@ export class EnvironmentContext implements IEnvironmentContext {
     }
 
     execInServerEnvironment(command: string, env: ServerEnvironment, options?: ExecSyncOptions): string {
+        const baseOpts = { encoding: 'utf-8' as const, ...options };
         switch (env) {
             case 'wsl':
-                return execSync(
+                return (execSync(
                     `wsl bash -lc "${escapeForDoubleQuote(command, 'bash')}"`,
-                    { encoding: 'utf-8', ...options },
-                ).trim();
+                    baseOpts,
+                ) as string).trim();
             case 'windows':
-                return execSync(
+                return (execSync(
                     `cmd.exe /c "${escapeForDoubleQuote(command, 'cmd')}"`,
-                    { encoding: 'utf-8', windowsHide: true, ...options },
-                ).trim();
+                    { windowsHide: true, ...baseOpts },
+                ) as string).trim();
             case 'local':
-                return execSync(command, { encoding: 'utf-8', ...options }).trim();
+                return (execSync(command, baseOpts) as string).trim();
         }
     }
 }

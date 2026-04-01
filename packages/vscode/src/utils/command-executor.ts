@@ -30,10 +30,11 @@ export interface ICommandExecutor {
 export class WslCommandExecutor implements ICommandExecutor {
     execInLoginShell(command: string, options?: ExecSyncOptions): string {
         const escaped = escapeForDoubleQuote(command, 'bash');
-        return execSync(`wsl bash -lc "${escaped}"`, {
-            encoding: 'utf-8',
+        const result = execSync(`wsl bash -lc "${escaped}"`, {
             ...options,
-        }).trim();
+            encoding: 'utf-8',
+        });
+        return result.trim();
     }
 
     commandExists(command: string): boolean {
@@ -65,10 +66,11 @@ export class NativeCommandExecutor implements ICommandExecutor {
     execInLoginShell(command: string, options?: ExecSyncOptions): string {
         const shell = this.getLoginShell();
         const escaped = escapeForDoubleQuote(command, 'bash');
-        return execSync(`${shell} -lc "${escaped}"`, {
-            encoding: 'utf-8',
+        const result = execSync(`${shell} -lc "${escaped}"`, {
             ...options,
-        }).trim();
+            encoding: 'utf-8',
+        });
+        return result.trim();
     }
 
     commandExists(command: string): boolean {

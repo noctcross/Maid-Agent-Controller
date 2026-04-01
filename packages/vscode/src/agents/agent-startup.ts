@@ -165,11 +165,13 @@ export function openTmuxViewer(ctx: AgentContext): void {
     if (ENV.isWindowsNative()) {
         if (isPsmux) {
             // psmuxモード: PowerShellでpsmuxにアタッチ
+            // shellArgs方式により、psmuxプロセス終了時にターミナルも自動終了する
             ctx.tmuxViewerTerminal = vscode.window.createTerminal({
                 name: '🎩 Maid Agent (psmux)',
-                cwd: ctx.workspaceRoot
+                shellPath: 'powershell.exe',
+                shellArgs: ['-NoProfile', '-Command', `psmux attach-session -t ${ctx.tmuxSessionName}`],
+                cwd: ctx.workspaceRoot ? vscode.Uri.file(ctx.workspaceRoot) : undefined,
             });
-            ctx.tmuxViewerTerminal.sendText(`psmux attach-session -t ${ctx.tmuxSessionName}`);
         } else {
             // tmuxモード: WSLシェルを使用してtmuxにアタッチ
             const wslPath = ctx.workspaceRoot ? ENV.windowsToWslPath(ctx.workspaceRoot) : '/home';

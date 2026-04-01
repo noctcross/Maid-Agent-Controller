@@ -18,6 +18,7 @@ export interface SetupRequirement {
 }
 
 // SetupStep は constants/setup-steps.ts に移動（循環依存解消のため）
+import type { SetupStep } from '../constants/setup-steps';
 export type { SetupStep } from '../constants/setup-steps';
 
 export interface ConfirmationResult {

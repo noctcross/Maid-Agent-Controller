@@ -8,11 +8,23 @@
  */
 import * as os from 'os';
 import * as fs from 'fs';
-import { execSync } from 'child_process';
+import { execSync, type ExecSyncOptions } from 'child_process';
 import { ExecutionEnvironment, RuntimeMode } from '../types';
 import type { MultiplexerType } from '../multiplexer/interfaces';
-import { ShellType, escapeForSendKeys, quoteArg } from './shell-escape';
+import { ShellType, escapeForDoubleQuote, escapeForSendKeys, quoteArg } from './shell-escape';
 import { ITerminalFactory, createTerminalFactory } from './terminal-factory';
+
+// =============================================================================
+// 型定義
+// =============================================================================
+
+/**
+ * サーバー実行環境
+ * - 'wsl': WSL内でpm2実行（Windows + tmuxモード）
+ * - 'windows': Windowsネイティブでpm2実行（Windows + psmuxモード）
+ * - 'local': Mac/Linuxで直接pm2実行
+ */
+export type ServerEnvironment = 'wsl' | 'windows' | 'local';
 
 // =============================================================================
 // Interface
@@ -63,6 +75,12 @@ export interface IEnvironmentContext {
     // ─── TerminalFactory ───
     /** 環境に応じたTerminalFactoryを取得 */
     getTerminalFactory(isPsmux?: boolean): ITerminalFactory;
+
+    // ─── サーバー環境 ───
+    /** サーバー実行環境を解決（プラットフォームベースの基本判定） */
+    resolveServerEnvironment(): ServerEnvironment;
+    /** 指定環境でコマンドを実行（wsl/cmd.exe/直接のラッピングを統一） */
+    execInServerEnvironment(command: string, env: ServerEnvironment, options?: ExecSyncOptions): string;
 }
 
 // =============================================================================
@@ -240,6 +258,35 @@ export class EnvironmentContext implements IEnvironmentContext {
             this._terminalFactoryCache.set(isPsmux, createTerminalFactory(isPsmux));
         }
         return this._terminalFactoryCache.get(isPsmux)!;
+    }
+
+    // ─── サーバー環境 ───
+
+    resolveServerEnvironment(): ServerEnvironment {
+        if (!this.isWindowsNative()) {
+            return 'local';
+        }
+        // Windows環境: デフォルトはWSL（tmuxモード）
+        // psmux判定にはruntimeModeが必要だが、基本判定ではWSLを返す
+        return 'wsl';
+    }
+
+    execInServerEnvironment(command: string, env: ServerEnvironment, options?: ExecSyncOptions): string {
+        const baseOpts = { encoding: 'utf-8' as const, ...options };
+        switch (env) {
+            case 'wsl':
+                return (execSync(
+                    `wsl bash -lc "${escapeForDoubleQuote(command, 'bash')}"`,
+                    baseOpts,
+                ) as string).trim();
+            case 'windows':
+                return (execSync(
+                    `cmd.exe /c "${escapeForDoubleQuote(command, 'cmd')}"`,
+                    { windowsHide: true, ...baseOpts },
+                ) as string).trim();
+            case 'local':
+                return (execSync(command, baseOpts) as string).trim();
+        }
     }
 }
 

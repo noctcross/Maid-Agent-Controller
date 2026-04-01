@@ -32,14 +32,16 @@ import {
 import {
     saveRuntimeMode,
     getSavedRuntimeMode,
-    setEnvironmentStatus,
 } from './global-config';
+import { setEnvironmentStatus } from '../utils/environment-status';
 import { StepResult, PendingSetupState, savePendingSetupState, getPendingSetupState, clearPendingSetupState } from './pending-state';
 import { buildExecutionSteps } from './global-steps';
 
 // Re-export for backward compatibility
-export { getSavedRuntimeMode, saveRuntimeMode, getEnvironmentStatus, setEnvironmentStatus, getReadyEnvironments, isEnvironmentReady } from './global-config';
-export type { EnvironmentType, EnvironmentStatus, GlobalConfig } from './global-config';
+export { getSavedRuntimeMode, saveRuntimeMode } from './global-config';
+export type { GlobalConfig } from './global-config';
+export { getEnvironmentStatus, setEnvironmentStatus, getReadyEnvironments, isEnvironmentReady } from '../utils/environment-status';
+export type { EnvironmentType, EnvironmentStatus } from '../utils/environment-status';
 export { savePendingSetupState, getPendingSetupState, clearPendingSetupState } from './pending-state';
 export type { ExecutionStep, StepResult, PendingSetupState } from './pending-state';
 

@@ -117,81 +117,8 @@ export function getSavedRuntimeMode(): RuntimeMode | undefined {
 }
 
 // =============================================================================
-// 環境状態管理（新方式）
+// 環境状態管理
 // =============================================================================
-
-export type EnvironmentType = 'wsl' | 'windows';
-export type EnvironmentStatus = 'none' | 'target' | 'ready';
-
-/**
- * 環境のセットアップ状態を取得
- */
-export function getEnvironmentStatus(env: EnvironmentType): EnvironmentStatus {
-    const configPath = getGlobalConfigPath();
-    const config = loadGlobalConfig();
-
-    console.log(`[Global] getEnvironmentStatus: env=${env}, configPath=${configPath}`);
-    console.log(`[Global] config.environments=${JSON.stringify(config.environments)}`);
-    console.log(`[Global] config.runtime=${JSON.stringify(config.runtime)}`);
-
-    // 新方式の environments があればそれを使う
-    if (config.environments?.[env]?.status) {
-        console.log(`[Global] Using new environments style: ${config.environments[env]!.status}`);
-        return config.environments[env]!.status;
-    }
-
-    // 旧方式 runtime.mode からマイグレーション
-    if (config.runtime?.mode) {
-        const mode = config.runtime.mode;
-        let status: EnvironmentStatus;
-        if (env === 'wsl') {
-            status = (mode === 'wsl' || mode === 'both') ? 'ready' : 'none';
-        } else {
-            status = (mode === 'windows-native' || mode === 'both') ? 'ready' : 'none';
-        }
-        console.log(`[Global] Migrating from runtime.mode=${mode}: ${env}=${status}`);
-        return status;
-    }
-
-    console.log(`[Global] No config found, returning 'none'`);
-    return 'none';
-}
-
-/**
- * 環境のセットアップ状態を設定
- */
-export function setEnvironmentStatus(
-    env: EnvironmentType,
-    status: EnvironmentStatus,
-    ctx?: SetupContext
-): void {
-    const config = loadGlobalConfig();
-
-    if (!config.environments) {
-        config.environments = {};
-    }
-    if (!config.environments[env]) {
-        config.environments[env] = { status: 'none' };
-    }
-    config.environments[env]!.status = status;
-
-    saveGlobalConfig(config);
-    ctx?.log(`[Global] 環境状態更新: ${env} = ${status}`);
-}
-
-/**
- * ready 状態の環境一覧を取得
- */
-export function getReadyEnvironments(): EnvironmentType[] {
-    const result: EnvironmentType[] = [];
-    if (getEnvironmentStatus('wsl') === 'ready') result.push('wsl');
-    if (getEnvironmentStatus('windows') === 'ready') result.push('windows');
-    return result;
-}
-
-/**
- * 指定した環境が使用可能かチェック
- */
-export function isEnvironmentReady(env: EnvironmentType): boolean {
-    return getEnvironmentStatus(env) === 'ready';
-}
+// EnvironmentType, EnvironmentStatus, getEnvironmentStatus, setEnvironmentStatus,
+// getReadyEnvironments, isEnvironmentReady は utils/environment-status.ts に移動
+// （循環依存解消: utils/ → setup/ の依存方向逆転を修正）

@@ -17,12 +17,8 @@ export interface SetupRequirement {
     checked: boolean;
 }
 
-export interface SetupStep {
-    id: string;
-    label: string;
-    progressMessage: string;
-    estimatedSeconds: number;
-}
+// SetupStep は constants/setup-steps.ts に移動（循環依存解消のため）
+export type { SetupStep } from '../constants/setup-steps';
 
 export interface ConfirmationResult {
     confirmed: boolean;

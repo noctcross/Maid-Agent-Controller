@@ -12,7 +12,7 @@ import { AGENTS_MAP, isValidAgentId } from '../constants';
 import { ENV, isTmuxAvailable } from '../utils/environment';
 import { getSavedRuntimeMode } from '../setup/global-init';
 import { getSessionNameFromPath } from '../utils/helpers';
-import { escapeForSingleQuote } from '../utils/shell-escape';
+import { escapeForSingleQuote, buildCommandWithEnvVars } from '../utils/shell-escape';
 // MultiplexerFactory is accessed via ctx.multiplexerFactory
 import { getModelForAgent } from '../utils/settings-loader';
 import { generateSystemPromptFile } from '../utils/prompt-loader';
@@ -81,18 +81,19 @@ function buildClaudeCommand(
 ): string {
     const isPsmux = ctx.multiplexerFactory?.getType() === 'psmux';
     const addDirs = `--add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
+    const envVars = { CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1' };
 
     if (isPsmux) {
         // PowerShell形式: $env:VAR = 'value'; & 'path\to\claude.exe' args
-        // PowerShellのシングルクォートはリテラル文字列（' → '' でエスケープ）
         const claudeCmd = getClaudeCommandForPsmux();
         const promptPart = initialPrompt ? ` -- '${initialPrompt.replace(/'/g, "''")}'` : '';
-        return `$env:CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD = '1'; ${claudeCmd} --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
+        const command = `${claudeCmd} --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
+        return buildCommandWithEnvVars(envVars, command, 'powershell');
     } else {
         // Unix bash形式: VAR=value command
-        // bash のシングルクォート内ではメタ文字が解釈されないため最も安全
         const promptPart = initialPrompt ? ` -- '${escapeForSingleQuote(initialPrompt)}'` : '';
-        return `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 claude --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
+        const command = `claude --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
+        return buildCommandWithEnvVars(envVars, command, 'bash');
     }
 }
 

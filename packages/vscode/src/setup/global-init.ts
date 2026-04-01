@@ -33,14 +33,14 @@ import {
     saveRuntimeMode,
     getSavedRuntimeMode,
 } from './global-config';
-import { setEnvironmentStatus } from '../utils/environment-status';
+import { setEnvironmentStatus, setEnvironmentStatusForMode } from '../utils/environment-status';
 import { StepResult, PendingSetupState, savePendingSetupState, getPendingSetupState, clearPendingSetupState } from './pending-state';
 import { buildExecutionSteps } from './global-steps';
 
 // Re-export for backward compatibility
 export { getSavedRuntimeMode, saveRuntimeMode } from './global-config';
 export type { GlobalConfig } from './global-config';
-export { getEnvironmentStatus, setEnvironmentStatus, getReadyEnvironments, isEnvironmentReady } from '../utils/environment-status';
+export { getEnvironmentStatus, setEnvironmentStatus, setEnvironmentStatusForMode, getReadyEnvironments, isEnvironmentReady } from '../utils/environment-status';
 export type { EnvironmentType, EnvironmentStatus } from '../utils/environment-status';
 export { savePendingSetupState, getPendingSetupState, clearPendingSetupState } from './pending-state';
 export type { ExecutionStep, StepResult, PendingSetupState } from './pending-state';
@@ -123,11 +123,7 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
     if (isAllConfigured(requirements)) {
         ctx.log('[Global] すべて設定済み - スキップ');
         // 環境ステータスを ready に設定（早期リターンでも設定が必要）
-        if (primaryMode === 'wsl') {
-            setEnvironmentStatus('wsl', 'ready', ctx);
-        } else if (primaryMode === 'windows-native') {
-            setEnvironmentStatus('windows', 'ready', ctx);
-        }
+        setEnvironmentStatusForMode(primaryMode, 'ready', ctx);
         vscode.window.showInformationMessage('✅ グローバル設定は既に完了しています');
         return true;
     }
@@ -377,12 +373,7 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
 
     // セットアップ完了した環境のステータスを更新
     if (!hasCriticalFailure) {
-        if (primaryMode === 'wsl' || primaryMode === 'both') {
-            setEnvironmentStatus('wsl', 'ready', ctx);
-        }
-        if (primaryMode === 'windows-native') {
-            setEnvironmentStatus('windows', 'ready', ctx);
-        }
+        setEnvironmentStatusForMode(primaryMode, 'ready', ctx);
     }
 
     // ========================================
@@ -482,12 +473,7 @@ export async function continueGlobalSetup(ctx: SetupContext): Promise<boolean> {
     if (isAllConfigured(requirements)) {
         ctx.log('[Global] すべて設定済み');
         // 環境ステータスを ready に設定
-        if (pendingState.runtimeMode === 'wsl' || pendingState.runtimeMode === 'both') {
-            setEnvironmentStatus('wsl', 'ready', ctx);
-        }
-        if (pendingState.runtimeMode === 'windows-native' || pendingState.runtimeMode === 'both') {
-            setEnvironmentStatus('windows', 'ready', ctx);
-        }
+        setEnvironmentStatusForMode(pendingState.runtimeMode, 'ready', ctx);
         clearPendingSetupState(ctx.context);
         vscode.window.showInformationMessage('✅ グローバル設定は既に完了しています');
         return true;
@@ -500,12 +486,7 @@ export async function continueGlobalSetup(ctx: SetupContext): Promise<boolean> {
     if (steps.length === 0) {
         ctx.log('[Global] 実行するステップがありません');
         // 環境ステータスを ready に設定
-        if (pendingState.runtimeMode === 'wsl' || pendingState.runtimeMode === 'both') {
-            setEnvironmentStatus('wsl', 'ready', ctx);
-        }
-        if (pendingState.runtimeMode === 'windows-native' || pendingState.runtimeMode === 'both') {
-            setEnvironmentStatus('windows', 'ready', ctx);
-        }
+        setEnvironmentStatusForMode(pendingState.runtimeMode, 'ready', ctx);
         clearPendingSetupState(ctx.context);
         vscode.window.showInformationMessage('✅ グローバル設定は既に完了しています');
         return true;
@@ -590,12 +571,7 @@ export async function continueGlobalSetup(ctx: SetupContext): Promise<boolean> {
 
     // 環境ステータスを ready に設定
     if (errors.length === 0) {
-        if (pendingState.runtimeMode === 'wsl' || pendingState.runtimeMode === 'both') {
-            setEnvironmentStatus('wsl', 'ready', ctx);
-        }
-        if (pendingState.runtimeMode === 'windows-native' || pendingState.runtimeMode === 'both') {
-            setEnvironmentStatus('windows', 'ready', ctx);
-        }
+        setEnvironmentStatusForMode(pendingState.runtimeMode, 'ready', ctx);
     }
 
     return errors.length === 0;

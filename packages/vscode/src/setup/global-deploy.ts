@@ -15,6 +15,30 @@ import { getGlobalMaidAgentPath, getWslMaidAgentPath } from '../utils/helpers';
 import { getGlobalConfigPath } from './global-config';
 
 // =============================================================================
+// ヘルパー関数
+// =============================================================================
+
+/**
+ * RuntimeMode に応じたデプロイ先パスの一覧を返す
+ *
+ * Windows環境ではモードに応じて WSL パス / Windows パスを切り替え、
+ * Mac/Linux では configPath をそのまま返す。
+ */
+function resolveDeployPaths(runtimeMode: RuntimeMode, configPath: string): string[] {
+    if (!ENV.isWindowsNative()) {
+        return [configPath];
+    }
+    const paths: string[] = [];
+    if (runtimeMode === 'wsl' || runtimeMode === 'both') {
+        paths.push(getWslMaidAgentPath());
+    }
+    if (runtimeMode === 'windows-native' || runtimeMode === 'both') {
+        paths.push(getGlobalMaidAgentPath());
+    }
+    return paths;
+}
+
+// =============================================================================
 // 設定ファイル移行
 // =============================================================================
 
@@ -90,19 +114,7 @@ export async function copyGlobalTemplates(ctx: SetupContext, runtimeMode: Runtim
     const configPath = getGlobalMaidAgentPath();
 
     // 実行用パス（モードに応じて決定）
-    const executionPaths: string[] = [];
-
-    if (ENV.isWindowsNative()) {
-        if (runtimeMode === 'wsl' || runtimeMode === 'both') {
-            executionPaths.push(getWslMaidAgentPath());
-        }
-        if (runtimeMode === 'windows-native' || runtimeMode === 'both') {
-            executionPaths.push(getGlobalMaidAgentPath()); // Windowsパス
-        }
-    } else {
-        // Mac/Linux: 設定と実行は同じパス
-        executionPaths.push(configPath);
-    }
+    const executionPaths = resolveDeployPaths(runtimeMode, configPath);
 
     // 設定用ディレクトリ作成（常に作成）
     const configDirs = [
@@ -212,19 +224,8 @@ export async function deployMaidctl(ctx: SetupContext, runtimeMode: RuntimeMode 
     }
 
     // デプロイ先パスを決定
-    const deployPaths: string[] = [];
-
-    if (ENV.isWindowsNative()) {
-        if (runtimeMode === 'wsl' || runtimeMode === 'both') {
-            deployPaths.push(path.join(getWslMaidAgentPath(), 'bin'));
-        }
-        if (runtimeMode === 'windows-native' || runtimeMode === 'both') {
-            deployPaths.push(path.join(getGlobalMaidAgentPath(), 'bin'));
-        }
-    } else {
-        // Mac/Linux: ローカルパス
-        deployPaths.push(path.join(getGlobalMaidAgentPath(), 'bin'));
-    }
+    const basePaths = resolveDeployPaths(runtimeMode, getGlobalMaidAgentPath());
+    const deployPaths = basePaths.map(p => path.join(p, 'bin'));
 
     // Windows用 .cmd ラッパーのソースパス
     const maidctlCmdSrc = path.join(ctx.extensionPath, 'global-templates', 'bin', 'maidctl.cmd');

@@ -81,6 +81,40 @@ export function quoteArg(value: string, shell: ShellType): string {
 }
 
 /**
+ * 環境変数をセットしてコマンドを実行する構文を構築
+ *
+ * シェルに応じた環境変数設定構文でコマンドをラップする。
+ * - bash: `VAR1=value1 VAR2=value2 command`
+ * - powershell: `$env:VAR1 = 'value1'; $env:VAR2 = 'value2'; command`
+ */
+export function buildCommandWithEnvVars(
+    envVars: Record<string, string>,
+    command: string,
+    shell: ShellType,
+): string {
+    const entries = Object.entries(envVars);
+    if (entries.length === 0) {
+        return command;
+    }
+
+    switch (shell) {
+        case 'powershell': {
+            const envParts = entries
+                .map(([key, value]) => `$env:${key} = '${value.replace(/'/g, "''")}'`)
+                .join('; ');
+            return `${envParts}; ${command}`;
+        }
+        case 'bash':
+        default: {
+            const envParts = entries
+                .map(([key, value]) => `${key}=${value}`)
+                .join(' ');
+            return `${envParts} ${command}`;
+        }
+    }
+}
+
+/**
  * 危険なシェルメタ文字のバリデーション
  *
  * コマンド実行前のガードとして使用。

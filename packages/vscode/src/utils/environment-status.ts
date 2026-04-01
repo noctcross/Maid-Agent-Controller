@@ -8,7 +8,7 @@
  * 依存方向: environment-status.ts → setup/global-config.ts（一方向のみ）
  */
 import { loadGlobalConfig, getGlobalConfigPath, saveGlobalConfig } from '../setup/global-config';
-import type { SetupContext } from '../types';
+import type { SetupContext, RuntimeMode } from '../types';
 
 // =============================================================================
 // 型定義
@@ -79,6 +79,25 @@ export function setEnvironmentStatus(
 
     saveGlobalConfig(config);
     ctx?.log(`[Global] 環境状態更新: ${env} = ${status}`);
+}
+
+/**
+ * RuntimeMode に対応する環境すべてにステータスを設定
+ *
+ * runtimeMode の値に応じて、対応する環境（wsl / windows / 両方）の
+ * ステータスを一括で設定する。重複パターンの解消用ヘルパー。
+ */
+export function setEnvironmentStatusForMode(
+    runtimeMode: RuntimeMode,
+    status: EnvironmentStatus,
+    ctx?: SetupContext,
+): void {
+    if (runtimeMode === 'wsl' || runtimeMode === 'both') {
+        setEnvironmentStatus('wsl', status, ctx);
+    }
+    if (runtimeMode === 'windows-native' || runtimeMode === 'both') {
+        setEnvironmentStatus('windows', status, ctx);
+    }
 }
 
 /**

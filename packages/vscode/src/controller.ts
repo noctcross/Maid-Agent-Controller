@@ -453,26 +453,21 @@ export class MultiAgentController {
     }
 
     private async installTmux(): Promise<boolean> {
-        const terminal = vscode.window.createTerminal({
-            name: '📦 tmux インストール',
-            shellPath: ENV.isWindowsNative() ? 'wsl.exe' : undefined
-        });
+        const terminalFactory = ENV.getTerminalFactory(false);
+        const terminal = terminalFactory.createInstallTerminal('📦 tmux インストール');
         terminal.show();
 
         // OS別のインストールコマンドを決定
         let installCmd: string;
         if (ENV.isMacOS()) {
-            // macOS: Homebrew使用
             installCmd = 'brew install tmux';
         } else if (ENV.platform === 'linux') {
-            // Linux: パッケージマネージャを自動検出
             installCmd = 'if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y tmux; ' +
                 'elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y tmux; ' +
                 'elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm tmux; ' +
                 'elif command -v zypper >/dev/null 2>&1; then sudo zypper install -y tmux; ' +
                 'else echo "対応するパッケージマネージャが見つかりません"; fi';
         } else {
-            // Windows (WSL): apt-get使用
             installCmd = 'sudo apt-get update && sudo apt-get install -y tmux';
         }
         terminal.sendText(installCmd);
@@ -503,28 +498,8 @@ export class MultiAgentController {
         this.log('=== tmux インストール方法 ===');
         this.log('');
 
-        if (ENV.isWindowsNative()) {
-            this.log('【Windows + WSL環境】');
-            this.log('1. WSLターミナルを開く');
-            this.log('2. 以下のコマンドを実行:');
-            this.log('   sudo apt-get update');
-            this.log('   sudo apt-get install -y tmux');
-            this.log('');
-            this.log('※ WSLがインストールされていない場合:');
-            this.log('   PowerShellを管理者権限で開き、以下を実行:');
-            this.log('   wsl --install');
-        } else if (ENV.isMacOS()) {
-            this.log('【macOS環境】');
-            this.log('Homebrewを使用:');
-            this.log('   brew install tmux');
-        } else {
-            this.log('【Linux環境】');
-            this.log('Ubuntu/Debian:');
-            this.log('   sudo apt-get install tmux');
-            this.log('');
-            this.log('Fedora/RHEL:');
-            this.log('   sudo dnf install tmux');
-        }
+        const terminalFactory = ENV.getTerminalFactory(false);
+        terminalFactory.showMultiplexerInstallInstructions(this.outputChannel);
 
         this.log('');
         this.log('インストール後、再度Callコマンドを実行してください。');

@@ -150,6 +150,43 @@ export class MultiplexerFactory implements IMultiplexerFactory {
     }
 
     /**
+     * 全セッション名の一覧を取得
+     */
+    listSessions(): string[] {
+        try {
+            const command = this.buildListSessionsCommand();
+            const options = this.getListSessionsExecOptions();
+
+            const result = execSync(command, {
+                encoding: 'utf-8',
+                stdio: 'pipe',
+                ...options
+            }).trim();
+
+            if (!result) {
+                return [];
+            }
+
+            return result.split('\n').filter(name => name.length > 0);
+        } catch {
+            return [];
+        }
+    }
+
+    /**
+     * 指定セッションを終了
+     */
+    killSessionByName(sessionName: string): boolean {
+        try {
+            const adapter = this.create(sessionName, '');
+            adapter.killSession();
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * マルチプレクサの種類を取得
      */
     getType(): MultiplexerType {

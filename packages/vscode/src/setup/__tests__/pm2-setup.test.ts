@@ -50,6 +50,22 @@ vi.mock('../wsl-setup', () => ({
   showPasswordHelp: vi.fn(),
 }));
 
+// environment-context モック（CommandExecutor 統合用）
+const { mockCommandExecutor: pm2MockCommandExecutor } = vi.hoisted(() => ({
+  mockCommandExecutor: {
+    execInLoginShell: vi.fn(),
+    commandExists: vi.fn(),
+    execWithSudoNoPassword: vi.fn(),
+  },
+}));
+vi.mock('../../utils/environment-context', () => ({
+  ENV: {
+    platform: 'windows-native',
+    isWindowsNative: () => true,
+    commandExecutor: pm2MockCommandExecutor,
+  },
+}));
+
 // package-manager モック
 vi.mock('../../utils/package-manager', () => ({
   detectPackageManager: vi.fn(() => 'npm'),
@@ -91,14 +107,14 @@ describe('pm2-setup', () => {
   });
 
   describe('runShellCommand', () => {
-    it('Windows環境ではWSL経由でコマンドを実行する', () => {
-      vi.mocked(execSync).mockReturnValue('command output');
+    it('CommandExecutor経由でコマンドを実行する', () => {
+      pm2MockCommandExecutor.execInLoginShell.mockReturnValue('command output');
 
       const result = runShellCommand('echo hello');
 
       expect(result).toBe('command output');
-      expect(execSync).toHaveBeenCalledWith(
-        'wsl bash -lc "echo hello"',
+      expect(pm2MockCommandExecutor.execInLoginShell).toHaveBeenCalledWith(
+        'echo hello',
         expect.objectContaining({
           encoding: 'utf-8',
           stdio: 'pipe',
@@ -106,27 +122,27 @@ describe('pm2-setup', () => {
       );
     });
 
-    it('コマンド内のダブルクォートをエスケープする', () => {
-      vi.mocked(execSync).mockReturnValue('');
+    it('CommandExecutorにコマンドをそのまま渡す（エスケープはCommandExecutor内で処理）', () => {
+      pm2MockCommandExecutor.execInLoginShell.mockReturnValue('');
 
       runShellCommand('echo "test"');
 
-      expect(execSync).toHaveBeenCalledWith(
-        'wsl bash -lc "echo \\"test\\""',
+      expect(pm2MockCommandExecutor.execInLoginShell).toHaveBeenCalledWith(
+        'echo "test"',
         expect.any(Object)
       );
     });
 
     it('カスタムオプションを渡せる', () => {
-      vi.mocked(execSync).mockReturnValue('');
+      pm2MockCommandExecutor.execInLoginShell.mockReturnValue('');
 
       runShellCommand('command', {
         timeout: 30000,
         cwd: '/some/path',
       });
 
-      expect(execSync).toHaveBeenCalledWith(
-        expect.any(String),
+      expect(pm2MockCommandExecutor.execInLoginShell).toHaveBeenCalledWith(
+        'command',
         expect.objectContaining({
           timeout: 30000,
           cwd: '/some/path',
@@ -135,12 +151,12 @@ describe('pm2-setup', () => {
     });
 
     it('input オプションを渡せる（パスワード入力用）', () => {
-      vi.mocked(execSync).mockReturnValue('');
+      pm2MockCommandExecutor.execInLoginShell.mockReturnValue('');
 
       runShellCommand('sudo command', { input: 'password\n' });
 
-      expect(execSync).toHaveBeenCalledWith(
-        expect.any(String),
+      expect(pm2MockCommandExecutor.execInLoginShell).toHaveBeenCalledWith(
+        'sudo command',
         expect.objectContaining({
           input: 'password\n',
         })

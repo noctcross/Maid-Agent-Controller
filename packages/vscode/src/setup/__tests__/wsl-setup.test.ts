@@ -35,41 +35,22 @@ vi.mock('../../utils/environment', () => ({
   },
 }));
 
+// requirements-analyzer モック（checkJqInstalledSimple）
+vi.mock('../requirements-analyzer', () => ({
+  checkJqInstalledSimple: vi.fn(),
+}));
+
 import * as vscode from 'vscode';
-import { checkJqInstalled, checkAndInstallJq } from '../wsl-setup';
+import { checkAndInstallJq } from '../wsl-setup';
+import { checkJqInstalledSimple } from '../requirements-analyzer';
 
 const mockCtx = {
   workspaceRoot: '/test/workspace',
   log: vi.fn(),
 };
 
-describe('checkJqInstalled', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('jq がインストール済みの場合は true を返す', () => {
-    vi.mocked(execSync).mockReturnValue('/usr/bin/jq\n');
-
-    const result = checkJqInstalled(mockCtx as any);
-
-    expect(result).toBe(true);
-    expect(execSync).toHaveBeenCalledWith(
-      'wsl bash -lc "which jq"',
-      expect.any(Object)
-    );
-  });
-
-  it('jq が未インストールの場合は false を返す', () => {
-    vi.mocked(execSync).mockImplementation(() => {
-      throw new Error('jq not found');
-    });
-
-    const result = checkJqInstalled(mockCtx as any);
-
-    expect(result).toBe(false);
-  });
-});
+// checkJqInstalled は requirements-analyzer.checkJqInstalledSimple に統一済み（Phase 8）
+// テストは requirements-analyzer.test.ts に移行
 
 describe('checkAndInstallJq', () => {
   beforeEach(() => {
@@ -77,7 +58,7 @@ describe('checkAndInstallJq', () => {
   });
 
   it('jq がインストール済みの場合は即座に true を返す', async () => {
-    vi.mocked(execSync).mockReturnValue('/usr/bin/jq\n');
+    vi.mocked(checkJqInstalledSimple).mockReturnValue(true);
 
     const result = await checkAndInstallJq(mockCtx as any);
 
@@ -88,9 +69,7 @@ describe('checkAndInstallJq', () => {
 
   it('jq が未インストールで「スキップ」選択時は false を返す', async () => {
     // 最初のチェックで jq が見つからない
-    vi.mocked(execSync).mockImplementation(() => {
-      throw new Error('jq not found');
-    });
+    vi.mocked(checkJqInstalledSimple).mockReturnValue(false);
     vi.mocked(vscode.window.showInformationMessage).mockResolvedValue('スキップ' as any);
 
     const result = await checkAndInstallJq(mockCtx as any);

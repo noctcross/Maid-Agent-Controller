@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 import { SetupContext, RuntimeMode } from '../types';
 import { ENV } from '../utils/environment';
 import { generateSudoersContent } from '../utils/package-manager';
+import { checkJqInstalledSimple } from './requirements-analyzer';
 
 /**
  * WSL2の状態をチェックし、必要に応じてセットアップを案内
@@ -456,8 +457,8 @@ export async function installUbuntu(ctx: SetupContext): Promise<boolean> {
 export async function checkAndInstallJq(ctx: SetupContext): Promise<boolean> {
     ctx.log('[jq] チェック開始');
 
-    // jqの存在確認
-    const jqInstalled = checkJqInstalled(ctx);
+    // jqの存在確認（requirements-analyzerの共通関数を使用）
+    const jqInstalled = checkJqInstalledSimple();
 
     if (jqInstalled) {
         ctx.log('[jq] インストール済み');
@@ -487,24 +488,6 @@ export async function checkAndInstallJq(ctx: SetupContext): Promise<boolean> {
 
     // インストール実行
     return await installJq(ctx);
-}
-
-/**
- * jqがインストールされているか確認
- */
-export function checkJqInstalled(ctx: SetupContext): boolean {
-    try {
-        if (ENV.isWindowsNative()) {
-            // Windows: WSL経由でログインシェルとしてチェック
-            execSync('wsl bash -lc "which jq"', { encoding: 'utf-8', stdio: 'pipe' });
-        } else {
-            // Mac/Linux: 直接チェック
-            execSync('which jq', { encoding: 'utf-8', stdio: 'pipe' });
-        }
-        return true;
-    } catch {
-        return false;
-    }
 }
 
 /**

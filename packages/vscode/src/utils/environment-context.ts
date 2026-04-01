@@ -13,6 +13,7 @@ import { ExecutionEnvironment, RuntimeMode } from '../types';
 import type { MultiplexerType } from '../multiplexer/interfaces';
 import { ShellType, escapeForDoubleQuote, escapeForSendKeys, quoteArg } from './shell-escape';
 import { ITerminalFactory, createTerminalFactory } from './terminal-factory';
+import { type ICommandExecutor, createCommandExecutor } from './command-executor';
 
 // =============================================================================
 // 型定義
@@ -81,6 +82,10 @@ export interface IEnvironmentContext {
     resolveServerEnvironment(): ServerEnvironment;
     /** 指定環境でコマンドを実行（wsl/cmd.exe/直接のラッピングを統一） */
     execInServerEnvironment(command: string, env: ServerEnvironment, options?: ExecSyncOptions): string;
+
+    // ─── コマンド実行 ───
+    /** 環境に応じたコマンド実行器 */
+    readonly commandExecutor: ICommandExecutor;
 }
 
 // =============================================================================
@@ -89,9 +94,19 @@ export interface IEnvironmentContext {
 
 export class EnvironmentContext implements IEnvironmentContext {
     readonly platform: ExecutionEnvironment;
+    private _commandExecutor?: ICommandExecutor;
 
     constructor() {
         this.platform = this.detectEnvironment();
+    }
+
+    // ─── コマンド実行 ───
+
+    get commandExecutor(): ICommandExecutor {
+        if (!this._commandExecutor) {
+            this._commandExecutor = createCommandExecutor();
+        }
+        return this._commandExecutor;
     }
 
     // ─── 環境検出（private） ───

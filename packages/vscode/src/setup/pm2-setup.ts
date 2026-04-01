@@ -5,6 +5,7 @@ import * as nodePath from 'path';
 import { execSync } from 'child_process';
 import { SetupContext } from '../types';
 import { ENV } from '../utils/environment';
+import { ENV as ENV_CTX } from '../utils/environment-context';
 import { checkPasswordlessSudo, setupPasswordlessSudo, promptWslPassword, showPasswordHelp } from './wsl-setup';
 import { detectPackageManager, PM_CONFIG, PackageManager } from '../utils/package-manager';
 import { assertNoShellMeta, escapeForDoubleQuote } from '../utils/shell-escape';
@@ -28,32 +29,13 @@ let cachedNativePassword: string | undefined;
  * @param options execSyncのオプション
  */
 export function runShellCommand(command: string, options?: { encoding?: BufferEncoding; timeout?: number; stdio?: 'pipe' | 'inherit' | 'ignore'; input?: string; cwd?: string }): string {
-    const execOptions = {
+    return ENV_CTX.commandExecutor.execInLoginShell(command, {
         encoding: options?.encoding ?? 'utf-8' as BufferEncoding,
         timeout: options?.timeout,
         stdio: options?.stdio ?? 'pipe' as const,
         input: options?.input,
-        cwd: options?.cwd
-    };
-
-    if (ENV.isWindowsNative()) {
-        // Windows: WSL経由でログインシェルとして実行
-        // -l: ログインシェル（.bash_profile/.profile を読み込む）
-        return execSync(`wsl bash -lc "${escapeForDoubleQuote(command, 'bash')}"`, execOptions);
-    } else {
-        // Mac/Linux: ユーザーシェルをログインシェルとして実行
-        // macOS 2019〜 のデフォルトは zsh なので対応必須
-        const userShell = process.env.SHELL || '/bin/bash';
-        const shellName = nodePath.basename(userShell);
-
-        if (shellName === 'zsh' || shellName === 'bash') {
-            // zsh/bash: ユーザーシェルを使用
-            return execSync(`${userShell} -lc "${escapeForDoubleQuote(command, 'bash')}"`, execOptions);
-        } else {
-            // その他: bashにフォールバック
-            return execSync(`bash -lc "${escapeForDoubleQuote(command, 'bash')}"`, execOptions);
-        }
-    }
+        cwd: options?.cwd,
+    });
 }
 
 /**

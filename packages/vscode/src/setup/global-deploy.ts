@@ -11,6 +11,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { SetupContext, RuntimeMode } from '../types';
 import { ENV } from '../utils/environment';
+import { ENV as ENV_CTX } from '../utils/environment-context';
 import { getGlobalMaidAgentPath, getWslMaidAgentPath } from '../utils/helpers';
 import { getGlobalConfigPath } from './global-config';
 
@@ -328,20 +329,10 @@ export async function installClaudeCodeUnix(ctx: SetupContext): Promise<void> {
     ctx.log('[Global] Claude Code をインストール中（Unix/WSL）...');
 
     try {
-        if (ENV.isWindowsNative()) {
-            // WSL経由でインストール
-            execSync('wsl bash -lc "curl -fsSL https://claude.ai/install.sh | bash"', {
-                encoding: 'utf-8',
-                timeout: 300000,  // 5分タイムアウト
-            });
-        } else {
-            // 直接インストール
-            execSync('curl -fsSL https://claude.ai/install.sh | bash', {
-                encoding: 'utf-8',
-                timeout: 300000,
-                shell: '/bin/bash',
-            });
-        }
+        ENV_CTX.commandExecutor.execInLoginShell(
+            'curl -fsSL https://claude.ai/install.sh | bash',
+            { timeout: 300000 },
+        );
         ctx.log('[Global] Claude Code インストール完了（Unix/WSL）');
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);

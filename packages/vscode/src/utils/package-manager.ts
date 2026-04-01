@@ -3,8 +3,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
-import { ENV } from './environment';
+import { ENV as ENV_CTX } from './environment-context';
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn';
 
@@ -66,18 +65,7 @@ function detectByLockFile(dir: string): PackageManager | undefined {
  * ログインシェルで実行してnvm/nodenv/Homebrew等のPATH設定を読み込む
  */
 function checkCommand(cmd: string): boolean {
-    try {
-        if (ENV.isWindowsNative()) {
-            execSync(`wsl bash -lc "which ${cmd}"`, { stdio: 'pipe' });
-        } else {
-            // Mac/Linux: ユーザーシェルでログインシェルとして実行
-            const userShell = process.env.SHELL || '/bin/bash';
-            execSync(`${userShell} -lc "which ${cmd}"`, { stdio: 'pipe' });
-        }
-        return true;
-    } catch {
-        return false;
-    }
+    return ENV_CTX.commandExecutor.commandExists(cmd);
 }
 
 /**

@@ -8,6 +8,7 @@ import { SetupContext } from '../types';
 import { MAID_AGENT_DIR, MAIDS } from '../constants';
 import { getGlobalMaidAgentPath } from '../utils/helpers';
 import { ENV } from '../utils/environment';
+import { ENV as ENV_CTX } from '../utils/environment-context';
 import { setupClaudeSettings } from './claude-settings-setup';
 import { parseRuleModules, parseGlobalSkills, showRuleSelectionUI, showSkillSelectionUI, copySelectedRules, copySelectedSkills } from './rules-skills';
 import { getSavedRuntimeMode } from './global-init';
@@ -287,9 +288,9 @@ export async function deployMaidctl(ctx: SetupContext, globalPath: string): Prom
 
     // 実行権限の確認・付与
     if (ENV.isWindowsNative()) {
-        // Windows: WSL経由でchmod
+        // Windows: CommandExecutor経由でchmod（WSL内で実行）
         try {
-            await execAsync('wsl chmod +x ~/.maid-agent/bin/maidctl');
+            ENV_CTX.commandExecutor.execInLoginShell('chmod +x ~/.maid-agent/bin/maidctl');
             ctx.log('[maidctl] WSL経由で実行権限を付与しました');
         } catch (e) {
             ctx.log(`[maidctl] WSL経由の実行権限付与に失敗: ${e}`);

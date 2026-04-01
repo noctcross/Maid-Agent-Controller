@@ -8,10 +8,22 @@
  */
 import * as os from 'os';
 import * as fs from 'fs';
-import { execSync } from 'child_process';
+import { execSync, type ExecSyncOptions } from 'child_process';
 import { ExecutionEnvironment, RuntimeMode } from '../types';
 import type { MultiplexerType } from '../multiplexer/interfaces';
-import { ShellType, escapeForSendKeys, quoteArg } from './shell-escape';
+import { ShellType, escapeForDoubleQuote, escapeForSendKeys, quoteArg } from './shell-escape';
+
+// =============================================================================
+// 型定義
+// =============================================================================
+
+/**
+ * サーバー実行環境
+ * - 'wsl': WSL内でpm2実行（Windows + tmuxモード）
+ * - 'windows': Windowsネイティブでpm2実行（Windows + psmuxモード）
+ * - 'local': Mac/Linuxで直接pm2実行
+ */
+export type ServerEnvironment = 'wsl' | 'windows' | 'local';
 
 // =============================================================================
 // Interface
@@ -56,6 +68,12 @@ export interface IEnvironmentContext {
     escapeSendKeys(value: string, multiplexerType: MultiplexerType): string;
     /** コマンド引数のクォーティング */
     quoteCommandArg(value: string, runtimeMode?: RuntimeMode): string;
+
+    // ─── サーバー環境 ───
+    /** サーバー実行環境を解決（プラットフォームベースの基本判定） */
+    resolveServerEnvironment(): ServerEnvironment;
+    /** 指定環境でコマンドを実行（wsl/cmd.exe/直接のラッピングを統一） */
+    execInServerEnvironment(command: string, env: ServerEnvironment, options?: ExecSyncOptions): string;
 }
 
 // =============================================================================
@@ -218,6 +236,34 @@ export class EnvironmentContext implements IEnvironmentContext {
 
     quoteCommandArg(value: string, runtimeMode?: RuntimeMode): string {
         return quoteArg(value, this.getShellType(runtimeMode));
+    }
+
+    // ─── サーバー環境 ───
+
+    resolveServerEnvironment(): ServerEnvironment {
+        if (!this.isWindowsNative()) {
+            return 'local';
+        }
+        // Windows環境: デフォルトはWSL（tmuxモード）
+        // psmux判定にはruntimeModeが必要だが、基本判定ではWSLを返す
+        return 'wsl';
+    }
+
+    execInServerEnvironment(command: string, env: ServerEnvironment, options?: ExecSyncOptions): string {
+        switch (env) {
+            case 'wsl':
+                return execSync(
+                    `wsl bash -lc "${escapeForDoubleQuote(command, 'bash')}"`,
+                    { encoding: 'utf-8', ...options },
+                ).trim();
+            case 'windows':
+                return execSync(
+                    `cmd.exe /c "${escapeForDoubleQuote(command, 'cmd')}"`,
+                    { encoding: 'utf-8', windowsHide: true, ...options },
+                ).trim();
+            case 'local':
+                return execSync(command, { encoding: 'utf-8', ...options }).trim();
+        }
     }
 }
 

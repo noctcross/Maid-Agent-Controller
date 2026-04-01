@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SetupContext, ExecutionEnvironment, RuntimeMode } from '../types';
 import { ENV } from '../utils/environment';
+import { ENV as ENV_CTX } from '../utils/environment-context';
 import { detectPackageManager, PackageManager } from '../utils/package-manager';
 import { runShellCommand } from './pm2-setup';
 import { getMessengerPath } from '../utils/helpers';
@@ -103,13 +104,7 @@ export function checkWslOperational(): boolean {
  */
 export function checkPasswordlessSudoConfigured(): boolean {
     try {
-        if (ENV.isWindowsNative()) {
-            // WSL経由
-            execSync('wsl bash -lc "sudo -n true 2>/dev/null"', { stdio: 'pipe', timeout: 5000 });
-        } else {
-            // ネイティブ
-            execSync('sudo -n true 2>/dev/null', { stdio: 'pipe', timeout: 5000 });
-        }
+        ENV_CTX.commandExecutor.execWithSudoNoPassword('true', { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch {
         // sudo -n 失敗はパスワードレスsudo未設定と判定
@@ -121,34 +116,14 @@ export function checkPasswordlessSudoConfigured(): boolean {
  * jqインストール済みか確認
  */
 export function checkJqInstalledSimple(): boolean {
-    try {
-        if (ENV.isWindowsNative()) {
-            execSync('wsl bash -lc "which jq"', { stdio: 'pipe', timeout: 5000 });
-        } else {
-            execSync('which jq', { stdio: 'pipe', timeout: 5000 });
-        }
-        return true;
-    } catch {
-        // which jq 失敗は未インストールと判定
-        return false;
-    }
+    return ENV_CTX.commandExecutor.commandExists('jq');
 }
 
 /**
  * yqインストール済みか確認
  */
 export function checkYqInstalledSimple(): boolean {
-    try {
-        if (ENV.isWindowsNative()) {
-            execSync('wsl bash -lc "which yq"', { stdio: 'pipe', timeout: 5000 });
-        } else {
-            execSync('which yq', { stdio: 'pipe', timeout: 5000 });
-        }
-        return true;
-    } catch {
-        // which yq 失敗は未インストールと判定
-        return false;
-    }
+    return ENV_CTX.commandExecutor.commandExists('yq');
 }
 
 /**
@@ -188,10 +163,10 @@ export function checkPathConfigured(): boolean {
     if (ENV.isWindowsNative()) {
         // Windows: WSL内の .bashrc/.zshrc を確認
         try {
-            const result = execSync(
-                'wsl bash -lc "grep -l \'.maid-agent/bin\' ~/.bashrc ~/.zshrc 2>/dev/null || true"',
-                { encoding: 'utf-8', timeout: 5000 }
-            ).trim();
+            const result = ENV_CTX.commandExecutor.execInLoginShell(
+                "grep -l '.maid-agent/bin' ~/.bashrc ~/.zshrc 2>/dev/null || true",
+                { timeout: 5000 }
+            );
             return result.length > 0;
         } catch {
             // WSLでのgrep実行失敗はPATH未設定と判定
@@ -399,18 +374,7 @@ export function getClaudeCodePathPsmux(): string | null {
  * Claude Code インストール済みか確認（WSL/Unix用）
  */
 export function checkClaudeCodeInstalledUnix(): boolean {
-    try {
-        if (ENV.isWindowsNative()) {
-            // WSL経由で確認
-            execSync('wsl bash -lc "which claude"', { stdio: 'pipe', timeout: 10000 });
-        } else {
-            execSync('which claude', { stdio: 'pipe', timeout: 5000 });
-        }
-        return true;
-    } catch {
-        // which claude 失敗は未インストールと判定
-        return false;
-    }
+    return ENV_CTX.commandExecutor.commandExists('claude');
 }
 
 // =============================================================================

@@ -38,6 +38,22 @@ vi.mock('../../utils/environment', () => ({
   },
 }));
 
+// environment-context モック（CommandExecutor 統合用）
+const { mockCommandExecutor } = vi.hoisted(() => ({
+  mockCommandExecutor: {
+    execInLoginShell: vi.fn(),
+    commandExists: vi.fn(),
+    execWithSudoNoPassword: vi.fn(),
+  },
+}));
+vi.mock('../../utils/environment-context', () => ({
+  ENV: {
+    platform: 'windows-native',
+    isWindowsNative: () => true,
+    commandExecutor: mockCommandExecutor,
+  },
+}));
+
 // pm2-setup モック
 vi.mock('../pm2-setup', () => ({
   runShellCommand: vi.fn(),
@@ -145,19 +161,19 @@ describe('requirements-analyzer', () => {
 
   describe('checkPasswordlessSudoConfigured', () => {
     it('パスワードレスsudoが設定済みの場合はtrueを返す', () => {
-      vi.mocked(execSync).mockReturnValue('');
+      mockCommandExecutor.execWithSudoNoPassword.mockReturnValue('');
 
       const result = checkPasswordlessSudoConfigured();
 
       expect(result).toBe(true);
-      expect(execSync).toHaveBeenCalledWith(
-        'wsl bash -lc "sudo -n true 2>/dev/null"',
+      expect(mockCommandExecutor.execWithSudoNoPassword).toHaveBeenCalledWith(
+        'true',
         expect.objectContaining({ stdio: 'pipe', timeout: 5000 })
       );
     });
 
     it('パスワードが必要な場合はfalseを返す', () => {
-      vi.mocked(execSync).mockImplementation(() => {
+      mockCommandExecutor.execWithSudoNoPassword.mockImplementation(() => {
         throw new Error('sudo: a password is required');
       });
 
@@ -169,21 +185,16 @@ describe('requirements-analyzer', () => {
 
   describe('checkJqInstalledSimple', () => {
     it('jqがインストール済みの場合はtrueを返す', () => {
-      vi.mocked(execSync).mockReturnValue('/usr/bin/jq');
+      mockCommandExecutor.commandExists.mockReturnValue(true);
 
       const result = checkJqInstalledSimple();
 
       expect(result).toBe(true);
-      expect(execSync).toHaveBeenCalledWith(
-        'wsl bash -lc "which jq"',
-        expect.objectContaining({ stdio: 'pipe', timeout: 5000 })
-      );
+      expect(mockCommandExecutor.commandExists).toHaveBeenCalledWith('jq');
     });
 
     it('jqが未インストールの場合はfalseを返す', () => {
-      vi.mocked(execSync).mockImplementation(() => {
-        throw new Error('jq not found');
-      });
+      mockCommandExecutor.commandExists.mockReturnValue(false);
 
       const result = checkJqInstalledSimple();
 

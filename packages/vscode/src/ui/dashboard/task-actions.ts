@@ -34,9 +34,7 @@ export async function fetchCompletedPage(
     const projectPath = ctx.workspaceRoot;
     if (!projectPath || !ctx.dashboardPanel) return;
 
-    const normalizedPath = ENV.isWindowsNative()
-        ? ENV.windowsToWslPath(projectPath)
-        : projectPath;
+    const normalizedPath = ENV.normalizePathForServer(projectPath);
 
     try {
         const options: CompletedTasksOptions = {

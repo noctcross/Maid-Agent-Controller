@@ -210,9 +210,7 @@ export async function openReport(ctx: ViewContext, taskId: string, project: stri
         return;
     }
 
-    const normalizedPath = ENV.isWindowsNative()
-        ? ENV.windowsToWslPath(projectPath)
-        : projectPath;
+    const normalizedPath = ENV.normalizePathForServer(projectPath);
 
     try {
         // APIから報告書パスを取得

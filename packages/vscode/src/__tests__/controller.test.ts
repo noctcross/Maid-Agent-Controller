@@ -68,6 +68,7 @@ vi.mock('../utils/environment', () => ({
         getMultiplexerCommand: () => 'tmux',
         getMultiplexerVersion: () => 'tmux 3.3',
         windowsToWslPath: (p: string) => p,
+        normalizePathForServer: (p: string) => p,
         needsWslPrefix: () => false,
         getShellType: () => 'bash',
         escapeSendKeys: (v: string) => `'${v}'`,

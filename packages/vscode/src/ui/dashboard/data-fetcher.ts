@@ -77,9 +77,7 @@ export async function refreshDashboardData(
         return;
     }
 
-    const normalizedPath = ENV.isWindowsNative()
-        ? ENV.windowsToWslPath(projectPath)
-        : projectPath;
+    const normalizedPath = ENV.normalizePathForServer(projectPath);
 
     try {
         const state = ctx.completedViewState;
@@ -170,9 +168,7 @@ export async function updateDashboard(ctx: DataFetcherContext): Promise<DataFetc
     }
 
     const serverUrl = DASHBOARD_SERVER_URL;
-    const normalizedPath = ENV.isWindowsNative()
-        ? ENV.windowsToWslPath(projectPath)
-        : projectPath;
+    const normalizedPath = ENV.normalizePathForServer(projectPath);
 
     try {
         if (!ctx.dashboardInitialized) {

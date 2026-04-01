@@ -12,6 +12,7 @@ import { execSync, type ExecSyncOptions } from 'child_process';
 import { ExecutionEnvironment, RuntimeMode } from '../types';
 import type { MultiplexerType } from '../multiplexer/interfaces';
 import { ShellType, escapeForDoubleQuote, escapeForSendKeys, quoteArg } from './shell-escape';
+import { ITerminalFactory, createTerminalFactory } from './terminal-factory';
 
 // =============================================================================
 // 型定義
@@ -58,6 +59,8 @@ export interface IEnvironmentContext {
     // ─── パス ───
     /** WindowsパスをWSLパスに変換 */
     windowsToWslPath(windowsPath: string): string;
+    /** プロジェクトパスをサーバー（WSL側）向けに正規化 */
+    normalizePathForServer(path: string): string;
     /** WSL前置が必要か */
     needsWslPrefix(runtimeMode?: RuntimeMode): boolean;
 
@@ -68,6 +71,10 @@ export interface IEnvironmentContext {
     escapeSendKeys(value: string, multiplexerType: MultiplexerType): string;
     /** コマンド引数のクォーティング */
     quoteCommandArg(value: string, runtimeMode?: RuntimeMode): string;
+
+    // ─── TerminalFactory ───
+    /** 環境に応じたTerminalFactoryを取得 */
+    getTerminalFactory(isPsmux?: boolean): ITerminalFactory;
 
     // ─── サーバー環境 ───
     /** サーバー実行環境を解決（プラットフォームベースの基本判定） */
@@ -217,6 +224,10 @@ export class EnvironmentContext implements IEnvironmentContext {
         return windowsPath.replace(/\\/g, '/');
     }
 
+    normalizePathForServer(path: string): string {
+        return this.isWindowsNative() ? this.windowsToWslPath(path) : path;
+    }
+
     needsWslPrefix(runtimeMode?: RuntimeMode): boolean {
         return this.platform === 'windows-native' && !this.isPsmux(runtimeMode);
     }
@@ -236,6 +247,17 @@ export class EnvironmentContext implements IEnvironmentContext {
 
     quoteCommandArg(value: string, runtimeMode?: RuntimeMode): string {
         return quoteArg(value, this.getShellType(runtimeMode));
+    }
+
+    // ─── TerminalFactory ───
+
+    private _terminalFactoryCache = new Map<boolean, ITerminalFactory>();
+
+    getTerminalFactory(isPsmux: boolean = false): ITerminalFactory {
+        if (!this._terminalFactoryCache.has(isPsmux)) {
+            this._terminalFactoryCache.set(isPsmux, createTerminalFactory(isPsmux));
+        }
+        return this._terminalFactoryCache.get(isPsmux)!;
     }
 
     // ─── サーバー環境 ───

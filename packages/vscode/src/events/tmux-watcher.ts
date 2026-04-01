@@ -7,10 +7,8 @@
 
 import * as vscode from 'vscode';
 import { Agent } from '../types';
-import { getMultiplexerCommand } from '../utils/environment';
 import { ITerminalMultiplexer } from '../multiplexer';
 import { AgentPanelProvider } from '../ui/agent-panel-provider';
-import { getSavedRuntimeMode } from '../setup/global-init';
 
 /**
  * tmux監視に必要なコンテキスト
@@ -51,13 +49,11 @@ export function getCurrentTmuxWindowAgent(ctx: TmuxWatcherContext): string | nul
     }
 
     try {
-        // ランタイムモードに応じてマルチプレクサコマンドを取得
-        const runtimeMode = getSavedRuntimeMode();
-        const muxCmd = getMultiplexerCommand(runtimeMode);
-        const result = require('child_process').execSync(
-            `${muxCmd} display-message -t "${ctx.tmuxSessionName}" -p "#{window_name}"`,
-            { encoding: 'utf-8', timeout: 1000 }
-        ).trim();
+        // multiplexer層経由で現在のウィンドウ名を取得
+        const result = ctx.tmuxManager.getCurrentWindowName();
+        if (!result) {
+            return null;
+        }
 
         // ウィンドウ名がエージェントIDと一致するか確認
         if (ctx.agents.has(result)) {

@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import { execSync } from 'child_process';
 import { MultiAgentController } from './controller';
 import { AgentPanelProvider } from './ui/agent-panel-provider';
 import { ENV } from './utils/environment';
 import { getGlobalMaidAgentPath, getSessionNameFromPath, formatError } from './utils/helpers';
 import { getSavedRuntimeMode, getPendingSetupState, clearPendingSetupState, continueGlobalSetup } from './setup/global-init';
+import { MultiplexerFactory } from './multiplexer';
 
 // =============================================================================
 // 定数
@@ -295,29 +295,13 @@ export function activate(context: vscode.ExtensionContext) {
                     const workspacePath = workspaceFolder.uri.fsPath;
                     const sessionName = getSessionNameFromPath(workspacePath);
 
-                    // セッションが存在するかチェック
+                    // セッションが存在するかチェック（multiplexer層経由）
                     let sessionExists = false;
                     try {
-                        const runtimeMode = getSavedRuntimeMode();
-                        const muxCmd = ENV.getMultiplexerCommand(runtimeMode);
-
-                        if (muxCmd === 'psmux') {
-                            // psmux: PowerShell経由でチェック（Windows環境）
-                            execSync(`powershell.exe -NoProfile -Command "psmux has-session -t '${sessionName}'"`, {
-                                encoding: 'utf-8',
-                                stdio: 'pipe',
-                                windowsHide: true,
-                            });
-                        } else {
-                            // tmux: 直接チェック（Unix/WSL環境）
-                            execSync(`${muxCmd} has-session -t "${sessionName}" 2>/dev/null`, {
-                                encoding: 'utf-8',
-                                stdio: 'pipe',
-                            });
-                        }
-                        sessionExists = true;
+                        const factory = new MultiplexerFactory();
+                        const adapter = factory.create(sessionName, workspacePath);
+                        sessionExists = adapter.sessionExists();
                     } catch {
-                        // has-session はセッション不在時にエラーを返す（正常動作）
                         sessionExists = false;
                     }
 

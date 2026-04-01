@@ -7,10 +7,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
-import { getMultiplexerCommand } from '../utils/environment';
 import { getGlobalMaidAgentPath, getSessionNameFromPath } from '../utils/helpers';
-import { getSavedRuntimeMode } from './global-init';
+import { MultiplexerFactory } from '../multiplexer';
 
 // =============================================================================
 // 型定義
@@ -100,19 +98,10 @@ function safeDelete(targetPath: string): boolean {
  * Maid Agent関連のtmuxセッション一覧を取得
  */
 function listMaidAgentSessions(): string[] {
-    const runtimeMode = getSavedRuntimeMode();
-    const muxCmd = getMultiplexerCommand(runtimeMode);
-
     try {
-        const result = execSync(`${muxCmd} list-sessions -F '#{session_name}' 2>/dev/null`, {
-            encoding: 'utf-8',
-            timeout: 5000,
-        });
-
-        return result
-            .trim()
-            .split('\n')
-            .filter(name => name.startsWith('maid-agent-'));
+        const factory = new MultiplexerFactory();
+        const { sessions } = factory.countMaidAgentSessions();
+        return sessions;
     } catch {
         return [];
     }
@@ -122,15 +111,9 @@ function listMaidAgentSessions(): string[] {
  * tmuxセッションを終了
  */
 function killTmuxSession(sessionName: string): boolean {
-    const runtimeMode = getSavedRuntimeMode();
-    const muxCmd = getMultiplexerCommand(runtimeMode);
-
     try {
-        execSync(`${muxCmd} kill-session -t "${sessionName}" 2>/dev/null`, {
-            encoding: 'utf-8',
-            timeout: 5000,
-        });
-        return true;
+        const factory = new MultiplexerFactory();
+        return factory.killSessionByName(sessionName);
     } catch {
         return false;
     }

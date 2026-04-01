@@ -43,9 +43,7 @@ export interface FileViewerState {
 export function openDashboardInBrowser(ctx: FileViewerContext): void {
     if (!ctx.workspaceRoot) return;
     const serverUrl = DASHBOARD_SERVER_URL;
-    const normalizedPath = ENV.isWindowsNative()
-        ? ENV.windowsToWslPath(ctx.workspaceRoot)
-        : ctx.workspaceRoot;
+    const normalizedPath = ENV.normalizePathForServer(ctx.workspaceRoot);
     const dashboardUrl = `${serverUrl}/dashboard?project=${encodeURIComponent(normalizedPath)}`;
     vscode.env.openExternal(vscode.Uri.parse(dashboardUrl));
 }
@@ -140,8 +138,8 @@ async function fetchRenderedFileHtml(ctx: FileViewerContext, filePath: string): 
         if (!projectPath) {
             projectPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         }
-        const normalizedProjectPath = projectPath && ENV.isWindowsNative()
-            ? ENV.windowsToWslPath(projectPath)
+        const normalizedProjectPath = projectPath
+            ? ENV.normalizePathForServer(projectPath)
             : projectPath;
 
         const fileUrl = `${serverUrl}${ENDPOINTS.files.view(filePath, normalizedProjectPath || '')}`;
@@ -186,9 +184,7 @@ async function fetchRenderedFileHtml(ctx: FileViewerContext, filePath: string): 
  * ローカルファイルを読み込みHTMLに変換（フォールバック用）
  */
 function renderFileLocally(filePath: string, fileName: string, workspaceRoot?: string): string | null {
-    const normalizedPath = ENV.isWsl()
-        ? ENV.windowsToWslPath(filePath)
-        : filePath;
+    const normalizedPath = ENV.normalizePathForServer(filePath);
 
     if (workspaceRoot && !isPathWithinRootCrossEnv(normalizedPath, workspaceRoot, ENV.platform)) {
         vscode.window.showErrorMessage('許可されたディレクトリ外のファイルは開けません');

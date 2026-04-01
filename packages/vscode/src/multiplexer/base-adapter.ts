@@ -221,6 +221,14 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
         this.exec(`select-window -t ${this.sessionName}:${windowName}`);
     }
 
+    getCurrentWindowName(): string | null {
+        try {
+            return this.exec(`display-message -t ${this.sessionName} -p "#{window_name}"`).trim();
+        } catch {
+            return null;
+        }
+    }
+
     // ========== キー送信 ==========
 
     sendKeys(windowName: string, keys: string, pressEnter: boolean = true): void {

@@ -87,6 +87,11 @@ export interface ITerminalMultiplexer {
      */
     cancelCopyMode(windowName: string): void;
 
+    /**
+     * 現在アクティブなウィンドウ名を取得
+     */
+    getCurrentWindowName(): string | null;
+
     // ========== その他 ==========
 
     /**
@@ -118,6 +123,16 @@ export interface IMultiplexerFactory {
      * maid-agentセッションの数を取得
      */
     countMaidAgentSessions(): { count: number; sessions: string[] };
+
+    /**
+     * 全セッション名の一覧を取得
+     */
+    listSessions(): string[];
+
+    /**
+     * 指定セッションを終了
+     */
+    killSessionByName(sessionName: string): boolean;
 
     /**
      * マルチプレクサの種類を取得

@@ -161,34 +161,14 @@ export function openTmuxViewer(ctx: AgentContext): void {
     }
     const isPsmux = multiplexerType === 'psmux';
 
-    // VSCodeターミナルでtmux/psmuxにアタッチ
-    if (ENV.isWindowsNative()) {
-        if (isPsmux) {
-            // psmuxモード: PowerShellでpsmuxにアタッチ
-            // shellArgs方式により、psmuxプロセス終了時にターミナルも自動終了する
-            ctx.tmuxViewerTerminal = vscode.window.createTerminal({
-                name: '🎩 Maid Agent (psmux)',
-                shellPath: 'powershell.exe',
-                shellArgs: ['-NoProfile', '-Command', `psmux attach-session -t ${ctx.tmuxSessionName}`],
-                cwd: ctx.workspaceRoot ? vscode.Uri.file(ctx.workspaceRoot) : undefined,
-            });
-        } else {
-            // tmuxモード: WSLシェルを使用してtmuxにアタッチ
-            const wslPath = ctx.workspaceRoot ? ENV.windowsToWslPath(ctx.workspaceRoot) : '/home';
-            ctx.tmuxViewerTerminal = vscode.window.createTerminal({
-                name: '🎩 Maid Agent (tmux)',
-                shellPath: 'wsl.exe',
-                shellArgs: ['-e', 'bash', '-c', `cd "${wslPath}" && tmux attach-session -t ${ctx.tmuxSessionName}`]
-            });
-        }
-    } else {
-        // WSL/Linux/macOS環境: 直接tmuxにアタッチ
-        ctx.tmuxViewerTerminal = vscode.window.createTerminal({
-            name: '🎩 Maid Agent (tmux)',
-            cwd: ctx.workspaceRoot
-        });
-        ctx.tmuxViewerTerminal.sendText(`tmux attach-session -t ${ctx.tmuxSessionName}`);
-    }
+    // VSCodeターミナルでtmux/psmuxにアタッチ（TerminalFactory経由で環境分岐を統一）
+    const terminalName = isPsmux ? '🎩 Maid Agent (psmux)' : '🎩 Maid Agent (tmux)';
+    const terminalFactory = ENV.getTerminalFactory(isPsmux);
+    ctx.tmuxViewerTerminal = terminalFactory.createViewerTerminal(
+        terminalName,
+        ctx.tmuxSessionName,
+        ctx.workspaceRoot,
+    );
     ctx.tmuxViewerTerminal.show();
 
     ctx.log(`[${isPsmux ? 'psmux' : 'tmux'}] ビューアターミナルを開きました`);

@@ -12,6 +12,7 @@ import { execSync } from 'child_process';
 import { ExecutionEnvironment, RuntimeMode } from '../types';
 import type { MultiplexerType } from '../multiplexer/interfaces';
 import { ShellType, escapeForSendKeys, quoteArg } from './shell-escape';
+import { ITerminalFactory, createTerminalFactory } from './terminal-factory';
 
 // =============================================================================
 // Interface
@@ -56,6 +57,10 @@ export interface IEnvironmentContext {
     escapeSendKeys(value: string, multiplexerType: MultiplexerType): string;
     /** コマンド引数のクォーティング */
     quoteCommandArg(value: string, runtimeMode?: RuntimeMode): string;
+
+    // ─── TerminalFactory ───
+    /** 環境に応じたTerminalFactoryを取得 */
+    getTerminalFactory(isPsmux?: boolean): ITerminalFactory;
 }
 
 // =============================================================================
@@ -218,6 +223,17 @@ export class EnvironmentContext implements IEnvironmentContext {
 
     quoteCommandArg(value: string, runtimeMode?: RuntimeMode): string {
         return quoteArg(value, this.getShellType(runtimeMode));
+    }
+
+    // ─── TerminalFactory ───
+
+    private _terminalFactoryCache = new Map<boolean, ITerminalFactory>();
+
+    getTerminalFactory(isPsmux: boolean = false): ITerminalFactory {
+        if (!this._terminalFactoryCache.has(isPsmux)) {
+            this._terminalFactoryCache.set(isPsmux, createTerminalFactory(isPsmux));
+        }
+        return this._terminalFactoryCache.get(isPsmux)!;
     }
 }
 

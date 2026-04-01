@@ -188,6 +188,13 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
         } catch {
             // automatic-rename オプションがサポートされていない環境では無視
         }
+        // rename-window で manual_rename フラグを設定し、プロセス名による上書きを防止
+        // tmux/psmux 共に rename-window 実行時に manual_rename = true が設定される
+        try {
+            this.exec(`rename-window -t ${this.sessionName}:${windowName} ${windowName}`);
+        } catch {
+            // rename-window 失敗時は無視（ウィンドウ名は new-window の -n で設定済み）
+        }
     }
 
     killWindow(windowName: string): void {

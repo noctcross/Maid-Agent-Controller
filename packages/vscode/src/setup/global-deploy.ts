@@ -289,6 +289,49 @@ export async function installGitForWindows(ctx: SetupContext): Promise<void> {
 }
 
 /**
+ * Claude Code のインストール先（%USERPROFILE%\.local\bin）がユーザーPATHに
+ * 含まれていなければ追加する（Windows環境用）
+ */
+function ensureClaudeCodeInPath(ctx: SetupContext): void {
+    const userProfile = process.env.USERPROFILE;
+    if (!userProfile) {
+        ctx.log('[PATH] USERPROFILE が未設定のためスキップ');
+        return;
+    }
+
+    const claudeBinDir = path.join(userProfile, '.local', 'bin');
+
+    try {
+        // 現在のユーザー環境変数PATHを取得
+        const currentUserPath = execSync(
+            "powershell -NoProfile -Command \"[Environment]::GetEnvironmentVariable('PATH', 'User')\"",
+            { encoding: 'utf-8', windowsHide: true },
+        ).trim();
+
+        // 既にPATHに含まれているか確認（大文字小文字を無視）
+        const pathEntries = currentUserPath.split(';').map(p => p.toLowerCase().replace(/\\$/, ''));
+        const targetLower = claudeBinDir.toLowerCase().replace(/\\$/, '');
+
+        if (pathEntries.includes(targetLower)) {
+            ctx.log(`[PATH] Claude Code パス既に設定済み: ${claudeBinDir}`);
+            return;
+        }
+
+        // ユーザー環境変数PATHに追加（恒久的）
+        const newPath = currentUserPath ? `${claudeBinDir};${currentUserPath}` : claudeBinDir;
+        execSync(
+            `powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('PATH', '${newPath.replace(/'/g, "''")}', 'User')"`,
+            { encoding: 'utf-8', windowsHide: true },
+        );
+
+        ctx.log(`[PATH] Claude Code パスを追加: ${claudeBinDir}`);
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        ctx.log(`[PATH] Claude Code パス追加に失敗（手動設定が必要）: ${errorMsg}`);
+    }
+}
+
+/**
  * Claude Code をインストール（Windows - PowerShellスクリプト経由）
  */
 export async function installClaudeCodeWindows(ctx: SetupContext): Promise<void> {
@@ -302,6 +345,9 @@ export async function installClaudeCodeWindows(ctx: SetupContext): Promise<void>
             windowsHide: true,
         });
         ctx.log('[Global] Claude Code インストール完了（Windows）');
+
+        // インストール先をユーザーPATHに追加（%USERPROFILE%\.local\bin）
+        ensureClaudeCodeInPath(ctx);
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         ctx.log(`[Global] Claude Code インストールエラー: ${errorMsg}`);

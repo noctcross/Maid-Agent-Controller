@@ -68,6 +68,12 @@ export class PsmuxAdapter extends AbstractMultiplexerAdapter {
         } catch {
             // オプションがサポートされていない場合は無視
         }
+        // rename-window で manual_rename フラグを設定し、プロセス名による上書きを防止
+        try {
+            this.exec(`rename-window -t ${this.sessionName}:${windowName} ${windowName}`);
+        } catch {
+            // rename-window 失敗時は無視（ウィンドウ名は new-window の -n で設定済み）
+        }
     }
 
     /**

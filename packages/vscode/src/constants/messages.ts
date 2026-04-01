@@ -1,7 +1,7 @@
 /**
  * UIメッセージ定数
  */
-import { SetupStep } from '../setup/setup-ui';
+import { SetupStep } from './setup-steps';
 
 export const SETUP_MESSAGES = {
     INIT_GLOBAL: {

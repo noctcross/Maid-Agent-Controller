@@ -16,7 +16,7 @@ import {
     isEnvironmentReady,
     getReadyEnvironments,
     EnvironmentType,
-} from '../setup/global-init';
+} from './environment-status';
 
 // =============================================================================
 // 型定義

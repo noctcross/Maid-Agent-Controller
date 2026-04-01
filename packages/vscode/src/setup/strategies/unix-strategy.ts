@@ -13,6 +13,7 @@ import * as path from 'path';
 import { SetupContext } from '../../types';
 import { UnixSetupStrategy } from './types';
 import { ENV } from '../../utils/environment';
+import { ENV as ENV_CTX } from '../../utils/environment-context';
 import { runShellCommand, getMessengerShellPath } from '../pm2-setup';
 import { detectPackageManager, PM_CONFIG } from '../../utils/package-manager';
 
@@ -233,21 +234,11 @@ export class UnixStrategy implements UnixSetupStrategy {
      * sudo付きコマンドを実行（環境に応じてWSL経由または直接）
      */
     private execWithSudo(cmd: string, password: string): void {
-        if (ENV.isWindowsNative()) {
-            // WSL経由
-            execSync(`wsl bash -lc "${cmd.replace(/"/g, '\\"')}"`, {
-                encoding: 'utf-8',
-                timeout: 120000,
-                input: password + '\n',
-            });
-        } else {
-            // 直接実行
-            execSync(cmd, {
-                encoding: 'utf-8',
-                timeout: 120000,
-                input: password + '\n',
-            });
-        }
+        ENV_CTX.commandExecutor.execInLoginShell(cmd, {
+            encoding: 'utf-8',
+            timeout: 120000,
+            input: password + '\n',
+        });
     }
 
     /**

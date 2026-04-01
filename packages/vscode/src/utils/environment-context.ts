@@ -46,6 +46,8 @@ export interface IEnvironmentContext {
     // ─── パス ───
     /** WindowsパスをWSLパスに変換 */
     windowsToWslPath(windowsPath: string): string;
+    /** プロジェクトパスをサーバー（WSL側）向けに正規化 */
+    normalizePathForServer(path: string): string;
     /** WSL前置が必要か */
     needsWslPrefix(runtimeMode?: RuntimeMode): boolean;
 
@@ -197,6 +199,10 @@ export class EnvironmentContext implements IEnvironmentContext {
         }
 
         return windowsPath.replace(/\\/g, '/');
+    }
+
+    normalizePathForServer(path: string): string {
+        return this.isWindowsNative() ? this.windowsToWslPath(path) : path;
     }
 
     needsWslPrefix(runtimeMode?: RuntimeMode): boolean {

@@ -75,6 +75,7 @@ vi.mock('../../utils/environment', () => ({
         isPsmux: () => false,
         getMultiplexerCommand: () => 'tmux',
         windowsToWslPath: (p: string) => p,
+        normalizePathForServer: (p: string) => p,
         needsWslPrefix: () => false,
     },
 }));

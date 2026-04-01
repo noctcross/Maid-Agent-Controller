@@ -217,10 +217,7 @@ export function getSystemPromptFilePath(
         );
         // Windows環境: 一時ファイルはWindowsパスで生成されるが、
         // Claude CodeはWSL内で起動するためWSLパスに変換が必要
-        if (ENV.isWindowsNative()) {
-            return ENV.windowsToWslPath(filePath);
-        }
-        return filePath;
+        return ENV.normalizePathForServer(filePath);
     } catch (error) {
         ctx.log(`[prompt] システムプロンプトファイル生成エラー: ${error}`);
         return null;

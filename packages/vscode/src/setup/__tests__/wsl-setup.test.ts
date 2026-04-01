@@ -30,6 +30,7 @@ vi.mock('../../utils/environment', () => ({
       isPsmux: (mode?: string) => mode === 'windows-native',
       getMultiplexerCommand: (mode?: string) => mode === 'windows-native' ? 'psmux' : 'wsl tmux',
       windowsToWslPath: (p: string) => p,
+      normalizePathForServer: (p: string) => p,
       needsWslPrefix: (mode?: string) => mode !== 'windows-native',
   },
 }));

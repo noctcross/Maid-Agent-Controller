@@ -5,6 +5,9 @@ REM
 REM 前提: Git for Windows がインストール済みで bash.exe が PATH に存在すること
 REM       (psmux戦略の必須要件)
 
+REM UTF-8コードページに切り替え（日本語出力の文字化け防止）
+chcp 65001 >nul 2>nul
+
 where bash >nul 2>nul
 if errorlevel 1 (
     echo [maidctl] エラー: bash.exe が見つかりません。 1>&2

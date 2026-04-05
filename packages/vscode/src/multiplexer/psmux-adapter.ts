@@ -42,7 +42,24 @@ export class PsmuxAdapter extends AbstractMultiplexerAdapter {
         };
     }
 
-    // setCopyModeTimeout は base-adapter の実装をそのまま使用（冗長オーバーライド削除）
+    // ========== ステータスバー書式（psmux用シンプル版） ==========
+
+    /**
+     * psmux用ステータスバー1行目
+     * psmuxでは #[list], #[range], #{T:...} の一部が未実装のため、
+     * #{W:...} ループと #{?...} 条件分岐で自前構成
+     */
+    protected override getStatusFormatLine1(): string {
+        return '#{W:#{?#{==:#{window_index},#{active_window_index}},#[fg=white bg=blue bold] #{window_index}:#{=8:window_name} #[default], #{window_index}:#{=8:window_name} }}';
+    }
+
+    /**
+     * psmux用ステータスバー2行目
+     * psmuxでは #[align=...] が未実装のため、左寄せのみで構成
+     */
+    protected override getStatusFormatLine2(): string {
+        return '[#{session_name}] #{pane_current_path} | %Y-%m-%d %H:%M';
+    }
 
     // ========== PsmuxAdapter 固有のメソッド ==========
 

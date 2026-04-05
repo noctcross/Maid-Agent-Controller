@@ -2,11 +2,11 @@ import { execSync, exec } from 'child_process';
 import { ITerminalMultiplexer, MultiplexerType } from './interfaces';
 import { escapeForDoubleQuote, type ShellType } from '../utils/shell-escape';
 
-// ステータスバー2行表示のフォーマット
-// 1行目: ウィンドウリスト（クリック可能）
-const STATUS_FORMAT_LINE1 = '#[list=on align=left]#[list=left-marker]<#[list=right-marker]>#[list=on]#{W:#[range=window|#{window_index}]#{T:window-status-format}#[norange],#[range=window|#{window_index} list=focus]#{T:window-status-current-format}#[norange]}';
-// 2行目: セッション名、パス、日時
-const STATUS_FORMAT_LINE2 = '#[align=left][#{session_name}] #{pane_current_path} #[align=right]%Y-%m-%d %H:%M';
+// ステータスバー2行表示のフォーマット（tmux用デフォルト）
+// 1行目: ウィンドウリスト（クリック可能、#[list]/[range]使用）
+const STATUS_FORMAT_LINE1_TMUX = '#[list=on align=left]#[list=left-marker]<#[list=right-marker]>#[list=on]#{W:#[range=window|#{window_index}]#{T:window-status-format}#[norange],#[range=window|#{window_index} list=focus]#{T:window-status-current-format}#[norange]}';
+// 2行目: セッション名、パス、日時（#[align]使用）
+const STATUS_FORMAT_LINE2_TMUX = '#[align=left][#{session_name}] #{pane_current_path} #[align=right]%Y-%m-%d %H:%M';
 
 /**
  * マルチプレクサの共通実装
@@ -118,6 +118,20 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
      * セッション設定を適用（サブクラスでオーバーライド可能）
      * セッションスコープ（-t SESSION）で設定し、ユーザーの既存tmux設定に影響しない
      */
+    /**
+     * ステータスバー1行目のフォーマットを取得（サブクラスでオーバーライド可能）
+     */
+    protected getStatusFormatLine1(): string {
+        return STATUS_FORMAT_LINE1_TMUX;
+    }
+
+    /**
+     * ステータスバー2行目のフォーマットを取得（サブクラスでオーバーライド可能）
+     */
+    protected getStatusFormatLine2(): string {
+        return STATUS_FORMAT_LINE2_TMUX;
+    }
+
     protected sourceConfigFile(): void {
         const s = this.sessionName;
 
@@ -125,8 +139,8 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
         const sessionOptions: [string, string][] = [
             ['mouse', 'on'],
             ['status', '2'],
-            ['status-format[0]', STATUS_FORMAT_LINE1],
-            ['status-format[1]', STATUS_FORMAT_LINE2],
+            ['status-format[0]', this.getStatusFormatLine1()],
+            ['status-format[1]', this.getStatusFormatLine2()],
         ];
 
         // ウィンドウオプション（セッション内の新規ウィンドウのデフォルト）

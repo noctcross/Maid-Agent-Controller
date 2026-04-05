@@ -60,8 +60,8 @@ export interface IEnvironmentContext {
     // ─── パス ───
     /** WindowsパスをWSLパスに変換 */
     windowsToWslPath(windowsPath: string): string;
-    /** プロジェクトパスをサーバー（WSL側）向けに正規化 */
-    normalizePathForServer(path: string): string;
+    /** プロジェクトパスをサーバー向けに正規化。psmux環境ではWindowsパスのまま返す */
+    normalizePathForServer(path: string, runtimeMode?: RuntimeMode): string;
     /** WSL前置が必要か */
     needsWslPrefix(runtimeMode?: RuntimeMode): boolean;
 
@@ -239,7 +239,11 @@ export class EnvironmentContext implements IEnvironmentContext {
         return windowsPath.replace(/\\/g, '/');
     }
 
-    normalizePathForServer(path: string): string {
+    normalizePathForServer(path: string, runtimeMode?: RuntimeMode): string {
+        // psmux環境: サーバーもWindows側で動作するため変換不要
+        if (this.isPsmux(runtimeMode)) {
+            return path;
+        }
         return this.isWindowsNative() ? this.windowsToWslPath(path) : path;
     }
 

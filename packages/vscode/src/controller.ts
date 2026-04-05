@@ -724,6 +724,8 @@ ${agentList || '  (なし)'}
 
         // 設定を保存
         saveRuntimeMode(selection.mode, ctx);
+        // ENV 内部状態を更新
+        ENV.setRuntimeMode(selection.mode);
         this.log(`[RuntimeMode] モード変更: ${previousMode || '未設定'} → ${selection.mode}`);
 
         // サーバー切替（旧サーバー停止 → 新サーバー起動）

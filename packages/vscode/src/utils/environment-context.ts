@@ -35,9 +35,15 @@ export interface IEnvironmentContext {
     /** 現在のプラットフォーム */
     readonly platform: ExecutionEnvironment;
 
+    // ─── ランタイムモード ───
+    /** 現在のランタイムモードを設定 */
+    setRuntimeMode(mode: RuntimeMode): void;
+    /** 現在のランタイムモードを取得 */
+    getRuntimeMode(): RuntimeMode | undefined;
+
     // ─── 判定 ───
     /** Windows-native + windows-native ランタイムモードか */
-    isPsmux(runtimeMode?: RuntimeMode): boolean;
+    isPsmux(): boolean;
     /** WSL環境で動作しているか */
     isWsl(): boolean;
     /** Windows-native環境か */
@@ -47,11 +53,11 @@ export interface IEnvironmentContext {
 
     // ─── マルチプレクサ ───
     /** マルチプレクサコマンドを取得 */
-    getMultiplexerCommand(runtimeMode?: RuntimeMode): string;
+    getMultiplexerCommand(): string;
     /** マルチプレクサが利用可能か */
-    isMultiplexerAvailable(runtimeMode?: RuntimeMode): boolean;
+    isMultiplexerAvailable(): boolean;
     /** マルチプレクサのバージョンを取得 */
-    getMultiplexerVersion(runtimeMode?: RuntimeMode): string | null;
+    getMultiplexerVersion(): string | null;
     /** WSLが利用可能か（Windows環境のみ） */
     isWslAvailable(): boolean;
     /** tmux互換チェック（後方互換） */
@@ -61,17 +67,17 @@ export interface IEnvironmentContext {
     /** WindowsパスをWSLパスに変換 */
     windowsToWslPath(windowsPath: string): string;
     /** プロジェクトパスをサーバー向けに正規化。psmux環境ではWindowsパスのまま返す */
-    normalizePathForServer(path: string, runtimeMode?: RuntimeMode): string;
+    normalizePathForServer(path: string): string;
     /** WSL前置が必要か */
-    needsWslPrefix(runtimeMode?: RuntimeMode): boolean;
+    needsWslPrefix(): boolean;
 
     // ─── シェルエスケープ ───
     /** 現在の環境に対応するシェル種別 */
-    getShellType(runtimeMode?: RuntimeMode): ShellType;
+    getShellType(): ShellType;
     /** send-keys用エスケープ */
     escapeSendKeys(value: string, multiplexerType: MultiplexerType): string;
     /** コマンド引数のクォーティング */
-    quoteCommandArg(value: string, runtimeMode?: RuntimeMode): string;
+    quoteCommandArg(value: string): string;
 
     // ─── TerminalFactory ───
     /** 環境に応じたTerminalFactoryを取得 */
@@ -95,9 +101,20 @@ export interface IEnvironmentContext {
 export class EnvironmentContext implements IEnvironmentContext {
     readonly platform: ExecutionEnvironment;
     private _commandExecutor?: ICommandExecutor;
+    private currentRuntimeMode: RuntimeMode | undefined;
 
     constructor() {
         this.platform = this.detectEnvironment();
+    }
+
+    // ─── ランタイムモード ───
+
+    setRuntimeMode(mode: RuntimeMode): void {
+        this.currentRuntimeMode = mode;
+    }
+
+    getRuntimeMode(): RuntimeMode | undefined {
+        return this.currentRuntimeMode;
     }
 
     // ─── コマンド実行 ───
@@ -135,8 +152,8 @@ export class EnvironmentContext implements IEnvironmentContext {
 
     // ─── 判定 ───
 
-    isPsmux(runtimeMode?: RuntimeMode): boolean {
-        return this.platform === 'windows-native' && runtimeMode === 'windows-native';
+    isPsmux(): boolean {
+        return this.platform === 'windows-native' && this.currentRuntimeMode === 'windows-native';
     }
 
     isWsl(): boolean {
@@ -153,9 +170,9 @@ export class EnvironmentContext implements IEnvironmentContext {
 
     // ─── マルチプレクサ ───
 
-    getMultiplexerCommand(runtimeMode?: RuntimeMode): string {
+    getMultiplexerCommand(): string {
         if (this.platform === 'windows-native') {
-            if (runtimeMode === 'windows-native') {
+            if (this.currentRuntimeMode === 'windows-native') {
                 return 'psmux';
             }
             return 'wsl tmux';
@@ -163,9 +180,9 @@ export class EnvironmentContext implements IEnvironmentContext {
         return 'tmux';
     }
 
-    isMultiplexerAvailable(runtimeMode?: RuntimeMode): boolean {
+    isMultiplexerAvailable(): boolean {
         try {
-            const muxCmd = this.getMultiplexerCommand(runtimeMode);
+            const muxCmd = this.getMultiplexerCommand();
             if (muxCmd === 'psmux') {
                 execSync('powershell.exe -NoProfile -Command "psmux -V"', {
                     encoding: 'utf-8',
@@ -182,9 +199,9 @@ export class EnvironmentContext implements IEnvironmentContext {
         }
     }
 
-    getMultiplexerVersion(runtimeMode?: RuntimeMode): string | null {
+    getMultiplexerVersion(): string | null {
         try {
-            const muxCmd = this.getMultiplexerCommand(runtimeMode);
+            const muxCmd = this.getMultiplexerCommand();
             if (muxCmd === 'psmux') {
                 return execSync('powershell.exe -NoProfile -Command "psmux -V"', {
                     encoding: 'utf-8',
@@ -239,22 +256,22 @@ export class EnvironmentContext implements IEnvironmentContext {
         return windowsPath.replace(/\\/g, '/');
     }
 
-    normalizePathForServer(path: string, runtimeMode?: RuntimeMode): string {
+    normalizePathForServer(path: string): string {
         // psmux環境: サーバーもWindows側で動作するため変換不要
-        if (this.isPsmux(runtimeMode)) {
+        if (this.isPsmux()) {
             return path;
         }
         return this.isWindowsNative() ? this.windowsToWslPath(path) : path;
     }
 
-    needsWslPrefix(runtimeMode?: RuntimeMode): boolean {
-        return this.platform === 'windows-native' && !this.isPsmux(runtimeMode);
+    needsWslPrefix(): boolean {
+        return this.platform === 'windows-native' && !this.isPsmux();
     }
 
     // ─── シェルエスケープ ───
 
-    getShellType(runtimeMode?: RuntimeMode): ShellType {
-        if (this.isPsmux(runtimeMode)) {
+    getShellType(): ShellType {
+        if (this.isPsmux()) {
             return 'powershell';
         }
         return 'bash';
@@ -264,8 +281,8 @@ export class EnvironmentContext implements IEnvironmentContext {
         return escapeForSendKeys(value, multiplexerType);
     }
 
-    quoteCommandArg(value: string, runtimeMode?: RuntimeMode): string {
-        return quoteArg(value, this.getShellType(runtimeMode));
+    quoteCommandArg(value: string): string {
+        return quoteArg(value, this.getShellType());
     }
 
     // ─── TerminalFactory ───

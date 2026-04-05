@@ -77,6 +77,8 @@ vi.mock('../../utils/environment', () => ({
         windowsToWslPath: (p: string) => p,
         normalizePathForServer: (p: string) => p,
         needsWslPrefix: () => false,
+        setRuntimeMode: vi.fn(),
+        getRuntimeMode: vi.fn(() => undefined),
     },
 }));
 

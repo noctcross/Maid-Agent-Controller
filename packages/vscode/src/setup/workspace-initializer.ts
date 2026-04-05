@@ -98,7 +98,7 @@ function adjustSettingsForRuntimeMode(ctx: SetupContext, maidAgentPath: string):
         ctx.log(`[初期化] ランタイムモード: ${runtimeMode || '未設定'}`);
 
         // Windows-native モードの場合のみ psmux に変更
-        if (ENV.isWindowsNative() && runtimeMode === 'windows-native') {
+        if (ENV.isPsmux()) {
             const content = fs.readFileSync(settingsPath, 'utf-8');
             const settings = YAML.parse(content) || {};
 

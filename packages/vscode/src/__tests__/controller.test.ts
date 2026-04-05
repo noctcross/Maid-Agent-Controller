@@ -73,6 +73,8 @@ vi.mock('../utils/environment', () => ({
         getShellType: () => 'bash',
         escapeSendKeys: (v: string) => `'${v}'`,
         quoteCommandArg: (v: string) => `'${v}'`,
+        setRuntimeMode: vi.fn(),
+        getRuntimeMode: vi.fn(() => undefined),
     },
 }));
 

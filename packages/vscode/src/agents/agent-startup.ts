@@ -10,7 +10,6 @@ import { execSync } from 'child_process';
 import { Agent, AgentContext } from '../types';
 import { AGENTS_MAP, isValidAgentId } from '../constants';
 import { ENV, isTmuxAvailable } from '../utils/environment';
-import { getSavedRuntimeMode } from '../setup/global-init';
 import { getSessionNameFromPath } from '../utils/helpers';
 import { escapeForSingleQuote, buildCommandWithEnvVars } from '../utils/shell-escape';
 // MultiplexerFactory is accessed via ctx.multiplexerFactory
@@ -599,8 +598,7 @@ export async function checkSessionCountWarning(ctx: AgentContext): Promise<void>
 
                 if (confirm === '終了する') {
                     let killedCount = 0;
-                    const runtimeMode = getSavedRuntimeMode();
-                    const muxCmd = ENV.getMultiplexerCommand(runtimeMode);
+                    const muxCmd = ENV.getMultiplexerCommand();
                     for (const item of selected) {
                         try {
                             execSync(`${muxCmd} kill-session -t ${item.sessionName}`, { stdio: 'pipe' });
@@ -621,8 +619,7 @@ export async function checkSessionCountWarning(ctx: AgentContext): Promise<void>
                 'キャンセル'
             );
             if (confirm === '全て終了') {
-                const runtimeMode = getSavedRuntimeMode();
-                const muxCmd = ENV.getMultiplexerCommand(runtimeMode);
+                const muxCmd = ENV.getMultiplexerCommand();
                 sessions.forEach(sessionName => {
                     try {
                         execSync(`${muxCmd} kill-session -t ${sessionName}`, { stdio: 'pipe' });

@@ -104,6 +104,8 @@ export async function initializeGlobalSettingsNew(ctx: SetupContext): Promise<bo
         }
 
         ctx.log(`[Global] 選択されたランタイムモード: ${runtimeMode}`);
+        // ENV 内部状態を更新
+        ENV.setRuntimeMode(runtimeMode);
     }
 
     // 'both' モードの場合、まずWSLセットアップを実行し、その後psmuxセットアップを実行

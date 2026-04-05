@@ -26,6 +26,12 @@ export function activate(context: vscode.ExtensionContext) {
     controller = new MultiAgentController();
     controller.setContext(context);
 
+    // 保存済みランタイムモードを ENV に設定（内部状態の初期化）
+    const savedRuntimeMode = getSavedRuntimeMode();
+    if (savedRuntimeMode) {
+        ENV.setRuntimeMode(savedRuntimeMode);
+    }
+
     // エージェントパネル（サイドバー）を登録
     const agentPanelProvider = new AgentPanelProvider(context.extensionUri);
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;

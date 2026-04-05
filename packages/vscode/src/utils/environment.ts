@@ -53,7 +53,17 @@ type RuntimeModeType = 'wsl' | 'windows-native' | 'both';
  * @deprecated ENV.isMultiplexerAvailable() を使用してください
  */
 export function isMultiplexerAvailable(runtimeMode?: RuntimeModeType): boolean {
-    return ENV.isMultiplexerAvailable(runtimeMode);
+    // 後方互換: runtimeMode が指定された場合は一時的に内部状態を上書きして判定
+    if (runtimeMode !== undefined) {
+        const prev = ENV.getRuntimeMode();
+        ENV.setRuntimeMode(runtimeMode as import('../types').RuntimeMode);
+        const result = ENV.isMultiplexerAvailable();
+        if (prev !== undefined) {
+            ENV.setRuntimeMode(prev);
+        }
+        return result;
+    }
+    return ENV.isMultiplexerAvailable();
 }
 
 /**
@@ -61,7 +71,16 @@ export function isMultiplexerAvailable(runtimeMode?: RuntimeModeType): boolean {
  * @deprecated ENV.getMultiplexerVersion() を使用してください
  */
 export function getMultiplexerVersion(runtimeMode?: RuntimeModeType): string | null {
-    return ENV.getMultiplexerVersion(runtimeMode);
+    if (runtimeMode !== undefined) {
+        const prev = ENV.getRuntimeMode();
+        ENV.setRuntimeMode(runtimeMode as import('../types').RuntimeMode);
+        const result = ENV.getMultiplexerVersion();
+        if (prev !== undefined) {
+            ENV.setRuntimeMode(prev);
+        }
+        return result;
+    }
+    return ENV.getMultiplexerVersion();
 }
 
 /**
@@ -93,7 +112,14 @@ export function isWslAvailable(): boolean {
  * @deprecated ENV.getMultiplexerCommand() を使用してください
  */
 export function getMultiplexerCommand(runtimeMode?: RuntimeModeType): string {
-    return ENV.getMultiplexerCommand(runtimeMode);
+    // 後方互換: runtimeMode が指定された場合はインライン計算
+    if (runtimeMode !== undefined) {
+        if (ENV.platform === 'windows-native') {
+            return runtimeMode === 'windows-native' ? 'psmux' : 'wsl tmux';
+        }
+        return 'tmux';
+    }
+    return ENV.getMultiplexerCommand();
 }
 
 /**
@@ -101,5 +127,9 @@ export function getMultiplexerCommand(runtimeMode?: RuntimeModeType): string {
  * @deprecated ENV.isPsmux() を使用してください
  */
 export function isPsmuxMode(runtimeMode?: RuntimeModeType): boolean {
-    return ENV.isPsmux(runtimeMode);
+    // 後方互換: runtimeMode が指定された場合はインライン計算
+    if (runtimeMode !== undefined) {
+        return ENV.platform === 'windows-native' && runtimeMode === 'windows-native';
+    }
+    return ENV.isPsmux();
 }

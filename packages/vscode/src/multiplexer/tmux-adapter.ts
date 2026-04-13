@@ -1,6 +1,7 @@
 import { AbstractMultiplexerAdapter } from './base-adapter';
 import { MultiplexerType } from './interfaces';
 import { windowsToWslPath } from '../utils/environment';
+import type { ShellType } from '../utils/shell-escape';
 
 /**
  * tmux 用アダプター（WSL/Linux/macOS環境）
@@ -25,6 +26,11 @@ export class TmuxAdapter extends AbstractMultiplexerAdapter {
 
     getMultiplexerType(): MultiplexerType {
         return 'tmux';
+    }
+
+    protected override getShellType(): ShellType {
+        // Windows環境: cmd.exe経由で実行されるため cmd を返す
+        return this.isWindowsHost ? 'cmd' : 'bash';
     }
 
     protected getCommandPrefix(): string {

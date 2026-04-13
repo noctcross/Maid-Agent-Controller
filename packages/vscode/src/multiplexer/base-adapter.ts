@@ -1,6 +1,6 @@
 import { execSync, exec } from 'child_process';
 import { ITerminalMultiplexer, MultiplexerType } from './interfaces';
-import { escapeForDoubleQuote, type ShellType } from '../utils/shell-escape';
+import { escapeForDoubleQuote, quoteArg, type ShellType } from '../utils/shell-escape';
 
 // ステータスバー2行表示のフォーマット（tmux用デフォルト）
 // 1行目: ウィンドウリスト（クリック可能、#[list]/[range]使用）
@@ -149,9 +149,10 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
             ['allow-rename', 'off'],
         ];
 
+        const shell = this.getShellType();
         for (const [key, value] of sessionOptions) {
             try {
-                this.exec(`set-option -t ${s} '${key}' '${value}'`);
+                this.exec(`set-option -t ${s} ${quoteArg(key, shell)} ${quoteArg(value, shell)}`);
             } catch (error) {
                 console.error(`[sourceConfigFile] set-option ${key} failed:`, error);
             }

@@ -68,6 +68,16 @@ language: ja
             const settings = loadSettings(maidAgentPath);
             expect(settings.language).toBe('ja');
         });
+
+        it('パースエラーが発生した場合、console.error を出力すること', () => {
+            const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            // 閉じられていないフローシーケンス — yaml ライブラリが例外をスロー
+            writeSettings('key: [\nunclosed: true');
+            loadSettings(maidAgentPath);
+            expect(errorSpy).toHaveBeenCalledOnce();
+            expect(errorSpy.mock.calls[0][0]).toContain('[Settings]');
+            errorSpy.mockRestore();
+        });
     });
 
     describe('getModelForAgent', () => {
@@ -338,6 +348,34 @@ provider:
             const envVars = getProviderEnvVars(settings);
             expect(envVars['CLAUDE_CODE_USE_BEDROCK']).toBe('1');
             expect(Object.keys(envVars)).toHaveLength(1);
+        });
+
+        // #473-5: エッジケーステスト追加
+        it('type: custom で base_url が未設定の場合、空オブジェクトを返し console.warn を出力すること', () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: { type: 'custom', custom: {} },
+            };
+            const envVars = getProviderEnvVars(settings);
+            expect(envVars).toEqual({});
+            expect(warnSpy).toHaveBeenCalledOnce();
+            expect(warnSpy.mock.calls[0][0]).toContain('[Provider]');
+            warnSpy.mockRestore();
+        });
+
+        it('type: vertex で project_id のみ指定（region 省略）の場合、region なしで返すこと', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'vertex',
+                    vertex: { project_id: 'my-project' },
+                },
+            };
+            const envVars = getProviderEnvVars(settings);
+            expect(envVars['CLAUDE_CODE_USE_VERTEX']).toBe('1');
+            expect(envVars['ANTHROPIC_VERTEX_PROJECT_ID']).toBe('my-project');
+            expect(envVars['CLOUD_ML_REGION']).toBeUndefined();
         });
     });
 });

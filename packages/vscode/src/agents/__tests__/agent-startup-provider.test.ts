@@ -103,5 +103,24 @@ describe('agent-startup provider env injection', () => {
             const command = buildCommandWithEnvVars(envVars, 'claude --dangerously-skip-permissions', 'bash');
             expect(command).toContain('ANTHROPIC_BASE_URL=https://gateway.example.com/v1');
         });
+
+        // #473-5: psmux 形式で custom type のエッジケース
+        it('provider: custom の場合、ANTHROPIC_BASE_URL が PowerShell 形式でも含まれること (powershell)', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'custom',
+                    custom: { base_url: 'https://gateway.example.com/v1' },
+                },
+            };
+            const providerEnvVars = getProviderEnvVars(settings);
+            const envVars = {
+                CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+                ...providerEnvVars,
+            };
+            const command = buildCommandWithEnvVars(envVars, "& 'claude.exe' --dangerously-skip-permissions", 'powershell');
+            expect(command).toContain('ANTHROPIC_BASE_URL');
+            expect(command).toContain('gateway.example.com');
+        });
     });
 });

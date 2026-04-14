@@ -97,7 +97,8 @@ export function loadSettings(maidAgentPath: string): MaidAgentSettings {
             model: parsed.model,
             provider: parsed.provider,
         };
-    } catch {
+    } catch (error) {
+        console.error('[Settings] settings.yaml の読み込みに失敗しました。デフォルト設定を使用します:', error);
         return { ...DEFAULT_SETTINGS };
     }
 }
@@ -178,10 +179,12 @@ export function getProviderEnvVars(settings: MaidAgentSettings | undefined): Rec
         }
         case 'custom': {
             const envVars: Record<string, string> = {};
-            if (provider.custom?.base_url) {
-                envVars['ANTHROPIC_BASE_URL'] = provider.custom.base_url;
+            if (!provider.custom?.base_url) {
+                console.warn('[Provider] provider.type が "custom" ですが base_url が設定されていません。Claude Code はデフォルトの Anthropic API エンドポイントに接続します。');
+                return envVars;
             }
-            if (provider.custom?.auth_token_env) {
+            envVars['ANTHROPIC_BASE_URL'] = provider.custom.base_url;
+            if (provider.custom.auth_token_env) {
                 const token = process.env[provider.custom.auth_token_env];
                 if (token) {
                     envVars['ANTHROPIC_AUTH_TOKEN'] = token;

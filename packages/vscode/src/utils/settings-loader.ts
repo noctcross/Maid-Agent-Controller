@@ -29,11 +29,23 @@ export interface ProviderCustomConfig {
     auth_token_env?: string;
 }
 
-export interface ProviderConfig {
+/** 単一プロバイダ設定（ロール別・エージェント別指定の値型） */
+export interface SingleProviderConfig {
     type?: 'anthropic' | 'bedrock' | 'vertex' | 'custom';
     bedrock?: ProviderBedrockConfig;
     vertex?: ProviderVertexConfig;
     custom?: ProviderCustomConfig;
+}
+
+export interface ProviderConfig extends SingleProviderConfig {
+    /** ロール別プロバイダ指定（省略可。グローバル設定より優先） */
+    roles?: {
+        butler?: SingleProviderConfig;
+        chief?: SingleProviderConfig;
+        maid?: SingleProviderConfig;
+    };
+    /** エージェント個別プロバイダ指定（省略可。ロール設定より優先） */
+    agents?: Record<string, SingleProviderConfig>;
 }
 
 export interface MaidAgentSettings {
@@ -63,6 +75,13 @@ const DEFAULT_SETTINGS: MaidAgentSettings = {
 
 /** settings.yaml の役割名マッピング（コード上の役割名 → settings.yaml のキー） */
 const ROLE_KEY_MAP: Record<string, keyof NonNullable<NonNullable<MaidAgentSettings['model']>['roles']>> = {
+    butler: 'butler',
+    chiefMaid: 'chief',
+    maid: 'maid',
+};
+
+/** provider.roles のキーマッピング（コード上の役割名 → settings.yaml のキー） */
+const PROVIDER_ROLE_KEY_MAP: Record<string, keyof NonNullable<ProviderConfig['roles']>> = {
     butler: 'butler',
     chiefMaid: 'chief',
     maid: 'maid',
@@ -138,54 +157,49 @@ export function getModelForAgent(
 }
 
 /**
- * settings.yaml の provider 設定から Claude Code に渡す環境変数を生成する
- * - anthropic / 未設定: 空オブジェクト（デフォルト動作を維持）
- * - bedrock: CLAUDE_CODE_USE_BEDROCK=1 + AWS 関連変数
- * - vertex: CLAUDE_CODE_USE_VERTEX=1 + GCP 関連変数
- * - custom: ANTHROPIC_BASE_URL + 任意の AUTH_TOKEN
+ * SingleProviderConfig から環境変数を生成する内部ヘルパー
  */
-export function getProviderEnvVars(settings: MaidAgentSettings | undefined): Record<string, string> {
-    const provider = settings?.provider;
-    if (!provider?.type || provider.type === 'anthropic') {
+function buildEnvVarsFromConfig(config: SingleProviderConfig): Record<string, string> {
+    if (!config.type || config.type === 'anthropic') {
         return {};
     }
 
-    switch (provider.type) {
+    switch (config.type) {
         case 'bedrock': {
             const envVars: Record<string, string> = { CLAUDE_CODE_USE_BEDROCK: '1' };
-            if (provider.bedrock?.region) {
-                envVars['AWS_REGION'] = provider.bedrock.region;
+            if (config.bedrock?.region) {
+                envVars['AWS_REGION'] = config.bedrock.region;
             }
-            if (provider.bedrock?.profile) {
-                envVars['AWS_PROFILE'] = provider.bedrock.profile;
+            if (config.bedrock?.profile) {
+                envVars['AWS_PROFILE'] = config.bedrock.profile;
             }
-            if (provider.bedrock?.base_url) {
-                envVars['ANTHROPIC_BEDROCK_BASE_URL'] = provider.bedrock.base_url;
+            if (config.bedrock?.base_url) {
+                envVars['ANTHROPIC_BEDROCK_BASE_URL'] = config.bedrock.base_url;
             }
             return envVars;
         }
         case 'vertex': {
             const envVars: Record<string, string> = { CLAUDE_CODE_USE_VERTEX: '1' };
-            if (provider.vertex?.region) {
-                envVars['CLOUD_ML_REGION'] = provider.vertex.region;
+            if (config.vertex?.region) {
+                envVars['CLOUD_ML_REGION'] = config.vertex.region;
             }
-            if (provider.vertex?.project_id) {
-                envVars['ANTHROPIC_VERTEX_PROJECT_ID'] = provider.vertex.project_id;
+            if (config.vertex?.project_id) {
+                envVars['ANTHROPIC_VERTEX_PROJECT_ID'] = config.vertex.project_id;
             }
-            if (provider.vertex?.base_url) {
-                envVars['ANTHROPIC_VERTEX_BASE_URL'] = provider.vertex.base_url;
+            if (config.vertex?.base_url) {
+                envVars['ANTHROPIC_VERTEX_BASE_URL'] = config.vertex.base_url;
             }
             return envVars;
         }
         case 'custom': {
             const envVars: Record<string, string> = {};
-            if (!provider.custom?.base_url) {
+            if (!config.custom?.base_url) {
                 console.warn('[Provider] provider.type が "custom" ですが base_url が設定されていません。Claude Code はデフォルトの Anthropic API エンドポイントに接続します。');
                 return envVars;
             }
-            envVars['ANTHROPIC_BASE_URL'] = provider.custom.base_url;
-            if (provider.custom.auth_token_env) {
-                const token = process.env[provider.custom.auth_token_env];
+            envVars['ANTHROPIC_BASE_URL'] = config.custom.base_url;
+            if (config.custom.auth_token_env) {
+                const token = process.env[config.custom.auth_token_env];
                 if (token) {
                     envVars['ANTHROPIC_AUTH_TOKEN'] = token;
                 }
@@ -195,6 +209,43 @@ export function getProviderEnvVars(settings: MaidAgentSettings | undefined): Rec
         default:
             return {};
     }
+}
+
+/**
+ * settings.yaml の provider 設定から Claude Code に渡す環境変数を生成する
+ *
+ * 解決優先順位: agents[agentId] > roles[roleKey] > グローバルデフォルト
+ *
+ * - anthropic / 未設定: 空オブジェクト（デフォルト動作を維持）
+ * - bedrock: CLAUDE_CODE_USE_BEDROCK=1 + AWS 関連変数
+ * - vertex: CLAUDE_CODE_USE_VERTEX=1 + GCP 関連変数
+ * - custom: ANTHROPIC_BASE_URL + 任意の AUTH_TOKEN
+ */
+export function getProviderEnvVars(
+    settings: MaidAgentSettings | undefined,
+    agentId?: string,
+    role?: string,
+): Record<string, string> {
+    const provider = settings?.provider;
+    if (!provider) {
+        return {};
+    }
+
+    // 1. エージェント個別指定
+    if (agentId && provider.agents?.[agentId]) {
+        return buildEnvVarsFromConfig(provider.agents[agentId]);
+    }
+
+    // 2. ロール別指定
+    if (role) {
+        const roleKey = PROVIDER_ROLE_KEY_MAP[role];
+        if (roleKey && provider.roles?.[roleKey]) {
+            return buildEnvVarsFromConfig(provider.roles[roleKey]);
+        }
+    }
+
+    // 3. グローバルデフォルト（既存互換）
+    return buildEnvVarsFromConfig(provider);
 }
 
 /**

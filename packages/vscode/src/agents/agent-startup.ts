@@ -76,11 +76,12 @@ function buildClaudeCommand(
     ctx: AgentContext,
     agentId: string,
     modelFlag: string,
-    initialPrompt?: string
+    initialPrompt?: string,
+    role?: string,
 ): string {
     const isPsmux = ctx.multiplexerFactory?.getType() === 'psmux';
     const addDirs = `--add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
-    const providerEnvVars = getProviderEnvVars(ctx.settings);
+    const providerEnvVars = getProviderEnvVars(ctx.settings, agentId, role);
     const envVars = {
         CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
         ...providerEnvVars,
@@ -303,7 +304,7 @@ export async function launchClaudeWithRole(ctx: AgentContext, agentId: string, r
 
     // 環境変数とコマンドを構築（psmux/tmuxで構文が異なる）
     // エスケープは buildClaudeCommand 内でシェル種別に応じて適用
-    const command = buildClaudeCommand(ctx, agentId, modelFlag, instruction);
+    const command = buildClaudeCommand(ctx, agentId, modelFlag, instruction, role);
     ctx.tmuxManager.sendKeys(agent.tmuxWindow, command, true);
 
     const roleLabel = agent.role === 'butler' ? '執事' :
@@ -444,7 +445,7 @@ export function startClaudeOnAgent(ctx: AgentContext, agentId: string): void {
     const modelFlag = model ? ` --model ${model}` : '';
 
     // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${agentId}を追加（psmux/tmuxで構文が異なる）
-    const command = buildClaudeCommand(ctx, agentId, modelFlag);
+    const command = buildClaudeCommand(ctx, agentId, modelFlag, undefined, agent.role);
     ctx.sendToAgent(agentId, command);
 }
 
@@ -455,7 +456,7 @@ export async function startClaudeOnAllAgents(ctx: AgentContext): Promise<void> {
         const modelFlag = model ? ` --model ${model}` : '';
 
         // V2: 環境変数でCLAUDE.md読み込みを有効化、roles/${id}を追加（psmux/tmuxで構文が異なる）
-        const command = buildClaudeCommand(ctx, id, modelFlag);
+        const command = buildClaudeCommand(ctx, id, modelFlag, undefined, agent.role);
         ctx.sendToAgent(id, command);
         await ctx.delay(500); // 各エージェント間で少し待つ
         count++;

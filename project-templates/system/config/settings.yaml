@@ -84,6 +84,29 @@ agents:
 #   custom:
 #     base_url: https://your-gateway.example.com/v1
 #     auth_token_env: ANTHROPIC_AUTH_TOKEN  # トークンを参照する環境変数名
+#
+# # ロール別・エージェント個別に provider を切り替える場合:
+# # 解決優先順位: agents[agentId] > roles[role] > グローバルデフォルト（type）
+# provider:
+#   type: anthropic     # グローバルデフォルト
+#   roles:
+#     butler:           # 執事のみ Bedrock を使う場合
+#       type: bedrock
+#       bedrock:
+#         region: us-east-1
+#     chief:            # メイド長のみ別プロバイダにする場合
+#       type: anthropic
+#     maid:             # 全メイドに Vertex AI を使う場合
+#       type: vertex
+#       vertex:
+#         project_id: my-gcp-project
+#         region: global
+#   agents:
+#     emma:             # emma だけカスタムゲートウェイを使う場合
+#       type: custom
+#       custom:
+#         base_url: https://gateway.example.com/v1
+#         auth_token_env: ANTHROPIC_AUTH_TOKEN
 
 # LLMモデル設定（省略時: Claude Codeのデフォルトモデルを使用）
 # model:

@@ -104,6 +104,52 @@ describe('agent-startup provider env injection', () => {
             expect(command).toContain('ANTHROPIC_BASE_URL=https://gateway.example.com/v1');
         });
 
+        // #473-4: ロール別解決の統合確認
+        it('provider.roles.butler が bedrock の場合、butler ロールで Bedrock 変数が注入されること (bash)', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'anthropic',
+                    roles: {
+                        butler: { type: 'bedrock', bedrock: { region: 'us-east-1' } },
+                    },
+                },
+            };
+            const providerEnvVars = getProviderEnvVars(settings, 'butler', 'butler');
+            const envVars = {
+                CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+                ...providerEnvVars,
+            };
+            const command = buildCommandWithEnvVars(envVars, 'claude --dangerously-skip-permissions', 'bash');
+            expect(command).toContain('CLAUDE_CODE_USE_BEDROCK=1');
+            expect(command).toContain('AWS_REGION=us-east-1');
+            // グローバルが anthropic なので Vertex は含まれない
+            expect(command).not.toContain('CLAUDE_CODE_USE_VERTEX');
+        });
+
+        it('provider.agents.emma が vertex の場合、emma エージェントで Vertex 変数が注入されること (bash)', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'bedrock',    // グローバルは bedrock
+                    bedrock: { region: 'us-east-1' },
+                    agents: {
+                        emma: { type: 'vertex', vertex: { project_id: 'emma-proj', region: 'global' } },
+                    },
+                },
+            };
+            const providerEnvVars = getProviderEnvVars(settings, 'emma', 'maid');
+            const envVars = {
+                CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+                ...providerEnvVars,
+            };
+            const command = buildCommandWithEnvVars(envVars, 'claude --dangerously-skip-permissions', 'bash');
+            expect(command).toContain('CLAUDE_CODE_USE_VERTEX=1');
+            expect(command).toContain('ANTHROPIC_VERTEX_PROJECT_ID=emma-proj');
+            // エージェント個別が vertex なので Bedrock は含まれない
+            expect(command).not.toContain('CLAUDE_CODE_USE_BEDROCK');
+        });
+
         // #473-5: psmux 形式で custom type のエッジケース
         it('provider: custom の場合、ANTHROPIC_BASE_URL が PowerShell 形式でも含まれること (powershell)', () => {
             const settings: MaidAgentSettings = {

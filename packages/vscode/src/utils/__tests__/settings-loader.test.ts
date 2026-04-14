@@ -378,4 +378,132 @@ provider:
             expect(envVars['CLOUD_ML_REGION']).toBeUndefined();
         });
     });
+
+    // #473-4: ロール別 provider 切り替えテスト
+    describe('getProviderEnvVars (ロール別解決)', () => {
+        it('provider.roles.butler が設定されている場合、ロール butler に適用されること', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'anthropic',
+                    roles: {
+                        butler: { type: 'bedrock', bedrock: { region: 'us-east-1' } },
+                    },
+                },
+            };
+            const envVars = getProviderEnvVars(settings, 'butler', 'butler');
+            expect(envVars['CLAUDE_CODE_USE_BEDROCK']).toBe('1');
+            expect(envVars['AWS_REGION']).toBe('us-east-1');
+        });
+
+        it('provider.roles.maid が設定されている場合、ロール maid (chiefMaid 以外) に適用されること', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'anthropic',
+                    roles: {
+                        maid: { type: 'vertex', vertex: { project_id: 'gcp-proj' } },
+                    },
+                },
+            };
+            const envVars = getProviderEnvVars(settings, 'emma', 'maid');
+            expect(envVars['CLAUDE_CODE_USE_VERTEX']).toBe('1');
+            expect(envVars['ANTHROPIC_VERTEX_PROJECT_ID']).toBe('gcp-proj');
+        });
+
+        it('chiefMaid ロールは provider.roles.chief で解決されること', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'anthropic',
+                    roles: {
+                        chief: { type: 'bedrock', bedrock: { region: 'ap-northeast-1' } },
+                    },
+                },
+            };
+            const envVars = getProviderEnvVars(settings, 'chief', 'chiefMaid');
+            expect(envVars['CLAUDE_CODE_USE_BEDROCK']).toBe('1');
+            expect(envVars['AWS_REGION']).toBe('ap-northeast-1');
+        });
+
+        it('provider.agents[agentId] が設定されている場合、ロール設定より優先されること', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'anthropic',
+                    roles: {
+                        maid: { type: 'bedrock', bedrock: { region: 'us-east-1' } },
+                    },
+                    agents: {
+                        emma: { type: 'vertex', vertex: { project_id: 'emma-proj' } },
+                    },
+                },
+            };
+            // emma はエージェント個別設定（vertex）がロール設定（bedrock）より優先
+            const envVars = getProviderEnvVars(settings, 'emma', 'maid');
+            expect(envVars['CLAUDE_CODE_USE_VERTEX']).toBe('1');
+            expect(envVars['ANTHROPIC_VERTEX_PROJECT_ID']).toBe('emma-proj');
+            expect(envVars['CLAUDE_CODE_USE_BEDROCK']).toBeUndefined();
+        });
+
+        it('エージェント・ロールともに未設定の場合、グローバルデフォルトにフォールバックすること', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'bedrock',
+                    bedrock: { region: 'eu-west-1' },
+                    roles: {
+                        butler: { type: 'anthropic' },
+                    },
+                },
+            };
+            // luna は roles にも agents にも未登録 → グローバルの bedrock
+            const envVars = getProviderEnvVars(settings, 'luna', 'maid');
+            expect(envVars['CLAUDE_CODE_USE_BEDROCK']).toBe('1');
+            expect(envVars['AWS_REGION']).toBe('eu-west-1');
+        });
+
+        it('agentId/role 未指定でも既存の動作（グローバルのみ）が維持されること', () => {
+            const settings: MaidAgentSettings = {
+                language: 'ja',
+                provider: {
+                    type: 'bedrock',
+                    bedrock: { region: 'us-west-2' },
+                },
+            };
+            // 引数なし呼び出し（後方互換）
+            const envVars = getProviderEnvVars(settings);
+            expect(envVars['CLAUDE_CODE_USE_BEDROCK']).toBe('1');
+            expect(envVars['AWS_REGION']).toBe('us-west-2');
+        });
+
+        it('loadSettings で provider.roles/agents が正しくパースされること', () => {
+            writeSettings(`
+language: ja
+provider:
+  type: anthropic
+  roles:
+    butler:
+      type: bedrock
+      bedrock:
+        region: us-east-1
+    maid:
+      type: vertex
+      vertex:
+        project_id: gcp-maid
+  agents:
+    emma:
+      type: custom
+      custom:
+        base_url: https://gateway.example.com/v1
+`);
+            const settings = loadSettings(maidAgentPath);
+            expect(settings.provider?.type).toBe('anthropic');
+            expect(settings.provider?.roles?.butler?.type).toBe('bedrock');
+            expect(settings.provider?.roles?.butler?.bedrock?.region).toBe('us-east-1');
+            expect(settings.provider?.roles?.maid?.type).toBe('vertex');
+            expect(settings.provider?.agents?.['emma']?.type).toBe('custom');
+            expect(settings.provider?.agents?.['emma']?.custom?.base_url).toBe('https://gateway.example.com/v1');
+        });
+    });
 });

@@ -56,6 +56,35 @@ agents:
       emoji: "🌙"
       specialty: "設定・環境構築"
 
+# LLMプロバイダ設定（省略時: Anthropic 直契約）
+# type: anthropic / bedrock / vertex / custom
+#
+# provider:
+#   type: anthropic     # デフォルト（何も設定しない場合と同じ）
+#
+# # Amazon Bedrock を使う場合:
+# provider:
+#   type: bedrock
+#   bedrock:
+#     region: us-east-1
+#     profile: my-aws-profile   # AWS SSO 使用時
+#     base_url: ""              # カスタムエンドポイント（省略可）
+#
+# # Google Vertex AI を使う場合:
+# provider:
+#   type: vertex
+#   vertex:
+#     project_id: my-gcp-project
+#     region: global
+#     base_url: ""              # カスタムエンドポイント（省略可）
+#
+# # LiteLLM 等のゲートウェイ経由（非公式）:
+# provider:
+#   type: custom
+#   custom:
+#     base_url: https://your-gateway.example.com/v1
+#     auth_token_env: ANTHROPIC_AUTH_TOKEN  # トークンを参照する環境変数名
+
 # LLMモデル設定（省略時: Claude Codeのデフォルトモデルを使用）
 # model:
 #   # 全エージェント共通のデフォルト

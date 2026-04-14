@@ -11,6 +11,31 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 // 型定義
 // =============================================================================
 
+export interface ProviderBedrockConfig {
+    region?: string;
+    profile?: string;
+    base_url?: string;
+}
+
+export interface ProviderVertexConfig {
+    project_id?: string;
+    region?: string;
+    base_url?: string;
+}
+
+export interface ProviderCustomConfig {
+    base_url?: string;
+    /** ANTHROPIC_AUTH_TOKEN を解決するための環境変数名 */
+    auth_token_env?: string;
+}
+
+export interface ProviderConfig {
+    type?: 'anthropic' | 'bedrock' | 'vertex' | 'custom';
+    bedrock?: ProviderBedrockConfig;
+    vertex?: ProviderVertexConfig;
+    custom?: ProviderCustomConfig;
+}
+
 export interface MaidAgentSettings {
     language: string;
     multiplexer?: {
@@ -25,6 +50,7 @@ export interface MaidAgentSettings {
         };
         agents?: Record<string, string>;
     };
+    provider?: ProviderConfig;
 }
 
 // =============================================================================
@@ -69,6 +95,7 @@ export function loadSettings(maidAgentPath: string): MaidAgentSettings {
             language: parsed.language || DEFAULT_SETTINGS.language,
             multiplexer: parsed.multiplexer,
             model: parsed.model,
+            provider: parsed.provider,
         };
     } catch {
         return { ...DEFAULT_SETTINGS };
@@ -107,6 +134,64 @@ export function getModelForAgent(
     }
 
     return undefined;
+}
+
+/**
+ * settings.yaml の provider 設定から Claude Code に渡す環境変数を生成する
+ * - anthropic / 未設定: 空オブジェクト（デフォルト動作を維持）
+ * - bedrock: CLAUDE_CODE_USE_BEDROCK=1 + AWS 関連変数
+ * - vertex: CLAUDE_CODE_USE_VERTEX=1 + GCP 関連変数
+ * - custom: ANTHROPIC_BASE_URL + 任意の AUTH_TOKEN
+ */
+export function getProviderEnvVars(settings: MaidAgentSettings | undefined): Record<string, string> {
+    const provider = settings?.provider;
+    if (!provider?.type || provider.type === 'anthropic') {
+        return {};
+    }
+
+    switch (provider.type) {
+        case 'bedrock': {
+            const envVars: Record<string, string> = { CLAUDE_CODE_USE_BEDROCK: '1' };
+            if (provider.bedrock?.region) {
+                envVars['AWS_REGION'] = provider.bedrock.region;
+            }
+            if (provider.bedrock?.profile) {
+                envVars['AWS_PROFILE'] = provider.bedrock.profile;
+            }
+            if (provider.bedrock?.base_url) {
+                envVars['ANTHROPIC_BEDROCK_BASE_URL'] = provider.bedrock.base_url;
+            }
+            return envVars;
+        }
+        case 'vertex': {
+            const envVars: Record<string, string> = { CLAUDE_CODE_USE_VERTEX: '1' };
+            if (provider.vertex?.region) {
+                envVars['CLOUD_ML_REGION'] = provider.vertex.region;
+            }
+            if (provider.vertex?.project_id) {
+                envVars['ANTHROPIC_VERTEX_PROJECT_ID'] = provider.vertex.project_id;
+            }
+            if (provider.vertex?.base_url) {
+                envVars['ANTHROPIC_VERTEX_BASE_URL'] = provider.vertex.base_url;
+            }
+            return envVars;
+        }
+        case 'custom': {
+            const envVars: Record<string, string> = {};
+            if (provider.custom?.base_url) {
+                envVars['ANTHROPIC_BASE_URL'] = provider.custom.base_url;
+            }
+            if (provider.custom?.auth_token_env) {
+                const token = process.env[provider.custom.auth_token_env];
+                if (token) {
+                    envVars['ANTHROPIC_AUTH_TOKEN'] = token;
+                }
+            }
+            return envVars;
+        }
+        default:
+            return {};
+    }
 }
 
 /**

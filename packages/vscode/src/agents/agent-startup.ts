@@ -13,7 +13,7 @@ import { ENV, isTmuxAvailable } from '../utils/environment';
 import { getSessionNameFromPath } from '../utils/helpers';
 import { escapeForSingleQuote, buildCommandWithEnvVars } from '../utils/shell-escape';
 // MultiplexerFactory is accessed via ctx.multiplexerFactory
-import { getModelForAgent } from '../utils/settings-loader';
+import { getModelForAgent, getProviderEnvVars } from '../utils/settings-loader';
 import { generateSystemPromptFile } from '../utils/prompt-loader';
 
 // =========================================================================
@@ -80,7 +80,11 @@ function buildClaudeCommand(
 ): string {
     const isPsmux = ctx.multiplexerFactory?.getType() === 'psmux';
     const addDirs = `--add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
-    const envVars = { CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1' };
+    const providerEnvVars = getProviderEnvVars(ctx.settings);
+    const envVars = {
+        CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+        ...providerEnvVars,
+    };
 
     if (isPsmux) {
         // PowerShell形式: $env:VAR = 'value'; & 'path\to\claude.exe' args

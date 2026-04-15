@@ -322,4 +322,29 @@ describe("GET /api/dashboard", () => {
 
     expect(res.body.error).toBe("V2 Dashboard retrieval failed");
   });
+
+  it("skillCandidates/improvements の id が整数でも文字列に変換されること (#524-3)", async () => {
+    mockGenerateDashboardData.mockResolvedValue({
+      v2Goals: [],
+      v2ReviewQueue: [],
+      v2Artifacts: [],
+      v2Stats: { taskCount: 0, workCount: 0, stepCount: 0, completedCount: 0, actionRequiredCount: 0, reviewPendingCount: 0, proposalCount: 0 },
+      totalGoals: 0,
+    });
+    // tasks.yaml から整数 id で読み込まれたタスクを模倣
+    mockExecuteListTasks
+      .mockResolvedValueOnce(createMockListResponse([{ id: 8, title: "スキル候補" } as any], 1))
+      .mockResolvedValueOnce(createMockListResponse([{ id: 78, title: "改善提案" } as any], 1));
+    mockExecuteGetTeamStatus.mockResolvedValue({ agents: [] });
+
+    const res = await supertest(app).get("/api/dashboard").expect(200);
+
+    expect(res.body.skillCandidates).toHaveLength(1);
+    expect(typeof res.body.skillCandidates[0].id).toBe("string");
+    expect(res.body.skillCandidates[0].id).toBe("8");
+
+    expect(res.body.improvements).toHaveLength(1);
+    expect(typeof res.body.improvements[0].id).toBe("string");
+    expect(res.body.improvements[0].id).toBe("78");
+  });
 });

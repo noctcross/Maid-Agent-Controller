@@ -404,7 +404,7 @@ export async function generateDashboardData(
         const v2Steps: StepData[] = phaseActions.map((action) => {
           const actionStatus = convertStatus(action);
           return {
-            id: action.id,
+            id: String(action.id),
             title: action.title || `Step #${action.id}`,
             description: action.description,
             type: "step" as const,
@@ -417,7 +417,7 @@ export async function generateDashboardData(
         });
 
         return {
-          id: phase.id,
+          id: String(phase.id),
           title: phase.title || `Work #${phase.id}`,
           description: phase.description,
           type: "work" as const,
@@ -449,7 +449,7 @@ export async function generateDashboardData(
         : goal.updatedAt;
 
       return {
-        id: goal.id,
+        id: String(goal.id),
         title: goal.title || `Task #${goal.id}`,
         description: goal.description,
         type: "task" as const,
@@ -495,7 +495,7 @@ export async function generateDashboardData(
       return bTime.localeCompare(aTime);
     })
     .map((task) => ({
-      id: task.id,
+      id: String(task.id),
       title: task.title,
       type: inferTaskType(task),
       reviewStatus: task.reviewStatus || "pending",
@@ -513,7 +513,7 @@ export async function generateDashboardData(
           path: artifact.path,
           type: artifact.type || "default",
           retention: artifact.retention || "L1",
-          taskId: task.id,
+          taskId: String(task.id),
           createdAt: task.createdAt,  // TaskArtifact には createdAt がないので task から取得
         });
       }

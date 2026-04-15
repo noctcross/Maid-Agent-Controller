@@ -374,13 +374,14 @@ router.get("/api/dashboard", async (req: Request, res: Response) => {
       stats: v2Data.v2Stats,
 
       // スキル化候補・改善提案（別セクション用）
+      // String() 変換: tasks.yaml の id が整数型で記載されても MobileSylvia が落ちないよう恒久対策 (#524-3)
       skillCandidates: skillCandidatesResult.tasks.map((t) => ({
-        id: t.id,
+        id: String(t.id),
         title: t.title,
         description: "description" in t ? t.description : undefined,
       })),
       improvements: improvementsResult.tasks.map((t) => ({
-        id: t.id,
+        id: String(t.id),
         title: t.title,
         description: "description" in t ? t.description : undefined,
       })),

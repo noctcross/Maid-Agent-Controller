@@ -78,6 +78,8 @@ maidctl の各コマンドで使用できるオプションの詳細リファレ
 | `--status STATUS` | `-s` | ステータス変更 |
 | `--priority LEVEL` | `-p` | 優先度変更 |
 | `--category CAT` | `-c` | カテゴリ変更 |
+| `--action-required [true\|false]` | | 🚨要対応フラグ設定/解除（値省略時は true と同等） |
+| `--no-action-required` | | 🚨要対応フラグ解除（後方互換） |
 | `--substatus TEXT` | | サブステータス（詳細状態） |
 | `--summary TEXT` | `-m` | サマリ |
 
@@ -108,7 +110,7 @@ maidctl の各コマンドで使用できるオプションの詳細リファレ
 | オプション | 短縮形 | 説明 |
 |-----------|--------|------|
 | `--summary TEXT` | `-m` | 作業サマリ（100文字以内） |
-| `--action-required` | | 対応必要フラグ（blocked時、ご主人様判断が必要な場合に使用） |
+| `--action-required [true\|false]` | | 要対応フラグ設定/解除（値省略時は true）完了時に false で同時解除も可 |
 
 ### V2.1 追加オプション
 

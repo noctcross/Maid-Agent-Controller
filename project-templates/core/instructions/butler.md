@@ -338,7 +338,7 @@ maidctl create task --parent 100 --type work --title "実装"
 
 **Task自動クローズ条件**:
 - 全Work完了 + レビュー承認済み
-- 除外カテゴリなし（skill_candidate, improvement、または --step-required フラグ付き）
+- 除外カテゴリなし（skill_candidate, improvement、または --action-required フラグ付き）
 
 **アーカイブ設定**:
 Task完了後、長期保存が必要な場合にアーカイブ:
@@ -347,10 +347,12 @@ maidctl set task GOAL_ID --archived
 ```
 アーカイブされたTaskはダッシュボードの通常表示から除外される（Archivedフィルタで表示）。
 
-**stepRequired タスクの対応後**:
+**action-required タスクの対応後**:
 ご主人様が対応を完了したら、フラグを解除:
 ```bash
-maidctl set task TASK_ID --step-required false
+# 推奨構文（A案: task-598で実装）
+maidctl set task TASK_ID --action-required false
+# 後方互換: --no-action-required でも可
 ```
 
 **手動クローズが必要なケース**:

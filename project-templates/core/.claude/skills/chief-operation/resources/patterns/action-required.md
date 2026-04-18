@@ -5,6 +5,7 @@
 - [概要](#概要)
 - [適用条件](#適用条件)
 - [手順](#手順)
+- [action-required フラグ操作](#action-required-フラグ操作)
 - [改善提案フロー](#改善提案フロー)
 - [完了タスクの確認待ち設定](#完了タスクの確認待ち設定)
 - [注意点](#注意点)
@@ -16,7 +17,7 @@
 
 ## 適用条件
 
-メイド長が `maidctl task create` を使用できるケース:
+メイド長が `maidctl create task` を使用できるケース:
 
 | カテゴリ | 説明 | オプション |
 |---------|------|----------|
@@ -32,8 +33,8 @@
 技術的判断、方針決定、ブロッキングイシュー:
 
 ```bash
-maidctl task create \
-  --title "API設計のアプローチについて判断が必要" \
+maidctl create task \
+  --title "🚨 API設計のアプローチについて判断が必要" \
   --description "詳細は current_emma.md を参照。REST vs GraphQL の選択。" \
   --priority high \
   --action-required
@@ -88,10 +89,31 @@ maidctl task create \
 メイドの完了報告を確認し、ご主人様の確認が必要と判断した場合:
 
 ```bash
-maidctl task update TASK_ID --action-required
+maidctl set task TASK_ID --action-required
 # ※ status は completed のまま
-# → ダッシュボードの「⚠️ 対応待ち → 確認待ち」に表示
+# → ダッシュボードの「🚨 要対応」に表示
 ```
+
+## action-required フラグ操作
+
+### フラグ設定
+
+```bash
+maidctl set task TASK_ID --action-required
+maidctl set task TASK_ID --action-required true  # 同上（明示的指定）
+```
+
+### フラグ解除（ご主人様対応完了後）
+
+```bash
+# 推奨構文（A案: task-598で実装）
+maidctl set task TASK_ID --action-required false
+
+# 後方互換（引き続き動作）
+maidctl set task TASK_ID --no-action-required
+```
+
+> ⚠️ **D案警告**: actionRequired=true のままメイドが `set my-status completed` を実行すると、stderr に警告が出力される（処理はブロックされない）。フラグ解除後に作業再開通知を送ること。
 
 ## 注意点
 
@@ -106,14 +128,14 @@ maidctl task update TASK_ID --action-required
 ```bash
 # エマがblocked、REST vs GraphQL の選択で止まっている
 
-maidctl task create \
-  --title "API設計: REST vs GraphQL の選択" \
+maidctl create task \
+  --title "🚨 API設計: REST vs GraphQL の選択" \
   --description "エマの設計タスク(#077)がブロック中。current_emma.md に比較表あり。判断をお願いします。" \
   --priority high \
   --action-required
 
-# 元タスクも要対応に更新
-maidctl task update 077 --action-required --substatus "ご主人様判断待ち"
+# 元タスクをブロック状態に更新
+maidctl set task 077 --substatus checkpoint --reason "ご主人様判断待ち"
 ```
 
 ### 改善提案の集約

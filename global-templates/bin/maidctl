@@ -366,6 +366,15 @@ format_task_detail() {
     "Created: \(.createdAt // "-")",
     "Updated: \(.updatedAt // "-")"
   '
+
+  # サブタスクが存在する場合は一覧を表示
+  local subtasks_count
+  subtasks_count=$(echo "$json" | jq -r '(.subtasks // []) | length')
+  if [ "$subtasks_count" -gt 0 ]; then
+    echo ""
+    echo "Subtasks (${subtasks_count}):"
+    echo "$json" | jq -r '.subtasks[] | "  \(.id)  [\(.status // "-")]  \(.title // "-")"'
+  fi
 }
 
 # エージェント状況をテーブル表示
@@ -457,21 +466,22 @@ cmd_task_list() {
 cmd_task_get() {
   local task_id=""
   local json_output=false
-  local include_subtasks=false
+  local include_subtasks=true
   local summary=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --subtasks) include_subtasks=true; shift ;;
+      --no-subtasks) include_subtasks=false; shift ;;
       --summary) summary=true; shift ;;
       --json) json_output=true; shift ;;
       --help|-h)
         echo "使用法: maidctl task get <task-id> [オプション]"
         echo ""
         echo "オプション:"
-        echo "  --subtasks  サブタスクを含める"
-        echo "  --summary   軽量版レスポンス"
-        echo "  --json      JSON出力"
+        echo "  --no-subtasks  サブタスクを含めない（デフォルトは含める）"
+        echo "  --summary      軽量版レスポンス"
+        echo "  --json         JSON出力"
         return 0
         ;;
       -*)
@@ -504,6 +514,70 @@ cmd_task_get() {
     echo "$result"
   else
     format_task_detail "$result"
+  fi
+}
+
+cmd_task_delete() {
+  local task_id=""
+  local yes=false
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --yes|-y) yes=true; shift ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl delete task <task-id> [オプション]"
+        echo ""
+        echo "タスクを完全削除します。"
+        echo "削除可能なステータス:"
+        echo "  legacy: pending / blocked / cancelled"
+        echo "  V2.1 subStatus: pending / checkpoint / waiting"
+        echo "削除不可: 子タスクが存在する場合、assigned / working / completed"
+        echo ""
+        echo "オプション:"
+        echo "  --yes, -y  確認プロンプトをスキップ"
+        echo "  --json     JSON出力"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$task_id" ]; then
+          task_id="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$task_id" ]; then
+    echo "エラー: タスクIDを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  if [ "$yes" = false ]; then
+    echo "タスク ${task_id} を完全削除します。この操作は取り消せません。"
+    echo -n "続行しますか？ [y/N]: "
+    read -r answer
+    case "$answer" in
+      y|Y|yes|YES) ;;
+      *)
+        echo "削除をキャンセルしました。"
+        exit 0
+        ;;
+    esac
+  fi
+
+  local result
+  result=$(api_request DELETE "/api/tasks/${task_id}")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    echo "タスク ${task_id} を削除しました。"
   fi
 }
 
@@ -590,6 +664,22 @@ cmd_task_create() {
     exit $EXIT_INVALID_ARGS
   fi
 
+  # --parent 指定時の親タスク存在確認
+  if [ -n "$parent_id" ]; then
+    local parent_check parent_exit
+    parent_exit=0
+    parent_check=$(api_request GET "/api/tasks/${parent_id}" 2>&1) || parent_exit=$?
+    if [ $parent_exit -ne 0 ]; then
+      if [ $parent_exit -eq $EXIT_CONNECTION_ERROR ]; then
+        echo "$parent_check" >&2
+        exit $EXIT_CONNECTION_ERROR
+      else
+        echo "エラー: 親タスク ${parent_id} が存在しません" >&2
+        exit $EXIT_INVALID_ARGS
+      fi
+    fi
+  fi
+
   # JSONデータを構築（特殊文字をエスケープ）
   local escaped_title escaped_description
   escaped_title=$(json_escape "$title")
@@ -664,7 +754,16 @@ cmd_task_update() {
       --blocked-by) blocked_by="$2"; shift 2 ;;
       --archived) archived="true"; shift ;;
       --review-status) review_status="$2"; shift 2 ;;
-      --action-required) action_required="true"; shift ;;
+      --action-required)
+        if [[ "${2-}" == "true" || "${2-}" == "false" ]]; then
+          action_required="$2"; shift 2
+        elif [[ "${2-}" == --* || -z "${2-}" ]]; then
+          action_required="true"; shift
+        else
+          echo "エラー: --action-required の値は 'true' または 'false' を指定してください" >&2
+          exit $EXIT_INVALID_ARGS
+        fi
+        ;;
       --no-action-required) action_required="false"; shift ;;
       --starred) starred="true"; shift ;;
       --no-starred) starred="false"; shift ;;
@@ -684,8 +783,8 @@ cmd_task_update() {
         echo "  --blocked-by IDS     依存先タスクID (カンマ区切り)"
         echo "  --archived           アーカイブフラグ設定"
         echo "  --review-status ST   レビュー状態 (none/pending/in_review/approved/rejected)"
-        echo "  --action-required    ご主人様対応必要フラグ"
-        echo "  --no-action-required フラグ解除"
+        echo "  --action-required [true|false]  ご主人様対応必要フラグ（値省略時は true と同等）"
+        echo "  --no-action-required            フラグ解除（後方互換）"
         echo "  --starred            スター付き"
         echo "  --no-starred         スター解除"
         echo "  --artifact-add JSON  成果物追加 (例: '{\"path\":\"docs/xxx.md\",\"type\":\"document\"}')"
@@ -1053,7 +1152,7 @@ cmd_my_status() {
   local agent_id=""
   local status=""
   local summary=""
-  local action_required=false
+  local action_required=""
   local json_output=false
   # V2.1 拡張
   local v2_substatus=""
@@ -1066,7 +1165,16 @@ cmd_my_status() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --summary|-m) summary="$2"; shift 2 ;;
-      --action-required) action_required=true; shift ;;
+      --action-required)
+        if [[ "${2-}" == "true" || "${2-}" == "false" ]]; then
+          action_required="$2"; shift 2
+        elif [[ "${2-}" == --* || -z "${2-}" ]]; then
+          action_required="true"; shift
+        else
+          echo "エラー: --action-required の値は 'true' または 'false' を指定してください" >&2
+          exit $EXIT_INVALID_ARGS
+        fi
+        ;;
       # V2.1 オプション
       --substatus) v2_substatus="$2"; shift 2 ;;
       --blocked-by) blocked_by="$2"; shift 2 ;;
@@ -1084,7 +1192,7 @@ cmd_my_status() {
         echo ""
         echo "オプション:"
         echo "  --summary, -m TEXT  サマリメッセージ"
-        echo "  --action-required   対応必要フラグ"
+        echo "  --action-required [true|false]  対応必要フラグ（値省略時は true と同等）"
         echo "  --json              JSON出力"
         echo ""
         echo "V2.1 オプション:"
@@ -1172,6 +1280,33 @@ cmd_my_status() {
     fi
   fi
 
+  # D案: actionRequired=true で完了しようとした場合の警告
+  if [ "$status" = "completed" ]; then
+    local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+    local current_task_id current_task_id_num
+    current_task_id=$(grep -m1 "task_id:" \
+      "$project_dir/.maid-agent/system/data/reports/current_${agent_id}.md" 2>/dev/null \
+      | sed 's/.*task_id: *//' | tr -d ' ')
+    # "task-" プレフィックスを除去してAPIパスに使用
+    current_task_id_num=$(echo "$current_task_id" | sed 's/^task-//')
+
+    if [ -n "$current_task_id_num" ]; then
+      local task_info
+      task_info=$(api_request GET "/api/tasks/${current_task_id_num}" 2>/dev/null)
+      local is_action_required
+      is_action_required=$(echo "$task_info" | jq -r '.task.actionRequired // false' 2>/dev/null || echo "false")
+
+      if [ "$is_action_required" = "true" ]; then
+        echo "" >&2
+        echo "⚠ Warning: タスク #${current_task_id_num} は actionRequired=true です。" >&2
+        echo "  ご主人様対応が完了した場合は以下で解除してください:" >&2
+        echo "    maidctl set task ${current_task_id_num} --no-action-required" >&2
+        echo "    または: maidctl set my-status completed --action-required false" >&2
+        echo "" >&2
+      fi
+    fi
+  fi
+
   # 問題分類（blocked + checkpoint 時のみ）
   if [ "$status" = "blocked" ] && [ "$v2_substatus" = "checkpoint" ]; then
     local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
@@ -1194,7 +1329,8 @@ cmd_my_status() {
     escaped_summary=$(json_escape "$summary")
     data="${data}, \"summary\": \"$escaped_summary\""
   fi
-  [ "$action_required" = true ] && data="${data}, \"actionRequired\": true"
+  [ "$action_required" = "true" ] && data="${data}, \"actionRequired\": true"
+  [ "$action_required" = "false" ] && data="${data}, \"actionRequired\": false"
 
   # V2.1 フィールド
   if [ -n "$v2_substatus" ]; then
@@ -2012,6 +2148,28 @@ main() {
           ;;
       esac
       ;;
+    delete)
+      shift
+      case "${1:-}" in
+        task) shift; cmd_task_delete "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl delete <対象> [オプション]"
+          echo ""
+          echo "対象:"
+          echo "  task <id>    タスクを完全削除"
+          ;;
+        "")
+          echo "エラー: 対象を指定してください"
+          echo "使用法: maidctl delete <task>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明な対象: $1"
+          echo "使用法: maidctl delete <task>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
     rearchive)
       shift
       cmd_report_rearchive "$@"
@@ -2089,6 +2247,7 @@ main() {
         create) shift; cmd_task_create "$@" ;;
         update) shift; cmd_task_update "$@" ;;
         assign) shift; cmd_task_assign "$@" ;;
+        delete) shift; cmd_task_delete "$@" ;;
         --help|-h)
           echo "使用法: maidctl task <subcommand>"
           echo ""
@@ -2098,15 +2257,16 @@ main() {
           echo "  create  タスクを作成"
           echo "  update  タスクを更新"
           echo "  assign  タスクを割り当て"
+          echo "  delete  タスクを完全削除"
           ;;
         "")
           echo "エラー: サブコマンドを指定してください"
-          echo "使用法: maidctl task <list|get|create|update|assign>"
+          echo "使用法: maidctl task <list|get|create|update|assign|delete>"
           exit $EXIT_INVALID_ARGS
           ;;
         *)
           echo "エラー: 不明なサブコマンド: $1"
-          echo "使用法: maidctl task <list|get|create|update|assign>"
+          echo "使用法: maidctl task <list|get|create|update|assign|delete>"
           exit $EXIT_INVALID_ARGS
           ;;
       esac

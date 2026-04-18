@@ -308,13 +308,13 @@ maidctl notify emma "新しいタスクがあります。maidctl my-task で確�
 | 状況 | 対応 |
 |-----|------|
 | 他メイドの意見で解決できそう | 追加タスクとして該当メイドに割り振り |
-| 技術的判断が必要（stepRequired: true） | `maidctl set task TASK_ID --step-required` |
-| 完了タスクの確認が必要 | `maidctl set task TASK_ID --step-required`（status は completed のまま） |
+| 技術的判断が必要（actionRequired: true） | `maidctl set task TASK_ID --action-required` |
+| 完了タスクの確認が必要 | `maidctl set task TASK_ID --action-required`（status は completed のまま） |
 
 ### ご主人様向けタスク作成
 
 ```bash
-maidctl create task --title "判断が必要: API設計" --description "詳細..." --step-required
+maidctl create task --title "🚨 判断が必要: API設計" --description "詳細..." --action-required
 ```
 
 ### ご主人様のアクション後
@@ -323,8 +323,9 @@ maidctl create task --title "判断が必要: API設計" --description "詳細..
 # 1. 判断内容をメイドに伝達
 maidctl notify emma "判断結果: {内容}"
 
-# 2. stepRequired フラグを解除
-maidctl set task TASK_ID --step-required false
+# 2. action-required フラグを解除（推奨構文）
+maidctl set task TASK_ID --action-required false
+# 後方互換: --no-action-required でも可
 ```
 
 ## 並列化ルール

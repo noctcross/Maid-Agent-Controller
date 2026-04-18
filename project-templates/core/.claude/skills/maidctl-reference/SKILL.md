@@ -194,6 +194,29 @@ maidctl set my-status blocked --substatus waiting --blocked-by 310-1-1
 maidctl set my-status completed
 ```
 
+#### --action-required フラグ（set task / set my-status 共通）
+
+| 構文 | 動作 | 備考 |
+|------|------|------|
+| `--action-required` | actionRequired=true 設定 | 後方互換（値省略時） |
+| `--action-required true` | actionRequired=true 設定 | 新構文（A案） |
+| `--action-required false` | actionRequired=false 解除 | **推奨構文**（A案） |
+| `--no-action-required` | actionRequired=false 解除 | 後方互換 |
+
+```bash
+# 要対応フラグを設定
+maidctl set task TASK_ID --action-required
+maidctl set task TASK_ID --action-required true  # 同上（新構文）
+
+# 要対応フラグを解除（推奨）
+maidctl set task TASK_ID --action-required false
+
+# 完了時に解除しながら報告
+maidctl set my-status completed --action-required false
+```
+
+> ⚠️ **D案警告**: `set my-status completed` 実行時、対象タスクの actionRequired=true が残存している場合、stderr に警告メッセージが出力される。処理はブロックされない（exit 0）。
+
 ---
 
 ### カテゴリ一覧

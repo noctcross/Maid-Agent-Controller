@@ -94,9 +94,9 @@ maidctl notify sophia "エマさんからの相談依頼があります"
 # 1. 判断内容をメイドに伝達
 maidctl notify {メイド} "判断結果: {内容}"
 
-# 2. エスカレーション解除
-maidctl task update TASK_ID --no-action-required --substatus ""
-# ※ 要対応フラグを解除
+# 2. エスカレーション解除（推奨構文）
+maidctl set task TASK_ID --action-required false
+# 後方互換: --no-action-required でも可
 ```
 
 ## 完了タスクの確認待ち設定（フロー2）
@@ -124,14 +124,14 @@ maidctl task update TASK_ID --action-required
 # 報告書: 「REST vs GraphQL どちらを採用すべきか判断が必要」
 
 # ご主人様判断待ちに設定
-maidctl task update 077 --action-required \
+maidctl set task 077 --action-required \
   --substatus "REST/GraphQL選択判断待ち"
 
 # → ご主人様の判断を待つ
 
 # 判断後
 maidctl notify emma "REST APIを採用します。再開してください。"
-maidctl task update 077 --no-action-required --substatus ""
+maidctl set task 077 --action-required false  # 推奨構文
 ```
 
 ### 他メイドへの相談で解決するケース

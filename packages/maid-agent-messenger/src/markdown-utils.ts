@@ -162,6 +162,7 @@ export const DEFAULT_PATH_PREFIXES: string[] = [
   "scripts",
   "\\.github",
   "config",
+  "[\\u4E00-\\u9FFF\\u3040-\\u30FF][\\w\\u4E00-\\u9FFF\\u3040-\\u30FF]*",  // 日本語始まりディレクトリ（自動運転部/ 等）。CJK句読点　-〿は除外
 ];
 
 /**

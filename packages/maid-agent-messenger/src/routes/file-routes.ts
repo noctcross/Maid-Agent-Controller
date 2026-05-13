@@ -148,6 +148,14 @@ function generateFileViewerHtml(filePath: string, projectPath: string): string {
           var contentEl = document.getElementById('content');
           if (data.isMarkdown && data.htmlContent) {
             contentEl.innerHTML = data.htmlContent;
+          } else if (data.isHtml) {
+            // HTMLファイルは iframe srcdoc でサンドボックス表示（XSS対策: JS実行なし）
+            var iframe = document.createElement('iframe');
+            iframe.setAttribute('srcdoc', data.content);
+            iframe.setAttribute('sandbox', 'allow-same-origin allow-forms');
+            iframe.style.cssText = 'width:100%;height:80vh;border:none;background:#fff;border-radius:6px;';
+            contentEl.innerHTML = '';
+            contentEl.appendChild(iframe);
           } else {
             // 非Markdownファイルはプレーンテキスト表示
             var pre = document.createElement('pre');

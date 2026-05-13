@@ -199,6 +199,33 @@ describe("linkifyProjectPaths", () => {
     expect(result).toContain(">docs/設計（詳細）/overview.md</a>");
   });
 
+  // --- 日本語始まりディレクトリ（CJK prefix 対応） ---
+
+  it("日本語ディレクトリ名で始まるパスをリンク化する", () => {
+    const input = "<p>自動運転部/ec-ops/docs/overview.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">自動運転部/ec-ops/docs/overview.md</a>");
+  });
+
+  it("日本語ディレクトリ内の深いパスをリンク化する", () => {
+    const input = "<p>自動運転部/ec-ops/agents/scout/agent.py</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">自動運転部/ec-ops/agents/scout/agent.py</a>");
+  });
+
+  it("日本語ディレクトリと英語ディレクトリが混在する場合も両方リンク化する", () => {
+    const input = "<p>自動運転部/ec-ops/docs/design.md と docs/plans/plan.md を参照</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toContain(">自動運転部/ec-ops/docs/design.md</a>");
+    expect(result).toContain(">docs/plans/plan.md</a>");
+  });
+
+  it("単独の日本語単語（パス構造なし）はリンク化しない", () => {
+    const input = "<p>テスト という単語はリンクにならない</p>";
+    const result = linkifyProjectPaths(input, PROJECT_PATH);
+    expect(result).toBe(input);
+  });
+
   // --- パス終端の判定（#249対応） ---
 
   it("パス終端の)を含めない", () => {

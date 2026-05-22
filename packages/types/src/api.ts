@@ -198,6 +198,7 @@ export interface FileContentResponse {
   size: number;
   modifiedAt: string;
   isMarkdown: boolean;
+  isHtml?: boolean;
   htmlContent?: string;
 }
 

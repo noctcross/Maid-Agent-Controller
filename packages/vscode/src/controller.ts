@@ -388,6 +388,9 @@ export class MultiAgentController {
     }
 
     public async launchClaudeWithRole(agentId: string, role: 'butler' | 'chiefMaid' | 'maid', maidName?: string): Promise<void> {
+        if (this.maidAgentPath) {
+            this.settings = loadSettings(this.maidAgentPath);
+        }
         return AgentStartup.launchClaudeWithRole(this.createAgentContext(), agentId, role, maidName);
     }
 

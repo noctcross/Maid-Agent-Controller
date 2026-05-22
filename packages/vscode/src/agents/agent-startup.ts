@@ -68,6 +68,28 @@ function getClaudeCommandForPsmux(): string {
 }
 
 /**
+ * bash/tmux モード用 Claude 起動コマンドを構築する（純粋関数）
+ *
+ * buildClaudeCommand の bash パスを抽出したもの。
+ * watchdog.sh の build_maid_launch_cmd との整合性テストにも使用される。
+ *
+ * 【重要】このシグネチャや生成コマンドを変更する場合は、以下も同時に更新すること:
+ *   - .maid-agent/system/bin/watchdog.sh の build_maid_launch_cmd()
+ *   - src/agents/__tests__/watchdog-launch-command-parity.test.ts のスペック定義
+ */
+export function buildBashClaudeCommand(
+    agentId: string,
+    modelFlag: string,
+    envVars: Record<string, string>,
+    initialPrompt?: string,
+): string {
+    const addDirs = `--add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
+    const promptPart = initialPrompt ? ` -- '${escapeForSingleQuote(initialPrompt)}'` : '';
+    const command = `claude --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
+    return buildCommandWithEnvVars(envVars, command, 'bash');
+}
+
+/**
  * Claude Code 起動コマンドを構築（環境に応じた構文で）
  * - tmux (Unix bash): VAR=value command
  * - psmux (Windows PowerShell): $env:VAR = 'value'; & 'path\to\claude.exe'
@@ -80,24 +102,26 @@ function buildClaudeCommand(
     role?: string,
 ): string {
     const isPsmux = ctx.multiplexerFactory?.getType() === 'psmux';
-    const addDirs = `--add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
     const providerEnvVars = getProviderEnvVars(ctx.settings, agentId, role);
     const envVars = {
         CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+        GIT_AUTHOR_NAME: agentId,
+        GIT_AUTHOR_EMAIL: `${agentId}@maidshouse.local`,
+        GIT_COMMITTER_NAME: agentId,
+        GIT_COMMITTER_EMAIL: `${agentId}@maidshouse.local`,
         ...providerEnvVars,
     };
 
     if (isPsmux) {
         // PowerShell形式: $env:VAR = 'value'; & 'path\to\claude.exe' args
         const claudeCmd = getClaudeCommandForPsmux();
+        const addDirs = `--add-dir .maid-agent/core --add-dir .maid-agent/roles/${agentId}`;
         const promptPart = initialPrompt ? ` -- '${initialPrompt.replace(/'/g, "''")}'` : '';
         const command = `${claudeCmd} --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
         return buildCommandWithEnvVars(envVars, command, 'powershell');
     } else {
-        // Unix bash形式: VAR=value command
-        const promptPart = initialPrompt ? ` -- '${escapeForSingleQuote(initialPrompt)}'` : '';
-        const command = `claude --dangerously-skip-permissions${modelFlag} ${addDirs}${promptPart}`;
-        return buildCommandWithEnvVars(envVars, command, 'bash');
+        // Unix bash形式: buildBashClaudeCommand に委譲
+        return buildBashClaudeCommand(agentId, modelFlag, envVars, initialPrompt);
     }
 }
 

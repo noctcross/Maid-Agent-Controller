@@ -11,6 +11,8 @@ MAID_AGENT_DIR=".maid-agent"
 SESSION_FILE="${MAID_AGENT_DIR}/system/config/.session-name"
 LOG_FILE="${MAID_AGENT_DIR}/system/data/notifications/history.log"
 PENDING_DIR="${MAID_AGENT_DIR}/system/data/notifications/pending"
+QUEUE_DIR="${MAID_AGENT_DIR}/system/data/notifications/queue"
+QUEUE_MAX=20
 VALID_TARGETS="butler chief emma sophia lily rose alice may flora luna"
 
 # リトライ設定
@@ -195,6 +197,49 @@ send_message() {
     [ "$success" = "true" ]
 }
 
+# ターゲットエージェントのビジー状態を確認（maid.yaml の claude_status を参照）
+check_agent_busy() {
+    local target="$1"
+    local maid_yaml="${MAID_AGENT_DIR}/system/data/maid/${target}.yaml"
+    if [ -f "$maid_yaml" ]; then
+        local status
+        status=$(grep "^claude_status:" "$maid_yaml" 2>/dev/null | awk '{print $2}' | tr -d '\r')
+        [ "$status" = "busy" ]
+    else
+        return 1  # maid.yaml なし = 状態不明 → 送信を試みる
+    fi
+}
+
+# ビジーキューにメッセージを追加（flock 排他・上限 QUEUE_MAX 件・超過時は最古を集約警告に置換）
+enqueue_busy_message() {
+    local target="$1"
+    local message="$2"
+    local timestamp="$3"
+    local sender="$4"
+
+    mkdir -p "$QUEUE_DIR"
+    local queue_file="${QUEUE_DIR}/${target}.txt"
+    local lock_file="${QUEUE_DIR}/${target}.lock"
+
+    (
+        flock -x 9
+        local count=0
+        [ -f "$queue_file" ] && count=$(wc -l < "$queue_file" 2>/dev/null || echo 0)
+        if [ "$count" -ge "$QUEUE_MAX" ]; then
+            local oldest
+            oldest=$(head -1 "$queue_file")
+            local rest
+            rest=$(tail -n +2 "$queue_file")
+            {
+                printf '%s\n' "[${timestamp}] system: [警告] キュー上限(${QUEUE_MAX})超過。最古を集約: ${oldest}"
+                printf '%s\n' "$rest"
+            } > "${queue_file}.tmp"
+            mv "${queue_file}.tmp" "$queue_file"
+        fi
+        echo "[${timestamp}] ${sender}: ${message}" >> "$queue_file"
+    ) 9>"$lock_file"
+}
+
 # =============================================================================
 # 引数チェック（最低限）
 # =============================================================================
@@ -333,6 +378,15 @@ if [ "$NO_PREFIX" = true ]; then
 else
     FULL_MESSAGE="[From: $SENDER] $MESSAGE"
 fi
+
+# ビジーチェック: ターゲットがビジー状態なら queue に積む
+if check_agent_busy "$TARGET"; then
+    enqueue_busy_message "$TARGET" "$FULL_MESSAGE" "$TIMESTAMP" "$SENDER"
+    echo "[$TIMESTAMP] [QUEUED] $SENDER → $TARGET (busy): $MESSAGE" >> "$LOG_FILE"
+    echo "通知をキューに追加しました（ビジー中）: $SENDER → $TARGET"
+    exit 0
+fi
+
 if send_message "$TARGET" "$FULL_MESSAGE"; then
     echo "通知を送信しました: $SENDER → $TARGET"
 else

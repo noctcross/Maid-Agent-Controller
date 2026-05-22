@@ -12,7 +12,6 @@ SESSION_FILE="${MAID_AGENT_DIR}/system/config/.session-name"
 LOG_FILE="${MAID_AGENT_DIR}/system/data/notifications/history.log"
 PENDING_DIR="${MAID_AGENT_DIR}/system/data/notifications/pending"
 QUEUE_DIR="${MAID_AGENT_DIR}/system/data/notifications/queue"
-QUEUE_MAX=20
 VALID_TARGETS="butler chief emma sophia lily rose alice may flora luna"
 
 # リトライ設定
@@ -85,16 +84,19 @@ show_usage() {
     echo "使用法: maid-notify <target> \"<message>\""
     echo "        maid-notify --from <sender> <target> \"<message>\""
     echo "        maid-notify --no-prefix <target> \"<message>\""
+    echo "        maid-notify --urgent <target> \"<message>\""
     echo "        maid-notify --mcp-reconnect <target> [server-name]"
     echo ""
     echo "  target: $VALID_TARGETS"
     echo "  --from: 送信者を明示的に指定（API等tmux外からの呼び出し用）"
     echo "  --no-prefix: [From: sender] プレフィックスを付けない（/コマンド用）"
+    echo "  --urgent: ビジーチェックをバイパスして即送信（asyncRewake: exit 2 を返す）"
     echo ""
     echo "例:"
     echo "  maid-notify chief \"タスク完了しました\""
     echo "  maid-notify --from master luna \"メッセージです\""
     echo "  maid-notify --no-prefix emma \"/skill maid-operation\""
+    echo "  maid-notify --urgent chief \"緊急: サーバーダウン\""
     echo "  maid-notify --mcp-reconnect luna"
     echo "  maid-notify --mcp-reconnect alice other-mcp-server"
 }
@@ -210,7 +212,7 @@ check_agent_busy() {
     fi
 }
 
-# ビジーキューにメッセージを追加（flock 排他・上限 QUEUE_MAX 件・超過時は最古を集約警告に置換）
+# ビジーキューにメッセージを追加（flock 排他・無制限 append）
 enqueue_busy_message() {
     local target="$1"
     local message="$2"
@@ -223,19 +225,6 @@ enqueue_busy_message() {
 
     (
         flock -x 9
-        local count=0
-        [ -f "$queue_file" ] && count=$(wc -l < "$queue_file" 2>/dev/null || echo 0)
-        if [ "$count" -ge "$QUEUE_MAX" ]; then
-            local oldest
-            oldest=$(head -1 "$queue_file")
-            local rest
-            rest=$(tail -n +2 "$queue_file")
-            {
-                printf '%s\n' "[${timestamp}] system: [警告] キュー上限(${QUEUE_MAX})超過。最古を集約: ${oldest}"
-                printf '%s\n' "$rest"
-            } > "${queue_file}.tmp"
-            mv "${queue_file}.tmp" "$queue_file"
-        fi
         echo "[${timestamp}] ${sender}: ${message}" >> "$queue_file"
     ) 9>"$lock_file"
 }
@@ -303,6 +292,7 @@ fi
 # オプションのパース
 EXPLICIT_SENDER=""
 NO_PREFIX=false
+URGENT=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -316,6 +306,10 @@ while [ $# -gt 0 ]; do
             ;;
         --no-prefix)
             NO_PREFIX=true
+            shift
+            ;;
+        --urgent)
+            URGENT=true
             shift
             ;;
         *)
@@ -379,11 +373,35 @@ else
     FULL_MESSAGE="[From: $SENDER] $MESSAGE"
 fi
 
+# 緊急レーン（--urgent）: ビジーチェックをバイパスして即送信
+if [ "$URGENT" = true ]; then
+    if send_message "$TARGET" "$FULL_MESSAGE"; then
+        echo "[$TIMESTAMP] [URGENT] $SENDER → $TARGET: $MESSAGE" >> "$LOG_FILE"
+        echo "緊急通知を送信しました（asyncRewake）: $SENDER → $TARGET"
+        exit 2  # asyncRewake シグナル
+    else
+        echo "エラー: 緊急通知の送信に失敗しました（$MAX_RETRIES 回試行）"
+        echo "[$TIMESTAMP] [ERROR] 緊急送信失敗: $SENDER → $TARGET: $MESSAGE" >> "$LOG_FILE"
+        exit 1
+    fi
+fi
+
 # ビジーチェック: ターゲットがビジー状態なら queue に積む
 if check_agent_busy "$TARGET"; then
     enqueue_busy_message "$TARGET" "$FULL_MESSAGE" "$TIMESTAMP" "$SENDER"
     echo "[$TIMESTAMP] [QUEUED] $SENDER → $TARGET (busy): $MESSAGE" >> "$LOG_FILE"
     echo "通知をキューに追加しました（ビジー中）: $SENDER → $TARGET"
+    exit 0
+fi
+
+# trigger A: idle 状態でキューに残存メッセージがあれば即まとめフラッシュ
+QUEUE_FILE_A="${QUEUE_DIR}/${TARGET}.txt"
+if [ -f "$QUEUE_FILE_A" ] && [ -s "$QUEUE_FILE_A" ]; then
+    enqueue_busy_message "$TARGET" "$FULL_MESSAGE" "$TIMESTAMP" "$SENDER"
+    echo "[$TIMESTAMP] [TRIGGER_A] $SENDER → $TARGET (idle+queue): $MESSAGE" >> "$LOG_FILE"
+    echo "通知をキューに追加してまとめフラッシュします: $SENDER → $TARGET"
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    bash "${SCRIPT_DIR}/flush-notify-queue.sh" "$TARGET" "$(pwd)"
     exit 0
 fi
 

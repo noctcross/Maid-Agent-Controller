@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# flush-notify-queue.sh - busy キューをまとめてフラッシュ（trigger B: idle遷移 / trigger A: idle+notify受信）
+# flush-notify-queue.sh - busy キューをチャンク分割してフラッシュ（trigger B: idle遷移 / trigger A: idle+notify受信）
 # 引数: <agent_id> [project_dir]
 
 set -euo pipefail
@@ -17,9 +17,19 @@ SESSION_FILE="${PROJECT_DIR}/.maid-agent/system/config/.session-name"
 SETTINGS_FILE="${PROJECT_DIR}/.maid-agent/system/config/settings.yaml"
 LOG_FILE="${PROJECT_DIR}/.maid-agent/system/data/notifications/history.log"
 
-# 件数・文字数がこれを超えたらキックモード（軽い通知のみ送る）
-BATCH_KICK_COUNT=8
-BATCH_KICK_CHARS=1000
+# デフォルト値（settings.yaml の notify セクションで上書き可能）
+BATCH_CHUNK_COUNT=8
+BATCH_CHUNK_CHARS=1000
+
+# settings.yaml から閾値を読み込む
+if [ -f "$SETTINGS_FILE" ]; then
+    _val=$(grep -A10 "^notify:" "$SETTINGS_FILE" 2>/dev/null \
+        | grep "batch_chunk_count:" | head -1 | awk '{print $2}' | tr -d '\r')
+    [ -n "$_val" ] && BATCH_CHUNK_COUNT="$_val"
+    _val=$(grep -A10 "^notify:" "$SETTINGS_FILE" 2>/dev/null \
+        | grep "batch_chunk_chars:" | head -1 | awk '{print $2}' | tr -d '\r')
+    [ -n "$_val" ] && BATCH_CHUNK_CHARS="$_val"
+fi
 
 # キューファイルが存在・非空か確認
 [ -f "$QUEUE_FILE" ] && [ -s "$QUEUE_FILE" ] || exit 0
@@ -60,28 +70,18 @@ mkdir -p "$QUEUE_DIR"
 # tmp ファイルがなければ他の flush が先に処理済み
 [ -f "$TMP_FILE" ] && [ -s "$TMP_FILE" ] || exit 0
 
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-
-# 全メッセージを収集してバッチ文字列を構築
-BATCH=""
+# メッセージ件数を事前カウント（ゼロなら早期 exit）
 MSG_COUNT=0
 while IFS= read -r line; do
     [ -z "$line" ] && continue
-    # "[timestamp] sender: message" 形式から本文を抽出
     msg=$(echo "$line" | sed 's/^\[[^]]*\] [^:]*: //')
     [ -z "$msg" ] && continue
     MSG_COUNT=$((MSG_COUNT + 1))
-    if [ -z "$BATCH" ]; then
-        BATCH="$msg"
-    else
-        BATCH="${BATCH}
-${msg}"
-    fi
 done < "$TMP_FILE"
 
 [ "$MSG_COUNT" -eq 0 ] && { rm -f "$TMP_FILE"; exit 0; }
 
-BATCH_CHARS=${#BATCH}
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 # Stop hook 完了・Claude Code idle 確定を待つ（hook 実行中の注入で Interrupted 扱いになるのを防ぐ）
 sleep 2
@@ -89,20 +89,63 @@ sleep 2
 # スクロールモード解除（-X cancel はtmuxコマンド・Escapeはペインに渡らない）
 timeout 3 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -X cancel 2>/dev/null || true
 
-if [ "$MSG_COUNT" -gt "$BATCH_KICK_COUNT" ] || [ "$BATCH_CHARS" -gt "$BATCH_KICK_CHARS" ]; then
-    # キックモード: 件数 or 文字数超過 → 軽い通知のみ送り、メイドが内容を把握する
-    PREVIEW=$(echo "$BATCH" | head -c 150 | tr '\n' ' ')
-    KICK_MSG="[${MSG_COUNT}件の通知: ${PREVIEW}...]"
-    timeout 5 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$KICK_MSG" 2>/dev/null || true
-    echo "[$TIMESTAMP] [FLUSH-KICK] → ${AGENT_ID}: ${MSG_COUNT}件" >> "$LOG_FILE" 2>/dev/null || true
-else
-    # バッチモード: 全件まとめて1回 send-keys
-    timeout 5 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$BATCH" 2>/dev/null || true
-    echo "[$TIMESTAMP] [FLUSH-BATCH] → ${AGENT_ID}: ${MSG_COUNT}件" >> "$LOG_FILE" 2>/dev/null || true
+# チャンク分割・連続送信
+# busy/idle混線回避方式: 連続送信 — chunk 送信後 sleep 2s でClaudeの処理開始を待ち次 chunk を注入
+# idle連鎖（pane polling）は複雑なため、実用上十分な連続送信を採用
+CHUNK=""
+CHUNK_MSGS=0
+CHUNK_INDEX=0
+
+flush_chunk() {
+    local chunk="$1"
+    local n="$2"
+
+    # 2チャンク目以降: 直前チャンクのClaude処理開始を待つ
+    if [ "$CHUNK_INDEX" -gt 0 ]; then
+        sleep 2.0
+    fi
+
+    timeout 5 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$chunk" 2>/dev/null || true
+    sleep 1.0
+    timeout 3 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" C-m 2>/dev/null || true
+
+    echo "[$TIMESTAMP] [FLUSH-CHUNK-$((CHUNK_INDEX+1))] → ${AGENT_ID}: ${n}件" >> "$LOG_FILE" 2>/dev/null || true
+    CHUNK_INDEX=$((CHUNK_INDEX + 1))
+}
+
+while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    msg=$(echo "$line" | sed 's/^\[[^]]*\] [^:]*: //')
+    [ -z "$msg" ] && continue
+
+    msg_len=${#msg}
+    if [ -z "$CHUNK" ]; then
+        new_len=$msg_len
+    else
+        new_len=$(( ${#CHUNK} + 1 + msg_len ))
+    fi
+
+    # 件数または文字数が上限に達したら現 chunk を送信して新 chunk 開始
+    if [ -n "$CHUNK" ] && { [ "$CHUNK_MSGS" -ge "$BATCH_CHUNK_COUNT" ] || [ "$new_len" -gt "$BATCH_CHUNK_CHARS" ]; }; then
+        flush_chunk "$CHUNK" "$CHUNK_MSGS"
+        CHUNK="$msg"
+        CHUNK_MSGS=1
+    else
+        if [ -z "$CHUNK" ]; then
+            CHUNK="$msg"
+        else
+            CHUNK="${CHUNK}"$'\n'"${msg}"
+        fi
+        CHUNK_MSGS=$((CHUNK_MSGS + 1))
+    fi
+done < "$TMP_FILE"
+
+# 最終 chunk を送信
+if [ -n "$CHUNK" ]; then
+    flush_chunk "$CHUNK" "$CHUNK_MSGS"
 fi
 
-sleep 1.0
-timeout 3 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" C-m 2>/dev/null || true
+echo "[$TIMESTAMP] [FLUSH-DONE] → ${AGENT_ID}: ${MSG_COUNT}件 / ${CHUNK_INDEX}chunk(s)" >> "$LOG_FILE" 2>/dev/null || true
 
 # send 試行後に tmp を削除（send-keys 失敗/ハングでもメッセージが即座に消えない）
 rm -f "$TMP_FILE"

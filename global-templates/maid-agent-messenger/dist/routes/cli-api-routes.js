@@ -14,6 +14,7 @@ import { Router } from "express";
 import { executeCreateTask, executeAssignTask, executeGetMyTask, executeUpdateStatus, executeGetTeamStatus, } from "../services/index.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { MAID_IDS } from "../types/index.js";
+import { VALIDATION } from "../utils/constants.js";
 export function createCliApiRoutes(deps = {}) {
     const { wsServer } = deps;
     const router = Router();
@@ -48,10 +49,9 @@ export function createCliApiRoutes(deps = {}) {
                 res.status(400).json({ error: "title is required" });
                 return;
             }
-            const MAX_DESCRIPTION_LENGTH = 10000;
-            if (description && typeof description === "string" && description.length > MAX_DESCRIPTION_LENGTH) {
+            if (description && typeof description === "string" && description.length > VALIDATION.MAX_DESCRIPTION_LENGTH) {
                 res.status(400).json({
-                    error: `description が上限文字数（${MAX_DESCRIPTION_LENGTH}文字）を超えています`,
+                    error: `description が上限文字数（${VALIDATION.MAX_DESCRIPTION_LENGTH}文字）を超えています`,
                     length: description.length,
                 });
                 return;

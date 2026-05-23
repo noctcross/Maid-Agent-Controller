@@ -11,6 +11,7 @@ import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { convertMarkdownToHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { extractAgentIdFromPath } from "../utils/agent-image.js";
+import { VALIDATION } from "../utils/constants.js";
 export function createTaskApiRoutes(deps = {}) {
     const { wsServer } = deps;
     const router = Router();
@@ -90,10 +91,9 @@ export function createTaskApiRoutes(deps = {}) {
             mainStatus, subStatus, type, size, tentative, blockedBy, artifacts, artifactAdd, reviewStatus, 
             // V2.1 追加フィールド
             archived, actionRequired, } = req.body;
-            const MAX_DESCRIPTION_LENGTH = 10000;
-            if (description && typeof description === "string" && description.length > MAX_DESCRIPTION_LENGTH) {
+            if (description && typeof description === "string" && description.length > VALIDATION.MAX_DESCRIPTION_LENGTH) {
                 res.status(400).json({
-                    error: `description が上限文字数（${MAX_DESCRIPTION_LENGTH}文字）を超えています`,
+                    error: `description が上限文字数（${VALIDATION.MAX_DESCRIPTION_LENGTH}文字）を超えています`,
                     length: description.length,
                 });
                 return;

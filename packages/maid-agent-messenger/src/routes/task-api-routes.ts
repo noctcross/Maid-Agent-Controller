@@ -24,6 +24,7 @@ import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
 import { convertMarkdownToHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { extractAgentIdFromPath } from "../utils/agent-image.js";
+import { VALIDATION } from "../utils/constants.js";
 
 export interface TaskApiRoutesDeps {
   wsServer?: DashboardWebSocketServer;
@@ -128,10 +129,9 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       archived, actionRequired,
     } = req.body;
 
-    const MAX_DESCRIPTION_LENGTH = 10000;
-    if (description && typeof description === "string" && description.length > MAX_DESCRIPTION_LENGTH) {
+    if (description && typeof description === "string" && description.length > VALIDATION.MAX_DESCRIPTION_LENGTH) {
       res.status(400).json({
-        error: `description が上限文字数（${MAX_DESCRIPTION_LENGTH}文字）を超えています`,
+        error: `description が上限文字数（${VALIDATION.MAX_DESCRIPTION_LENGTH}文字）を超えています`,
         length: description.length,
       });
       return;

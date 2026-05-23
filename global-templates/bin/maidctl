@@ -486,6 +486,7 @@ cmd_task_get() {
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -542,6 +543,7 @@ cmd_task_delete() {
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -627,6 +629,7 @@ cmd_task_create() {
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -680,34 +683,35 @@ cmd_task_create() {
     fi
   fi
 
-  # JSONデータを構築（特殊文字をエスケープ）
-  local escaped_title escaped_description
-  escaped_title=$(json_escape "$title")
+  # JSONデータを構築（W-3: jq -n ベースで安全に構築）
   local data
-  data=$(cat <<EOF
-{
-  "title": "$escaped_title",
-  "priority": "$priority",
-  "category": "$category"
-EOF
-)
+  data=$(jq -n \
+    --arg title "$title" \
+    --arg priority "$priority" \
+    --arg category "$category" \
+    '{title: $title, priority: $priority, category: $category}')
 
   if [ -n "$description" ]; then
-    escaped_description=$(json_escape "$description")
-    data="${data%\}}, \"description\": \"$escaped_description\"}"
+    data=$(echo "$data" | jq --arg v "$description" '. + {description: $v}')
   fi
-  [ -n "$parent_id" ] && data="${data%\}}, \"parentId\": \"$parent_id\"}"
+  if [ -n "$parent_id" ]; then
+    data=$(echo "$data" | jq --arg v "$parent_id" '. + {parentId: $v}')
+  fi
   # V2.1 フィールド
-  [ -n "$task_type" ] && data="${data%\}}, \"type\": \"$task_type\"}"
-  [ -n "$size" ] && data="${data%\}}, \"size\": \"$size\"}"
-  [ "$tentative" = true ] && data="${data%\}}, \"tentative\": true}"
+  if [ -n "$task_type" ]; then
+    data=$(echo "$data" | jq --arg v "$task_type" '. + {type: $v}')
+  fi
+  if [ -n "$size" ]; then
+    data=$(echo "$data" | jq --arg v "$size" '. + {size: $v}')
+  fi
+  if [ "$tentative" = true ]; then
+    data=$(echo "$data" | jq '. + {tentative: true}')
+  fi
   if [ -n "$blocked_by" ]; then
-    # カンマ区切りを JSON 配列に変換
     local blocked_by_json
     blocked_by_json=$(echo "$blocked_by" | tr ',' '\n' | jq -R . | jq -s .)
-    data="${data%\}}, \"blockedBy\": $blocked_by_json}"
+    data=$(echo "$data" | jq --argjson v "$blocked_by_json" '. + {blockedBy: $v}')
   fi
-  data="${data%\}}}"  # 最後の閉じ括弧
 
   local result
   result=$(api_request POST "/api/tasks" "$data")
@@ -789,10 +793,13 @@ cmd_task_update() {
         echo "  --no-starred         スター解除"
         echo "  --artifact-add JSON  成果物追加 (例: '{\"path\":\"docs/xxx.md\",\"type\":\"document\"}')"
         echo "  --json               JSON出力"
+        echo ""
+        echo "注: --reason は set my-status 専用（set task では使用不可）"
         return 0
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -830,85 +837,55 @@ cmd_task_update() {
     exit $EXIT_INVALID_ARGS
   fi
 
-  # JSONデータを構築（特殊文字をエスケープ）
-  local data="{"
-  local first=true
+  # JSONデータを構築（W-3: jq -n ベースで安全に構築）
+  local data
+  data=$(jq -n '{}')
 
   if [ -n "$status" ]; then
-    data="${data}\"status\": \"$status\""
-    first=false
+    data=$(echo "$data" | jq --arg v "$status" '. + {status: $v}')
   fi
   if [ -n "$substatus" ]; then
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"substatus\": \"$substatus\""
-    first=false
+    data=$(echo "$data" | jq --arg v "$substatus" '. + {substatus: $v}')
   fi
   if [ -n "$summary" ]; then
-    local escaped_summary
-    escaped_summary=$(json_escape "$summary")
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"summary\": \"$escaped_summary\""
-    first=false
+    data=$(echo "$data" | jq --arg v "$summary" '. + {summary: $v}')
   fi
   if [ -n "$title" ]; then
-    local escaped_title
-    escaped_title=$(json_escape "$title")
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"title\": \"$escaped_title\""
-    first=false
+    data=$(echo "$data" | jq --arg v "$title" '. + {title: $v}')
   fi
   if [ -n "$description" ]; then
-    local escaped_description
-    escaped_description=$(json_escape "$description")
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"description\": \"$escaped_description\""
-    first=false
+    data=$(echo "$data" | jq --arg v "$description" '. + {description: $v}')
   fi
   if [ -n "$priority" ]; then
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"priority\": \"$priority\""
-    first=false
+    data=$(echo "$data" | jq --arg v "$priority" '. + {priority: $v}')
   fi
   if [ -n "$category" ]; then
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"category\": \"$category\""
-    first=false
+    data=$(echo "$data" | jq --arg v "$category" '. + {category: $v}')
   fi
   if [ -n "$blocked_by" ]; then
-    # カンマ区切りを JSON 配列に変換
     local blocked_by_json
     blocked_by_json=$(echo "$blocked_by" | tr ',' '\n' | jq -R . | jq -s .)
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"blockedBy\": $blocked_by_json"
-    first=false
+    data=$(echo "$data" | jq --argjson v "$blocked_by_json" '. + {blockedBy: $v}')
   fi
   if [ "$archived" = "true" ]; then
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"archived\": true"
-    first=false
+    data=$(echo "$data" | jq '. + {archived: true}')
   fi
   if [ -n "$review_status" ]; then
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"reviewStatus\": \"$review_status\""
-    first=false
+    data=$(echo "$data" | jq --arg v "$review_status" '. + {reviewStatus: $v}')
   fi
   if [ -n "$action_required" ]; then
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"actionRequired\": $action_required"
-    first=false
+    local ar_bool
+    [ "$action_required" = "true" ] && ar_bool=true || ar_bool=false
+    data=$(echo "$data" | jq --argjson v "$ar_bool" '. + {actionRequired: $v}')
   fi
   if [ -n "$starred" ]; then
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"starred\": $starred"
-    first=false
+    local st_bool
+    [ "$starred" = "true" ] && st_bool=true || st_bool=false
+    data=$(echo "$data" | jq --argjson v "$st_bool" '. + {starred: $v}')
   fi
   if [ -n "$artifact_add" ]; then
-    # artifact_add はJSON形式で渡されることを期待
-    [ "$first" = false ] && data="${data}, "
-    data="${data}\"artifactAdd\": $artifact_add"
-    first=false
+    data=$(echo "$data" | jq --argjson v "$artifact_add" '. + {artifactAdd: $v}')
   fi
-  data="${data}}"
 
   local result
   result=$(api_request PATCH "/api/tasks/${task_id}" "$data")
@@ -950,6 +927,7 @@ cmd_task_assign() {
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -1031,6 +1009,7 @@ cmd_my_task() {
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -1211,6 +1190,7 @@ cmd_my_status() {
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -1322,46 +1302,45 @@ cmd_my_status() {
     fi
   fi
 
-  # JSONデータを構築（特殊文字をエスケープ）
-  local data="{\"status\": \"$status\""
+  # JSONデータを構築（W-3: jq -n ベースで安全に構築）
+  local data
+  data=$(jq -n --arg v "$status" '{status: $v}')
+
   if [ -n "$summary" ]; then
-    local escaped_summary
-    escaped_summary=$(json_escape "$summary")
-    data="${data}, \"summary\": \"$escaped_summary\""
+    data=$(echo "$data" | jq --arg v "$summary" '. + {summary: $v}')
   fi
-  [ "$action_required" = "true" ] && data="${data}, \"actionRequired\": true"
-  [ "$action_required" = "false" ] && data="${data}, \"actionRequired\": false"
+  if [ "$action_required" = "true" ]; then
+    data=$(echo "$data" | jq '. + {actionRequired: true}')
+  elif [ "$action_required" = "false" ]; then
+    data=$(echo "$data" | jq '. + {actionRequired: false}')
+  fi
 
   # V2.1 フィールド
   if [ -n "$v2_substatus" ]; then
-    data="${data}, \"subStatus\": \"$v2_substatus\""
+    data=$(echo "$data" | jq --arg v "$v2_substatus" '. + {subStatus: $v}')
   fi
   if [ -n "$blocked_by" ]; then
-    # カンマ区切りを JSON 配列に変換
     local blocked_by_json
     blocked_by_json=$(echo "$blocked_by" | tr ',' '\n' | jq -R . | jq -s .)
-    data="${data}, \"blockedBy\": $blocked_by_json"
+    data=$(echo "$data" | jq --argjson v "$blocked_by_json" '. + {blockedBy: $v}')
   fi
   if [ -n "$reason" ]; then
-    local escaped_reason
-    escaped_reason=$(json_escape "$reason")
-    data="${data}, \"reason\": \"$escaped_reason\""
+    data=$(echo "$data" | jq --arg v "$reason" '. + {reason: $v}')
   fi
 
   # エスカレーション情報（title必須、detailはオプション）
   if [ -n "$escalation_title" ]; then
-    local escaped_esc_title
-    escaped_esc_title=$(json_escape "$escalation_title")
     if [ -n "$escalation_detail" ]; then
-      local escaped_esc_detail
-      escaped_esc_detail=$(json_escape "$escalation_detail")
-      data="${data}, \"escalation\": {\"title\": \"$escaped_esc_title\", \"detail\": \"$escaped_esc_detail\"}"
+      data=$(echo "$data" | jq \
+        --arg t "$escalation_title" \
+        --arg d "$escalation_detail" \
+        '. + {escalation: {title: $t, detail: $d}}')
     else
-      data="${data}, \"escalation\": {\"title\": \"$escaped_esc_title\"}"
+      data=$(echo "$data" | jq \
+        --arg t "$escalation_title" \
+        '. + {escalation: {title: $t}}')
     fi
   fi
-
-  data="${data}}"
 
   local result
   result=$(api_request PATCH "/api/agents/${agent_id}/status" "$data")
@@ -1444,6 +1423,7 @@ cmd_team_report() {
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -1521,6 +1501,7 @@ cmd_report_rearchive() {
         ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -1584,6 +1565,7 @@ cmd_notify() {
   local message=""
   local from_sender=""
   local no_prefix=false
+  local use_stdin=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -1591,10 +1573,12 @@ cmd_notify() {
         echo "使用法: maidctl notify <target> \"<message>\""
         echo "        maidctl notify --from <sender> <target> \"<message>\""
         echo "        maidctl notify --no-prefix <target> \"<message>\""
+        echo "        echo \"<message>\" | maidctl notify <target> --stdin"
         echo ""
         echo "有効なターゲット: butler chief $VALID_AGENTS"
         echo "  --from: 送信者を明示的に指定（API等tmux外からの呼び出し用）"
         echo "  --no-prefix: [From: sender] プレフィックスを付けない（/コマンド用）"
+        echo "  --stdin: stdinからメッセージを読み込む（バッククォート等の特殊文字を含む場合に使用）"
         return 0
         ;;
       --from)
@@ -1605,8 +1589,13 @@ cmd_notify() {
         no_prefix=true
         shift
         ;;
+      --stdin)
+        use_stdin=true
+        shift
+        ;;
       -*)
         echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
         exit $EXIT_INVALID_ARGS
         ;;
       *)
@@ -1619,6 +1608,15 @@ cmd_notify() {
         ;;
     esac
   done
+
+  # W-5: --stdin オプション: stdinからメッセージを読み込む
+  if [ "$use_stdin" = true ]; then
+    message=$(cat)
+    if [ -z "$message" ]; then
+      echo "エラー: stdinからメッセージが読み取れませんでした" >&2
+      exit $EXIT_INVALID_ARGS
+    fi
+  fi
 
   if [ -z "$target" ] || [ -z "$message" ]; then
     echo "エラー: ターゲットとメッセージを指定してください" >&2
@@ -1636,15 +1634,19 @@ cmd_notify() {
   fi
 
   # オプションに応じて maid-notify を呼び出し
-  if [ "$no_prefix" = true ] && [ -n "$from_sender" ]; then
-    exec "$notify_path" --from "$from_sender" --no-prefix "$target" "$message"
-  elif [ "$no_prefix" = true ]; then
-    exec "$notify_path" --no-prefix "$target" "$message"
-  elif [ -n "$from_sender" ]; then
-    exec "$notify_path" --from "$from_sender" "$target" "$message"
-  else
-    exec "$notify_path" "$target" "$message"
-  fi
+  # W-1: cd してから exec することで maid-notify の相対パス解決を保証
+  (
+    cd "$PROJECT_ROOT" || exit $EXIT_INVALID_ARGS
+    if [ "$no_prefix" = true ] && [ -n "$from_sender" ]; then
+      exec "$notify_path" --from "$from_sender" --no-prefix "$target" "$message"
+    elif [ "$no_prefix" = true ]; then
+      exec "$notify_path" --no-prefix "$target" "$message"
+    elif [ -n "$from_sender" ]; then
+      exec "$notify_path" --from "$from_sender" "$target" "$message"
+    else
+      exec "$notify_path" "$target" "$message"
+    fi
+  )
 }
 
 # =============================================================================

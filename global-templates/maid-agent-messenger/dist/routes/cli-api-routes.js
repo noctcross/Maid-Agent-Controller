@@ -48,6 +48,14 @@ export function createCliApiRoutes(deps = {}) {
                 res.status(400).json({ error: "title is required" });
                 return;
             }
+            const MAX_DESCRIPTION_LENGTH = 10000;
+            if (description && typeof description === "string" && description.length > MAX_DESCRIPTION_LENGTH) {
+                res.status(400).json({
+                    error: `description が上限文字数（${MAX_DESCRIPTION_LENGTH}文字）を超えています`,
+                    length: description.length,
+                });
+                return;
+            }
             const result = await executeCreateTask(projectPath, {
                 title,
                 description,

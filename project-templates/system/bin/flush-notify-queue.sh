@@ -12,7 +12,7 @@ PROJECT_DIR="${2:-$(pwd)}"
 QUEUE_DIR="${PROJECT_DIR}/.maid-agent/system/data/notifications/queue"
 QUEUE_FILE="${QUEUE_DIR}/${AGENT_ID}.txt"
 LOCK_FILE="${QUEUE_DIR}/${AGENT_ID}.lock"
-TMP_FILE="${QUEUE_DIR}/${AGENT_ID}.flush.tmp"
+TMP_FILE="${QUEUE_DIR}/${AGENT_ID}.flush.$$.tmp"
 SESSION_FILE="${PROJECT_DIR}/.maid-agent/system/config/.session-name"
 SETTINGS_FILE="${PROJECT_DIR}/.maid-agent/system/config/settings.yaml"
 LOG_FILE="${PROJECT_DIR}/.maid-agent/system/data/notifications/history.log"
@@ -79,30 +79,32 @@ ${msg}"
     fi
 done < "$TMP_FILE"
 
-rm -f "$TMP_FILE"
-
-[ "$MSG_COUNT" -eq 0 ] && exit 0
+[ "$MSG_COUNT" -eq 0 ] && { rm -f "$TMP_FILE"; exit 0; }
 
 BATCH_CHARS=${#BATCH}
 
-# スクロールモード解除
-$MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -X cancel 2>/dev/null || true
-$MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" Escape 2>/dev/null || true
-sleep 0.2
+# Stop hook 完了・Claude Code idle 確定を待つ（hook 実行中の注入で Interrupted 扱いになるのを防ぐ）
+sleep 2
+
+# スクロールモード解除（-X cancel はtmuxコマンド・Escapeはペインに渡らない）
+timeout 3 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -X cancel 2>/dev/null || true
 
 if [ "$MSG_COUNT" -gt "$BATCH_KICK_COUNT" ] || [ "$BATCH_CHARS" -gt "$BATCH_KICK_CHARS" ]; then
     # キックモード: 件数 or 文字数超過 → 軽い通知のみ送り、メイドが内容を把握する
     PREVIEW=$(echo "$BATCH" | head -c 150 | tr '\n' ' ')
     KICK_MSG="[${MSG_COUNT}件の通知: ${PREVIEW}...]"
-    $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$KICK_MSG" 2>/dev/null
+    timeout 5 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$KICK_MSG" 2>/dev/null || true
     echo "[$TIMESTAMP] [FLUSH-KICK] → ${AGENT_ID}: ${MSG_COUNT}件" >> "$LOG_FILE" 2>/dev/null || true
 else
     # バッチモード: 全件まとめて1回 send-keys
-    $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$BATCH" 2>/dev/null
+    timeout 5 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$BATCH" 2>/dev/null || true
     echo "[$TIMESTAMP] [FLUSH-BATCH] → ${AGENT_ID}: ${MSG_COUNT}件" >> "$LOG_FILE" 2>/dev/null || true
 fi
 
 sleep 1.0
-$MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" C-m 2>/dev/null
+timeout 3 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" C-m 2>/dev/null || true
+
+# send 試行後に tmp を削除（send-keys 失敗/ハングでもメッセージが即座に消えない）
+rm -f "$TMP_FILE"
 
 exit 0

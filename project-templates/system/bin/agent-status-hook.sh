@@ -23,7 +23,7 @@ SESSION_ID=$(echo "$STDIN_JSON" | jq -r '.session_id // empty' 2>/dev/null)
 [ -d "$MAID_DIR" ] || exit 0
 
 # session_id が一致する maid yaml を特定（grep -rl で検索）
-MAID_YAML=$(grep -rl "session_id: ${SESSION_ID}" "${MAID_DIR}" 2>/dev/null | head -1)
+MAID_YAML=$(grep -rl "session_id: ${SESSION_ID}" "${MAID_DIR}" 2>/dev/null | head -1 || true)
 [ -z "$MAID_YAML" ] && exit 0
 
 AGENT_ID=$(basename "$MAID_YAML" .yaml)
@@ -42,7 +42,7 @@ AGENT_ID=$(basename "$MAID_YAML" .yaml)
 if [ "$STATUS" = "idle" ]; then
     QUEUE_FILE="${PROJECT_DIR}/.maid-agent/system/data/notifications/queue/${AGENT_ID}.txt"
     if [ -f "$QUEUE_FILE" ] && [ -s "$QUEUE_FILE" ]; then
-        bash "${PROJECT_DIR}/.maid-agent/system/bin/flush-notify-queue.sh" \
+        setsid bash "${PROJECT_DIR}/.maid-agent/system/bin/flush-notify-queue.sh" \
             "$AGENT_ID" "$PROJECT_DIR" &
     fi
 fi

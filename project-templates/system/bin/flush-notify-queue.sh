@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# flush-notify-queue.sh - busy キューをフラッシュ（idle 遷移時に agent-status-hook.sh から呼ばれる）
+# flush-notify-queue.sh - busy キューをまとめてフラッシュ（trigger B: idle遷移 / trigger A: idle+notify受信）
 # 引数: <agent_id> [project_dir]
 
 set -euo pipefail
@@ -12,10 +12,14 @@ PROJECT_DIR="${2:-$(pwd)}"
 QUEUE_DIR="${PROJECT_DIR}/.maid-agent/system/data/notifications/queue"
 QUEUE_FILE="${QUEUE_DIR}/${AGENT_ID}.txt"
 LOCK_FILE="${QUEUE_DIR}/${AGENT_ID}.lock"
-TMP_FILE="${QUEUE_DIR}/${AGENT_ID}.flush.tmp"
+TMP_FILE="${QUEUE_DIR}/${AGENT_ID}.flush.$$.tmp"
 SESSION_FILE="${PROJECT_DIR}/.maid-agent/system/config/.session-name"
 SETTINGS_FILE="${PROJECT_DIR}/.maid-agent/system/config/settings.yaml"
 LOG_FILE="${PROJECT_DIR}/.maid-agent/system/data/notifications/history.log"
+
+# 件数・文字数がこれを超えたらキックモード（軽い通知のみ送る）
+BATCH_KICK_COUNT=8
+BATCH_KICK_CHARS=1000
 
 # キューファイルが存在・非空か確認
 [ -f "$QUEUE_FILE" ] && [ -s "$QUEUE_FILE" ] || exit 0
@@ -58,26 +62,49 @@ mkdir -p "$QUEUE_DIR"
 
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
-# 各メッセージを順次送信
+# 全メッセージを収集してバッチ文字列を構築
+BATCH=""
+MSG_COUNT=0
 while IFS= read -r line; do
     [ -z "$line" ] && continue
-
     # "[timestamp] sender: message" 形式から本文を抽出
     msg=$(echo "$line" | sed 's/^\[[^]]*\] [^:]*: //')
     [ -z "$msg" ] && continue
-
-    # スクロールモード解除
-    $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -X cancel 2>/dev/null || true
-    $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" Escape 2>/dev/null || true
-    sleep 0.2
-
-    # メッセージ送信
-    $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$msg" 2>/dev/null
-    sleep 1.0
-    $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" C-m 2>/dev/null
-
-    echo "[$TIMESTAMP] [FLUSH] → ${AGENT_ID}: $msg" >> "$LOG_FILE" 2>/dev/null || true
+    MSG_COUNT=$((MSG_COUNT + 1))
+    if [ -z "$BATCH" ]; then
+        BATCH="$msg"
+    else
+        BATCH="${BATCH}
+${msg}"
+    fi
 done < "$TMP_FILE"
 
+[ "$MSG_COUNT" -eq 0 ] && { rm -f "$TMP_FILE"; exit 0; }
+
+BATCH_CHARS=${#BATCH}
+
+# Stop hook 完了・Claude Code idle 確定を待つ（hook 実行中の注入で Interrupted 扱いになるのを防ぐ）
+sleep 2
+
+# スクロールモード解除（-X cancel はtmuxコマンド・Escapeはペインに渡らない）
+timeout 3 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -X cancel 2>/dev/null || true
+
+if [ "$MSG_COUNT" -gt "$BATCH_KICK_COUNT" ] || [ "$BATCH_CHARS" -gt "$BATCH_KICK_CHARS" ]; then
+    # キックモード: 件数 or 文字数超過 → 軽い通知のみ送り、メイドが内容を把握する
+    PREVIEW=$(echo "$BATCH" | head -c 150 | tr '\n' ' ')
+    KICK_MSG="[${MSG_COUNT}件の通知: ${PREVIEW}...]"
+    timeout 5 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$KICK_MSG" 2>/dev/null || true
+    echo "[$TIMESTAMP] [FLUSH-KICK] → ${AGENT_ID}: ${MSG_COUNT}件" >> "$LOG_FILE" 2>/dev/null || true
+else
+    # バッチモード: 全件まとめて1回 send-keys
+    timeout 5 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" -l "$BATCH" 2>/dev/null || true
+    echo "[$TIMESTAMP] [FLUSH-BATCH] → ${AGENT_ID}: ${MSG_COUNT}件" >> "$LOG_FILE" 2>/dev/null || true
+fi
+
+sleep 1.0
+timeout 3 $MUX_CMD send-keys -t "${SESSION_NAME}:${AGENT_ID}" C-m 2>/dev/null || true
+
+# send 試行後に tmp を削除（send-keys 失敗/ハングでもメッセージが即座に消えない）
 rm -f "$TMP_FILE"
+
 exit 0

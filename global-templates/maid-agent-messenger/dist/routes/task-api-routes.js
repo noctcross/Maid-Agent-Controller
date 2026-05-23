@@ -11,6 +11,7 @@ import { getJstTimestamp } from "../utils/yaml-helper.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { convertMarkdownToHtml, linkifyProjectPaths } from "../markdown-utils.js";
 import { extractAgentIdFromPath } from "../utils/agent-image.js";
+import { VALIDATION } from "../utils/constants.js";
 export function createTaskApiRoutes(deps = {}) {
     const { wsServer } = deps;
     const router = Router();
@@ -90,6 +91,13 @@ export function createTaskApiRoutes(deps = {}) {
             mainStatus, subStatus, type, size, tentative, blockedBy, artifacts, artifactAdd, reviewStatus, 
             // V2.1 追加フィールド
             archived, actionRequired, } = req.body;
+            if (description && typeof description === "string" && description.length > VALIDATION.MAX_DESCRIPTION_LENGTH) {
+                res.status(400).json({
+                    error: `description が上限文字数（${VALIDATION.MAX_DESCRIPTION_LENGTH}文字）を超えています`,
+                    length: description.length,
+                });
+                return;
+            }
             const result = await executeUpdateTask(projectPath, {
                 taskId: req.params.id,
                 status,
@@ -299,13 +307,14 @@ export function createTaskApiRoutes(deps = {}) {
                 artifacts: v2Data.v2Artifacts,
                 stats: v2Data.v2Stats,
                 // スキル化候補・改善提案（別セクション用）
+                // String() 変換: tasks.yaml の id が整数型で記載されても MobileSylvia が落ちないよう恒久対策 (#524-3)
                 skillCandidates: skillCandidatesResult.tasks.map((t) => ({
-                    id: t.id,
+                    id: String(t.id),
                     title: t.title,
                     description: "description" in t ? t.description : undefined,
                 })),
                 improvements: improvementsResult.tasks.map((t) => ({
-                    id: t.id,
+                    id: String(t.id),
                     title: t.title,
                     description: "description" in t ? t.description : undefined,
                 })),

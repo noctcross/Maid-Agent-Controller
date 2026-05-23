@@ -1,4 +1,12 @@
 /**
+ * バリデーション関連の定数
+ */
+export const VALIDATION = {
+  /** description フィールドの最大文字数 (task-891-3 W-4) */
+  MAX_DESCRIPTION_LENGTH: 10000,
+} as const;
+
+/**
  * タイムアウト関連の定数
  * 散在していたマジックナンバーを集約
  */

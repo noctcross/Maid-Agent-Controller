@@ -22,6 +22,7 @@ import {
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { MAID_IDS, type UpdatableStatus } from "../types/index.js";
 import type { DashboardWebSocketServer } from "../websocket/dashboard-ws.js";
+import { VALIDATION } from "../utils/constants.js";
 
 export interface CliApiRoutesDeps {
   wsServer?: DashboardWebSocketServer;
@@ -63,6 +64,14 @@ router.post("/api/tasks", async (req: Request, res: Response) => {
     // バリデーション
     if (!title || typeof title !== "string") {
       res.status(400).json({ error: "title is required" });
+      return;
+    }
+
+    if (description && typeof description === "string" && description.length > VALIDATION.MAX_DESCRIPTION_LENGTH) {
+      res.status(400).json({
+        error: `description が上限文字数（${VALIDATION.MAX_DESCRIPTION_LENGTH}文字）を超えています`,
+        length: description.length,
+      });
       return;
     }
 

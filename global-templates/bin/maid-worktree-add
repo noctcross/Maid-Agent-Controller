@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# =============================================================================
+# maid-worktree-add - MaidAgent worktree 作成ラッパー
+# =============================================================================
+# git worktree add に加え、担当メイドの git config --worktree user.name/email を
+# 自動設定することで、誤帰属（他メイド名義でのコミット）を構造的に防止する。
+#
+# 使い方:
+#   maid-worktree-add [--maid-id <id>] [git worktree add のオプション] <path> [<commit-ish>]
+#
+# 例:
+#   maid-worktree-add -b feature/task-123-domain /path/to/wt origin/dev
+#   maid-worktree-add --maid-id rose -b feature/task-123 /path/to/wt origin/dev
+#
+# エージェント名解決順序:
+#   1. --maid-id オプション
+#   2. MAID_AGENT_ID 環境変数
+#   3. tmux ウィンドウ名（tmux 環境時のみ）
+#   4. git config --global maid.defaultAgent
+#   ※ 全て未設定時は警告のみ（git worktree add はブロックしない）
+#
+# メールアドレス形式: <maid_id>@maid-agent.local
+# =============================================================================
+
+set -euo pipefail
+
+# --maid-id オプションを解析
+maid_id=""
+git_args=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --maid-id)
+            if [[ -z "${2:-}" ]]; then
+                echo "ERROR [maid-worktree-add]: --maid-id にメイドIDを指定してください" >&2
+                exit 1
+            fi
+            maid_id="$2"
+            shift 2
+            ;;
+        *)
+            git_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# エージェント名の解決（--maid-id が未指定の場合）
+if [[ -z "$maid_id" ]]; then
+    # 1. MAID_AGENT_ID 環境変数
+    maid_id="${MAID_AGENT_ID:-}"
+fi
+
+if [[ -z "$maid_id" ]] && [[ -n "${TMUX:-}" ]]; then
+    # 2. tmux ウィンドウ名
+    maid_id=$(tmux display-message -p '#{window_name}' 2>/dev/null || true)
+fi
+
+if [[ -z "$maid_id" ]]; then
+    # 3. git global config
+    maid_id=$(git config --global maid.defaultAgent 2>/dev/null || true)
+fi
+
+# git worktree add を実行
+git worktree add "${git_args[@]}"
+
+# worktree のパスを git_args から解析する
+# git worktree add の構文: [-f] [-b <branch>] [-B <branch>] [--detach] [--checkout]
+#                           [--lock [--reason <str>]] [--guess-remote] <path> [<commit-ish>]
+# パスは最初の非オプション引数
+worktree_path=""
+skip_next=false
+
+for arg in "${git_args[@]}"; do
+    if $skip_next; then
+        skip_next=false
+        continue
+    fi
+    case "$arg" in
+        -b|-B|--reason)
+            skip_next=true
+            ;;
+        -f|--force|--detach|--checkout|--no-checkout|--lock|--guess-remote)
+            # 値を取らないフラグはスキップ
+            ;;
+        -*)
+            # 不明なオプションは値あり扱いでスキップ
+            skip_next=true
+            ;;
+        *)
+            if [[ -z "$worktree_path" ]]; then
+                worktree_path="$arg"
+            fi
+            # 2つ目の非オプション引数は <commit-ish>（無視）
+            ;;
+    esac
+done
+
+if [[ -z "$worktree_path" ]]; then
+    echo "⚠️  [maid-worktree-add]: worktree パスを特定できませんでした。" >&2
+    echo "   手動で設定してください: cd <worktree_path> && git config --worktree user.name <maid_id>" >&2
+    exit 0
+fi
+
+# 相対パスを絶対パスに変換
+if [[ "$worktree_path" != /* ]]; then
+    worktree_path="$(pwd)/${worktree_path}"
+fi
+
+# エージェント名未設定の場合は警告のみ（git worktree add はすでに完了済み）
+if [[ -z "$maid_id" ]]; then
+    echo "" >&2
+    echo "⚠️  [maid-worktree-add]: メイドIDを特定できませんでした。" >&2
+    echo "   worktree のコミット名義が共有 config を継承するため、誤帰属が発生する可能性があります。" >&2
+    echo "   手動設定: cd '${worktree_path}' && git config --worktree user.name <maid_id> && git config --worktree user.email <maid_id>@maid-agent.local" >&2
+    echo "   または: export MAID_AGENT_ID=<maid_id> を設定してから再実行してください。" >&2
+    echo "   グローバル既定値: git config --global maid.defaultAgent <maid_id>" >&2
+    echo "" >&2
+    exit 0
+fi
+
+maid_email="${maid_id}@maid-agent.local"
+
+# extensions.worktreeConfig を有効化（未設定リポジトリで git config --worktree が fatal になる問題を防止）
+if ! (cd "$worktree_path" && git config --get extensions.worktreeConfig &>/dev/null); then
+    (cd "$worktree_path" && git config extensions.worktreeConfig true) || true
+fi
+
+# worktree 内で git config --worktree を設定
+if (cd "$worktree_path" && git config --worktree user.name "$maid_id" && git config --worktree user.email "$maid_email"); then
+    echo "[maid-worktree-add]: 名義設定完了 — user.name='${maid_id}' user.email='${maid_email}'"
+else
+    echo "⚠️  [maid-worktree-add]: git config --worktree の設定に失敗しました。" >&2
+    echo "   手動設定: cd '${worktree_path}' && git config --worktree user.name '${maid_id}' && git config --worktree user.email '${maid_email}'" >&2
+fi

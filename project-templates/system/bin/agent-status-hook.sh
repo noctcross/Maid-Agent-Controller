@@ -28,15 +28,46 @@ MAID_YAML=$(grep -rl "session_id: ${SESSION_ID}" "${MAID_DIR}" 2>/dev/null | hea
 
 AGENT_ID=$(basename "$MAID_YAML" .yaml)
 
-# claude_status フィールドを更新（flock で maidctl との競合を防ぐ）
-(
-    flock -x 200
+# claude_status フィールドを更新（mkdir ロックで maidctl/proper-lockfile との競合を防ぐ）
+LOCK_DIR="${MAID_YAML}.lock"
+LOCK_STALE_SEC=10
+LOCK_WAIT_INTERVAL=0.1
+LOCK_MAX_ATTEMPTS=100
+
+acquire_mkdir_lock() {
+    local lockdir="$1"
+    local attempt=0
+    while ! mkdir "$lockdir" 2>/dev/null; do
+        if [ -d "$lockdir" ]; then
+            # ディレクトリ存在: stale チェック（proper-lockfile の stale=10秒と同期）
+            local mtime now age
+            mtime=$(stat -c %Y "$lockdir" 2>/dev/null || echo 0)
+            now=$(date +%s)
+            age=$(( now - mtime ))
+            if [ "$age" -gt "$LOCK_STALE_SEC" ]; then
+                rmdir "$lockdir" 2>/dev/null || true
+                continue
+            fi
+        elif [ -f "$lockdir" ]; then
+            # ファイル存在: 旧 flock 方式の残留ファイルを削除して再試行
+            rm -f "$lockdir" 2>/dev/null || true
+            continue
+        fi
+        sleep "$LOCK_WAIT_INTERVAL"
+        attempt=$(( attempt + 1 ))
+        [ "$attempt" -ge "$LOCK_MAX_ATTEMPTS" ] && return 1
+    done
+    return 0
+}
+
+if acquire_mkdir_lock "$LOCK_DIR"; then
     if grep -q "^claude_status:" "$MAID_YAML" 2>/dev/null; then
         sed -i "s/^claude_status:.*/claude_status: ${STATUS}/" "$MAID_YAML"
     else
         echo "claude_status: ${STATUS}" >> "$MAID_YAML"
     fi
-) 200>"${MAID_YAML}.lock"
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+fi
 
 # idle 遷移時: busy キューをフラッシュ
 if [ "$STATUS" = "idle" ]; then

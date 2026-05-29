@@ -90,6 +90,9 @@ while IFS= read -r line; do
     msg=$(echo "$line" | sed 's/^\[[^]]*\] [^:]*: //')
     [ -z "$msg" ] && continue
 
+    # \n エスケープを実改行に復元（maid-notify が改行入り notify を1行にエスケープして保存したもの）
+    msg="${msg//\\n/$'\n'}"
+
     if [ "$CHUNK_DONE" = "true" ]; then
         printf '%s\n' "$line" >> "$REMAINING_FILE"
         continue
@@ -103,6 +106,7 @@ while IFS= read -r line; do
     fi
 
     # 件数または文字数が上限に達したら、このメッセージ以降を残りに回す
+    # 1 notify は分割しない: 1件目が閾値を超えていても CHUNK が空なら必ず送る
     if [ -n "$CHUNK" ] && { [ "$CHUNK_MSGS" -ge "$BATCH_CHUNK_COUNT" ] || [ "$new_len" -gt "$BATCH_CHUNK_CHARS" ]; }; then
         CHUNK_DONE=true
         printf '%s\n' "$line" >> "$REMAINING_FILE"

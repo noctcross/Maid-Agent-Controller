@@ -67,6 +67,8 @@ if acquire_mkdir_lock "$LOCK_DIR"; then
         echo "claude_status: ${STATUS}" >> "$MAID_YAML"
     fi
     rmdir "$LOCK_DIR" 2>/dev/null || true
+else
+    echo "[agent-status-hook] ロック取得失敗: ${LOCK_DIR} (試行 ${LOCK_MAX_ATTEMPTS} 回超過)" >&2
 fi
 
 # idle 遷移時: busy キューをフラッシュ

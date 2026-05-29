@@ -144,8 +144,9 @@ screenshot:
 # 通知設定
 notify:
   # チャンク分割の上限（flush-notify-queue.sh が使用）
-  batch_chunk_count: 8    # 1チャンクあたりの最大メッセージ件数
-  batch_chunk_chars: 1000 # 1チャンクあたりの最大文字数
+  # notify 単位で数えるため件数は少なめ・文字数は send-keys 安全上限（~4KB）内で余裕を持って設定
+  batch_chunk_count: 5    # 1チャンクあたりの最大 notify 件数（旧: 8）
+  batch_chunk_chars: 3500 # 1チャンクあたりの最大文字数（旧: 1000 → 3500 に引き上げ・task-973）
 
 # ログ設定
 log:

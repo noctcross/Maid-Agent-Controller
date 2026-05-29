@@ -213,6 +213,7 @@ check_agent_busy() {
 }
 
 # ビジーキューにメッセージを追加（flock 排他・無制限 append）
+# 改行入りメッセージは \n にエスケープして1行に収める（1 notify = 1行 = notify 単位保証）
 enqueue_busy_message() {
     local target="$1"
     local message="$2"
@@ -223,9 +224,12 @@ enqueue_busy_message() {
     local queue_file="${QUEUE_DIR}/${target}.txt"
     local lock_file="${QUEUE_DIR}/${target}.lock"
 
+    # 改行を \n（リテラル）にエスケープして1行1エントリを保証（task-973）
+    local msg_escaped="${message//$'\n'/\\n}"
+
     (
         flock -x 9
-        echo "[${timestamp}] ${sender}: ${message}" >> "$queue_file"
+        echo "[${timestamp}] ${sender}: ${msg_escaped}" >> "$queue_file"
     ) 9>"$lock_file"
 }
 

@@ -121,7 +121,12 @@ fi
 
 maid_email="${maid_id}@maid-agent.local"
 
-# worktree 内で git config --worktree を設定（worktreeConfig=true が前提）
+# extensions.worktreeConfig を有効化（未設定リポジトリで git config --worktree が fatal になる問題を防止）
+if ! (cd "$worktree_path" && git config --get extensions.worktreeConfig &>/dev/null); then
+    (cd "$worktree_path" && git config extensions.worktreeConfig true) || true
+fi
+
+# worktree 内で git config --worktree を設定
 if (cd "$worktree_path" && git config --worktree user.name "$maid_id" && git config --worktree user.email "$maid_email"); then
     echo "[maid-worktree-add]: 名義設定完了 — user.name='${maid_id}' user.email='${maid_email}'"
 else

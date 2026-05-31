@@ -37,7 +37,8 @@ import type { MaidAgentSettings } from '../../utils/settings-loader.js';
 
 // watchdog.sh のパス（テストファイルから6階層上がって MaidsHouse ルートへ）
 // __dirname: packages/vscode/src/agents/__tests__
-const MAIDS_HOUSE_ROOT = path.resolve(__dirname, '../../../../../../');
+// MAIDS_HOUSE_ROOT 環境変数で上書き可能（git worktree からのテスト実行時に使用）
+const MAIDS_HOUSE_ROOT = process.env['MAIDS_HOUSE_ROOT'] ?? path.resolve(__dirname, '../../../../../../');
 const WATCHDOG_PATH = path.join(MAIDS_HOUSE_ROOT, '.maid-agent/system/bin/watchdog.sh');
 const REAL_MAID_AGENT_PATH = path.join(MAIDS_HOUSE_ROOT, '.maid-agent');
 
@@ -50,13 +51,15 @@ const REAL_MAID_AGENT_PATH = path.join(MAIDS_HOUSE_ROOT, '.maid-agent');
 
 /** 起動コマンドに含まれなければならない要素 */
 const LAUNCH_CMD_SPEC = {
-    /** 必須環境変数プレフィックス */
-    requiredEnvVarPrefix: 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1',
+    /** 必須環境変数プレフィックス（export 形式） */
+    requiredEnvVarPrefix: 'export CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1',
     /** Git Author/Committer 環境変数（agentId から導出） */
     gitAuthorEnvVar: (agentId: string) => `GIT_AUTHOR_NAME=${agentId}`,
-    gitAuthorEmailEnvVar: (agentId: string) => `GIT_AUTHOR_EMAIL=${agentId}@maidshouse.local`,
+    gitAuthorEmailEnvVar: (agentId: string) => `GIT_AUTHOR_EMAIL=${agentId}@maid-agent.local`,
     gitCommitterEnvVar: (agentId: string) => `GIT_COMMITTER_NAME=${agentId}`,
-    gitCommitterEmailEnvVar: (agentId: string) => `GIT_COMMITTER_EMAIL=${agentId}@maidshouse.local`,
+    gitCommitterEmailEnvVar: (agentId: string) => `GIT_COMMITTER_EMAIL=${agentId}@maid-agent.local`,
+    /** CODELODIS_AGENT_ID 環境変数（agentId と一致） */
+    codelodisAgentIdEnvVar: (agentId: string) => `CODELODIS_AGENT_ID=${agentId}`,
     /** 必須フラグ */
     requiredFlags: [
         '--dangerously-skip-permissions',
@@ -87,10 +90,11 @@ function buildTsLaunchCommand(
     const providerEnvVars = getProviderEnvVars(settings, agentId, role);
     const envVars = {
         CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+        CODELODIS_AGENT_ID: agentId,
         GIT_AUTHOR_NAME: agentId,
-        GIT_AUTHOR_EMAIL: `${agentId}@maidshouse.local`,
+        GIT_AUTHOR_EMAIL: `${agentId}@maid-agent.local`,
         GIT_COMMITTER_NAME: agentId,
-        GIT_COMMITTER_EMAIL: `${agentId}@maidshouse.local`,
+        GIT_COMMITTER_EMAIL: `${agentId}@maid-agent.local`,
         ...providerEnvVars,
     };
     return buildBashClaudeCommand(agentId, modelFlag, envVars, initialPrompt);
@@ -141,11 +145,11 @@ describe('launch command spec (TypeScript side)', () => {
         },
     };
 
-    it('CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 が先頭に含まれること', () => {
+    it('export CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 が先頭に含まれること', () => {
         const cmd = buildTsLaunchCommand(settings, 'luna', 'maid');
         expect(cmd).toContain(LAUNCH_CMD_SPEC.requiredEnvVarPrefix);
-        // 環境変数はコマンドの先頭に来ること
-        expect(cmd.indexOf('CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD')).toBeLessThan(
+        // export 文はコマンドの先頭に来ること
+        expect(cmd.indexOf('export CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD')).toBeLessThan(
             cmd.indexOf('claude '),
         );
     });
@@ -155,7 +159,7 @@ describe('launch command spec (TypeScript side)', () => {
         expect(cmd).toContain(LAUNCH_CMD_SPEC.gitAuthorEnvVar('luna'));
     });
 
-    it('GIT_AUTHOR_EMAIL が agentId@maidshouse.local で含まれること', () => {
+    it('GIT_AUTHOR_EMAIL が agentId@maid-agent.local で含まれること', () => {
         const cmd = buildTsLaunchCommand(settings, 'luna', 'maid');
         expect(cmd).toContain(LAUNCH_CMD_SPEC.gitAuthorEmailEnvVar('luna'));
     });
@@ -165,9 +169,14 @@ describe('launch command spec (TypeScript side)', () => {
         expect(cmd).toContain(LAUNCH_CMD_SPEC.gitCommitterEnvVar('luna'));
     });
 
-    it('GIT_COMMITTER_EMAIL が agentId@maidshouse.local で含まれること', () => {
+    it('GIT_COMMITTER_EMAIL が agentId@maid-agent.local で含まれること', () => {
         const cmd = buildTsLaunchCommand(settings, 'luna', 'maid');
         expect(cmd).toContain(LAUNCH_CMD_SPEC.gitCommitterEmailEnvVar('luna'));
+    });
+
+    it('CODELODIS_AGENT_ID が agentId で含まれること', () => {
+        const cmd = buildTsLaunchCommand(settings, 'luna', 'maid');
+        expect(cmd).toContain(LAUNCH_CMD_SPEC.codelodisAgentIdEnvVar('luna'));
     });
 
     it('agentId が変わると GIT 環境変数も変わること', () => {
@@ -263,7 +272,7 @@ model:
         }
     });
 
-    it('CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 が含まれること', () => {
+    it('export CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 が含まれること', () => {
         const cmd = getBashLaunchCommand('luna', tempSettingsPath);
         expect(cmd).toContain(LAUNCH_CMD_SPEC.requiredEnvVarPrefix);
     });
@@ -273,7 +282,7 @@ model:
         expect(cmd).toContain(LAUNCH_CMD_SPEC.gitAuthorEnvVar('luna'));
     });
 
-    it('GIT_AUTHOR_EMAIL が agentId@maidshouse.local で含まれること', () => {
+    it('GIT_AUTHOR_EMAIL が agentId@maid-agent.local で含まれること', () => {
         const cmd = getBashLaunchCommand('luna', tempSettingsPath);
         expect(cmd).toContain(LAUNCH_CMD_SPEC.gitAuthorEmailEnvVar('luna'));
     });
@@ -283,9 +292,14 @@ model:
         expect(cmd).toContain(LAUNCH_CMD_SPEC.gitCommitterEnvVar('luna'));
     });
 
-    it('GIT_COMMITTER_EMAIL が agentId@maidshouse.local で含まれること', () => {
+    it('GIT_COMMITTER_EMAIL が agentId@maid-agent.local で含まれること', () => {
         const cmd = getBashLaunchCommand('luna', tempSettingsPath);
         expect(cmd).toContain(LAUNCH_CMD_SPEC.gitCommitterEmailEnvVar('luna'));
+    });
+
+    it('CODELODIS_AGENT_ID が agentId で含まれること', () => {
+        const cmd = getBashLaunchCommand('luna', tempSettingsPath);
+        expect(cmd).toContain(LAUNCH_CMD_SPEC.codelodisAgentIdEnvVar('luna'));
     });
 
     it('--dangerously-skip-permissions が含まれること', () => {

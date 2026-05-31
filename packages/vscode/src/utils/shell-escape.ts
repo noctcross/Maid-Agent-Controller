@@ -84,7 +84,8 @@ export function quoteArg(value: string, shell: ShellType): string {
  * 環境変数をセットしてコマンドを実行する構文を構築
  *
  * シェルに応じた環境変数設定構文でコマンドをラップする。
- * - bash: `VAR1=value1 VAR2=value2 command`
+ * - bash: `export VAR1=value1 VAR2=value2 && command`
+ *   （export により bash セッション全体に継承され、再起動後も有効）
  * - powershell: `$env:VAR1 = 'value1'; $env:VAR2 = 'value2'; command`
  */
 export function buildCommandWithEnvVars(
@@ -109,7 +110,7 @@ export function buildCommandWithEnvVars(
             const envParts = entries
                 .map(([key, value]) => `${key}=${value}`)
                 .join(' ');
-            return `${envParts} ${command}`;
+            return `export ${envParts} && ${command}`;
         }
     }
 }

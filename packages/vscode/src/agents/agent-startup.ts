@@ -105,10 +105,11 @@ function buildClaudeCommand(
     const providerEnvVars = getProviderEnvVars(ctx.settings, agentId, role);
     const envVars = {
         CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+        CODELODIS_AGENT_ID: agentId,
         GIT_AUTHOR_NAME: agentId,
-        GIT_AUTHOR_EMAIL: `${agentId}@maidshouse.local`,
+        GIT_AUTHOR_EMAIL: `${agentId}@maid-agent.local`,
         GIT_COMMITTER_NAME: agentId,
-        GIT_COMMITTER_EMAIL: `${agentId}@maidshouse.local`,
+        GIT_COMMITTER_EMAIL: `${agentId}@maid-agent.local`,
         ...providerEnvVars,
     };
 

@@ -167,33 +167,29 @@ export async function startServerIn(env: ServerEnvironment, ctx?: SetupContext):
         return false;
     }
 
-    // Windows環境ではcwdオプションで作業ディレクトリを指定、それ以外はcdコマンドを使用
-    const startCmd = env === 'windows'
-        ? 'pm2 start ecosystem.config.cjs'
-        : `cd "${messengerPath}" && pm2 start ecosystem.config.cjs`;
-    const deleteAndStartCmd = env === 'windows'
-        ? `pm2 delete ${PM2_PROCESS_NAME} & pm2 start ecosystem.config.cjs`
-        : `pm2 delete ${PM2_PROCESS_NAME}; cd "${messengerPath}" && pm2 start ecosystem.config.cjs`;
     const execOpts = env === 'windows' ? { timeout: 30000, cwd: messengerPath } : { timeout: 30000 };
 
-    // 1回目: 通常の pm2 start
+    // 1回目: プロセス名指定で起動（PM2 登録済みの場合）
     try {
         log(`[Server] Starting server in ${env}...`);
-        const output = ENV.execInServerEnvironment(startCmd, env, execOpts);
+        const output = ENV.execInServerEnvironment(`pm2 start ${PM2_PROCESS_NAME}`, env, execOpts);
         log(`[Server] pm2 start output: ${output}`);
         log(`[Server] ${env}でサーバーを起動しました`);
         return true;
     } catch (firstError) {
         const firstMsg = firstError instanceof Error ? firstError.message : String(firstError);
-        log(`[Server] 1回目の起動失敗: ${firstMsg}`);
+        log(`[Server] プロセス名指定起動失敗（未登録の可能性）: ${firstMsg}`);
     }
 
-    // 2回目: pm2 delete → pm2 start（stale プロセス登録をクリア）
+    // 2回目: ecosystem.config.cjs 経由で登録・起動（初回 or 登録消失時のフォールバック）
+    const ecosystemCmd = env === 'windows'
+        ? 'pm2 start ecosystem.config.cjs'
+        : `cd "${messengerPath}" && pm2 start ecosystem.config.cjs`;
     try {
-        log(`[Server] pm2 delete → pm2 start でリトライ...`);
-        const output = ENV.execInServerEnvironment(deleteAndStartCmd, env, execOpts);
+        log(`[Server] ecosystem.config.cjs 経由でリトライ...`);
+        const output = ENV.execInServerEnvironment(ecosystemCmd, env, execOpts);
         log(`[Server] pm2 retry output: ${output}`);
-        log(`[Server] ${env}でサーバーを起動しました（リトライ成功）`);
+        log(`[Server] ${env}でサーバーを起動しました（ecosystem フォールバック）`);
         return true;
     } catch (retryError) {
         const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);

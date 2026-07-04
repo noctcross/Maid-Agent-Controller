@@ -227,6 +227,16 @@ export async function executeUpdateTask(projectPath, params) {
         if (params.escalation !== undefined) {
             task.escalation = params.escalation;
         }
+        if (params.checkpointPassAdd !== undefined) {
+            if (!task.checkpointPassed) {
+                task.checkpointPassed = [];
+            }
+            task.checkpointPassed.push({
+                timestamp: now,
+                summary: params.checkpointPassAdd.summary,
+                agentId: params.checkpointPassAdd.agentId,
+            });
+        }
         // 最終更新日時を自動設定
         task.updatedAt = now;
         const result = { success: true, task };

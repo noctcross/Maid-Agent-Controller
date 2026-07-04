@@ -90,7 +90,9 @@ export function createTaskApiRoutes(deps = {}) {
             // V2.1 拡張フィールド
             mainStatus, subStatus, type, size, tentative, blockedBy, artifacts, artifactAdd, reviewStatus, 
             // V2.1 追加フィールド
-            archived, actionRequired, } = req.body;
+            archived, actionRequired, 
+            // C-1: Type B（通過型チェックポイント）記録
+            checkpointPassAdd, } = req.body;
             if (description && typeof description === "string" && description.length > VALIDATION.MAX_DESCRIPTION_LENGTH) {
                 res.status(400).json({
                     error: `description が上限文字数（${VALIDATION.MAX_DESCRIPTION_LENGTH}文字）を超えています`,
@@ -120,6 +122,8 @@ export function createTaskApiRoutes(deps = {}) {
                 // V2.1 追加
                 archived,
                 actionRequired,
+                // C-1: Type B（通過型チェックポイント）記録
+                checkpointPassAdd,
             });
             if (!result.success) {
                 const errorMessage = result.error || "Task not found";

@@ -68,6 +68,7 @@ maidctl CLI v2.1.0 の詳細リファレンス。コマンド一覧、オプシ�
 |---------------|---------------|------|
 | `maidctl get my-task` | `my-task` | 自分のタスク取得 |
 | `maidctl set my-status STATUS` | `my-status` | ステータス更新（V2.1対応） |
+| `maidctl checkpoint pass --summary "..."` | （新規・旧なし） | Type B（通過型チェックポイント）記録（C-1・task-1454-1） |
 
 #### チーム状態・レポート
 
@@ -192,6 +193,23 @@ maidctl set my-status blocked --substatus waiting --blocked-by 310-1-1
 
 # 完了
 maidctl set my-status completed
+```
+
+#### Type A（停止型）vs Type B（通過型）チェックポイント
+
+| | Type A（停止型） | Type B（通過型） |
+|---|---|---|
+| コマンド | `maidctl set my-status blocked --substatus checkpoint --reason "..."` | `maidctl checkpoint pass --summary "..."` |
+| 状態遷移 | あり（`blocked`へ遷移し作業停止） | なし（作業を止めずに記録のみ） |
+| 用途 | 上位者の判断が出るまで作業を進められない場合 | 暫定判断で作業を継続しつつ、判断内容と根拠を事後確認用に記録したい場合 |
+| 記録先 | タスクの `escalation` フィールド | タスクの `checkpointPassed` 配列（追記型） |
+
+```bash
+# Type B: 作業を止めずに暫定判断を記録（対象は現在のmy-task）
+maidctl checkpoint pass --summary "暫定判断: 別リポジトリで実装のため所定のfeatureブランチ+PRフローで対応"
+
+# Type B: 対象タスクを明示
+maidctl checkpoint pass --summary "..." --task task-1454-1
 ```
 
 #### --action-required フラグ（set task / set my-status 共通）

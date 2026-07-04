@@ -127,6 +127,8 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       blockedBy, artifacts, artifactAdd, reviewStatus,
       // V2.1 追加フィールド
       archived, actionRequired,
+      // C-1: Type B（通過型チェックポイント）記録
+      checkpointPassAdd,
     } = req.body;
 
     if (description && typeof description === "string" && description.length > VALIDATION.MAX_DESCRIPTION_LENGTH) {
@@ -159,6 +161,8 @@ router.patch("/api/tasks/:id", async (req: Request, res: Response) => {
       // V2.1 追加
       archived,
       actionRequired,
+      // C-1: Type B（通過型チェックポイント）記録
+      checkpointPassAdd,
     });
 
     if (!result.success) {

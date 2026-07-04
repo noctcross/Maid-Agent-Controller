@@ -1355,6 +1355,95 @@ cmd_my_status() {
 }
 
 # =============================================================================
+# checkpoint サブコマンド（C-1: Type B 通過型チェックポイント記録）
+# =============================================================================
+#
+# set my-status --substatus checkpoint（Type A・停止型）とは概念が異なる。
+# Type A は状態遷移（blocked への遷移・上位者の判断待ちで停止）を伴うが、
+# Type B は状態遷移を伴わない「記録操作」のみ。作業を止めずに暫定判断の
+# 内容と根拠を記録し、事後確認待ちとして対象タスクに積む。
+
+cmd_checkpoint_pass() {
+  local agent_id=""
+  local summary=""
+  local task_id=""
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --summary|-m) summary="$2"; shift 2 ;;
+      --task) task_id="$2"; shift 2 ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl checkpoint pass --summary TEXT [オプション]"
+        echo ""
+        echo "Type B（通過型チェックポイント）を記録する。"
+        echo "set my-status --substatus checkpoint（Type A・停止型）とは異なり、"
+        echo "状態遷移を伴わない記録操作。作業を止めずに暫定判断を記録できる。"
+        echo ""
+        echo "オプション:"
+        echo "  --summary, -m TEXT  暫定判断の内容と根拠（必須）"
+        echo "  --task ID           対象タスクID（省略時は現在の my-task）"
+        echo "  --json              JSON出力"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        echo "エラー: 不明な引数: $1" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+    esac
+  done
+
+  if [ -z "$summary" ]; then
+    echo "エラー: --summary を指定してください" >&2
+    echo "使用法: maidctl checkpoint pass --summary TEXT [--task ID]" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # 記録者IDをtmux/psmuxウィンドウ名から自動取得
+  agent_id=$(get_agent_id_from_multiplexer) || {
+    echo "エラー: エージェントIDを取得できません（tmuxウィンドウ名からの自動取得に失敗しました）" >&2
+    exit $EXIT_INVALID_ARGS
+  }
+
+  # --task 省略時は現在の my-task の報告書から task_id を解決
+  if [ -z "$task_id" ]; then
+    local project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+    task_id=$(grep -m1 "task_id:" \
+      "$project_dir/.maid-agent/system/data/reports/current_${agent_id}.md" 2>/dev/null \
+      | sed 's/.*task_id: *//' | tr -d ' ')
+    if [ -z "$task_id" ]; then
+      echo "エラー: 対象タスクIDを解決できません。--task で明示してください" >&2
+      exit $EXIT_INVALID_ARGS
+    fi
+  fi
+
+  # "task-" プレフィックスを除去してAPIパスに使用
+  local task_id_num
+  task_id_num=$(echo "$task_id" | sed 's/^task-//')
+
+  local data
+  data=$(jq -n --arg s "$summary" --arg a "$agent_id" \
+    '{checkpointPassAdd: {summary: $s, agentId: $a}}')
+
+  local result
+  result=$(api_request PATCH "/api/tasks/${task_id_num}" "$data")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+  else
+    echo "通過型CP記録完了。事後確認待ちキューに追加しました。"
+    echo "  task: ${task_id}"
+    echo "  summary: ${summary}"
+  fi
+}
+
+# =============================================================================
 # team サブコマンド
 # =============================================================================
 
@@ -2194,6 +2283,32 @@ main() {
         *)
           echo "エラー: 不明な対象: $1"
           echo "使用法: maidctl run <migrate>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+      esac
+      ;;
+    checkpoint)
+      shift
+      case "${1:-}" in
+        pass) shift; cmd_checkpoint_pass "$@" ;;
+        --help|-h)
+          echo "使用法: maidctl checkpoint <サブコマンド> [オプション]"
+          echo ""
+          echo "サブコマンド:"
+          echo "  pass  Type B（通過型チェックポイント）を記録"
+          echo ""
+          echo "オプション（pass）:"
+          echo "  --summary, -m TEXT  暫定判断の内容と根拠（必須）"
+          echo "  --task ID           対象タスクID（省略時は現在の my-task）"
+          ;;
+        "")
+          echo "エラー: サブコマンドを指定してください"
+          echo "使用法: maidctl checkpoint <pass>"
+          exit $EXIT_INVALID_ARGS
+          ;;
+        *)
+          echo "エラー: 不明なサブコマンド: $1"
+          echo "使用法: maidctl checkpoint <pass>"
           exit $EXIT_INVALID_ARGS
           ;;
       esac

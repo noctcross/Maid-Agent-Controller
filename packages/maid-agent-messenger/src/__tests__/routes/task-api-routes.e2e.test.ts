@@ -242,6 +242,25 @@ describe("PATCH /api/tasks/:id", () => {
 
     expect(res.body.error).toBe("Task update failed");
   });
+
+  it("checkpointPassAdd を executeUpdateTask に転送する（C-1）", async () => {
+    const updatedTask = createMockTask({ id: "1454", status: "working" });
+    mockExecuteUpdateTask.mockResolvedValue({ success: true, task: updatedTask });
+
+    const res = await supertest(app)
+      .patch("/api/tasks/1454")
+      .send({ checkpointPassAdd: { summary: "暫定判断: dev直接で続行", agentId: "rose" } })
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(mockExecuteUpdateTask).toHaveBeenCalledWith(
+      TEST_PROJECT_PATH,
+      expect.objectContaining({
+        taskId: "1454",
+        checkpointPassAdd: { summary: "暫定判断: dev直接で続行", agentId: "rose" },
+      }),
+    );
+  });
 });
 
 // ===========================================

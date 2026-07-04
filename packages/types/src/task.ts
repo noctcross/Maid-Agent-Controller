@@ -61,6 +61,13 @@ export interface EscalationInfo {
   detail?: string; // 詳細・背景（省略可）
 }
 
+// C-1: Type B（通過型チェックポイント）記録エントリ
+export interface CheckpointPassEntry {
+  timestamp: string; // 記録日時
+  summary: string; // 暫定判断の内容と根拠
+  agentId: string; // 記録したエージェントID
+}
+
 export type TaskCategory = "task" | "skill_candidate" | "improvement";
 
 export interface Assignee {
@@ -109,6 +116,9 @@ export interface Task {
 
   // === V2.1: エスカレーション情報 ===
   escalation?: EscalationInfo; // エスカレーション情報（checkpoint時）
+
+  // === C-1: Type B（通過型チェックポイント）記録 ===
+  checkpointPassed?: CheckpointPassEntry[]; // 通過型チェックポイントの記録一覧
 }
 
 /**
@@ -163,6 +173,9 @@ export interface UpdateTaskParams {
 
   // === V2.1: エスカレーション情報 ===
   escalation?: EscalationInfo; // エスカレーション情報（checkpoint時）
+
+  // === C-1: Type B（通過型チェックポイント）記録 ===
+  checkpointPassAdd?: { summary: string; agentId: string }; // 通過型チェックポイント記録追加（timestampはサーバー側で付与）
 }
 
 export interface SideEffectResults {

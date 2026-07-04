@@ -331,8 +331,8 @@ describe("executeAssignTask - force フラグ", () => {
     expect(mockedExecuteUpdateTask).toHaveBeenCalled();
   });
 
-  it("executeGetTask がタスクを見つけられない場合、正常に割り当てできる", async () => {
-    // Arrange: タスクが見つからない
+  it("未 create の subtask ID を assign しようとした場合、拒否してエラーを返す（Q-5-3）", async () => {
+    // Arrange: タスクが tasks.yaml に存在しない（create task されていない）
     mockedExecuteGetTask.mockResolvedValue({
       task: null,
     });
@@ -340,9 +340,55 @@ describe("executeAssignTask - force フラグ", () => {
     // Act: assign を実行
     const result = await executeAssignTask(baseParams);
 
-    // Assert: 成功（新規タスクとして扱う）
+    // Assert: 拒否・具体的なガイダンス付きエラー・executeUpdateTask は呼ばれない
+    expect(result.success).toBe(false);
+    expect(result.error).toContain(baseParams.taskId);
+    expect(result.error).toContain("create task");
+    expect(mockedExecuteUpdateTask).not.toHaveBeenCalled();
+  });
+
+  it("既に completed のタスクへ再アサインしようとした場合、警告付きで成功する（前タスクID流用疑い・Q-5-3）", async () => {
+    // Arrange: タスクは存在するが既に completed（前タスクIDの流用が疑われる状態）
+    mockedExecuteGetTask.mockResolvedValue({
+      task: {
+        id: "072",
+        parentId: null,
+        title: "テストタスク",
+        description: "",
+        priority: "medium" as const,
+        status: "completed" as const,
+        substatus: null,
+        category: "task" as const,
+        assignees: [],
+        createdAt: "2026-02-06T00:00:00Z",
+        updatedAt: "2026-02-06T00:00:00Z",
+        assignedAt: null,
+        startedAt: null,
+        completedAt: "2026-02-06T00:00:00Z",
+        reportPaths: [],
+        summary: null,
+      },
+    });
+
+    // Act: assign を実行（ブロックはしない・警告のみ）
+    const result = await executeAssignTask(baseParams);
+
+    // Assert: 成功しつつ warning が返る
     expect(result.success).toBe(true);
     expect(mockedExecuteUpdateTask).toHaveBeenCalled();
+    expect(result.warning).toBeDefined();
+    expect(result.warning).toContain(baseParams.taskId);
+  });
+
+  it("pending 状態のタスクへの通常アサインでは warning が出ない", async () => {
+    // Arrange: デフォルトモック（status: pending）
+
+    // Act
+    const result = await executeAssignTask(baseParams);
+
+    // Assert: warning フィールドが設定されない
+    expect(result.success).toBe(true);
+    expect(result.warning).toBeUndefined();
   });
 
   it("force=true + 既存 assignees なしの場合、正常に成功する", async () => {

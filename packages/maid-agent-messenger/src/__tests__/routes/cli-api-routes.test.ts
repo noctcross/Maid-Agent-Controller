@@ -161,6 +161,38 @@ describe("POST /api/tasks/:id/assign", () => {
 
     expect(res.body.error).toContain("作業中");
   });
+
+  it("warning がある場合、レスポンスに含める（Q-5-3・前タスクID流用警告）", async () => {
+    mockExecuteAssignTask.mockResolvedValue({
+      success: true,
+      task_id: "100",
+      assigned_to: "emma",
+      warning: "タスク #100 は既に completed です。前タスクIDの流用ではないか確認してください。",
+    });
+
+    const res = await supertest(app)
+      .post("/api/tasks/100/assign")
+      .send({ targetAgent: "emma" })
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.warning).toContain("流用");
+  });
+
+  it("warning がない場合、レスポンスに warning フィールドを含めない", async () => {
+    mockExecuteAssignTask.mockResolvedValue({
+      success: true,
+      task_id: "100",
+      assigned_to: "emma",
+    });
+
+    const res = await supertest(app)
+      .post("/api/tasks/100/assign")
+      .send({ targetAgent: "emma" })
+      .expect(200);
+
+    expect(res.body.warning).toBeUndefined();
+  });
 });
 
 // ===========================================

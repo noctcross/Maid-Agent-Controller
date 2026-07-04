@@ -56,8 +56,25 @@ export async function executeAssignTask(
   const projectPath = path.resolve(queueMaidPath, "..", "..", "..", "..");
   const taskIdNormalized = normalizeTaskId(taskId);
 
-  // 既存 assignees チェック
+  // 存在チェック: 未 create の subtask ID を拒否（subtask-creation-rule.md 機械強制化・Q-5-3）
   const taskResult = await executeGetTask(projectPath, { taskId: taskIdNormalized });
+  if (!taskResult.task) {
+    return {
+      success: false,
+      assigned_to: targetAgent,
+      task_id: taskId,
+      error: `タスク #${taskId} が見つかりません。先に maidctl create task --parent で作成してください。`,
+    };
+  }
+
+  // 前タスクID流用警告: 既に completed のタスクへの再アサインは、
+  // 新規サブタスクを create せず古い ID を使い回した可能性がある（subtask-creation-rule.md 想定事故）
+  let warning: string | undefined;
+  if (taskResult.task.status === "completed") {
+    warning = `タスク #${taskId} は既に completed です。前タスクIDの流用ではないか確認してください（新規サブタスクは maidctl create task --parent で作成）。`;
+  }
+
+  // 既存 assignees チェック
   if (taskResult.task && taskResult.task.assignees && taskResult.task.assignees.length > 0) {
     if (!force) {
       const existingAgents = taskResult.task.assignees.map(a => a.agentId).join(", ");
@@ -104,5 +121,6 @@ export async function executeAssignTask(
     success: true,
     assigned_to: targetAgent,
     task_id: taskId,
+    warning,
   };
 }

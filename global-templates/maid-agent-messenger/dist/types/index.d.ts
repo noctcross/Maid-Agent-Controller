@@ -133,6 +133,8 @@ export interface AssignTaskOutput {
     assigned_to: string;
     task_id: string;
     error?: string;
+    /** タスクは存在するが前タスクIDの流用が疑われる場合の警告（成功はする） */
+    warning?: string;
 }
 export interface AgentStatus {
     id: string;

@@ -978,6 +978,12 @@ cmd_task_assign() {
     echo "$result"
   else
     echo "タスク #$task_id を $target_agent に割り当てました"
+    # Q-5-3: 前タスクID流用警告（既に completed のタスクへの再アサイン等）
+    if check_jq; then
+      local warning
+      warning=$(echo "$result" | jq -r '.warning // empty' 2>/dev/null)
+      [ -n "$warning" ] && echo "⚠️  $warning" >&2
+    fi
   fi
 }
 

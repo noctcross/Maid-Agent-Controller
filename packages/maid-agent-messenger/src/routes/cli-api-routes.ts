@@ -179,6 +179,7 @@ router.post("/api/tasks/:id/assign", async (req: Request, res: Response) => {
         task_id: result.task_id,
         assigned_to: result.assigned_to,
       },
+      ...(result.warning ? { warning: result.warning } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

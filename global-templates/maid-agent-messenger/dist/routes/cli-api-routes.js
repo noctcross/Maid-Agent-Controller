@@ -150,6 +150,7 @@ export function createCliApiRoutes(deps = {}) {
                     task_id: result.task_id,
                     assigned_to: result.assigned_to,
                 },
+                ...(result.warning ? { warning: result.warning } : {}),
             });
         }
         catch (error) {

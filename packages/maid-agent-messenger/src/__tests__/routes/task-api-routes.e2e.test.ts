@@ -145,6 +145,39 @@ describe("GET /api/tasks", () => {
     );
   });
 
+  it("actionRequired=trueフィルタを正しくパースする（task-1494-3改善提案）", async () => {
+    mockExecuteListTasks.mockResolvedValue(createMockListResponse());
+
+    await supertest(app).get("/api/tasks?actionRequired=true").expect(200);
+
+    expect(mockExecuteListTasks).toHaveBeenCalledWith(
+      TEST_PROJECT_PATH,
+      expect.objectContaining({ actionRequired: true }),
+    );
+  });
+
+  it("actionRequired=falseフィルタを正しくパースする", async () => {
+    mockExecuteListTasks.mockResolvedValue(createMockListResponse());
+
+    await supertest(app).get("/api/tasks?actionRequired=false").expect(200);
+
+    expect(mockExecuteListTasks).toHaveBeenCalledWith(
+      TEST_PROJECT_PATH,
+      expect.objectContaining({ actionRequired: false }),
+    );
+  });
+
+  it("actionRequired未指定時はフィルタを渡さない", async () => {
+    mockExecuteListTasks.mockResolvedValue(createMockListResponse());
+
+    await supertest(app).get("/api/tasks").expect(200);
+
+    expect(mockExecuteListTasks).toHaveBeenCalledWith(
+      TEST_PROJECT_PATH,
+      expect.not.objectContaining({ actionRequired: expect.anything() }),
+    );
+  });
+
   it("サービスエラー時に500を返す", async () => {
     mockExecuteListTasks.mockRejectedValue(new Error("DB error"));
 

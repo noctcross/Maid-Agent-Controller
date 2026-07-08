@@ -49,6 +49,7 @@ router.get("/api/tasks", async (req: Request, res: Response) => {
       sortField?: "createdAt" | "priority" | "status" | "id";
       sortOrder?: "asc" | "desc";
       summaryOnly?: boolean;
+      actionRequired?: boolean;
     } = {};
 
     if (req.query.status) {
@@ -78,6 +79,9 @@ router.get("/api/tasks", async (req: Request, res: Response) => {
     }
     if (req.query.summary === "true") {
       filter.summaryOnly = true;
+    }
+    if (req.query.actionRequired !== undefined) {
+      filter.actionRequired = req.query.actionRequired === "true";
     }
 
     const result = await executeListTasks(projectPath, filter);
@@ -257,7 +261,7 @@ router.post("/api/tasks/:id/rearchive", async (req: Request, res: Response) => {
     // 対象エージェントを特定
     const targetAgentIds = agentId
       ? [agentId]
-      : task.assignees.map((a) => a.agentId);
+      : task.assignees.map((a: { agentId: string }) => a.agentId);
 
     for (const agent of targetAgentIds) {
       const result = await archiveReport(

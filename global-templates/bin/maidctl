@@ -432,6 +432,7 @@ cmd_task_list() {
       --assignee) query="${query}&assignee=$2"; shift 2 ;;
       --parent) query="${query}&parentId=$2"; shift 2 ;;
       --limit) query="${query}&limit=$2"; shift 2 ;;
+      --action-required) query="${query}&actionRequired=true"; shift ;;
       --summary) summary=true; shift ;;
       --json) json_output=true; shift ;;
       --help|-h)
@@ -442,11 +443,16 @@ cmd_task_list() {
         echo "  --assignee AGENT  担当者でフィルタ"
         echo "  --parent ID       親タスクIDでフィルタ"
         echo "  --limit N         取得件数上限"
+        echo "  --action-required 要対応(🚨)フラグが立っているタスクのみ"
         echo "  --summary         軽量版レスポンス"
         echo "  --json            JSON出力"
         return 0
         ;;
-      *) shift ;;
+      *)
+        echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
     esac
   done
 

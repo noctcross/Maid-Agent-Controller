@@ -34,8 +34,11 @@ maidctl の各コマンドで使用できるオプションの詳細リファレ
 | `--parent ID` | | 親タスクIDフィルタ | `--parent 077` |
 | `--category CAT` | `-c` | カテゴリフィルタ | `--category skill_candidate` |
 | `--limit N` | `-l` | 取得件数上限 | `--limit 10` |
+| `--action-required` | | 要対応(🚨)フラグが立っているタスクのみに絞り込む（task-1495-1で追加） | `--action-required` |
 | `--summary` | `-m` | 軽量版 | - |
 | `--json` | | JSON出力 | - |
+
+> ⚠️ 未知のオプションを指定した場合はエラー終了する（`エラー: 不明なオプション: --xxx`）。以前はサイレントに無視され「フィルタなし全件」が返っていた（task-1494-3 参照）。
 
 ---
 

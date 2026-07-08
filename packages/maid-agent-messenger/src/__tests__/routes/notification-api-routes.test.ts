@@ -1,12 +1,19 @@
 /**
  * notification-api-routes テスト
  * POST /api/notifications エンドポイントのユニットテスト
+ *
+ * task-1495-3: sendToAgent() が child_process.exec 経由で本物の `maidctl notify` を
+ * 子プロセス実行しており、モック化されていなかったため npm test のたびに全エージェントへ
+ * 実通知がブロードキャストされる事故が発生していた。util.promisify.custom を使い、
+ * exec を完全にスタブ化することで実プロセス起動を排除する（live-service-isolated-testing
+ * スキルの原則: 稼働中サービスに実際のコマンドを到達させない）。
  */
 
 import { jest, describe, it, expect, beforeEach, afterAll } from "@jest/globals";
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs/promises";
+import { promisify } from "util";
 
 // テスト用の一時ディレクトリ
 const TEST_PROJECT_PATH = path.join(os.tmpdir(), "test-notification-api");
@@ -15,7 +22,19 @@ const HISTORY_LOG_PATH = path.join(
   ".maid-agent/system/data/notifications/history.log"
 );
 
-// ルーターをダイナミックインポート
+// --- child_process.exec のスタブ化 ---
+// sendToAgent() は `promisify(exec)` を使うため、util.promisify.custom を実装した
+// スタブに差し替える（Node組み込みのexecも同様にpromisify.customを実装しており、
+// これがないと promisify() が「コールバック形式」とみなし実引数がズレて壊れる）。
+const mockExecImpl = jest.fn<(command: string, options?: unknown) => Promise<{ stdout: string; stderr: string }>>();
+const mockExec = jest.fn() as unknown as { [key: symbol]: typeof mockExecImpl };
+mockExec[promisify.custom] = mockExecImpl;
+
+jest.unstable_mockModule("child_process", () => ({
+  exec: mockExec,
+}));
+
+// ルーターをダイナミックインポート（モック定義の後に行うこと）
 const notificationApiRoutes = (await import("../../routes/notification-api-routes.js")).default;
 
 // Express req/res モック
@@ -60,6 +79,10 @@ describe("POST /api/notifications", () => {
       // 存在しない場合は無視
     }
     await fs.mkdir(path.dirname(HISTORY_LOG_PATH), { recursive: true });
+
+    // exec モックをリセットし、デフォルトは成功（本物のプロセスは一切起動しない）
+    mockExecImpl.mockReset();
+    mockExecImpl.mockResolvedValue({ stdout: "", stderr: "" });
   });
 
   afterAll(async () => {
@@ -116,7 +139,7 @@ describe("POST /api/notifications", () => {
     );
   });
 
-  it("有効なリクエストでhistory.logに追記される", async () => {
+  it("有効なリクエストで通知コマンドが実行される（実プロセスは起動しない）", async () => {
     const { req, res } = createMockReqRes(
       { project: TEST_PROJECT_PATH },
       { to: "chief", message: "テストメッセージ" }
@@ -135,12 +158,36 @@ describe("POST /api/notifications", () => {
       })
     );
 
-    // ファイルに追記されていることを確認
+    // 実プロセスではなくモックされた exec が、期待どおりのコマンドで呼ばれたことを確認する
+    expect(mockExecImpl).toHaveBeenCalledTimes(1);
+    const [command, options] = mockExecImpl.mock.calls[0] as [string, { cwd?: string }];
+    expect(command).toBe('maidctl notify --from master chief "テストメッセージ"');
+    expect(options).toEqual(expect.objectContaining({ cwd: TEST_PROJECT_PATH }));
+  });
+
+  it("通知コマンドが失敗した場合、history.logへフォールバック書き込みされ失敗レスポンスを返す", async () => {
+    mockExecImpl.mockRejectedValueOnce(new Error("maidctl: command not found"));
+
+    const { req, res } = createMockReqRes(
+      { project: TEST_PROJECT_PATH },
+      { to: "chief", message: "テストメッセージ" }
+    );
+    await postHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: "Failed to send message to agent: chief",
+      })
+    );
+
+    // フォールバックとしてローカルのhistory.logに追記されていることを確認
     const content = await fs.readFile(HISTORY_LOG_PATH, "utf-8");
     expect(content).toContain("master → chief: テストメッセージ");
   });
 
-  it("複数のターゲットに送信できる", async () => {
+  it("複数のターゲットに送信できる（実プロセスは一度も起動しない）", async () => {
     const validTargets = ["butler", "chief", "emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"];
 
     for (const target of validTargets) {
@@ -157,6 +204,13 @@ describe("POST /api/notifications", () => {
           }),
         })
       );
+    }
+
+    // 10ターゲット分すべてモックのexecが呼ばれ、本物のプロセスは一切起動していないことを確認
+    expect(mockExecImpl).toHaveBeenCalledTimes(validTargets.length);
+    for (const call of mockExecImpl.mock.calls) {
+      const [command] = call as [string];
+      expect(command).toMatch(/^maidctl notify --from master \w+ "Message to \w+"$/);
     }
   });
 

@@ -334,15 +334,32 @@ MESSAGE="$2"
 validate_target "$TARGET" || exit 1
 
 # 送信者を特定
+# 解決順序（task-1513-1で見直し）:
+#   1. --from 明示指定
+#   2. CODELODIS_AGENT_ID 環境変数（Claude Codeプロセス起動時にVSCode拡張がexportする値。
+#      tmuxウィンドウ名より信頼性が高い一次情報。butler/chief/メイドいずれのセッションにも
+#      設定される。tmuxサーバの一時的な不調・pane再生成等でtmux display-messageが失敗した
+#      場合でも影響を受けない）
+#   3. tmux/psmuxウィンドウ名（フォールバック。マルチプレクサ種別に応じたペイン変数を使用）
+#   4. unknown（解決不能時）
 if [ -n "$EXPLICIT_SENDER" ]; then
-    # --from で明示的に指定された場合
     SENDER="$EXPLICIT_SENDER"
-elif [ -n "$TMUX_PANE" ]; then
-    # tmux/psmux内から実行された場合
-    SENDER=$($MUX_CMD display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || echo "unknown")
+elif [ -n "${CODELODIS_AGENT_ID:-}" ]; then
+    SENDER="$CODELODIS_AGENT_ID"
 else
-    # それ以外は unknown
-    SENDER="unknown"
+    # マルチプレクサ種別に応じたペイン変数を選択（$MUX_CMDと不整合だとpsmux環境で
+    # 常にunknown化するため、get_agent_id_from_multiplexer と同じ分岐を踏襲する）
+    case "$MUX_CMD" in
+        psmux) mux_pane_var="${PSMUX_PANE:-}" ;;
+        tmux)  mux_pane_var="${TMUX_PANE:-}" ;;
+        *)     mux_pane_var="" ;;
+    esac
+
+    if [ -n "$mux_pane_var" ]; then
+        SENDER=$($MUX_CMD display-message -p -t "$mux_pane_var" '#{window_name}' 2>/dev/null || echo "unknown")
+    else
+        SENDER="unknown"
+    fi
 fi
 
 # タイムスタンプを取得

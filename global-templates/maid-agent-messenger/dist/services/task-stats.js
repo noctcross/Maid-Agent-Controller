@@ -244,7 +244,7 @@ export async function generateDashboardData(projectPath, options = {}) {
             const v2Steps = phaseActions.map((action) => {
                 const actionStatus = convertStatus(action);
                 return {
-                    id: action.id,
+                    id: String(action.id),
                     title: action.title || `Step #${action.id}`,
                     description: action.description,
                     type: "step",
@@ -256,7 +256,7 @@ export async function generateDashboardData(projectPath, options = {}) {
                 };
             });
             return {
-                id: phase.id,
+                id: String(phase.id),
                 title: phase.title || `Work #${phase.id}`,
                 description: phase.description,
                 type: "work",
@@ -279,7 +279,7 @@ export async function generateDashboardData(projectPath, options = {}) {
             ? allUpdates.sort().pop()
             : goal.updatedAt;
         return {
-            id: goal.id,
+            id: String(goal.id),
             title: goal.title || `Task #${goal.id}`,
             description: goal.description,
             type: "task",
@@ -324,7 +324,7 @@ export async function generateDashboardData(projectPath, options = {}) {
         return bTime.localeCompare(aTime);
     })
         .map((task) => ({
-        id: task.id,
+        id: String(task.id),
         title: task.title,
         type: inferTaskType(task),
         reviewStatus: task.reviewStatus || "pending",
@@ -341,7 +341,7 @@ export async function generateDashboardData(projectPath, options = {}) {
                     path: artifact.path,
                     type: artifact.type || "default",
                     retention: artifact.retention || "L1",
-                    taskId: task.id,
+                    taskId: String(task.id),
                     createdAt: task.createdAt, // TaskArtifact には createdAt がないので task から取得
                 });
             }

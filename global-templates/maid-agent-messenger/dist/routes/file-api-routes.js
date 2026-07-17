@@ -217,6 +217,7 @@ router.get("/api/files/content", async (req, res) => {
         // ファイル読み込み
         const content = await fs.readFile(validation.resolvedPath, "utf-8");
         const isMarkdown = /\.(md|markdown)$/i.test(fileName);
+        const isHtml = /\.html?$/i.test(fileName);
         // Markdown → HTML変換（パスリンク化適用）
         let htmlContent;
         if (isMarkdown) {
@@ -233,6 +234,7 @@ router.get("/api/files/content", async (req, res) => {
             size: stats.size,
             modifiedAt: stats.mtime.toISOString(),
             isMarkdown,
+            isHtml,
             htmlContent,
             agentId,
         });

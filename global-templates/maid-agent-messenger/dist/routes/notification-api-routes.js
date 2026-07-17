@@ -145,7 +145,11 @@ router.get("/api/notifications", async (req, res) => {
  * 単一エージェントにメッセージを送信
  */
 async function sendToAgent(projectPath, target, message, historyPath) {
-    const escapedMessage = message.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    const escapedMessage = message
+        .replace(/\\/g, '\\\\') // \ → \\ （最初に処理）
+        .replace(/"/g, '\\"') // " → \"
+        .replace(/\$/g, '\\$') // $ → \$
+        .replace(/`/g, '\\`'); // ` → \`
     const isSlashCommand = message.startsWith('/');
     const command = isSlashCommand
         ? `maidctl notify --from master --no-prefix ${target} "${escapedMessage}"`
@@ -225,7 +229,12 @@ router.post("/api/notifications", async (req, res) => {
             return;
         }
         // 個別エージェントへの送信
-        await sendToAgent(projectPath, to, message, historyPath);
+        const sendResult = await sendToAgent(projectPath, to, message, historyPath);
+        if (sendResult === false) {
+            logger.error(`Failed to send message to agent: ${to}`);
+            res.status(500).json({ success: false, error: `Failed to send message to agent: ${to}` });
+            return;
+        }
         // レスポンス生成（タイムスタンプは現在時刻で）
         const now = new Date();
         const jstOffset = 9 * 60 * 60 * 1000;

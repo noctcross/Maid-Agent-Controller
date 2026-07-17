@@ -49,6 +49,9 @@ export function createTaskApiRoutes(deps = {}) {
             if (req.query.summary === "true") {
                 filter.summaryOnly = true;
             }
+            if (req.query.actionRequired !== undefined) {
+                filter.actionRequired = req.query.actionRequired === "true";
+            }
             const result = await executeListTasks(projectPath, filter);
             res.json(result);
         }

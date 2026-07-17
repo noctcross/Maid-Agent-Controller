@@ -120,6 +120,38 @@ describe("executeUpdateTask - checkpointPassAdd（C-1）", () => {
     ]);
   });
 
+  // task-1637-9 (W-CP): 検討選択肢の記録（変更モーダルでのボタン化に利用予定・W-B1）
+  it("options を指定すると checkpointPassed エントリに options 配列が含まれる", async () => {
+    const result = await executeUpdateTask(PROJECT_PATH, {
+      taskId: "task-1454-1",
+      checkpointPassAdd: {
+        summary: "暫定判断: A案を採用",
+        agentId: "rose",
+        options: ["A案", "B案"],
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.task?.checkpointPassed).toEqual([
+      {
+        timestamp: "2026-07-04T13:00:00+09:00",
+        summary: "暫定判断: A案を採用",
+        agentId: "rose",
+        options: ["A案", "B案"],
+      },
+    ]);
+  });
+
+  it("options を指定しない場合はエントリに options キーを含めない（後方互換）", async () => {
+    const result = await executeUpdateTask(PROJECT_PATH, {
+      taskId: "task-1454-1",
+      checkpointPassAdd: { summary: "暫定判断: dev直接で続行", agentId: "rose" },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.task?.checkpointPassed?.[0]).not.toHaveProperty("options");
+  });
+
   it("checkpointPassAdd を指定しない通常更新では checkpointPassed を変更しない", async () => {
     mockWithTasksLock.mockImplementation(async (_projectPath: string, operation: any) => {
       const data = createMockTasksData({

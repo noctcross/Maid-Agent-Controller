@@ -1379,12 +1379,14 @@ cmd_checkpoint_pass() {
   local agent_id=""
   local summary=""
   local task_id=""
+  local options=""
   local json_output=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --summary|-m) summary="$2"; shift 2 ;;
       --task) task_id="$2"; shift 2 ;;
+      --options) options="$2"; shift 2 ;;
       --json) json_output=true; shift ;;
       --help|-h)
         echo "使用法: maidctl checkpoint pass --summary TEXT [オプション]"
@@ -1396,6 +1398,7 @@ cmd_checkpoint_pass() {
         echo "オプション:"
         echo "  --summary, -m TEXT  暫定判断の内容と根拠（必須）"
         echo "  --task ID           対象タスクID（省略時は現在の my-task）"
+        echo "  --options TEXT      検討した選択肢をカンマ区切りで記録（任意。例: \"A案,B案\"）"
         echo "  --json              JSON出力"
         return 0
         ;;
@@ -1439,9 +1442,17 @@ cmd_checkpoint_pass() {
   local task_id_num
   task_id_num=$(echo "$task_id" | sed 's/^task-//')
 
+  # --options はカンマ区切り文字列をJSON配列に変換する（各要素の前後空白はトリム）。
+  # 省略時（空文字）は checkpointPassAdd に options キー自体を含めない（後方互換）。
   local data
-  data=$(jq -n --arg s "$summary" --arg a "$agent_id" \
-    '{checkpointPassAdd: {summary: $s, agentId: $a}}')
+  data=$(jq -n --arg s "$summary" --arg a "$agent_id" --arg o "$options" \
+    '{checkpointPassAdd: ({summary: $s, agentId: $a} + (
+      if $o != "" then
+        {options: ($o | split(",") | map(gsub("^\\s+|\\s+$"; "")))}
+      else
+        {}
+      end
+    ))}')
 
   local result
   result=$(api_request PATCH "/api/tasks/${task_id_num}" "$data")

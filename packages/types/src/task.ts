@@ -66,6 +66,9 @@ export interface CheckpointPassEntry {
   timestamp: string; // 記録日時
   summary: string; // 暫定判断の内容と根拠
   agentId: string; // 記録したエージェントID
+  // task-1637-9 (W-CP): 検討した選択肢（省略可）。CodeLodis側「判断変更」モーダルで
+  // ボタン化して提示するために使う（W-B1）。省略時はエントリにキー自体を含めない。
+  options?: string[];
 }
 
 export type TaskCategory = "task" | "skill_candidate" | "improvement";
@@ -175,7 +178,7 @@ export interface UpdateTaskParams {
   escalation?: EscalationInfo; // エスカレーション情報（checkpoint時）
 
   // === C-1: Type B（通過型チェックポイント）記録 ===
-  checkpointPassAdd?: { summary: string; agentId: string }; // 通過型チェックポイント記録追加（timestampはサーバー側で付与）
+  checkpointPassAdd?: { summary: string; agentId: string; options?: string[] }; // 通過型チェックポイント記録追加（timestampはサーバー側で付与）
 }
 
 export interface SideEffectResults {

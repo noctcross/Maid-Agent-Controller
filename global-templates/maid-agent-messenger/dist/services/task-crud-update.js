@@ -235,6 +235,10 @@ export async function executeUpdateTask(projectPath, params) {
                 timestamp: now,
                 summary: params.checkpointPassAdd.summary,
                 agentId: params.checkpointPassAdd.agentId,
+                // task-1637-9 (W-CP): options 省略時はキー自体を含めない（後方互換維持）
+                ...(params.checkpointPassAdd.options !== undefined
+                    ? { options: params.checkpointPassAdd.options }
+                    : {}),
             });
         }
         // 最終更新日時を自動設定

@@ -163,6 +163,41 @@ STUB_AGENT_ID="alice"
 rm -f "${REPORT_DIR}/current_alice.md"
 assert_exit_invalid_args "--task 省略・報告書なし → エラー終了(EXIT_INVALID_ARGS)" --summary "報告書なしケース"
 
+# -----------------------------------------------------------------------
+# 正常系（task-1637-9 W-CP）: --options 指定時、カンマ区切りをJSON配列に変換してPATCH
+# -----------------------------------------------------------------------
+STUB_AGENT_ID="rose"
+write_report rose "task-1454-1"
+rm -f "${SANDBOX}/api_calls.log"
+assert_exit_ok "--options 指定 → 正常終了" --summary "暫定判断: A案を採用" --options "A案,B案"
+
+if grep -q '"options"' "${SANDBOX}/api_calls.log" 2>/dev/null \
+  && grep -q '"A案"' "${SANDBOX}/api_calls.log" 2>/dev/null \
+  && grep -q '"B案"' "${SANDBOX}/api_calls.log" 2>/dev/null; then
+  echo "PASS: --options がカンマ区切りからJSON配列に変換されPATCH bodyに含まれる"
+  pass=$((pass + 1))
+else
+  echo "FAIL: --options がPATCH bodyのoptions配列に正しく反映されていない"
+  cat "${SANDBOX}/api_calls.log" 2>/dev/null | sed 's/^/    /'
+  fail=$((fail + 1))
+fi
+
+# -----------------------------------------------------------------------
+# 正常系（task-1637-9 W-CP）: --options 省略時はPATCH bodyにoptionsキーを含めない
+# -----------------------------------------------------------------------
+STUB_AGENT_ID="rose"
+write_report rose "task-1454-1"
+rm -f "${SANDBOX}/api_calls.log"
+run_cmd --summary "options省略ケース" >/dev/null 2>&1
+if grep -q '"options"' "${SANDBOX}/api_calls.log" 2>/dev/null; then
+  echo "FAIL: --options 省略時にもPATCH bodyへoptionsキーが混入している"
+  cat "${SANDBOX}/api_calls.log" 2>/dev/null | sed 's/^/    /'
+  fail=$((fail + 1))
+else
+  echo "PASS: --options 省略時はPATCH bodyにoptionsキーを含めない（後方互換）"
+  pass=$((pass + 1))
+fi
+
 echo ""
 echo "Results: ${pass} passed, ${fail} failed"
 [[ ${fail} -eq 0 ]]

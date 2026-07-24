@@ -12,6 +12,7 @@ import {
     ControlModeClient,
     CONTROL_MODE_RETRY_BASE_MS,
     CONTROL_MODE_MAX_RETRIES,
+    CONTROL_MODE_FORCE_KILL_GRACE_MS,
     type ControlModeEvent,
 } from '../control-mode-client';
 
@@ -153,6 +154,29 @@ describe('ControlModeClient', () => {
         client.dispose();
     });
 
+    it('dispose() 後、猶予時間内に exit しないプロセスは SIGKILL で強制終了すること', () => {
+        const { client } = createClient();
+        client.start();
+        client.dispose();
+        expect(fakeProc.kill).toHaveBeenCalledTimes(1);
+
+        // exit イベントが来ないまま猶予時間が経過
+        vi.advanceTimersByTime(CONTROL_MODE_FORCE_KILL_GRACE_MS);
+        expect(fakeProc.kill).toHaveBeenCalledTimes(2);
+        expect(fakeProc.kill).toHaveBeenLastCalledWith('SIGKILL');
+    });
+
+    it('dispose() 後、猶予時間内に exit すれば強制終了しないこと', () => {
+        const { client } = createClient();
+        client.start();
+        client.dispose();
+        expect(fakeProc.kill).toHaveBeenCalledTimes(1);
+
+        fakeProc.emit('exit', 0);
+        vi.advanceTimersByTime(CONTROL_MODE_FORCE_KILL_GRACE_MS * 2);
+        expect(fakeProc.kill).toHaveBeenCalledTimes(1);
+    });
+
     it('dispose() でプロセスを kill し再起動しないこと', () => {
         const { client } = createClient();
         client.start();
@@ -162,6 +186,36 @@ describe('ControlModeClient', () => {
         fakeProc.emit('exit', 0);
         vi.advanceTimersByTime(CONTROL_MODE_RETRY_BASE_MS * 10);
         expect(spawnMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('error イベント単独（exit なし）でもバックオフ後に再接続すること', () => {
+        const { client } = createClient();
+        client.start();
+        expect(spawnMock).toHaveBeenCalledTimes(1);
+
+        const nextProc = new FakeProcess();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        spawnMock.mockImplementation(() => nextProc as any);
+
+        fakeProc.emit('error', new Error('spawn ENOENT'));
+        vi.advanceTimersByTime(CONTROL_MODE_RETRY_BASE_MS);
+        expect(spawnMock).toHaveBeenCalledTimes(2);
+        client.dispose();
+    });
+
+    it('error と exit が両方発火しても再接続は1回だけであること', () => {
+        const { client } = createClient();
+        client.start();
+
+        const nextProc = new FakeProcess();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        spawnMock.mockImplementation(() => nextProc as any);
+
+        fakeProc.emit('error', new Error('boom'));
+        fakeProc.emit('exit', 1);
+        vi.advanceTimersByTime(CONTROL_MODE_RETRY_BASE_MS * 4);
+        expect(spawnMock).toHaveBeenCalledTimes(2);
+        client.dispose();
     });
 
     it('プロセスが予期せず終了したらバックオフ後に再接続すること', () => {

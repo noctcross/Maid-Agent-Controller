@@ -3,12 +3,19 @@
  *
  * tmuxセッション内のアクティブウィンドウを監視し、
  * 現在のエージェントをパネルに反映する。
+ *
+ * 監視方式は2段構え:
+ * 1. control mode 常駐クライアント（イベント駆動・プロセス生成ゼロ）… tmux のみ
+ * 2. 500msポーリング … psmux、または control mode が利用不能な場合のフォールバック
+ *    （ポーリングは1回ごとに cmd/wsl/conhost プロセスを生成するため、
+ *      カーネルメモリリークの増幅要因になる。可能な限り 1. を使う）
  */
 
 import * as vscode from 'vscode';
 import { Agent } from '../types';
 import { ITerminalMultiplexer } from '../multiplexer';
 import { AgentPanelProvider } from '../ui/agent-panel-provider';
+import { ControlModeClient } from './control-mode-client';
 
 /**
  * tmux監視に必要なコンテキスト
@@ -28,6 +35,10 @@ export interface TmuxWatcherContext {
 export interface TmuxWatcherState {
     pollingInterval: NodeJS.Timeout | undefined;
     lastDetectedAgentId: string | null;
+    /** control mode 常駐クライアント（イベント駆動監視） */
+    controlModeClient: ControlModeClient | undefined;
+    /** control mode が失敗しポーリングへ恒久フォールバックしたか */
+    controlModeFailed: boolean;
 }
 
 /**
@@ -37,6 +48,8 @@ export function createTmuxWatcherState(): TmuxWatcherState {
     return {
         pollingInterval: undefined,
         lastDetectedAgentId: null,
+        controlModeClient: undefined,
+        controlModeFailed: false,
     };
 }
 
@@ -95,12 +108,12 @@ export function setCurrentAgentFromTerminal(
 
     if (!agentId && isTmuxViewer) {
         agentId = getCurrentTmuxWindowAgent(ctx);
-        startTmuxWindowPolling(ctx, state);
+        startTmuxWindowWatching(ctx, state);
     } else if (!agentId && terminalName.includes('Maid Agent')) {
         // ターミナル名でtmuxビューアを判定（参照比較の代替）
         ctx.log(`[AgentPanel] tmuxビューア検出（名前ベース）: ${terminalName}`);
         agentId = getCurrentTmuxWindowAgent(ctx);
-        startTmuxWindowPolling(ctx, state);
+        startTmuxWindowWatching(ctx, state);
     } else {
         stopTmuxWindowPolling(ctx, state);
     }
@@ -109,7 +122,67 @@ export function setCurrentAgentFromTerminal(
 }
 
 /**
+ * 検出したウィンドウ名をエージェントIDに解決し、変更時のみパネルへ反映する
+ */
+function handleDetectedWindowName(
+    ctx: TmuxWatcherContext,
+    state: TmuxWatcherState,
+    windowName: string | null
+): void {
+    const currentAgentId = windowName && ctx.agents.has(windowName) ? windowName : null;
+
+    if (currentAgentId !== state.lastDetectedAgentId) {
+        ctx.log(`[AgentPanel] tmuxウィンドウ変更検出: ${state.lastDetectedAgentId} → ${currentAgentId}`);
+        state.lastDetectedAgentId = currentAgentId;
+        if (ctx.agentPanelProvider) {
+            ctx.agentPanelProvider.setCurrentAgent(currentAgentId);
+        }
+    }
+}
+
+/**
+ * tmuxウィンドウの監視を開始
+ *
+ * control mode（イベント駆動）を優先し、非対応または失敗時のみポーリングを使う。
+ */
+export function startTmuxWindowWatching(
+    ctx: TmuxWatcherContext,
+    state: TmuxWatcherState
+): void {
+    if (state.controlModeClient || state.pollingInterval) return; // 既に実行中
+
+    const spawnSpec = !state.controlModeFailed
+        ? ctx.tmuxManager?.getControlModeSpawn() ?? null
+        : null;
+
+    if (!spawnSpec) {
+        startTmuxWindowPolling(ctx, state);
+        return;
+    }
+
+    state.controlModeClient = new ControlModeClient({
+        command: spawnSpec.command,
+        args: spawnSpec.args,
+        sessionName: ctx.tmuxSessionName,
+        onWindowName: (name) => handleDetectedWindowName(ctx, state, name),
+        onLog: (msg) => ctx.log(msg),
+        onFatal: () => {
+            // control mode が使えない環境ではポーリングへフォールバック
+            ctx.log('[tmux] control mode が利用できないためポーリングへフォールバックします');
+            state.controlModeFailed = true;
+            state.controlModeClient = undefined;
+            startTmuxWindowPolling(ctx, state);
+        },
+    });
+    state.controlModeClient.start();
+    ctx.log('[tmux] control mode によるウィンドウ監視を開始（イベント駆動）');
+}
+
+/**
  * tmuxウィンドウのポーリングを開始（500msごとにチェック）
+ *
+ * 注意: 1回ごとに子プロセスを生成するため、control mode が使えない場合の
+ * フォールバック専用。直接呼ばず startTmuxWindowWatching を使うこと。
  */
 export function startTmuxWindowPolling(
     ctx: TmuxWatcherContext,
@@ -119,32 +192,33 @@ export function startTmuxWindowPolling(
 
     state.pollingInterval = setInterval(() => {
         const currentAgentId = getCurrentTmuxWindowAgent(ctx);
-
-        // 変更があった場合のみ更新
-        if (currentAgentId !== state.lastDetectedAgentId) {
-            ctx.log(`[AgentPanel] tmuxウィンドウ変更検出: ${state.lastDetectedAgentId} → ${currentAgentId}`);
-            state.lastDetectedAgentId = currentAgentId;
-            if (ctx.agentPanelProvider) {
-                ctx.agentPanelProvider.setCurrentAgent(currentAgentId);
-            }
-        }
+        handleDetectedWindowName(ctx, state, currentAgentId);
     }, 500);
 
     ctx.log('[tmux] ウィンドウ監視ポーリングを開始');
 }
 
 /**
- * tmuxウィンドウのポーリングを停止
+ * tmuxウィンドウの監視を停止（control mode・ポーリング共通）
  */
 export function stopTmuxWindowPolling(
     ctx: TmuxWatcherContext,
     state: TmuxWatcherState
 ): void {
+    let stopped = false;
+    if (state.controlModeClient) {
+        state.controlModeClient.dispose();
+        state.controlModeClient = undefined;
+        stopped = true;
+    }
     if (state.pollingInterval) {
         clearInterval(state.pollingInterval);
         state.pollingInterval = undefined;
+        stopped = true;
+    }
+    if (stopped) {
         state.lastDetectedAgentId = null;
-        ctx.log('[tmux] ウィンドウ監視ポーリングを停止');
+        ctx.log('[tmux] ウィンドウ監視を停止');
     }
 }
 
@@ -152,6 +226,10 @@ export function stopTmuxWindowPolling(
  * tmux監視の状態をクリーンアップ
  */
 export function disposeTmuxWatcher(state: TmuxWatcherState): void {
+    if (state.controlModeClient) {
+        state.controlModeClient.dispose();
+        state.controlModeClient = undefined;
+    }
     if (state.pollingInterval) {
         clearInterval(state.pollingInterval);
         state.pollingInterval = undefined;

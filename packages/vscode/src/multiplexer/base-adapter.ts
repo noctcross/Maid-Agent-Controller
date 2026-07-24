@@ -1,5 +1,5 @@
 import { execSync, exec } from 'child_process';
-import { ITerminalMultiplexer, MultiplexerType } from './interfaces';
+import { ITerminalMultiplexer, MultiplexerType, ControlModeSpawnSpec } from './interfaces';
 import { escapeForDoubleQuote, quoteArg, type ShellType } from '../utils/shell-escape';
 
 // ステータスバー2行表示のフォーマット（tmux用デフォルト）
@@ -242,6 +242,11 @@ export abstract class AbstractMultiplexerAdapter implements ITerminalMultiplexer
         } catch {
             return null;
         }
+    }
+
+    getControlModeSpawn(): ControlModeSpawnSpec | null {
+        // デフォルトは非対応（tmux アダプターのみオーバーライドで対応）
+        return null;
     }
 
     // ========== キー送信 ==========

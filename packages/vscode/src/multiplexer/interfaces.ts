@@ -10,6 +10,14 @@
 export type MultiplexerType = 'tmux' | 'psmux';
 
 /**
+ * control mode 常駐クライアント用の spawn 指定
+ */
+export interface ControlModeSpawnSpec {
+    command: string;
+    args: string[];
+}
+
+/**
  * 環境設定
  */
 export interface MultiplexerConfig {
@@ -91,6 +99,12 @@ export interface ITerminalMultiplexer {
      * 現在アクティブなウィンドウ名を取得
      */
     getCurrentWindowName(): string | null;
+
+    /**
+     * control mode 常駐クライアント用の spawn 指定を取得
+     * 非対応のマルチプレクサは null を返す（呼び出し側はポーリングにフォールバック）
+     */
+    getControlModeSpawn(): ControlModeSpawnSpec | null;
 
     // ========== その他 ==========
 

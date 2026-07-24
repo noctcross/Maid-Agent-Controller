@@ -1,5 +1,5 @@
 import { AbstractMultiplexerAdapter } from './base-adapter';
-import { MultiplexerType } from './interfaces';
+import { MultiplexerType, ControlModeSpawnSpec } from './interfaces';
 import { windowsToWslPath } from '../utils/environment';
 import type { ShellType } from '../utils/shell-escape';
 
@@ -36,6 +36,13 @@ export class TmuxAdapter extends AbstractMultiplexerAdapter {
     protected getCommandPrefix(): string {
         // Windows環境: wsl経由でtmuxを実行
         return this.isWindowsHost ? 'wsl tmux' : 'tmux';
+    }
+
+    override getControlModeSpawn(): ControlModeSpawnSpec | null {
+        const tmuxArgs = ['-C', 'attach-session', '-t', this.sessionName];
+        return this.isWindowsHost
+            ? { command: 'wsl', args: ['tmux', ...tmuxArgs] }
+            : { command: 'tmux', args: tmuxArgs };
     }
 
     protected getCommandWorkingDirectory(): string {

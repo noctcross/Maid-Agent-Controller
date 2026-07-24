@@ -20,6 +20,9 @@ export const CONTROL_MODE_RETRY_MAX_MS = 30000;
 /** 連続失敗の上限。超えたら onFatal を呼び、呼び出し側はポーリングへフォールバック */
 export const CONTROL_MODE_MAX_RETRIES = 5;
 
+/** dispose 後、プロセスの exit を待つ猶予（ms）。超過したら SIGKILL で強制終了 */
+export const CONTROL_MODE_FORCE_KILL_GRACE_MS = 3000;
+
 /**
  * control mode 出力のパース結果
  */
@@ -149,24 +152,49 @@ export class ControlModeClient {
         this.proc = proc;
 
         proc.stdout?.on('data', (chunk: Buffer | string) => this.handleData(chunk));
+
+        // exit と error の二重発火を防ぎつつ、error 単独（spawn 失敗等で exit が来ない）でも
+        // 再接続・フォールバック経路に乗せる
+        let downHandled = false;
+        const onDown = (): void => {
+            if (downHandled) return;
+            downHandled = true;
+            this.handleExit();
+        };
         proc.on('error', (err: Error) => {
             this.log(`control mode spawn error: ${err.message}`);
+            onDown();
         });
-        proc.on('exit', () => this.handleExit());
+        proc.on('exit', onDown);
 
         // 初期状態の取得（接続直後の現在ウィンドウ名）
         this.queryCurrentWindow();
     }
 
     private killProcess(): void {
-        if (this.proc) {
-            try {
-                this.proc.kill();
-            } catch (err) {
-                this.log(`control mode kill failed: ${err instanceof Error ? err.message : String(err)}`);
-            }
-            this.proc = undefined;
+        if (!this.proc) return;
+        const proc = this.proc;
+        this.proc = undefined;
+
+        try {
+            proc.kill();
+        } catch (err) {
+            this.log(`control mode kill failed: ${err instanceof Error ? err.message : String(err)}`);
         }
+
+        // 猶予時間内に exit しない場合は強制終了（wsl.exe 残留＝宙ぶらりんプロセスの防止）
+        const forceKillTimer = setTimeout(() => {
+            try {
+                proc.kill('SIGKILL');
+                this.log('control mode: プロセスが終了しないため強制終了しました');
+            } catch (err) {
+                this.log(`control mode force kill failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+        }, CONTROL_MODE_FORCE_KILL_GRACE_MS);
+        // exit したらエスカレーション不要
+        proc.once('exit', () => clearTimeout(forceKillTimer));
+        // タイマーがプロセス終了を妨げないようにする（テスト環境では unref が無い場合がある）
+        forceKillTimer.unref?.();
     }
 
     /**

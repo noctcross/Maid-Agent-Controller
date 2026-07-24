@@ -17,6 +17,9 @@ import { ITerminalMultiplexer } from '../multiplexer';
 import { AgentPanelProvider } from '../ui/agent-panel-provider';
 import { ControlModeClient } from './control-mode-client';
 
+/** control mode フォールバック後に再試行するまでのクールダウン（ms） */
+export const CONTROL_MODE_REATTEMPT_MS = 5 * 60 * 1000;
+
 /**
  * tmux監視に必要なコンテキスト
  */
@@ -37,8 +40,10 @@ export interface TmuxWatcherState {
     lastDetectedAgentId: string | null;
     /** control mode 常駐クライアント（イベント駆動監視） */
     controlModeClient: ControlModeClient | undefined;
-    /** control mode が失敗しポーリングへ恒久フォールバックしたか */
+    /** control mode が失敗しポーリングへフォールバック中か（クールダウン後に自動再試行） */
     controlModeFailed: boolean;
+    /** control mode 再試行のクールダウンタイマー */
+    controlModeRetryTimer: NodeJS.Timeout | undefined;
 }
 
 /**
@@ -50,6 +55,7 @@ export function createTmuxWatcherState(): TmuxWatcherState {
         lastDetectedAgentId: null,
         controlModeClient: undefined,
         controlModeFailed: false,
+        controlModeRetryTimer: undefined,
     };
 }
 
@@ -167,15 +173,44 @@ export function startTmuxWindowWatching(
         onWindowName: (name) => handleDetectedWindowName(ctx, state, name),
         onLog: (msg) => ctx.log(msg),
         onFatal: () => {
-            // control mode が使えない環境ではポーリングへフォールバック
+            // control mode が使えない間はポーリングへフォールバックし、
+            // クールダウン後に control mode を自動再試行する（自己回復）
             ctx.log('[tmux] control mode が利用できないためポーリングへフォールバックします');
             state.controlModeFailed = true;
             state.controlModeClient = undefined;
             startTmuxWindowPolling(ctx, state);
+            scheduleControlModeReattempt(ctx, state);
         },
     });
     state.controlModeClient.start();
     ctx.log('[tmux] control mode によるウィンドウ監視を開始（イベント駆動）');
+}
+
+/**
+ * クールダウン後に control mode の再試行を予約する
+ *
+ * 一過性の失敗（wsl の一時停止等）でプロセス生成型ポーリングが
+ * セッション中恒久化しないようにするための自己回復機構。
+ */
+function scheduleControlModeReattempt(
+    ctx: TmuxWatcherContext,
+    state: TmuxWatcherState
+): void {
+    if (state.controlModeRetryTimer) return; // 既に予約済み
+
+    state.controlModeRetryTimer = setTimeout(() => {
+        state.controlModeRetryTimer = undefined;
+
+        // 監視自体が停止していたら何もしない（次回の監視開始時に control mode を優先する）
+        if (!state.pollingInterval) return;
+
+        ctx.log('[tmux] control mode を再試行します（ポーリングから復帰）');
+        clearInterval(state.pollingInterval);
+        state.pollingInterval = undefined;
+        state.controlModeFailed = false;
+        startTmuxWindowWatching(ctx, state);
+    }, CONTROL_MODE_REATTEMPT_MS);
+    state.controlModeRetryTimer.unref?.();
 }
 
 /**
@@ -216,6 +251,12 @@ export function stopTmuxWindowPolling(
         state.pollingInterval = undefined;
         stopped = true;
     }
+    if (state.controlModeRetryTimer) {
+        clearTimeout(state.controlModeRetryTimer);
+        state.controlModeRetryTimer = undefined;
+    }
+    // 次回の監視開始時は control mode を改めて優先する
+    state.controlModeFailed = false;
     if (stopped) {
         state.lastDetectedAgentId = null;
         ctx.log('[tmux] ウィンドウ監視を停止');
@@ -234,5 +275,10 @@ export function disposeTmuxWatcher(state: TmuxWatcherState): void {
         clearInterval(state.pollingInterval);
         state.pollingInterval = undefined;
     }
+    if (state.controlModeRetryTimer) {
+        clearTimeout(state.controlModeRetryTimer);
+        state.controlModeRetryTimer = undefined;
+    }
+    state.controlModeFailed = false;
     state.lastDetectedAgentId = null;
 }

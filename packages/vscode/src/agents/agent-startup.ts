@@ -175,14 +175,11 @@ export function saveSessionNameToFile(ctx: AgentContext): void {
 export function openTmuxViewer(ctx: AgentContext): void {
     if (!ctx.tmuxManager) return;
 
-    // 既存のビューアがあれば表示
+    // 既存のビューアがあれば表示（メモリ内参照）
     if (ctx.tmuxViewerTerminal) {
         ctx.tmuxViewerTerminal.show();
         return;
     }
-
-    // tmuxセッションがなければ作成
-    ctx.initializeTmuxSession();
 
     // マルチプレクサタイプを取得（設定 > ファクトリ > auto の優先順）
     let multiplexerType = ctx.settings?.multiplexer?.type;
@@ -190,9 +187,23 @@ export function openTmuxViewer(ctx: AgentContext): void {
         multiplexerType = ctx.multiplexerFactory?.getType() || 'auto';
     }
     const isPsmux = multiplexerType === 'psmux';
+    const terminalName = isPsmux ? '🎩 Maid Agent (psmux)' : '🎩 Maid Agent (tmux)';
+
+    // VSCode上に実在する同名タブがあれば再利用する。
+    // 拡張機能の再アクティベート（ウィンドウリロード等）でメモリ内参照
+    // (ctx.tmuxViewerTerminal) は失われるが、タブ自体は残っているため、
+    // ここでチェックしないと毎回新規タブが積み上がる（task-1660-1）。
+    const existingTerminal = vscode.window.terminals.find((t) => t.name === terminalName);
+    if (existingTerminal) {
+        ctx.tmuxViewerTerminal = existingTerminal;
+        existingTerminal.show();
+        return;
+    }
+
+    // tmuxセッションがなければ作成
+    ctx.initializeTmuxSession();
 
     // VSCodeターミナルでtmux/psmuxにアタッチ（TerminalFactory経由で環境分岐を統一）
-    const terminalName = isPsmux ? '🎩 Maid Agent (psmux)' : '🎩 Maid Agent (tmux)';
     const terminalFactory = ENV.getTerminalFactory(isPsmux);
     ctx.tmuxViewerTerminal = terminalFactory.createViewerTerminal(
         terminalName,

@@ -23,6 +23,7 @@ vi.mock('vscode', () => ({
         showWarningMessage: vi.fn(() => Promise.resolve(undefined)),
         showInputBox: vi.fn(() => Promise.resolve(undefined)),
         showQuickPick: vi.fn(() => Promise.resolve(undefined)),
+        terminals: [] as unknown[],
         createTerminal: vi.fn(() => ({
             show: vi.fn(),
             sendText: vi.fn(),
@@ -75,6 +76,13 @@ vi.mock('../utils/environment', () => ({
         quoteCommandArg: (v: string) => `'${v}'`,
         setRuntimeMode: vi.fn(),
         getRuntimeMode: vi.fn(() => undefined),
+        getTerminalFactory: vi.fn(() => ({
+            createViewerTerminal: vi.fn(() => ({
+                show: vi.fn(),
+                sendText: vi.fn(),
+                dispose: vi.fn(),
+            })),
+        })),
     },
 }));
 

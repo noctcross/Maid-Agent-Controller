@@ -1066,6 +1066,32 @@ cmd_my_task() {
 # 品質チェック関数
 # =============================================================================
 
+# 現在の作業ディレクトリが git の linked worktree（git worktree add で作成された
+# worktree。主working treeではない）かどうかを判定し、そのルート絶対パスを返す。
+# 主working tree内やgit管理外のディレクトリの場合は何も出力しない（空文字扱い）。
+#
+# 判定方法: --git-dir（現在のworktree固有のgitディレクトリ）と --git-common-dir
+# （全worktreeで共有される本来の.git）を比較し、一致しない場合のみ linked worktree
+# と判定する（主working treeでは両者が一致する）。
+detect_linked_worktree_root() {
+  local cwd
+  cwd="$(pwd)"
+
+  if ! git -C "$cwd" rev-parse --is-inside-work-tree &>/dev/null; then
+    return 0  # git管理外。worktree_rootなしとして扱う
+  fi
+
+  local git_dir git_common_dir
+  git_dir=$(git -C "$cwd" rev-parse --path-format=absolute --git-dir 2>/dev/null) || return 0
+  git_common_dir=$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 0
+
+  if [ "$git_dir" = "$git_common_dir" ]; then
+    return 0  # 主working tree（linked worktreeではない）
+  fi
+
+  git -C "$cwd" rev-parse --show-toplevel 2>/dev/null
+}
+
 # 品質チェックを実行
 # 引数: agent_id
 # 戻り値: 0=合格, 2=不合格
@@ -1078,6 +1104,9 @@ quality_check() {
   local quality_script="$project_dir/.maid-agent/system/bin/quality-check.sh"
   local llm_script="$project_dir/.maid-agent/system/bin/quality-check-llm.sh"
   local settings_file="$project_dir/.maid-agent/system/config/settings.yaml"
+  # worktree運用時、実装ファイルが実際に存在するworktreeルート（linked worktree検出時のみ設定）
+  local worktree_root
+  worktree_root=$(detect_linked_worktree_root)
 
   # 品質チェックが有効かどうか確認
   # quality_check: セクション配下の enabled を明示的に抽出（他セクションとの混同を防止）
@@ -1127,7 +1156,7 @@ quality_check() {
   # L4: LLMチェック（追加）
   if [ -f "$llm_script" ]; then
     chmod +x "$llm_script" 2>/dev/null || true
-    if ! "$llm_script" "$report_file" "$task_type" "$project_dir"; then
+    if ! "$llm_script" "$report_file" "$task_type" "$project_dir" "$worktree_root"; then
       return 2  # Claude Code Hooks 互換: exit 2 でアクションブロック
     fi
   fi

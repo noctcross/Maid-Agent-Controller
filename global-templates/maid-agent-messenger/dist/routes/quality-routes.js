@@ -19,7 +19,7 @@ router.post("/api/quality/llm-check", async (req, res) => {
     try {
         const projectPath = getProjectPathFromRequest(req);
         const body = req.body;
-        const { taskId, taskType, reportContent, agentId, options } = body;
+        const { taskId, taskType, reportContent, agentId, worktreePath, options } = body;
         // バリデーション
         if (!taskId || !taskType || !reportContent) {
             res.status(400).json({
@@ -73,6 +73,7 @@ router.post("/api/quality/llm-check", async (req, res) => {
                 const fileContents = await readFileContentsForReview(projectPath, changedFiles, {
                     maxLinesPerFile: llmConfig.max_lines_per_file || 300,
                     maxTotalLines: llmConfig.max_total_lines || 1500,
+                    worktreePath,
                 });
                 logger.debug(`Read ${fileContents.length} files for review`);
                 fullPrompt = buildPromptWithFileContents(prompt, reportContent, fileContents);

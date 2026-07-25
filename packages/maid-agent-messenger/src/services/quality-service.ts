@@ -250,10 +250,86 @@ export interface FileContent {
 export interface FileReadOptions {
   maxLinesPerFile?: number;
   maxTotalLines?: number;
+  /**
+   * worktree運用時、実装ファイルが実際に存在するworktreeルートの絶対パス。
+   * 報告書の変更ファイルパスにリポジトリ名prefixが含まれる場合（例:
+   * "codelodis/packages/foo.ts"）でも解決できるよう、prefix除去版も候補に含める。
+   */
+  worktreePath?: string;
 }
 
 const DEFAULT_MAX_LINES_PER_FILE = 300;
 const DEFAULT_MAX_TOTAL_LINES = 1500;
+
+/**
+ * ファイルパスの解決候補（絶対パス）を1件表す
+ */
+interface FilePathCandidate {
+  absolutePath: string;
+  base: string;
+}
+
+/**
+ * base配下（base自身を含む）にtargetが収まっているか判定する
+ */
+function isWithinBase(base: string, target: string): boolean {
+  return target === base || target.startsWith(base + path.sep);
+}
+
+/**
+ * 変更ファイルパスの解決候補を優先順位順に構築する
+ *
+ * 相対パスの場合、worktreePathが指定されていれば以下の順で候補を作る:
+ *   1. worktreeルート直下（filePathそのまま）
+ *   2. worktreeルート直下（先頭セグメント＝リポジトリ名prefixを除去）
+ *   3. projectPath基準（従来通り）
+ *
+ * 絶対パスの場合はprojectPath配下かどうかのみを検証する（従来通り）。
+ * 各候補はbase外へ逸脱していないことを個別に検証済みのもののみ返す
+ * （パストラバーサル防止）。
+ */
+function buildFilePathCandidates(
+  projectPath: string,
+  worktreePath: string | undefined,
+  filePath: string
+): FilePathCandidate[] {
+  const normalizedProjectPath = path.normalize(projectPath);
+
+  if (path.isAbsolute(filePath)) {
+    const absolutePath = path.normalize(filePath);
+    return isWithinBase(normalizedProjectPath, absolutePath)
+      ? [{ absolutePath, base: normalizedProjectPath }]
+      : [];
+  }
+
+  const candidates: FilePathCandidate[] = [];
+
+  if (worktreePath) {
+    const normalizedWorktreePath = path.normalize(worktreePath);
+
+    const direct = path.normalize(path.join(normalizedWorktreePath, filePath));
+    if (isWithinBase(normalizedWorktreePath, direct)) {
+      candidates.push({ absolutePath: direct, base: normalizedWorktreePath });
+    }
+
+    const segments = filePath.split("/");
+    if (segments.length > 1) {
+      const stripped = path.normalize(
+        path.join(normalizedWorktreePath, segments.slice(1).join("/"))
+      );
+      if (isWithinBase(normalizedWorktreePath, stripped)) {
+        candidates.push({ absolutePath: stripped, base: normalizedWorktreePath });
+      }
+    }
+  }
+
+  const fromProject = path.normalize(path.join(normalizedProjectPath, filePath));
+  if (isWithinBase(normalizedProjectPath, fromProject)) {
+    candidates.push({ absolutePath: fromProject, base: normalizedProjectPath });
+  }
+
+  return candidates;
+}
 
 /**
  * 報告書から変更ファイルパスを抽出
@@ -310,6 +386,7 @@ export async function readFileContentsForReview(
 ): Promise<FileContent[]> {
   const maxLinesPerFile = options.maxLinesPerFile || DEFAULT_MAX_LINES_PER_FILE;
   const maxTotalLines = options.maxTotalLines || DEFAULT_MAX_TOTAL_LINES;
+  const worktreePath = options.worktreePath;
 
   const results: FileContent[] = [];
   let totalLines = 0;
@@ -326,16 +403,10 @@ export async function readFileContentsForReview(
       continue;
     }
 
-    // ファイルパスを解決（相対パス → 絶対パス）
-    // パストラバーサル防止: プロジェクトパス外へのアクセスを拒否
-    const normalizedProjectPath = path.normalize(projectPath);
-    const absolutePath = path.isAbsolute(filePath)
-      ? path.normalize(filePath)
-      : path.normalize(path.join(projectPath, filePath));
+    // ファイルパスの解決候補を構築（worktree優先 → projectPathの順。パストラバーサル防止込み）
+    const candidates = buildFilePathCandidates(projectPath, worktreePath, filePath);
 
-    // プロジェクトパス外へのアクセスをチェック
-    if (!absolutePath.startsWith(normalizedProjectPath + path.sep) &&
-        absolutePath !== normalizedProjectPath) {
+    if (candidates.length === 0) {
       results.push({
         path: filePath,
         content: "",
@@ -346,52 +417,63 @@ export async function readFileContentsForReview(
       continue;
     }
 
-    try {
-      const content = await fs.readFile(absolutePath, "utf-8");
-      const lines = content.split("\n");
-      const lineCount = lines.length;
-
-      // 残り許容行数を計算
-      const remainingLines = maxTotalLines - totalLines;
-      const allowedLines = Math.min(maxLinesPerFile, remainingLines);
-
-      if (lineCount <= allowedLines) {
-        // 全文を含める
-        results.push({
-          path: filePath,
-          content: content,
-          truncated: false,
-          lineCount,
-        });
-        totalLines += lineCount;
-      } else {
-        // 先頭と末尾を含め、中央を省略
-        const headLines = Math.floor(allowedLines / 2);
-        const tailLines = allowedLines - headLines;
-
-        const head = lines.slice(0, headLines).join("\n");
-        const tail = lines.slice(-tailLines).join("\n");
-        const omittedCount = lineCount - headLines - tailLines;
-
-        const truncatedContent = `${head}\n\n... (${omittedCount}行省略) ...\n\n${tail}`;
-
-        results.push({
-          path: filePath,
-          content: truncatedContent,
-          truncated: true,
-          lineCount,
-        });
-        totalLines += allowedLines;
+    // 候補を順に試行し、最初に読み込めたものを採用する
+    let content: string | undefined;
+    let lastError: unknown;
+    for (const candidate of candidates) {
+      try {
+        content = await fs.readFile(candidate.absolutePath, "utf-8");
+        break;
+      } catch (err) {
+        lastError = err;
       }
-    } catch (err) {
-      // ファイル読み込みエラー
+    }
+
+    if (content === undefined) {
       results.push({
         path: filePath,
         content: "",
         truncated: false,
         lineCount: 0,
-        error: err instanceof Error ? err.message : "Unknown error",
+        error: lastError instanceof Error ? lastError.message : "Unknown error",
       });
+      continue;
+    }
+
+    const lines = content.split("\n");
+    const lineCount = lines.length;
+
+    // 残り許容行数を計算
+    const remainingLines = maxTotalLines - totalLines;
+    const allowedLines = Math.min(maxLinesPerFile, remainingLines);
+
+    if (lineCount <= allowedLines) {
+      // 全文を含める
+      results.push({
+        path: filePath,
+        content: content,
+        truncated: false,
+        lineCount,
+      });
+      totalLines += lineCount;
+    } else {
+      // 先頭と末尾を含め、中央を省略
+      const headLines = Math.floor(allowedLines / 2);
+      const tailLines = allowedLines - headLines;
+
+      const head = lines.slice(0, headLines).join("\n");
+      const tail = lines.slice(-tailLines).join("\n");
+      const omittedCount = lineCount - headLines - tailLines;
+
+      const truncatedContent = `${head}\n\n... (${omittedCount}行省略) ...\n\n${tail}`;
+
+      results.push({
+        path: filePath,
+        content: truncatedContent,
+        truncated: true,
+        lineCount,
+      });
+      totalLines += allowedLines;
     }
   }
 

@@ -81,6 +81,12 @@ export interface FileContent {
 export interface FileReadOptions {
     maxLinesPerFile?: number;
     maxTotalLines?: number;
+    /**
+     * worktree運用時、実装ファイルが実際に存在するworktreeルートの絶対パス。
+     * 報告書の変更ファイルパスにリポジトリ名prefixが含まれる場合（例:
+     * "codelodis/packages/foo.ts"）でも解決できるよう、prefix除去版も候補に含める。
+     */
+    worktreePath?: string;
 }
 /**
  * 報告書から変更ファイルパスを抽出

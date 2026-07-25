@@ -35,6 +35,12 @@ interface LLMCheckRequest {
   taskType: string;
   reportContent: string;
   agentId?: string;
+  /**
+   * worktree運用時、実装ファイルが実際に存在するworktreeルートの絶対パス。
+   * 指定時、成果物評価（変更ファイル内容の読み込み）はworktreePathを優先して
+   * 解決を試み、見つからない場合はprojectPath基準にフォールバックする。
+   */
+  worktreePath?: string;
   options?: {
     model?: string;
     timeout?: number;
@@ -67,7 +73,7 @@ router.post("/api/quality/llm-check", async (req: Request, res: Response) => {
   try {
     const projectPath = getProjectPathFromRequest(req);
     const body = req.body as LLMCheckRequest;
-    const { taskId, taskType, reportContent, agentId, options } = body;
+    const { taskId, taskType, reportContent, agentId, worktreePath, options } = body;
 
     // バリデーション
     if (!taskId || !taskType || !reportContent) {
@@ -135,6 +141,7 @@ router.post("/api/quality/llm-check", async (req: Request, res: Response) => {
           {
             maxLinesPerFile: llmConfig.max_lines_per_file || 300,
             maxTotalLines: llmConfig.max_total_lines || 1500,
+            worktreePath,
           }
         );
         logger.debug(`Read ${fileContents.length} files for review`);

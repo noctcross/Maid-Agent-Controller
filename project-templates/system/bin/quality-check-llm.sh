@@ -2,12 +2,16 @@
 # =============================================================================
 # quality-check-llm.sh - LLMによる報告書品質チェック
 #
-# 使用法: quality-check-llm.sh <report_file> <task_type> [project_root]
+# 使用法: quality-check-llm.sh <report_file> <task_type> [project_root] [worktree_root]
 #
 # 引数:
-#   report_file  - チェック対象の報告書ファイルパス
-#   task_type    - タスク種別 (investigation/work/step/task)
-#   project_root - プロジェクトルート（省略時: CLAUDE_PROJECT_DIR または pwd）
+#   report_file   - チェック対象の報告書ファイルパス
+#   task_type     - タスク種別 (investigation/work/step/task)
+#   project_root  - プロジェクトルート（省略時: CLAUDE_PROJECT_DIR または pwd）
+#   worktree_root - worktree運用時、実装ファイルが実際に存在するworktreeルートの
+#                   絶対パス（省略可。呼び出し元(maidctl)がgit worktreeを検出した
+#                   場合に渡す。成果物評価（変更ファイル内容の読み込み）のみに使用され、
+#                   settings.yaml等の設定読み込みは引き続きproject_root基準）
 #
 # 終了コード:
 #   0 - チェック合格または警告のみ
@@ -23,6 +27,7 @@ set -euo pipefail
 REPORT_FILE="${1:-}"
 TASK_TYPE="${2:-step}"
 PROJECT_ROOT="${3:-${CLAUDE_PROJECT_DIR:-$(pwd)}}"
+WORKTREE_ROOT="${4:-}"
 
 # パス定義
 CONFIG_FILE="$PROJECT_ROOT/.maid-agent/system/config/settings.yaml"
@@ -143,6 +148,7 @@ run_llm_check() {
 
   debug_log "TaskId: $task_id_val"
   debug_log "Model: $LLM_MODEL"
+  debug_log "WorktreeRoot: $WORKTREE_ROOT"
 
   # maid-agent-messenger API経由でLLMチェック実行
   local server_url="${MAID_SERVER_URL:-http://localhost:3100}"
@@ -159,7 +165,8 @@ run_llm_check() {
       --arg aid "$agent_id" \
       --arg mdl "$LLM_MODEL" \
       --argjson to "$timeout_ms" \
-      '{taskId:$tid,taskType:$tt,reportContent:$rc,agentId:$aid,options:{model:$mdl,timeout:$to}}')
+      --arg wtp "$WORKTREE_ROOT" \
+      '{taskId:$tid,taskType:$tt,reportContent:$rc,agentId:$aid,options:{model:$mdl,timeout:$to}} + (if $wtp == "" then {} else {worktreePath:$wtp} end)')
   else
     # jqがない場合は簡易的なJSON（reportContentのエスケープが不完全な可能性あり）
     echo "警告: jqがインストールされていません。正確なJSON構築ができない可能性があります。" >&2

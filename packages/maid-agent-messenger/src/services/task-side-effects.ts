@@ -23,6 +23,7 @@ import {
 import { withFileLock } from "../utils/file-lock.js";
 import { loadConfig } from "../utils/config-loader.js";
 import type { TaskYaml, TaskStatus as MaidTaskStatus } from "../types/index.js";
+import { toMaidTaskStatus } from "../types/index.js";
 
 /**
  * 報告書ファイルからタスクIDを抽出
@@ -202,13 +203,8 @@ async function syncMaidYaml(
       await withFileLock(maidYamlPath, async () => {
         const maidYaml = await readYamlFile<TaskYaml>(maidYamlPath);
 
-        // tasks.yaml → maid yaml 同期
-        // status 変換: "pending"/"cancelled" → "idle"、それ以外はそのまま
-        const STATUS_MAP: Record<string, MaidTaskStatus> = {
-          pending: "idle",
-          cancelled: "idle",
-        };
-        const maidStatus: MaidTaskStatus = STATUS_MAP[task.status] ?? task.status as MaidTaskStatus;
+        // tasks.yaml → maid yaml 同期（status変換は共通ユーティリティに委譲）
+        const maidStatus: MaidTaskStatus = toMaidTaskStatus(task.status);
 
         maidYaml.task_id = `task-${task.id}`;
         maidYaml.title = task.title;

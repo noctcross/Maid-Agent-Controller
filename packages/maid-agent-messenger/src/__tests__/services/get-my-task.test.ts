@@ -166,4 +166,57 @@ describe("executeGetMyTask", () => {
     expect(result.task_id).toBe("task-100-1");
     expect(result.parent_chain).toBeUndefined();
   });
+
+  // task-1688-2 案B: パーク中タスクの可視化
+  describe("parked_tasks（task-1688-2）", () => {
+    it("parked_tasksがある場合、結果にそのまま含まれる", async () => {
+      const agentYaml = stringifyYaml({
+        task_id: "task-200",
+        description: "新タスク",
+        status: "assigned",
+        assigned_at: "2026-08-07T10:00:00Z",
+        parked_tasks: [
+          {
+            task_id: "task-199",
+            title: "判断待ちタスク",
+            substatus: "checkpoint",
+            parked_at: "2026-08-07T09:00:00Z",
+          },
+        ],
+      });
+      await fs.writeFile(path.join(queueMaidPath, "flora.yaml"), agentYaml);
+
+      const result = await executeGetMyTask({
+        queueMaidPath,
+        agentId: "flora",
+      });
+
+      expect(result.parked_tasks).toEqual([
+        {
+          task_id: "task-199",
+          title: "判断待ちタスク",
+          substatus: "checkpoint",
+          parked_at: "2026-08-07T09:00:00Z",
+        },
+      ]);
+    });
+
+    it("parked_tasksがない場合、既存レスポンス形状を壊さない（回帰確認）", async () => {
+      const agentYaml = stringifyYaml({
+        task_id: "task-100",
+        description: "テストタスク",
+        status: "working",
+        assigned_at: "2026-02-25T10:00:00Z",
+      });
+      await fs.writeFile(path.join(queueMaidPath, "flora.yaml"), agentYaml);
+
+      const result = await executeGetMyTask({
+        queueMaidPath,
+        agentId: "flora",
+      });
+
+      expect(result.task_id).toBe("task-100");
+      expect(result.parked_tasks).toBeUndefined();
+    });
+  });
 });

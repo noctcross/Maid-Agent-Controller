@@ -6,6 +6,7 @@
 export { executeGetMyTask } from "./get-my-task.js";
 export { executeUpdateStatus } from "./update-status.js";
 export { executeAssignTask } from "./assign-task.js";
+export { executeResumeParkedTask, } from "./resume-parked-task.js";
 export { executeGetTeamStatus } from "./get-team-status.js";
 // タスク管理サービス（V2.1）
 export { executeCreateTask, executeGetTask, executeListTasks, executeUpdateTask, 

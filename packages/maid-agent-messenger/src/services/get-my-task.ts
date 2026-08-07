@@ -7,7 +7,7 @@
 import path from "path";
 import fs from "fs/promises";
 import { parse } from "yaml";
-import type { GetMyTaskOutput } from "../types/index.js";
+import type { GetMyTaskOutput, ParkedTask } from "../types/index.js";
 import { readYamlFile, getFirstLine, fileExists } from "../utils/yaml-helper.js";
 import { logger } from "../utils/logger.js";
 
@@ -32,6 +32,7 @@ export interface ParentTaskInfo {
 export interface GetMyTaskResult extends GetMyTaskOutput {
   message?: string;
   parent_chain?: ParentTaskInfo[];  // 親タスクの階層（Task→Work→...）
+  parked_tasks?: ParkedTask[];      // task-1688-2（案B）: パーク中タスク一覧
 }
 
 /**
@@ -158,5 +159,7 @@ export async function executeGetMyTask(
     assigned_at: task.assigned_at || null,
     started_at: task.started_at || null,
     ...(parentChain && parentChain.length > 0 && { parent_chain: parentChain }),
+    // task-1688-2（案B）: パーク中タスク一覧（0件なら省略・既存レスポンス形状を維持）
+    ...(task.parked_tasks && task.parked_tasks.length > 0 && { parked_tasks: task.parked_tasks }),
   };
 }

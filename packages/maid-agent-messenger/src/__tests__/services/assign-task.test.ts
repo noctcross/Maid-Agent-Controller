@@ -224,6 +224,123 @@ describe("executeAssignTask - unified-task-state-gateway", () => {
   });
 });
 
+// task-1688-2 案B: blocked状態のメイドへの割当（パーク・オン・アサイン）
+describe("executeAssignTask - パーク・オン・アサイン（task-1688-2）", () => {
+  it("blocked状態・parked_tasksなしの場合、現在のタスクをパークしてから新タスクを割り当てる", async () => {
+    mockedReadYamlFile.mockResolvedValue({
+      task_id: "task-071",
+      title: "旧タスク",
+      description: "旧タスク説明",
+      target_path: null,
+      status: "blocked",
+      substatus: "checkpoint",
+      assigned_at: "2026-08-01T00:00:00Z",
+      started_at: "2026-08-01T00:00:00Z",
+      completed_at: null,
+      completion_summary: null,
+    });
+
+    const { writeYamlFile } = await import("../../utils/yaml-helper.js");
+    const mockedWriteYamlFile = writeYamlFile as jest.MockedFunction<typeof writeYamlFile>;
+
+    const result = await executeAssignTask(baseParams);
+
+    expect(result.success).toBe(true);
+    // パーク書き込みが行われる
+    expect(mockedWriteYamlFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        parked_tasks: expect.arrayContaining([
+          expect.objectContaining({ task_id: "task-071", title: "旧タスク", substatus: "checkpoint" }),
+        ]),
+      })
+    );
+    // 新タスクの割当自体は通常どおり executeUpdateTask 経由で行われる
+    expect(mockedExecuteUpdateTask).toHaveBeenCalledWith(
+      "/project",
+      expect.objectContaining({ taskId: "072", status: "assigned" })
+    );
+  });
+
+  it("blocked状態・parked_tasksが既に1件ある場合、割当を拒否する", async () => {
+    mockedReadYamlFile.mockResolvedValue({
+      task_id: "task-071",
+      title: "旧タスク",
+      description: null,
+      target_path: null,
+      status: "blocked",
+      substatus: "checkpoint",
+      assigned_at: null,
+      started_at: null,
+      completed_at: null,
+      completion_summary: null,
+      parked_tasks: [
+        { task_id: "task-070", title: "既にパーク中のタスク", substatus: "checkpoint", parked_at: "2026-08-01T00:00:00Z" },
+      ],
+    });
+
+    const result = await executeAssignTask(baseParams);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("task-070");
+    expect(mockedExecuteUpdateTask).not.toHaveBeenCalled();
+  });
+
+  it("パーク書き込みはロック内で再読込した最新状態を使う（TOCTOU対策・メイのレビューSHOULD(a)）", async () => {
+    // 1回目の読み込み（ガード確認用）と2回目（パーク書き込み直前の再読込）で異なる値を返し、
+    // 実際に書き込まれる内容が「再読込後」の値であることを確認する
+    mockedReadYamlFile
+      .mockResolvedValueOnce({
+        task_id: "task-071",
+        title: "旧タスク（ガード確認時点）",
+        description: null,
+        target_path: null,
+        status: "blocked",
+        substatus: "checkpoint",
+        assigned_at: null,
+        started_at: null,
+        completed_at: null,
+        completion_summary: null,
+      })
+      .mockResolvedValueOnce({
+        task_id: "task-071",
+        title: "旧タスク（再読込後）",
+        description: null,
+        target_path: null,
+        status: "blocked",
+        substatus: "checkpoint",
+        assigned_at: null,
+        started_at: null,
+        completed_at: null,
+        completion_summary: null,
+      });
+
+    const { writeYamlFile } = await import("../../utils/yaml-helper.js");
+    const mockedWriteYamlFile = writeYamlFile as jest.MockedFunction<typeof writeYamlFile>;
+
+    await executeAssignTask(baseParams);
+
+    expect(mockedWriteYamlFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        parked_tasks: expect.arrayContaining([
+          expect.objectContaining({ task_id: "task-071", title: "旧タスク（再読込後）" }),
+        ]),
+      })
+    );
+    expect(mockedReadYamlFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("idle状態のメイドへの割当ではparked_tasksを書き込まない（既存挙動の回帰確認）", async () => {
+    const { writeYamlFile } = await import("../../utils/yaml-helper.js");
+    const mockedWriteYamlFile = writeYamlFile as jest.MockedFunction<typeof writeYamlFile>;
+
+    await executeAssignTask(baseParams);
+
+    expect(mockedWriteYamlFile).not.toHaveBeenCalled();
+  });
+});
+
 describe("executeAssignTask - force フラグ", () => {
   it("既存 assignees がある場合、force なしでエラーを返す", async () => {
     // Arrange: タスクに既に assignee がいる状態

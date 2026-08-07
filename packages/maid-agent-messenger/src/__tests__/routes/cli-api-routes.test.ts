@@ -16,6 +16,7 @@ const mockExecuteAssignTask = jest.fn<any>();
 const mockExecuteGetMyTask = jest.fn<any>();
 const mockExecuteUpdateStatus = jest.fn<any>();
 const mockExecuteGetTeamStatus = jest.fn<any>();
+const mockExecuteResumeParkedTask = jest.fn<any>();
 
 jest.unstable_mockModule("../../services/index.js", () => ({
   executeCreateTask: mockExecuteCreateTask,
@@ -23,6 +24,7 @@ jest.unstable_mockModule("../../services/index.js", () => ({
   executeGetMyTask: mockExecuteGetMyTask,
   executeUpdateStatus: mockExecuteUpdateStatus,
   executeGetTeamStatus: mockExecuteGetTeamStatus,
+  executeResumeParkedTask: mockExecuteResumeParkedTask,
 }));
 
 jest.unstable_mockModule("../../middleware/project-path.js", () => ({
@@ -236,6 +238,75 @@ describe("GET /api/agents/:id/task", () => {
     expect(mockExecuteGetMyTask).toHaveBeenCalledWith(
       expect.objectContaining({ summaryOnly: true }),
     );
+  });
+});
+
+// ===========================================
+// POST /api/agents/:id/resume-parked-task - パーク中タスク再開（task-1688-2）
+// ===========================================
+describe("POST /api/agents/:id/resume-parked-task", () => {
+  it("パーク中タスクを再開する", async () => {
+    mockExecuteResumeParkedTask.mockResolvedValue({
+      success: true,
+      agent_id: "emma",
+      task_id: "task-199",
+    });
+
+    const res = await supertest(app)
+      .post("/api/agents/emma/resume-parked-task")
+      .send({ taskId: "task-199" })
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.task_id).toBe("task-199");
+    expect(mockExecuteResumeParkedTask).toHaveBeenCalledWith(
+      expect.objectContaining({ agentId: "emma", taskId: "task-199" }),
+    );
+  });
+
+  it("無効なagentIdで400を返す", async () => {
+    const res = await supertest(app)
+      .post("/api/agents/invalid/resume-parked-task")
+      .send({ taskId: "task-199" })
+      .expect(400);
+
+    expect(res.body.error).toBe("Invalid agentId");
+  });
+
+  it("taskId未指定で400を返す", async () => {
+    const res = await supertest(app)
+      .post("/api/agents/emma/resume-parked-task")
+      .send({})
+      .expect(400);
+
+    expect(res.body.error).toBe("taskId is required");
+  });
+
+  it("サービスがエラーを返した場合400を返す", async () => {
+    mockExecuteResumeParkedTask.mockResolvedValue({
+      success: false,
+      agent_id: "emma",
+      task_id: "task-999",
+      error: "見つかりません",
+    });
+
+    const res = await supertest(app)
+      .post("/api/agents/emma/resume-parked-task")
+      .send({ taskId: "task-999" })
+      .expect(400);
+
+    expect(res.body.error).toBe("見つかりません");
+  });
+
+  it("サービス例外時に500を返す", async () => {
+    mockExecuteResumeParkedTask.mockRejectedValue(new Error("DB error"));
+
+    const res = await supertest(app)
+      .post("/api/agents/emma/resume-parked-task")
+      .send({ taskId: "task-199" })
+      .expect(500);
+
+    expect(res.body.error).toBe("Resume parked task failed");
   });
 });
 

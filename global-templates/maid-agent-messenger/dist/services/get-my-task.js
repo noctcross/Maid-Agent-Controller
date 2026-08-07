@@ -97,5 +97,7 @@ export async function executeGetMyTask(params) {
         assigned_at: task.assigned_at || null,
         started_at: task.started_at || null,
         ...(parentChain && parentChain.length > 0 && { parent_chain: parentChain }),
+        // task-1688-2（案B）: パーク中タスク一覧（0件なら省略・既存レスポンス形状を維持）
+        ...(task.parked_tasks && task.parked_tasks.length > 0 && { parked_tasks: task.parked_tasks }),
     };
 }

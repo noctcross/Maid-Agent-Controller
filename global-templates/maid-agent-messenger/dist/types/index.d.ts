@@ -3,7 +3,8 @@
  * V2.1: Task/Work/Step/Investigation 階層構造対応
  * V5.0.0: @maid-agent/types からの re-export を追加
  */
-export type { Task, Assignee, TaskSummary, TasksData, UpdateTaskParams, SideEffectResults, UpdateTaskResult, EscalationInfo, OperatorRole, StatusTransitionValidation, } from "@maid-agent/types";
+import type { TaskStatus as SourceTaskStatus } from "@maid-agent/types";
+export type { Task, Assignee, TaskSummary, TasksData, UpdateTaskParams, SideEffectResults, UpdateTaskResult, EscalationInfo, OperatorRole, StatusTransitionValidation, TaskStatus as SourceTaskStatus, } from "@maid-agent/types";
 export declare const MAID_IDS: readonly ["emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"];
 export type MaidId = (typeof MAID_IDS)[number];
 export declare const ALL_AGENT_IDS: readonly ["butler", "chief", "emma", "sophia", "lily", "rose", "alice", "may", "flora", "luna"];
@@ -101,7 +102,24 @@ export interface TaskYaml {
     started_at: string | null;
     completed_at: string | null;
     completion_summary: string | null;
+    /** 判断待ちで一時退避されたタスク一覧。最大1件（優先順位のブレ防止）。未使用時は省略可 */
+    parked_tasks?: ParkedTask[];
 }
+/**
+ * 一時退避（パーク）されたタスクの情報（task-1688-2・案B）。
+ * メイドが blocked 状態のまま別タスクを割り当てられた際、元のタスクをここへ退避する。
+ */
+export interface ParkedTask {
+    task_id: string;
+    title: string | null;
+    substatus: string | null;
+    parked_at: string;
+}
+/**
+ * tasks.yaml 側のタスクステータスを maid yaml（レガシー形式）へ変換する。
+ * syncMaidYaml（task-side-effects.ts）・resume-parked-task.ts の共通利用箇所。
+ */
+export declare function toMaidTaskStatus(status: SourceTaskStatus): LegacyTaskStatus;
 /**
  * 旧ステータスから V2.1 ステータスへの変換
  */

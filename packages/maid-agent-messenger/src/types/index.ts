@@ -5,6 +5,7 @@
  */
 
 import { logger } from "../utils/logger.js";
+import type { TaskStatus as SourceTaskStatus } from "@maid-agent/types";
 
 // =============================================================================
 // @maid-agent/types からの re-export（共通型）
@@ -20,6 +21,7 @@ export type {
   EscalationInfo,
   OperatorRole,
   StatusTransitionValidation,
+  TaskStatus as SourceTaskStatus,
 } from "@maid-agent/types";
 
 // =============================================================================
@@ -264,11 +266,40 @@ export interface TaskYaml {
   started_at: string | null;
   completed_at: string | null;
   completion_summary: string | null;
+  // === task-1688-2（案B）: 判断待ちタスクの一時退避 ===
+  /** 判断待ちで一時退避されたタスク一覧。最大1件（優先順位のブレ防止）。未使用時は省略可 */
+  parked_tasks?: ParkedTask[];
+}
+
+/**
+ * 一時退避（パーク）されたタスクの情報（task-1688-2・案B）。
+ * メイドが blocked 状態のまま別タスクを割り当てられた際、元のタスクをここへ退避する。
+ */
+export interface ParkedTask {
+  task_id: string;
+  title: string | null;
+  substatus: string | null; // パーク時点のsubstatus（checkpoint/waiting）
+  parked_at: string;        // ISO timestamp
 }
 
 // =============================================================================
 // V2.1: ステータスマッピングユーティリティ
 // =============================================================================
+
+// tasks.yaml側ステータス → maid yaml（レガシー形式）変換テーブル
+// pending/cancelled は maid yaml 側に対応する状態がないため idle へ丸める
+const TASK_STATUS_TO_MAID_STATUS: Partial<Record<SourceTaskStatus, LegacyTaskStatus>> = {
+  pending: "idle",
+  cancelled: "idle",
+};
+
+/**
+ * tasks.yaml 側のタスクステータスを maid yaml（レガシー形式）へ変換する。
+ * syncMaidYaml（task-side-effects.ts）・resume-parked-task.ts の共通利用箇所。
+ */
+export function toMaidTaskStatus(status: SourceTaskStatus): LegacyTaskStatus {
+  return TASK_STATUS_TO_MAID_STATUS[status] ?? (status as LegacyTaskStatus);
+}
 
 /**
  * 旧ステータスから V2.1 ステータスへの変換

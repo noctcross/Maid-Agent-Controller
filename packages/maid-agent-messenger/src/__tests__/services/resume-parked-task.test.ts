@@ -104,6 +104,7 @@ describe("executeResumeParkedTask - idle分岐（task_id=null）", () => {
         title: "判断待ちタスク",
         description: "判断待ちタスクの説明",
         target_path: "/src/parked/",
+        assigned_at: "2026-08-07T12:00:00Z",
         parked_tasks: [],
       })
     );
@@ -133,6 +134,8 @@ describe("executeResumeParkedTask - completed分岐", () => {
       expect.any(String),
       expect.objectContaining({
         task_id: "task-199",
+        assigned_at: "2026-08-07T12:00:00Z",
+        started_at: "2026-08-01T00:00:00Z",
         parked_tasks: [],
       })
     );
@@ -162,6 +165,7 @@ describe("executeResumeParkedTask - blocked分岐（スワップ）", () => {
       expect.any(String),
       expect.objectContaining({
         task_id: "task-199",
+        assigned_at: "2026-08-07T12:00:00Z",
         parked_tasks: [
           expect.objectContaining({ task_id: "task-200", title: "新タスク（判断待ち中）" }),
         ],

@@ -12,7 +12,7 @@
  */
 import path from "path";
 import { toMaidTaskStatus } from "../types/index.js";
-import { readYamlFile, writeYamlFile } from "../utils/yaml-helper.js";
+import { readYamlFile, writeYamlFile, getTimestamp } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
 import { executeGetTask } from "./task-manager.js";
 import { normalizeTaskId } from "../utils/task-id.js";
@@ -74,7 +74,7 @@ export async function executeResumeParkedTask(params) {
                 task_id: maidYaml.task_id,
                 title: maidYaml.title,
                 substatus: maidYaml.substatus,
-                parked_at: new Date().toISOString(),
+                parked_at: getTimestamp(),
             });
         }
         const updated = {
@@ -85,7 +85,9 @@ export async function executeResumeParkedTask(params) {
             target_path: freshTask.targetPath ?? null,
             status: toMaidTaskStatus(freshTask.status),
             substatus: freshTask.substatus,
-            assigned_at: freshTask.assignedAt,
+            // 計画書§3-6手順3: assigned_atのみ「再開」を表す現在時刻で更新する。
+            // started_at/completed_at等はtasks.yaml側の値をそのまま据え置き、既存タスクの経過を保持する。
+            assigned_at: getTimestamp(),
             started_at: freshTask.startedAt,
             completed_at: freshTask.completedAt,
             completion_summary: freshTask.summary,

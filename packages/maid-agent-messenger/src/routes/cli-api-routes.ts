@@ -18,6 +18,7 @@ import {
   executeGetMyTask,
   executeUpdateStatus,
   executeGetTeamStatus,
+  executeResumeParkedTask,
 } from "../services/index.js";
 import { getProjectPathFromRequest } from "../middleware/project-path.js";
 import { MAID_IDS, type UpdatableStatus } from "../types/index.js";
@@ -218,6 +219,57 @@ router.get("/api/agents/:id/task", async (req: Request, res: Response) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     res.status(500).json({ error: "Task retrieval failed", details: message });
+  }
+});
+
+// =============================================================================
+// POST /api/agents/:id/resume-parked-task - パーク中タスク再開（task-1688-2・案B）
+// =============================================================================
+router.post("/api/agents/:id/resume-parked-task", async (req: Request, res: Response) => {
+  try {
+    const projectPath = getProjectPathFromRequest(req);
+    const agentId = req.params.id;
+    const { taskId } = req.body;
+
+    if (!MAID_IDS.includes(agentId as typeof MAID_IDS[number])) {
+      res.status(400).json({
+        error: "Invalid agentId",
+        validAgents: MAID_IDS,
+      });
+      return;
+    }
+
+    if (!taskId || typeof taskId !== "string") {
+      res.status(400).json({ error: "taskId is required" });
+      return;
+    }
+
+    const paths = buildInternalPaths(projectPath);
+
+    const result = await executeResumeParkedTask({
+      queueMaidPath: paths.queueMaidPath,
+      projectPath,
+      agentId,
+      taskId,
+    });
+
+    if (!result.success) {
+      res.status(400).json({
+        error: result.error || "Resume failed",
+        agentId,
+        taskId,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      agent_id: result.agent_id,
+      task_id: result.task_id,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(500).json({ error: "Resume parked task failed", details: message });
   }
 });
 

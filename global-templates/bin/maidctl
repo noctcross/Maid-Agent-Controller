@@ -413,7 +413,10 @@ format_my_task() {
     "Description: \(.description // "-")",
     "Target Path: \(.target_path // "-")",
     "Assigned At: \(.assigned_at // "-")",
-    "Started At: \(.started_at // "-")"
+    "Started At: \(.started_at // "-")",
+    (if (.parked_tasks // []) | length > 0 then
+      (.parked_tasks[] | "パーク中: \(.task_id)（\(.title // "-")）")
+    else empty end)
   '
 }
 
@@ -991,6 +994,88 @@ cmd_task_assign() {
       [ -n "$warning" ] && echo "⚠️  $warning" >&2
     fi
   fi
+}
+
+# =============================================================================
+# resume-parked-task サブコマンド（task-1688-2・案B）
+# =============================================================================
+
+cmd_resume_parked_task() {
+  local task_id=""
+  local agent_id=""
+  local json_output=false
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --agent|-a) agent_id="$2"; shift 2 ;;
+      --json) json_output=true; shift ;;
+      --help|-h)
+        echo "使用法: maidctl resume-parked-task <task-id> --agent AGENT_ID [オプション]"
+        echo ""
+        echo "パーク中タスクを再開する（チーフ専用の明示的操作。自動昇格はしない）。"
+        echo ""
+        echo "オプション:"
+        echo "  --agent, -a AGENT_ID  対象メイド（必須）"
+        echo "  --json                JSON出力"
+        echo ""
+        echo "有効なエージェント: $VALID_AGENTS"
+        return 0
+        ;;
+      -*)
+        echo "エラー: 不明なオプション: $1" >&2
+        echo "  -h/--help でオプション一覧を確認できます" >&2
+        exit $EXIT_INVALID_ARGS
+        ;;
+      *)
+        if [ -z "$task_id" ]; then
+          task_id="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [ -z "$task_id" ]; then
+    echo "エラー: タスクIDを指定してください" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  if [ -z "$agent_id" ]; then
+    echo "エラー: 対象メイドを指定してください (--agent)" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  # エージェントIDの検証
+  if ! echo "$VALID_AGENTS" | grep -qw "$agent_id"; then
+    echo "エラー: 無効なエージェント: $agent_id" >&2
+    echo "有効なエージェント: $VALID_AGENTS" >&2
+    exit $EXIT_INVALID_ARGS
+  fi
+
+  local escaped_task_id
+  escaped_task_id=$(json_escape "$task_id")
+  local data="{\"taskId\": \"$escaped_task_id\"}"
+
+  local result
+  result=$(api_request POST "/api/agents/${agent_id}/resume-parked-task" "$data")
+
+  if [ "$json_output" = true ]; then
+    echo "$result"
+    return
+  fi
+
+  if check_jq; then
+    local success
+    success=$(echo "$result" | jq -r '.success // false' 2>/dev/null)
+    if [ "$success" != "true" ]; then
+      local error_msg
+      error_msg=$(echo "$result" | jq -r '.error // "不明なエラー"' 2>/dev/null)
+      echo "エラー: $error_msg" >&2
+      exit $EXIT_INVALID_ARGS
+    fi
+  fi
+
+  echo "タスク #$task_id を $agent_id で再開しました"
 }
 
 # =============================================================================
@@ -1818,6 +1903,8 @@ maidctl - Maid Agent CLI Tool v${VERSION}
 
   notify <target> "msg"  通知を送信
 
+  resume-parked-task <id> --agent AGENT_ID  パーク中タスクを再開（チーフ用・task-1688-2）
+
 コマンド（旧形式・後方互換）:
   task list/get/create/update/assign
   my-task / my-status
@@ -2442,6 +2529,7 @@ main() {
       ;;
     my-task) shift; cmd_my_task "$@" ;;
     my-status) shift; cmd_my_status "$@" ;;
+    resume-parked-task) shift; cmd_resume_parked_task "$@" ;;
     team)
       shift
       case "${1:-}" in

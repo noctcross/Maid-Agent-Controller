@@ -106,6 +106,19 @@ export const TASK_CATEGORIES = [
 // =============================================================================
 // V2.1: ステータスマッピングユーティリティ
 // =============================================================================
+// tasks.yaml側ステータス → maid yaml（レガシー形式）変換テーブル
+// pending/cancelled は maid yaml 側に対応する状態がないため idle へ丸める
+const TASK_STATUS_TO_MAID_STATUS = {
+    pending: "idle",
+    cancelled: "idle",
+};
+/**
+ * tasks.yaml 側のタスクステータスを maid yaml（レガシー形式）へ変換する。
+ * syncMaidYaml（task-side-effects.ts）・resume-parked-task.ts の共通利用箇所。
+ */
+export function toMaidTaskStatus(status) {
+    return TASK_STATUS_TO_MAID_STATUS[status] ?? status;
+}
 /**
  * 旧ステータスから V2.1 ステータスへの変換
  */

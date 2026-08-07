@@ -7,10 +7,11 @@
  */
 
 import path from "path";
-import type { AssignTaskOutput } from "../types/index.js";
-import { readYamlFile } from "../utils/yaml-helper.js";
+import type { AssignTaskOutput, ParkedTask } from "../types/index.js";
+import { readYamlFile, writeYamlFile, getTimestamp } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
 import { executeUpdateTask, executeGetTask, executeGetTaskChildren } from "./task-manager.js";
+import type { Assignee } from "./task-manager.js";
 import { normalizeTaskId } from "../utils/task-id.js";
 
 export interface AssignTaskParams {
@@ -52,6 +53,53 @@ export async function executeAssignTask(
     };
   }
 
+  // task-1688-2（案B）: blocked状態（判断待ち）のメイドへは、現在のタスクをパークしてから
+  // 新タスクの割当へ進む（パーク・オン・アサイン）。parked_tasksは最大1件（優先順位のブレ防止）。
+  if (maidTask.status === "blocked") {
+    const guardParked = maidTask.parked_tasks ?? [];
+    if (guardParked.length > 0) {
+      return {
+        success: false,
+        assigned_to: targetAgent,
+        task_id: maidTask.task_id || "",
+        error: `${targetAgent} は既にパーク中タスク（${guardParked[0]!.task_id}）を保持しています。先にresolveするか、別メイドへの配分を検討してください。`,
+      };
+    }
+
+    // メイのレビューSHOULD(a): ガード確認時点のスナップショット（maidTask）は書き込みに使わず、
+    // 新しいロックの中で再読込した最新状態を元にパーク判定・書き込みを行う（TOCTOU対策）。
+    let parkConflict: string | null = null;
+    await withFileLock(filePath, async () => {
+      const latest = await readYamlFile(filePath);
+      const latestParked = latest.parked_tasks ?? [];
+      if (latestParked.length > 0) {
+        parkConflict = latestParked[0]!.task_id;
+        return;
+      }
+      if (!latest.task_id) return;
+
+      const parkedEntry: ParkedTask = {
+        task_id: latest.task_id,
+        title: latest.title,
+        substatus: latest.substatus,
+        parked_at: getTimestamp(),
+      };
+      await writeYamlFile(filePath, {
+        ...latest,
+        parked_tasks: [parkedEntry],
+      });
+    });
+
+    if (parkConflict) {
+      return {
+        success: false,
+        assigned_to: targetAgent,
+        task_id: maidTask.task_id || "",
+        error: `${targetAgent} は既にパーク中タスク（${parkConflict}）を保持しています。先にresolveするか、別メイドへの配分を検討してください。`,
+      };
+    }
+  }
+
   // executeUpdateTask に全処理を委譲（maid yaml ロック解放済み）
   const projectPath = path.resolve(queueMaidPath, "..", "..", "..", "..");
   const taskIdNormalized = normalizeTaskId(taskId);
@@ -77,7 +125,7 @@ export async function executeAssignTask(
   // 既存 assignees チェック
   if (taskResult.task && taskResult.task.assignees && taskResult.task.assignees.length > 0) {
     if (!force) {
-      const existingAgents = taskResult.task.assignees.map(a => a.agentId).join(", ");
+      const existingAgents = taskResult.task.assignees.map((a: Assignee) => a.agentId).join(", ");
       return {
         success: false,
         assigned_to: targetAgent,

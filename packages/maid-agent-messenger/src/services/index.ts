@@ -7,6 +7,11 @@
 export { executeGetMyTask, type GetMyTaskParams, type GetMyTaskResult } from "./get-my-task.js";
 export { executeUpdateStatus, type UpdateStatusParams } from "./update-status.js";
 export { executeAssignTask, type AssignTaskParams } from "./assign-task.js";
+export {
+  executeResumeParkedTask,
+  type ResumeParkedTaskParams,
+  type ResumeParkedTaskOutput,
+} from "./resume-parked-task.js";
 export { executeGetTeamStatus, type GetTeamStatusParams } from "./get-team-status.js";
 
 // タスク管理サービス（V2.1）

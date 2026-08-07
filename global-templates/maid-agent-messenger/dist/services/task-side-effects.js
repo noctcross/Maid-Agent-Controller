@@ -13,6 +13,7 @@ import * as fs from "fs/promises";
 import { readYamlFile, writeYamlFile, fileExists, copyFile, writeTextFile, sanitizeDescription, } from "../utils/yaml-helper.js";
 import { withFileLock } from "../utils/file-lock.js";
 import { loadConfig } from "../utils/config-loader.js";
+import { toMaidTaskStatus } from "../types/index.js";
 /**
  * 報告書ファイルからタスクIDを抽出
  *
@@ -162,13 +163,8 @@ async function syncMaidYaml(projectPath, task, params, prevAssignees) {
         try {
             await withFileLock(maidYamlPath, async () => {
                 const maidYaml = await readYamlFile(maidYamlPath);
-                // tasks.yaml → maid yaml 同期
-                // status 変換: "pending"/"cancelled" → "idle"、それ以外はそのまま
-                const STATUS_MAP = {
-                    pending: "idle",
-                    cancelled: "idle",
-                };
-                const maidStatus = STATUS_MAP[task.status] ?? task.status;
+                // tasks.yaml → maid yaml 同期（status変換は共通ユーティリティに委譲）
+                const maidStatus = toMaidTaskStatus(task.status);
                 maidYaml.task_id = `task-${task.id}`;
                 maidYaml.title = task.title;
                 maidYaml.description = params.description ?? task.description;
